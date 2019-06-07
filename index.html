@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SVG</title>
+</head>
+<body>
+
+<!--
+<script src="js/svgbase.js"></script>
+<script type="module" src="./js/test.js"></script>
+-->
+<!--
+<script type="module">
+    'use strict';
+
+    import {message, helloWorld} from  "./js/monmodule.js";
+
+    helloWorld();
+    console.log(message);
+</script>
+-->
+<script>
+    let a = {
+      n:"a",
+        f1() {
+          return ()=>{console.log(this)}
+        }
+    };
+    let b = {
+        n:"b"
+    };
+    console.log(a.f1);
+    a.f1()();
+</script>
+</body>
+</html>
