@@ -42,7 +42,8 @@ export const Events = {
     RECEIVE_ROTATION : "receive-rotation",
     ROTATED : "rotated",
     REVERT_ROTATION : "revert-rotation",
-    REVERT_ROTATED : "revert-rotated"
+    REVERT_ROTATED : "revert-rotated",
+    SCROLL_END : "scroll-end"
 };
 
 export function sortByDistance(elements, gx, gy) {
@@ -57,6 +58,42 @@ export function sortByDistance(elements, gx, gy) {
         return distance(elem1, gx, gy) - distance(elem2, gx, gy);
     });
 
+}
+
+export function local2local(source, target, ...points) {
+    let matrix = source.global.multLeft(target.global.invert());
+    let result = [];
+    for (let index=0; index<points.length; index+=2) {
+        let x = points[index];
+        let y = points[index+1];
+        result.push(matrix.x(x, y), matrix.y(x, y));
+    }
+    return result;
+}
+
+export function getBox(points) {
+    let left = points[0];
+    let right = points[0];
+    let top = points[1];
+    let bottom = points[1];
+    for (let index=2; index<points.length; index+=2) {
+        if (points[index]<left) left=points[index];
+        else if (points[index]>right) right=points[index];
+        if (points[index+1]<top) top=points[index+1];
+        else if (points[index+1]>bottom) bottom=points[index+1];
+    }
+    return {x:left, y:top, width:right-left, height:bottom-top};
+}
+
+export function getCanvasLayer(artifact) {
+    let parent = artifact.parent;
+    while (parent != null) {
+        if (parent._owner && parent._owner instanceof CanvasLayer) {
+            return parent._owner;
+        }
+        parent = parent.parent;
+    }
+    return null;
 }
 
 export function makeObservable(superClass) {
@@ -286,6 +323,16 @@ export class BoardElement {
     get local() { return this.translation; }
     get global() { return this._root.globalMatrix; }
 
+    get lbbox() {
+        return {x:this.left, y:this.top, width:this.right-this.left, height:this.bottom-this.top};
+    }
+    l2lbbox(target) {
+        let result = local2local(this, target,
+            this.left, this.top, this.right, this.top,
+            this.left, this.bottom, this.right, this.bottom);
+        return getBox(result);
+    }
+
     relative(matrix) {
         return this._root.globalMatrix.invert().add(matrix);
     }
@@ -349,14 +396,7 @@ export class BoardElement {
     }
 
     get canvasLayer() {
-        let parent = this._root.parent;
-        while (parent != null) {
-            if (parent._owner && parent._owner instanceof CanvasLayer) {
-                return parent._owner;
-            }
-            parent = parent.parent;
-        }
-        return null;
+        return getCanvasLayer(this._root);
     }
 
     _acceptDrop(element) {
@@ -709,15 +749,15 @@ export function makeDraggable(superClass) {
         this._dragOp = operation;
         if (operation) {
             let accepted = false;
-            let dragMove = event=> {
-                if (accepted) {
-                    operation._onDragMove(this, event.pageX, event.pageY, event);
-                }
-            };
             let dragStart = event=> {
                 accepted = operation._accept(this, event.pageX, event.pageY, event);
                 if (accepted) {
                     operation._onDragStart(this, event.pageX, event.pageY, event);
+                }
+            };
+            let dragMove = event=> {
+                if (accepted) {
+                    operation._onDragMove(this, event.pageX, event.pageY, event);
                 }
             };
             let dragDrop = event=> {
@@ -1066,7 +1106,7 @@ export class DragMoveOperation extends DragOperation {
                 if (target && target._dropTarget) {
                     target = target._dropTarget();
                 }
-                if (target) {
+                if (target && getCanvasLayer(target._root) instanceof BaseLayer) {
                     let { x, y } = computePosition(selectedElement._root, target._root);
                     selectedElement.move(x, y);
                     if (selectedElement.rotate) {
@@ -1612,6 +1652,10 @@ export class ToolsLayer extends CanvasLayer {
         this._root.add(artifact);
     }
 
+    get matrix() {
+        return this._root.matrix.clone();
+    }
+
     bbox(artifact) {
         let parent = artifact.parent;
         this._root.add(artifact);
@@ -1642,6 +1686,10 @@ export class GlassLayer extends CanvasLayer {
 
     prepareDragMove() {
         this._root.matrix = this._canvas._baseLayer.matrix;
+    }
+
+    prepareToolsDrag() {
+        this._root.matrix = this._canvas._toolsLayer.matrix;
     }
 
     putArtifact(artifact) {
@@ -1859,6 +1907,7 @@ export class Canvas {
     resetGlass() {this._glassLayer.reset();}
     prepareGlassForDragStart() {this._glassLayer.prepareDragStart();}
     prepareGlassForDragMove() {this._glassLayer.prepareDragMove();}
+    prepareGlassForToolsDrag() {this._glassLayer.prepareToolsDrag();}
     hideGlass() {this._glassLayer.hide();}
     showGlass() {this._glassLayer.show();}
 }

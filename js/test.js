@@ -1,6 +1,7 @@
 'use strict';
 
-import {Rect, Circle, Svg, Animate, Attrs, Stroke, AttributeType, AnimationFill} from "./svgbase.js";
+import {Rect, Rotation, Translation, Scaling, Path, Ellipse, Line, Polygon, Polyline, M, L, RasterImage,
+    SvgImage, SvgRasterImage, MouseEvents, ClipPath, Circle, Svg, Animate, Attrs, Stroke, AttributeType, AnimationFill} from "./svgbase.js";
 import {Animation, Serial, Parallel, play, animate} from "./animator.js";
 
 function testSvg4() {
@@ -62,7 +63,6 @@ function testSvg3() {
         .attach(document.body);
 }
 
-/*
 function testSvg1() {
     let mask = new Mask("mask2", 0, 0, 100, 100)
         .add(new Circle(25, 25, 25).attrs({stroke: Stroke.NONE, fill: "#ffffff"}));
@@ -131,7 +131,7 @@ function testSvg2() {
     rot.add(svgImage);
     root.add(svgRasterImage);
     root.add(svgRasterImage2);
-//scale.clip_path = clipPath;
+    scale.clip_path = clipPath;
     svg.attach(document.body);
 
     setTimeout(() => {
@@ -150,5 +150,19 @@ function testSvg2() {
 }
 
 //testSvg1();
-*/
-testSvg4();
+//testSvg2();
+//testSvg4();
+
+function testSvg5() {
+    let svg = new Svg(2000, 1000);
+    let root = new Translation(50, 50);
+    let rect = new Rect(0, 0, 500, 250);
+    let clipPath = new ClipPath("cp").add(new Rect(100, 100, 100, 100));
+
+    svg.add(root.add(rect));
+    root.add(clipPath);
+    rect.clip_path = clipPath;
+    svg.attach(document.body);
+}
+
+testSvg5();

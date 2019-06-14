@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <title>export_on</title>
+  <g id="Layer_2" data-name="Layer 2">
+    <g id="toolbar">
+      <rect width="40" height="40" rx="1.6" fill="#6d6c6c"/>
+      <g>
+        <polygon points="14.72 24.41 10.81 24.41 10.81 10.82 24.4 10.82 24.4 14.71 26.15 14.71 26.15 9.07 9.06 9.07 9.06 26.17 14.72 26.17 14.72 24.41" fill="#fff"/>
+        <path d="M30.94,30.93H13.85V13.83H30.94ZM15.6,29.17H29.19V15.59H15.6Z" fill="#fff"/>
+      </g>
+    </g>
+  </g>
+</svg>

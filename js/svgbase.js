@@ -163,6 +163,7 @@ export const Attrs = {
     STROKE_MITERLIMIT : "stroke-miterlimit",
     STROKE_OPACITY : "stroke-opacity",
     STROKE_WIDTH : "stroke-width",
+    TEXT_ANCHOR : "text-anchor",
     TEXT : "text",
     FONT_FAMILY : "font-family",
     FONT_SIZE : "font-size",
@@ -1367,7 +1368,7 @@ defineStringProperty(SVGElement, Attrs.ID);
 // Testé
 defineFloatProperty(SVGElement, Attrs.OPACITY);
 // Testé
-defineFloatProperty(SVGElement, Attrs.VISIBILITY);
+defineStringProperty(SVGElement, Attrs.VISIBILITY);
 // Testé
 defineStringProperty(SVGElement, Attrs.STROKE);
 defineFloatListProperty(SVGElement, Attrs.STROKE_DASHARRAY);
@@ -1377,10 +1378,13 @@ defineStringProperty(SVGElement, Attrs.STROKE_LINEJOIN);
 defineIntegerProperty(SVGElement, Attrs.STROKE_MITERLIMIT);
 defineFloatProperty(SVGElement, Attrs.STROKE_OPACITY);
 defineFloatProperty(SVGElement, Attrs.STROKE_WIDTH);
+// Testé
 defineStringProperty(SVGElement, Attrs.FILL);
+// Testé
 defineFloatProperty(SVGElement, Attrs.FILL_OPACITY);
-defineElementProperty(SVGElement, Attrs.CLIP_PATH);
-defineElementProperty(SVGElement, Attrs.MASK);
+// Testé
+defineElementProperty(SVGElement, Attrs.CLIP_PATH, "url(#ELEMENT)");
+defineElementProperty(SVGElement, Attrs.MASK, "url(#ELEMENT)");
 // Partiel
 SVGElement.elementOn = function(node) {
     while (node) {
@@ -1479,6 +1483,48 @@ defineDimensionProperty(Svg, Attrs.HEIGHT);
 
 let matrixOp = 0;
 
+export const Cursor = {
+    ALIAS: "alias",
+    ALL_SCROLL: "all-scroll",
+    AUTO: "auto",
+    CELL: "cell",
+    CONTEXT_MENU: "context-menu",
+    COL_RESIZE: "col-resize",
+    COPY: "copy",
+    CROSSHAIR: "crosshair",
+    DEFAULT: "default",
+    E_RESIZE: "e-resize",
+    EW_RESIZE: "ew-resize",
+    GRAB: "grab",
+    GRABBING: "grabbing",
+    HELP: "help",
+    MOVE: "move",
+    N_RESIZE: "n-resize",
+    NE_RESIZE: "ne-resize",
+    NESW_RESIZE: "nesw-resize",
+    NS_RESIZE: "ns-resize",
+    NW_RESIZE: "nw-resize",
+    NWSE_RESIZE: "nwse-resize",
+    NO_DROP: "no-drop",
+    NONE: "none",
+    NOT_ALLOWED: "not-allowed",
+    POINTER: "pointer",
+    PROGRESS: "progress",
+    ROW_RESIZE: "row-resize",
+    S_RESIZE: "s-resize",
+    SE_RESIZE: "se-resize",
+    SW_RESIZE: "sw-resize",
+    TEXT: "text",
+    URL: "URL",
+    VERTICAL_TEXT: "vertical-text",
+    W_RESIZE: "w-resize",
+    WAIT: "wait",
+    ZOOM_IN: "zoom-in",
+    ZOOM_OUT: "zoom-out",
+    INITIAL: "initial",
+    INHERIT: "inherit"
+};
+
 export class SVGCoreElement extends SVGElement {
 
     // Testé
@@ -1552,6 +1598,13 @@ export class SVGCoreElement extends SVGElement {
         }
     }
 
+    get cursor() {
+        return this._node.style.cursor;
+    }
+
+    set cursor(cursor) {
+        this._node.style.cursor = cursor;
+    }
 }
 defineStringProperty(SVGCoreElement, Attrs.CLASS);
 defineStringProperty(SVGCoreElement, Attrs.STYLE);
@@ -1688,8 +1741,10 @@ export class Scaling extends Group {
     }
 }
 
+// Testé
 export class ClipPath extends SVGElement {
 
+    // Testé
     constructor(id) {
         super("clipPath");
         this.id = id;
@@ -2123,6 +2178,12 @@ export class Path extends Shape {
 }
 defineDirectiveProperty(Path, "d");
 
+export const TextAnchor = {
+    START : "start",
+    MIDDLE : "middle",
+    END : "end"
+};
+
 export class TextItem extends Shape {
     constructor(type, x, y, text) {
         super(type);
@@ -2158,6 +2219,7 @@ export class TextItem extends Shape {
         }
     }
 }
+defineStringProperty(TextItem, Attrs.TEXT_ANCHOR);
 defineDimensionProperty(TextItem, Attrs.X);
 defineDimensionProperty(TextItem, Attrs.Y);
 defineFloatProperty(TextItem, Attrs.ROTATE);
@@ -2178,42 +2240,41 @@ export class Text extends TextItem {
 defineStringProperty(Text, Attrs.FONT_FAMILY);
 defineIntegerProperty(Text, Attrs.FONT_SIZE);
 
+export const AspectRatio = {
+    NONE: "none"
+};
+
 // Testé
 export class RasterImage extends Shape {
 
     // Testé
     constructor(url, x=0, y=0, width=0, height=0) {
         super();
+        this._attrs.width = width;
+        this._attrs.height = height;
         this._attrs.href=url;
         this._attrs.x = x;
         this._attrs.y = y;
-        this._attrs.width = width;
-        this._attrs.height = height;
+        this._attrs.preserveAspectRatio = AspectRatio.NONE;
         if (!width || !height) {
             this.node("g");
             loadRasterImage(url, raster=>{
-               this.setImage(raster, width, height, url, x, y)
+               this._setImage(raster, width, height, url)
             });
         }
         else {
-            this.build(width, height, url, x, y);
+            this._build();
         }
     }
 
     // Testé
-    build(width, height, url, x, y) {
-        console.log(width+" "+height)
+    _build() {
         this.node("image");
-        this.attr("width", width);
-        this.attr("height", height);
-        this.attr("href", url);
-        this.attr("x", x);
-        this.attr("y", y);
-        this.attr("preserveAspectRatio", "none");
+        this.attrs(this._attrs);
     }
 
     // Testé
-    setImage(raster, width, height, url, x, y) {
+    _setImage(raster, width, height) {
         if (!width || !height) {
             if (width) {
                 height = raster.height * width / raster.width;
@@ -2225,7 +2286,9 @@ export class RasterImage extends Shape {
             }
         }
         this._old = this._node;
-        this.build(width, height, url, x, y);
+        this._attrs.width = width;
+        this._attrs.height = height;
+        this._build();
         if (this.parent) {
             this.parent.reset(this);
         }
@@ -2235,7 +2298,7 @@ export class RasterImage extends Shape {
     clone() {
         let copy = super.clone();
         loadRasterImage(this.href, raster=> {
-            copy.setImage(raster, this.width, this.height, this.href, this.x, this.y);
+            copy._setImage(raster, this.width, this.height);
         });
         return copy;
     }
@@ -2386,14 +2449,15 @@ export class SvgRasterImage extends Shape {
         this._attrs.height = height;
         this._url = url;
         loadRasterSvgImage(url, raster=> {
-            this.setImage(raster);
+            this._setImage(raster);
         })
     }
 
     // Testé
-    setImage(raster) {
+    _setImage(raster) {
         this._old = this._node;
         this._node = raster.cloneNode(true);
+        this.attrs(this._attrs);
         if (this.parent) {
             this.parent.reset(this);
         }
@@ -2403,7 +2467,7 @@ export class SvgRasterImage extends Shape {
     _cloneContent(copy) {
         super._cloneContent(copy);
         loadRasterSvgImage(this._url, raster=> {
-            copy.setImage(raster);
+            copy._setImage(raster);
         });
         return this;
     }

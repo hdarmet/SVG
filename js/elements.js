@@ -8,10 +8,6 @@ import {
     Group, Rect, RasterImage
 } from "./svgbase.js";
 
-export function local2local(source, target, ...points) {
-    let matrix = source.global.multLeft(target.global.invert());
-}
-
 export function makeFramed(superClass) {
 
     makeShaped(superClass);
@@ -102,9 +98,19 @@ export class AbstractBoardContent extends BoardElement {
     }
 
     _acceptDrop(element) {
-        console.log(element);
-        return true;
+        let box = element.l2lbbox(this);
+        return box.width<=this.width && box.height<=this.height;
     }
+
+    _receiveDrop(element) {
+        let box = element.l2lbbox(this);
+        if (box.x<this.left) box.x=this.left;
+        if (box.x+box.width>this.right) box.x=this.right-box.width;
+        if (box.y<this.top) box.y=this.top;
+        if (box.y+box.height>this.bottom) box.y=this.bottom-box.height;
+        element.move(box.x+box.width/2, box.y+box.height/2);
+    }
+
 }
 makeContainer(AbstractBoardContent);
 makeDraggable(AbstractBoardContent);

@@ -1,7 +1,7 @@
 'use strict';
 
 import {describe, it, before, assert} from "./test-toolkit.js";
-import {SVGElement, Rect, Circle, Ellipse, Line, Svg, Group, Translation, Rotation, Scaling,
+import {SVGElement, ClipPath, Mask, Rect, Circle, Ellipse, Line, Svg, Group, Translation, Rotation, Scaling,
     Polygon, Polyline, RasterImage, SvgImage, SvgRasterImage,
     MouseEvents, Colors, Visibility, FeGaussianBlur, Filter, P100,
     FilterUnits, ColorInterpolationFilters, FeEdgeMode, FeIn
@@ -94,12 +94,12 @@ describe("Basic SVG Objects", ()=> {
         let line = new Line(10, 20, 110, 120);
         line.stroke = Colors.BLACK;
         svg.add(line);
-        assert(line.outerHTML).equalsTo('<line x1="10" y1="20" x2="110" y2="120" stroke="black"></line>');
+        assert(line.outerHTML).equalsTo('<line x1="10" y1="20" x2="110" y2="120" stroke="#0F0F0F"></line>');
         line.x1 = 30;
         line.y1 = 40;
         line.x2 = 130;
         line.y2 = 140;
-        assert(line.outerHTML).equalsTo('<line x1="30" y1="40" x2="130" y2="140" stroke="black"></line>');
+        assert(line.outerHTML).equalsTo('<line x1="30" y1="40" x2="130" y2="140" stroke="#0F0F0F"></line>');
         assert(line.x1).equalsTo(30);
         assert(line.y1).equalsTo(40);
         assert(line.x2).equalsTo(130);
@@ -130,7 +130,7 @@ describe("Basic SVG Objects", ()=> {
         assert(svg.innerHTML).equalsTo('<defs></defs><g></g>');
         setTimeout(()=>{
             assert(svg.innerHTML).equalsTo(
-                '<defs></defs><image width="40" height="40" href="images/home.png" x="0" y="0"></image>');
+                '<defs></defs><image width="40" height="40" href="images/home.png" x="0" y="0" preserveAspectRatio="none"></image>');
             done();
         }, 50);
     });
@@ -153,7 +153,7 @@ describe("Basic SVG Objects", ()=> {
         assert(svg.innerHTML).equalsTo('<defs></defs><g></g>');
         setTimeout(()=>{
             assert(svg.innerHTML).contains(
-                '<defs></defs><image height="40" width="40" xlink:href="data:image/png;base64,');
+                '<defs></defs><image height="80" width="80" xlink:href="data:image/png;base64,');
             done();
         }, 50);
     });
@@ -480,7 +480,7 @@ describe("Basic SVG Objects", ()=> {
         svg.add(image.clone());
         setTimeout(()=>{
             assert(svg.innerHTML).equalsTo(
-                '<defs></defs><image width="40" height="40" href="images/home.png" x="0" y="0"></image>');
+                '<defs></defs><image width="40" height="40" href="images/home.png" x="0" y="0" preserveAspectRatio="none"></image>');
             done();
         }, 50);
     });
@@ -501,7 +501,7 @@ describe("Basic SVG Objects", ()=> {
         svg.add(image.clone());
         setTimeout(()=>{
             assert(svg.innerHTML).contains(
-                '<defs></defs><image height="40" width="40" xlink:href="data:image/png;base64,');
+                '<defs></defs><image height="80" width="80" xlink:href="data:image/png;base64,');
             done();
         }, 50);
     });
@@ -534,6 +534,57 @@ describe("Basic SVG Objects", ()=> {
         rect.stroke = "#000000";
         assert(rect.outerHTML).equalsTo('<rect x="10" y="20" width="100" height="200" id="rect" opacity="0.5" ' +
             'visibility="hidden" stroke="#000000"></rect>');
-    })
+    });
 
+    it ("Checks clic path attributes (when inserted in svg defs)", ()=>{
+        let rect = new Rect(10, 20, 100, 200);
+        let clip = new ClipPath().add(new Rect(0, 0, 50, 50));
+        svg.add(rect);
+        svg.addDef(clip);
+        rect.clip_path = clip;
+        rect.id = "rect";
+        assert(svg.outerHTML).contains('<defs><clipPath id="ID1"><rect x="0" y="0" width="50" height="50">' +
+            '</rect></clipPath></defs>');
+        assert(rect.outerHTML).equalsTo('<rect x="10" y="20" width="100" height="200" clip-path="url(#ID1)" id="rect"></rect>');
+    });
+
+    it ("Checks clic path attributes (when inserted in a group)", ()=>{
+        let rect = new Rect(10, 20, 100, 200);
+        let clip = new ClipPath().add(new Rect(0, 0, 50, 50));
+        clip.id='ID1';
+        let group = new Group();
+        svg.add(group);
+        group.add(clip).add(rect);
+        rect.clip_path = clip;
+        rect.id = "rect";
+        assert(group.outerHTML).equalsTo('<g>' +
+            '<clipPath id="ID1"><rect x="0" y="0" width="50" height="50"></rect></clipPath>' +
+            '<rect x="10" y="20" width="100" height="200" clip-path="url(#ID1)" id="rect"></rect></g>');
+    });
+
+    it ("Checks mask attributes (when inserted in svg defs)", ()=>{
+        let rect = new Rect(10, 20, 100, 200);
+        let mask = new Mask("ID1", 0, 0, 50, 25).add(new Rect(0, 0, 50, 50).attrs({fill:Colors.BLACK}));
+        svg.add(rect);
+        svg.addDef(mask);
+        rect.mask = mask;
+        rect.id = "rect";
+        assert(svg.outerHTML).contains('<defs><mask id="ID1" x="0" y="0" width="50" height="25">' +
+            '<rect x="0" y="0" width="50" height="50" fill="#0F0F0F"></rect></mask></defs>');
+        assert(rect.outerHTML).equalsTo('<rect x="10" y="20" width="100" height="200" mask="url(#ID1)" id="rect">' +
+            '</rect>');
+    });
+
+    it ("Checks mask attributes (when inserted in a group)", ()=>{
+        let rect = new Rect(10, 20, 100, 200);
+        let mask = new Mask("ID1", 0, 0, 50, 25).add(new Rect(0, 0, 50, 50).attrs({fill:Colors.BLACK}));
+        let group = new Group();
+        svg.add(group);
+        group.add(mask).add(rect);
+        rect.mask = mask;
+        rect.id = "rect";
+        assert(group.outerHTML).equalsTo('<g><mask id="ID1" x="0" y="0" width="50" height="25">' +
+            '<rect x="0" y="0" width="50" height="50" fill="#0F0F0F"></rect></mask>' +
+            '<rect x="10" y="20" width="100" height="200" mask="url(#ID1)" id="rect"></rect></g>');
+    });
 });

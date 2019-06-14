@@ -3,12 +3,43 @@
 import {Rect, Rotation, Colors} from "./svgbase.js";
 import {Context, Memento, Selection, Canvas, BoardElement, BoardTable,
     makeMoveable, makeRotatable, makeShaped, makeDraggable, makeClickable, makeSelectable, DragSwitchOperation} from "./toolkit.js";
-import {makeMenuOwner, TextMenuOption, TextToggleMenuOption, CheckMenuOption, ColorChooserMenuOption} from "./tools.js";
+import {ToolCommandPopup, ToolCommand, ToolToggleCommand, ToolExpandablePopup, ToolExpandablePanel,
+    ToolGridPanelContent, ToolCell,
+    makeMenuOwner, TextMenuOption, TextToggleMenuOption, CheckMenuOption, ColorChooserMenuOption} from "./tools.js";
 import {BoardBox, BoardImageBox} from "./elements.js";
 
 Context.selection = new Selection();
 Context.canvas = new Canvas("#board", 800, 400);
 Context.canvas.manageMenus();
+
+let toggle = true;
+
+let cmdPopup = new ToolCommandPopup(78, 32).display(39, 16);
+
+cmdPopup.add(new ToolCommand("./images/icons/comments_on.svg", ()=>{console.log("commands")}));
+cmdPopup.add(new ToolCommand("./images/icons/copy_on.svg", ()=>{console.log("commands")}));
+cmdPopup.addMargin();
+cmdPopup.add(new ToolCommand("./images/icons/comments_on.svg", ()=>{console.log("commands")}));
+cmdPopup.add(new ToolToggleCommand("./images/icons/copy_on.svg", "./images/icons/copy_off.svg",
+    ()=>{toggle=!toggle}, ()=>toggle));
+cmdPopup.add(new ToolCommand("./images/icons/copy_on.svg", ()=>{console.log("commands")}, 66));
+
+class DummyCell extends ToolCell {
+    constructor() {
+        super();
+        this._root.add(new Rect(-20, -20, 40, 40).attrs({fill:Colors.GREY}));
+    }
+}
+
+let paletteContent = new ToolGridPanelContent(200, 80, 80);
+for (let index=0; index<10; index++) {
+    paletteContent.addCell(new DummyCell());
+}
+
+let palettePopup = new ToolExpandablePopup(200, 350).display(-100, 175);
+palettePopup.addPanel(new ToolExpandablePanel("One", paletteContent));
+palettePopup.addPanel(new ToolExpandablePanel("Two", paletteContent));
+palettePopup.addPanel(new ToolExpandablePanel("Three", paletteContent));
 
 let area = new BoardTable(800, 400, "#A0A0A0");
 Context.canvas.putOnBase(area);
