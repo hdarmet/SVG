@@ -5,7 +5,8 @@ import {win, doc,
     MouseEvents, KeyboardEvents, Buttons, List, Matrix,
     Svg, Rect, Group, Translation, Rotation,
     Fill, Colors, Visibility,
-    localOffset, globalOffset, computePosition, computeAngle
+    localOffset, globalOffset, computePosition, computeAngle,
+    l2l
 } from "./svgbase.js";
 import {
     defineShadow
@@ -60,15 +61,46 @@ export function sortByDistance(elements, gx, gy) {
 
 }
 
-export function local2local(source, target, ...points) {
-    let matrix = source.global.multLeft(target.global.invert());
-    let result = [];
-    for (let index=0; index<points.length; index+=2) {
-        let x = points[index];
-        let y = points[index+1];
-        result.push(matrix.x(x, y), matrix.y(x, y));
+export class Box {
+
+    constructor(x, y, width, height) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
     }
-    return result;
+
+    get left() {
+        return this.x;
+    }
+
+    get top() {
+        return this.y;
+    }
+
+    get right() {
+        return this.x+this.width;
+    }
+
+    get bottom() {
+        return this.y+this.height;
+    }
+
+    get cx() {
+        return this.x+this.width/2;
+    }
+
+    get cy() {
+        return this.y+this.height/2;
+    }
+
+    add(box) {
+        let left = Math.min(this.left, box.left);
+        let top = Math.min(this.top, box.top);
+        let right = Math.min(this.right, box.right);
+        let bottom = Math.min(this.bottom, box.bottom);
+        return new Box(left, top, right-left, bottom-top);
+    }
 }
 
 export function getBox(points) {
@@ -82,7 +114,16 @@ export function getBox(points) {
         if (points[index+1]<top) top=points[index+1];
         else if (points[index+1]>bottom) bottom=points[index+1];
     }
-    return {x:left, y:top, width:right-left, height:bottom-top};
+    return new Box(left, top, right-left, bottom-top);
+}
+
+export function boundingBox(elements, targetMatrix) {
+    let result = null;
+    for (let element of elements) {
+        let box = element.l2mbbox(targetMatrix);
+        result===null ? result = box : result.add(box);
+    }
+    return result;
 }
 
 export function getCanvasLayer(artifact) {
@@ -292,6 +333,7 @@ export class BoardElement {
 
     _revert(memento) {
         this._root.matrix = memento.rootMatrix;
+        return this;
     }
 
     _observe(observable) {
@@ -324,13 +366,16 @@ export class BoardElement {
     get global() { return this._root.globalMatrix; }
 
     get lbbox() {
-        return {x:this.left, y:this.top, width:this.right-this.left, height:this.bottom-this.top};
+        return new Box(this.left, this.top, this.right-this.left, this.bottom-this.top);
     }
-    l2lbbox(target) {
-        let result = local2local(this, target,
+    l2mbbox(targetMatrix) {
+        let result = l2l(this.global, targetMatrix,
             this.left, this.top, this.right, this.top,
             this.left, this.bottom, this.right, this.bottom);
         return getBox(result);
+    }
+    l2lbbox(target) {
+        return this.l2mbbox(target.global);
     }
 
     relative(matrix) {
@@ -962,20 +1007,13 @@ export class DragMoveOperation extends DragOperation {
             }
             return false;
         }
-        let dragSet = this.extendsSelection(Context.selection.selection());
+        let dragSet = this.extendsSelection(Context.selection.selection(element=>true));
         for (let element of [...dragSet]) {
             if (inSelection(element.parent, dragSet)) {
                 dragSet.delete(element);
             }
         }
         return dragSet;
-    }
-
-    _draggedFrom(element) {
-        element._origin = element._memento();
-        if (element._origin.parent) {
-            element._origin.parent.remove(this);
-        }
     }
 
     doDragStart(element, x, y, event) {
@@ -988,7 +1026,7 @@ export class DragMoveOperation extends DragOperation {
         this._dragSet = this.dragSet();
         for (let selectedElement of this._dragSet.values()) {
             Memento.register(selectedElement);
-            this._draggedFrom(selectedElement);
+            selectedElement._origin = selectedElement._memento();
             Context.canvas.putElementOnGlass(selectedElement, x, y);
             selectedElement._drag = {
                 lastX: x,

@@ -5,44 +5,9 @@ import {Context, Memento, Selection, Canvas, BoardElement, BoardTable,
     makeMoveable, makeRotatable, makeShaped, makeDraggable, makeClickable, makeSelectable, DragSwitchOperation} from "./toolkit.js";
 import {ToolCommandPopup, ToolCommand, ToolToggleCommand, ToolExpandablePopup, ToolExpandablePanel,
     ToolGridPanelContent, ToolCell,
-    makeMenuOwner, TextMenuOption, TextToggleMenuOption, CheckMenuOption, ColorChooserMenuOption} from "./tools.js";
+    makeMenuOwner, TextMenuOption, TextToggleMenuOption, CheckMenuOption, ColorChooserMenuOption, BoardItemBuilder} from "./tools.js";
 import {BoardBox, BoardImageBox} from "./elements.js";
 
-Context.selection = new Selection();
-Context.canvas = new Canvas("#board", 800, 400);
-Context.canvas.manageMenus();
-
-let toggle = true;
-
-let cmdPopup = new ToolCommandPopup(78, 32).display(39, 16);
-
-cmdPopup.add(new ToolCommand("./images/icons/comments_on.svg", ()=>{console.log("commands")}));
-cmdPopup.add(new ToolCommand("./images/icons/copy_on.svg", ()=>{console.log("commands")}));
-cmdPopup.addMargin();
-cmdPopup.add(new ToolCommand("./images/icons/comments_on.svg", ()=>{console.log("commands")}));
-cmdPopup.add(new ToolToggleCommand("./images/icons/copy_on.svg", "./images/icons/copy_off.svg",
-    ()=>{toggle=!toggle}, ()=>toggle));
-cmdPopup.add(new ToolCommand("./images/icons/copy_on.svg", ()=>{console.log("commands")}, 66));
-
-class DummyCell extends ToolCell {
-    constructor() {
-        super();
-        this._root.add(new Rect(-20, -20, 40, 40).attrs({fill:Colors.GREY}));
-    }
-}
-
-let paletteContent = new ToolGridPanelContent(200, 80, 80);
-for (let index=0; index<10; index++) {
-    paletteContent.addCell(new DummyCell());
-}
-
-let palettePopup = new ToolExpandablePopup(200, 350).display(-100, 175);
-palettePopup.addPanel(new ToolExpandablePanel("One", paletteContent));
-palettePopup.addPanel(new ToolExpandablePanel("Two", paletteContent));
-palettePopup.addPanel(new ToolExpandablePanel("Three", paletteContent));
-
-let area = new BoardTable(800, 400, "#A0A0A0");
-Context.canvas.putOnBase(area);
 
 Context.rotateOrMoveDrag = new DragSwitchOperation()
     .add(()=>true, Context.rotateDrag)
@@ -67,7 +32,7 @@ class BoardDummy extends BoardElement {
         this.addMenuOption(new CheckMenuOption("good", true, (flag)=>{console.log("Checked ? "+flag)}));
         this.addMenuOption(new ColorChooserMenuOption("color",
             ["#000000", "#FF0000", "#00FF00", "#0000FF",
-             "#00FFFF", "#FF00FF", "#FFFF00", "#FFFFFF"], color=>{console.log("Color ? "+color)}));
+                "#00FFFF", "#FF00FF", "#FFFF00", "#FFFFFF"], color=>{console.log("Color ? "+color)}));
     }
 
     get color() {
@@ -83,9 +48,67 @@ makeDraggable(BoardDummy);
 makeClickable(BoardDummy);
 makeMenuOwner(BoardDummy);
 
+
+Context.selection = new Selection();
+Context.canvas = new Canvas("#board", 1200, 600);
+Context.canvas.manageMenus();
+
+let toggle = true;
+
+function createCommandPopup() {
+    let cmdPopup = new ToolCommandPopup(78, 32).display(39, 16);
+    cmdPopup.add(new ToolCommand("./images/icons/comments_on.svg", () => {
+        console.log("commands")
+    }));
+    cmdPopup.add(new ToolCommand("./images/icons/copy_on.svg", () => {
+        console.log("commands")
+    }));
+    cmdPopup.addMargin();
+    cmdPopup.add(new ToolCommand("./images/icons/comments_on.svg", () => {
+        console.log("commands")
+    }));
+    cmdPopup.add(new ToolToggleCommand("./images/icons/copy_on.svg", "./images/icons/copy_off.svg",
+        () => {
+            toggle = !toggle
+        }, () => toggle));
+    cmdPopup.add(new ToolCommand("./images/icons/copy_on.svg", () => {
+        console.log("commands")
+    }, 66));
+    return cmdPopup;
+}
+
+function createPalettePopup() {
+    class DummyCell extends ToolCell {
+        constructor() {
+            super();
+            this._root.add(new Rect(-20, -20, 40, 40).attrs({fill: Colors.GREY}));
+        }
+    }
+
+    let paletteContent = new ToolGridPanelContent(200, 80, 80);
+
+    paletteContent.addCell(new BoardItemBuilder([new BoardDummy(30, 20, "#0000FF")]));
+    paletteContent.addCell(new BoardItemBuilder([new BoardImageBox(150, 200, 10, Colors.BLACK, "./images/wood3.jpg", "./images/wood3.jpg", "./images/wood3.jpg")]));
+    for (let index = 0; index < 10; index++) {
+        paletteContent.addCell(new DummyCell());
+    }
+    let palettePopup = new ToolExpandablePopup(200, 350).display(-100, 175);
+    palettePopup.addPanel(new ToolExpandablePanel("One", paletteContent));
+    palettePopup.addPanel(new ToolExpandablePanel("Two", paletteContent));
+    palettePopup.addPanel(new ToolExpandablePanel("Three", paletteContent));
+    return palettePopup;
+}
+
+createCommandPopup();
+createPalettePopup();
+
+let area = new BoardTable(800, 400, "#A0A0A0");
+Context.canvas.putOnBase(area);
+
 let dummy1 = new BoardDummy(30, 20, "#FF0000");
 let dummy2 = new BoardDummy(30, 20, "#00FF00");
-let box1 = new BoardImageBox(150, 200, 10, Colors.BLACK, "./images/wood3.jpg", "./images/wood3.jpg");
+let box1 = new BoardImageBox(150, 200, 10, Colors.BLACK, "./images/wood3.jpg", "./images/wood3.jpg", "./images/wood3.jpg");
+box1.orientation=90;
 let box2 = new BoardBox(150, 200, 10, Colors.BLACK, Colors.LIGHT_GREY);
 
 area.add(dummy1);

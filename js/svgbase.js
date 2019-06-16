@@ -3103,3 +3103,14 @@ export const Colors = {
     RED: "#F00F0F",
     WHITE: "#FFFFFF"
 };
+
+export function l2l(sourceMatrix, targetMatrix, ...points) {
+    let matrix = sourceMatrix.multLeft(targetMatrix.invert());
+    let result = [];
+    for (let index=0; index<points.length; index+=2) {
+        let x = points[index];
+        let y = points[index+1];
+        result.push(matrix.x(x, y), matrix.y(x, y));
+    }
+    return result;
+}

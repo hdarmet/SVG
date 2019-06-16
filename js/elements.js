@@ -1,12 +1,13 @@
 'use strict';
 import {
     Memento,
-    BoardElement, Context,
+    BoardElement, Context, Events,
     makeShaped, makeContainer, makeDraggable, makeSelectable, makeMoveable, makeRotatable
 } from "./toolkit.js";
 import {
-    Group, Rect, RasterImage
+    Group, Rect, RasterImage, Fill, Visibility
 } from "./svgbase.js";
+import {TextToggleMenuOption, makeMenuOwner} from "./tools.js";
 
 export function makeFramed(superClass) {
 
@@ -35,7 +36,7 @@ export function makeImaged(superClass) {
         let background = new Group();
         background.add(new RasterImage(backgroundURL, -width/2, -height/2, width, height));
         if (strokeColor) {
-            background.add(new Rect(-width/2, -height/2, width, height).attrs({fill:"none", stroke:strokeColor}));
+            background.add(new Rect(-width/2, -height/2, width, height).attrs({fill:Fill.NONE, stroke:strokeColor}));
         }
         return this._initShape(background);
     };
@@ -86,23 +87,131 @@ export function makeImaged(superClass) {
     });
 }
 
-export class AbstractBoardContent extends BoardElement {
+export function makePart(superClass) {
+
+    superClass.prototype._initPart = function(owner) {
+        this._owner = owner;
+        return this;
+    };
+
+    if (!superClass.prototype.hasOwnProperty("selectable")) {
+        Object.defineProperty(superClass.prototype, "selectable", {
+            configurable:true,
+            get() {
+                return this.parent.selectable;
+            }
+        });
+    }
+
+    let superMemento = superClass.prototype._memento;
+    if (superMemento) {
+        superClass.prototype._memento = function () {
+            let memento = superMemento.call(this);
+            memento._owner = this._owner;
+            return memento;
+        };
+
+        let superRevert = superClass.prototype._revert;
+        superClass.prototype._revert = function (memento) {
+            superRevert.call(this, memento);
+            this._owner = memento._owner;
+            return this;
+        };
+    }
+
+    Object.defineProperty(superClass.prototype, "menuOptions", {
+        get: function () {
+            let menuOptions = this._owner.menuOptions;
+            if (menuOptions) {
+                if (this._menuOptions) {
+                    menuOptions.push(...this._menuOptions);
+                }
+                return menuOptions;
+            }
+            else {
+                return this._menuOptions;
+            }
+        }
+    });
+
+}
+
+export class BoardSupport extends BoardElement {
 
     constructor(...args) {
         super();
         this._root.add(this.initShape(...args)).add(this._initContent());
     }
 
-    selectable() {
-        return this.parent.selectable;
+}
+makeContainer(BoardSupport);
+makeDraggable(BoardSupport);
+
+export class AbstractBoardContent extends BoardSupport {
+
+    constructor(owner, ...args) {
+        super(...args);
+        this._initPart(owner);
     }
 
     _acceptDrop(element) {
+        if (this._orientation !== undefined) {
+            if (!element.rotate) return false;
+            element.rotate(this._orientation);
+        }
         let box = element.l2lbbox(this);
         return box.width<=this.width && box.height<=this.height;
     }
 
-    _receiveDrop(element) {
+    _memento() {
+        let memento = super._memento();
+        memento._orientation = this._orientation;
+        return memento;
+    }
+
+    _revert(memento) {
+        super._revert(memento);
+        this._orientation = memento._orientation;
+        return this;
+    }
+
+    add(element) {
+        super.add(element);
+        element.addObserver(this);
+    }
+
+    remove(element) {
+        element.removeObserver(this);
+        super.remove(element);
+    }
+
+    _notified(source, type, value) {
+        if (type===Events.GEOMETRY || type===Events.ROTATED || type===Events.DROPPED) {
+            this._adjustElement(source);
+        }
+    }
+
+    get orientation() {
+        return this._orientation;
+    }
+
+    set orientation(orientation) {
+        Memento.register(this);
+        console.log("or:"+orientation)
+        this._setOrientation(orientation);
+    }
+
+    _setOrientation(orientation) {
+        this._orientation = orientation;
+        for (let element of this.children) {
+            if (element.rotate) {
+                element.rotate(this._orientation);
+                this._adjustElement(element);
+            }
+        }
+    }
+
+    _adjustElement(element) {
         let box = element.l2lbbox(this);
         if (box.x<this.left) box.x=this.left;
         if (box.x+box.width>this.right) box.x=this.right-box.width;
@@ -110,10 +219,65 @@ export class AbstractBoardContent extends BoardElement {
         if (box.y+box.height>this.bottom) box.y=this.bottom-box.height;
         element.move(box.x+box.width/2, box.y+box.height/2);
     }
-
 }
-makeContainer(AbstractBoardContent);
-makeDraggable(AbstractBoardContent);
+makePart(AbstractBoardContent);
+
+export class AbstractBoardCover extends BoardElement {
+
+    constructor(owner, ...args) {
+        super();
+        this._initPart(owner);
+        this._hidden = false;
+        this._root.add(this.initShape(...args)).add(this._initContent());
+    }
+
+    _memento() {
+        let memento = super._memento();
+        memento._hidden = this._hidden;
+        return memento;
+    }
+
+    _revert(memento) {
+        super._revert(memento);
+        this._setHidden(memento._hidden);
+        return this;
+    }
+
+    _acceptDrop(element) {
+        return true;
+    }
+
+    _setHidden(hidden) {
+        this._hidden = hidden;
+        if (this._hidden) {
+            //this._owner.remove(this);
+            this._root.visibility = Visibility.HIDDEN;
+        }
+        else {
+            //this._owner.add(this);
+            this._root.visibility = null;
+        }
+    }
+
+    get hidden() {
+        return this._hidden;
+    }
+
+    hide() {
+        Memento.register(this);
+        this._setHidden(true);
+        return this;
+    }
+
+    show() {
+        Memento.register(this);
+        this._setHidden(false);
+        return this;
+    }
+}
+makeDraggable(AbstractBoardCover);
+makePart(AbstractBoardCover);
+makeContainer(AbstractBoardCover);
 
 export class AbstractBoardBox extends BoardElement {
 
@@ -124,7 +288,28 @@ export class AbstractBoardBox extends BoardElement {
             .add(this._initContent()));
         this._dragOperation(Context.rotateOrMoveDrag);
         this._boxContent = this.initBoxContent(...args);
+        this._boxCover = this.initBoxCover(...args);
         this._add(this._boxContent);
+        this._add(this._boxCover);
+        this.addMenuOption(new TextToggleMenuOption("Hide cover", "Show cover",
+            function() {
+                Context.memento.open();
+                this._boxCover.hide();
+            },
+            function() {
+                Context.memento.open();
+                this._boxCover.show();
+            },
+            function() {return this._boxCover.hidden;},
+            ()=>true));
+    }
+
+    get orientation() {
+        return this._boxContent.orientation;
+    }
+
+    set orientation(orientation) {
+        this._boxContent.orientation = orientation;
     }
 
     _acceptDrop() {
@@ -134,6 +319,7 @@ export class AbstractBoardBox extends BoardElement {
     _memento() {
         let memento = super._memento();
         memento._boxContent = this._boxContent;
+        memento._boxCover = this._boxCover;
         return memento;
     }
 
@@ -141,6 +327,9 @@ export class AbstractBoardBox extends BoardElement {
         super._revert(memento);
         if (this._boxContent != memento._boxContent) {
             this._replace(this._boxContent, memento._boxContent);
+        }
+        if (this._boxCover != memento._boxCover) {
+            this._replace(this._boxCover, memento._boxCover);
         }
     }
 
@@ -150,12 +339,13 @@ makeMoveable(AbstractBoardBox);
 makeRotatable(AbstractBoardBox);
 makeContainer(AbstractBoardBox);
 makeDraggable(AbstractBoardBox);
+makeMenuOwner(AbstractBoardBox);
 
 
 export class BoardContent extends AbstractBoardContent {
 
-    constructor(width, height, strokeColor, backgroundColor) {
-        super(width, height, strokeColor, backgroundColor);
+    constructor(owner, width, height, strokeColor, backgroundColor) {
+        super(owner, width, height, strokeColor, backgroundColor);
     }
 
     initShape(width, height, strokeColor, backgroundColor) {
@@ -163,6 +353,18 @@ export class BoardContent extends AbstractBoardContent {
     }
 }
 makeFramed(BoardContent);
+
+export class BoardCover extends AbstractBoardCover {
+
+    constructor(owner, width, height, strokeColor, backgroundColor) {
+        super(owner, width, height, strokeColor, backgroundColor);
+    }
+
+    initShape(width, height, strokeColor, backgroundColor) {
+        return this._initFrame(width, height, strokeColor, backgroundColor);
+    }
+}
+makeFramed(BoardCover);
 
 export class BoardBox extends AbstractBoardBox {
 
@@ -175,15 +377,19 @@ export class BoardBox extends AbstractBoardBox {
     }
 
     initBoxContent(width, height, margin, strokeColor, backgroundColor) {
-        return new BoardContent(width-margin/2, height-margin/2, strokeColor, backgroundColor);
+        return new BoardContent(this, width-margin/2, height-margin/2, strokeColor, backgroundColor);
+    }
+
+    initBoxCover(width, height, margin, strokeColor, backgroundColor) {
+        return new BoardCover(this, width, height, strokeColor, backgroundColor);
     }
 }
 makeFramed(BoardBox);
 
 export class BoardImageContent extends AbstractBoardContent {
 
-    constructor(width, height, strokeColor, backgroundURL) {
-        super(width, height, strokeColor, backgroundURL);
+    constructor(owner, width, height, strokeColor, backgroundURL) {
+        super(owner, width, height, strokeColor, backgroundURL);
     }
 
     initShape(width, height, strokeColor, backgroundURL) {
@@ -192,18 +398,34 @@ export class BoardImageContent extends AbstractBoardContent {
 }
 makeImaged(BoardImageContent);
 
-export class BoardImageBox extends AbstractBoardBox {
+export class BoardImageCover extends AbstractBoardCover {
 
-    constructor(width, height, margin, strokeColor, backgroundURL, sideURL) {
-        super(width, height, margin, strokeColor, backgroundURL, sideURL);
+    constructor(owner, width, height, strokeColor, backgroundURL) {
+        super(owner, width, height, strokeColor, backgroundURL);
     }
 
-    initShape(width, height, margin, strokeColor, backgroundURL, sideURL) {
+    initShape(width, height, strokeColor, backgroundURL) {
+        return this._initImage(width, height, strokeColor, backgroundURL);
+    }
+}
+makeImaged(BoardImageCover);
+
+export class BoardImageBox extends AbstractBoardBox {
+
+    constructor(width, height, margin, strokeColor, backgroundURL, sideURL, coverURL) {
+        super(width, height, margin, strokeColor, backgroundURL, sideURL, coverURL);
+    }
+
+    initShape(width, height, margin, strokeColor, backgroundURL, sideURL, coverURL) {
         return this._initImage(width, height, strokeColor, backgroundURL, sideURL);
     }
 
-    initBoxContent(width, height, margin, strokeColor, backgroundURL, sideURL) {
-        return new BoardImageContent(width-margin/2, height-margin/2, strokeColor, sideURL);
+    initBoxContent(width, height, margin, strokeColor, backgroundURL, sideURL, coverURL) {
+        return new BoardImageContent(this, width-margin/2, height-margin/2, strokeColor, sideURL);
+    }
+
+    initBoxCover(width, height, margin, strokeColor, backgroundURL, sideURL, coverURL) {
+        return new BoardImageCover(this, width, height, strokeColor, coverURL);
     }
 
 }

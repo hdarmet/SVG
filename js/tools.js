@@ -3,7 +3,7 @@
 import {
     Visibility, computePosition, List, Matrix, RasterImage, SvgRasterImage, Group, ClipPath, Rect, Text,
     Colors, MouseEvents, TextAnchor, win, Cursor} from "./svgbase.js";
-import {Context, Events, makeDraggable, makeObservable, DragOperation, Memento, Canvas} from "./toolkit.js";
+import {Context, Events, boundingBox, makeDraggable, makeObservable, DragOperation, Memento, Canvas, BoardElement} from "./toolkit.js";
 
 export class Menu {
 
@@ -140,6 +140,7 @@ export function makeMenuOwner(superClass) {
                     Context.canvas.canvasX(event.pageX),
                     Context.canvas.canvasY(event.pageY));
                 event.preventDefault();
+                event.stopPropagation();
                 return false;
             },
             true
@@ -491,17 +492,17 @@ export class ToolPopup {
         let clientHeight = Context.canvas.clientHeight;
         let x = this._root.globalMatrix.dx-clientWidth/2;
         let y = this._root.globalMatrix.dy-clientHeight/2;
-        if (x + this.width/2 > clientWidth/2) {
-            x = clientWidth/2 - this.width/2;
+        if (x + this.width/2 > clientWidth/2 - ToolPopup.BORDER_MARGIN) {
+            x = clientWidth/2 - ToolPopup.BORDER_MARGIN - this.width/2;
         }
-        if (x - this.width/2 < -clientWidth/2) {
-            x = this.width/2 -clientWidth/2;
+        if (x - this.width/2 < -clientWidth/2 + ToolPopup.BORDER_MARGIN ) {
+            x = this.width/2  -clientWidth/2  + ToolPopup.BORDER_MARGIN;
         }
-        if (y + this.height/2 > clientHeight/2) {
-            y = clientHeight/2- this.height / 2;
+        if (y + this.height/2 > clientHeight/2 - ToolPopup.BORDER_MARGIN) {
+            y = clientHeight/2 - ToolPopup.BORDER_MARGIN - this.height / 2;
         }
-        if (y - this.height/2 < -clientHeight/2) {
-            y = this.height/2 -clientHeight/2;
+        if (y - this.height/2 < -clientHeight/2 + ToolPopup.BORDER_MARGIN) {
+            y = this.height/2 -clientHeight/2 + ToolPopup.BORDER_MARGIN;
         }
         let imatrix = this._root.parent.matrix.invert();
         let fx = imatrix.x(x, y);
@@ -536,6 +537,7 @@ export class ToolPopup {
     }
 }
 makeDraggable(ToolPopup);
+ToolPopup.BORDER_MARGIN = 5;
 ToolPopup.HEADER_HEIGHT = 15;
 ToolPopup.HEADER_MARGIN = 10;
 ToolPopup.MINIMIZE_URL = "./images/icons/minimize.png";
@@ -761,7 +763,6 @@ export class ToolExpandablePanel {
 
     open() {
         this._opened = true;
-        //this.content.predicate = this.predicate;
         this._root.add(this._content._root);
     }
 
@@ -925,6 +926,16 @@ export class ToolCell {
 
     activate(owner, width, height) {
         this._owner = owner;
+        this._width = width;
+        this._height = height;
+    }
+
+    get width() {
+        return this._width;
+    }
+
+    get height() {
+        return this._height;
     }
 }
 
@@ -963,7 +974,6 @@ export class ToolGridPanelContent extends ToolPanelContent {
     }
 
     scroll(step) {
-        console.log(this._content.matrix.dy+" "+step)
         let y = this._content.matrix.dy + step;
         if (y + this._maxHeight < this.height) {
             y = this.height - this._maxHeight;
@@ -971,7 +981,6 @@ export class ToolGridPanelContent extends ToolPanelContent {
         }
         if (y >= 0) y = 0;
         this.move(0, y);
-        console.log("move "+y)
     }
 
     _accept(cell) {
@@ -1033,3 +1042,66 @@ export class ToolGridPanelContent extends ToolPanelContent {
 makeObservable(ToolGridPanelContent);
 ToolGridPanelContent.SCROLL_WHEEL_STEP = 50;
 ToolGridPanelContent.CELL_MARGIN = 20;
+
+export class BoardItemBuilder extends ToolCell {
+
+    constructor(proto) {
+        super();
+        this._proto = proto;
+        this._support = new Group();
+        this._root.add(this._support);
+    }
+
+    activate(owner, width, height) {
+        super.activate(owner, width, height);
+        this._makeItems();
+        return this;
+    }
+
+    select() {
+        Context.selection.unselectAll();
+        for (let element of this._currentItems) {
+            Context.selection.select(element);
+        }
+    }
+
+    _makeItems() {
+        let mementoOpened = Context.memento.opened;
+        this._currentItems = Context.copyPaste.duplicateForPaste(this._proto);
+        for (let item of this._currentItems) {
+            item._parent = this;
+            this._support.add(item._root);
+            //item._root.opacity = 0;
+            //item._root.animate({ opacity: 1 }, 1000);
+        }
+        this._adjustSize();
+        return this._currentItems;
+    }
+
+    add(element) {}
+
+    remove(element) {
+        for (let item of this._currentItems) {
+            this._support.remove(item._root);
+            item._parent = null;
+        }
+        this._makeItems();
+    }
+
+    _adjustSize() {
+        let bbox = boundingBox(this._currentItems, this._support.globalMatrix);
+        let sizeWidthFactor = this.width / bbox.width;
+        let sizeHeightFactor = this.height / bbox.height;
+        let sizeFactor = Math.min(sizeWidthFactor, sizeHeightFactor, 2);
+        this._support.matrix = Matrix.scale(sizeFactor, sizeFactor, 0, 0).translate(-bbox.cx, -bbox.cy)
+    }
+
+    _notified(source, type, value) {
+        if (source instanceof BoardElement) {
+            if (type === Events.GEOMETRY) {
+                this._adjustSize();
+            }
+        }
+    }
+
+}
