@@ -2,11 +2,13 @@
 
 import {Rect, Rotation, Colors} from "./svgbase.js";
 import {Context, Memento, Selection, Canvas, BoardElement, BoardTable,
-    makeMoveable, makeRotatable, makeShaped, makeDraggable, makeClickable, makeSelectable, DragSwitchOperation} from "./toolkit.js";
+    makeMoveable, makeRotatable, makeShaped, makeDraggable, makeClickable, makeSelectable,
+    makeContainerMultiLayered, makeLayered, makeMultiLayeredGlass, makeContainerZindex,
+    DragSwitchOperation} from "./toolkit.js";
 import {ToolCommandPopup, ToolCommand, ToolToggleCommand, ToolExpandablePopup, ToolExpandablePanel,
     ToolGridPanelContent, ToolCell,
     makeMenuOwner, TextMenuOption, TextToggleMenuOption, CheckMenuOption, ColorChooserMenuOption, BoardItemBuilder} from "./tools.js";
-import {BoardBox, BoardImageBox} from "./elements.js";
+import {BoardBox, BoardImageBox, BoardCounter, BoardMap} from "./elements.js";
 
 
 Context.rotateOrMoveDrag = new DragSwitchOperation()
@@ -47,7 +49,14 @@ makeShaped(BoardDummy);
 makeDraggable(BoardDummy);
 makeClickable(BoardDummy);
 makeMenuOwner(BoardDummy);
+makeLayered(BoardDummy, "_up");
 
+makeMultiLayeredGlass("_down",  "_middle", "_up");
+makeContainerMultiLayered(BoardTable, "_down",  "_middle", "_up");
+makeContainerMultiLayered(BoardBox, "_down",  "_middle", "_up");
+makeLayered(BoardBox, "_down");
+makeLayered(BoardMap, "_down");
+makeContainerZindex(BoardMap);
 
 Context.selection = new Selection();
 Context.canvas = new Canvas("#board", 1200, 600);
@@ -116,4 +125,10 @@ area.add(dummy2);
 area.add(box1);
 area.add(box2);
 
+let counter1 = new BoardCounter(50, 50, Colors.GREY, "./images/JemmapesRecto1_001.jpg", "./images/JemmapesVerso1_001.jpg");
+area.add(counter1);
+let counter2 = new BoardCounter(50, 50, Colors.GREY, "./images/JemmapesRecto1_001.jpg", "./images/JemmapesVerso1_001.jpg");
+area.add(counter2);
+let map1 = new BoardMap(400, 200, Colors.GREY, "./images/Jemmapes.jpg");
+area.add(map1);
 Context.memento.opened = true;

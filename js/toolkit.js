@@ -2,10 +2,10 @@
 
 import {win, doc,
     evaluate, deg,
-    MouseEvents, KeyboardEvents, Buttons, List, Matrix,
+    MouseEvents, KeyboardEvents, Buttons, List, Matrix, SVGElement,
     Svg, Rect, Group, Translation, Rotation,
-    Fill, Colors, Visibility,
-    localOffset, globalOffset, computePosition, computeAngle,
+    Fill, Colors, Visibility, Mutation,
+    localOffset, globalOffset, computePosition, computeAngle, computeMatrix,
     l2l
 } from "./svgbase.js";
 import {
@@ -149,9 +149,11 @@ export function makeObservable(superClass) {
 
     superClass.prototype.removeObserver = function(observer) {
         Memento.register(this);
-        this._observers.delete(observer);
-        if (this._observers.size===0) {
-            delete this._observers;
+        if (this._observers) {
+            this._observers.delete(observer);
+            if (this._observers.size === 0) {
+                delete this._observers;
+            }
         }
     };
 
@@ -275,7 +277,7 @@ export function makeSelectable(superClass) {
     Object.defineProperty(superClass.prototype, "selectFrame", {
         configurable:true,
         get() {
-            return this._selectFrame===undefined ? this._shape : this._selectFrame;
+            return this._selectFrame===undefined ? this._root : this._selectFrame;
         },
         set(frame) {
             this._selectFrame = frame;
@@ -322,16 +324,18 @@ export class BoardElement {
         this._root.that = this;
         this._root._id = "root";
         this._root._owner = this;
+        this._parent = null;
     }
 
     _memento() {
         let memento = {};
-        memento.parent = this.parent;
+        memento._parent = this._parent;
         memento.rootMatrix = this._root.matrix.clone();
         return memento;
     }
 
     _revert(memento) {
+        this._parent = memento._parent;
         this._root.matrix = memento.rootMatrix;
         return this;
     }
@@ -347,7 +351,7 @@ export class BoardElement {
     }
 
     _setPosition(x, y) {
-        this._root.matrix = Matrix.translate(x, y);
+        this._matrix = Matrix.translate(x, y);
         return this;
     }
 
@@ -360,9 +364,15 @@ export class BoardElement {
     get top() {return this.y - this.height/2;}
     get bottom() {return this.y + this.height/2;}
 
-    get translation() { return this._root.matrix; }
-    set translation(matrix) {this._root.matrix = matrix;}
-    get local() { return this.translation; }
+    get matrix() { return this._root.matrix; }
+    set _matrix(matrix) {
+        this._root.matrix = matrix;
+    }
+    set matrix(matrix) {
+        Memento.register(this);
+        this._matrix = matrix;
+    }
+    get local() { return this.matrix; }
     get global() { return this._root.globalMatrix; }
 
     get lbbox() {
@@ -395,10 +405,10 @@ export class BoardElement {
         };
     }
 
-    get localGeometry() { return this._geometry(this.translation); }
+    get localGeometry() { return this._geometry(this.matrix); }
     get globalGeometry() { return this._geometry(this.global); }
-    get lx() { return this.translation.x(0, 0); }
-    get ly() { return this.translation.y(0, 0); }
+    get lx() { return this.matrix.x(0, 0); }
+    get ly() { return this.matrix.y(0, 0); }
     get gx() { return this.global.x(0, 0); }
     get gy() { return this.global.y(0, 0); }
 
@@ -548,12 +558,32 @@ export function makeContainer(superClass) {
         return this._content;
     };
 
+    superClass.prototype.__clear = function() {
+        this._content.clear()
+    };
+
+    superClass.prototype.__add = function(element) {
+        this._content.add(element._root);
+    };
+
+    superClass.prototype.__insert = function(previous, element) {
+        this._content.insert(previous._root, element._root);
+    };
+
+    superClass.prototype.__replace = function(previous, element) {
+        this._content.replace(previous._root, element._root);
+    };
+
+    superClass.prototype.__remove = function(element) {
+        this._content.remove(element._root);
+    };
+
     superClass.prototype._add = function(element) {
         if (!this._children) {
             this._children = new List();
         }
         this._children.add(element);
-        this._content.add(element._root);
+        this.__add(element);
         element._parent = this;
     };
 
@@ -574,7 +604,7 @@ export function makeContainer(superClass) {
     superClass.prototype._insert = function(previous, element) {
         if (this._children) {
             this._children.insert(previous, element);
-            this._content.insert(previous._root, element._root);
+            this.__insert(previous, element);
             element._parent = this;
         }
     };
@@ -606,7 +636,7 @@ export function makeContainer(superClass) {
             this._children = new List();
         }
         this._children.replace(previous, element);
-        this._content.replace(previous._root, element._root);
+        this.__replace(previous, element);
         previous._parent = null;
         element._parent = this;
     };
@@ -639,7 +669,7 @@ export function makeContainer(superClass) {
     superClass.prototype._remove = function(element) {
         if (this._children) {
             this._children.remove(element);
-            this._content.remove(element._root);
+            this.__remove(element);
             element._parent = null;
             if (this._children.length===0) {
                 delete this._children;
@@ -657,6 +687,13 @@ export function makeContainer(superClass) {
         }
         return this;
     };
+
+    Object.defineProperty(superClass.prototype, "content", {
+        configurable:true,
+        get: function () {
+            return this._content;
+        }
+    });
 
     Object.defineProperty(superClass.prototype, "children", {
         configurable:true,
@@ -678,11 +715,11 @@ export function makeContainer(superClass) {
         let superRevert = superClass.prototype._revert;
         superClass.prototype._revert = function (memento) {
             superRevert.call(this, memento);
-            this._content.clear();
+            this.__clear();
             if (memento._children) {
                 this._children = new List(...memento._children);
                 for (let child of this._children) {
-                    this._content.add(child._root);
+                    this.__add(child);
                 }
             }
             else {
@@ -693,6 +730,457 @@ export function makeContainer(superClass) {
     }
 
     return superClass;
+}
+
+export function makeSupport(superClass) {
+
+    makeContainer(superClass);
+
+    Object.defineProperty(superClass.prototype, "isSupport", {
+        configurable: true,
+        get: function () {
+            return true;
+        }
+    });
+
+    superClass.prototype._acceptDrop = function(element) {
+        return true;
+    }
+
+}
+
+export function makeContainerMultiLayered(superClass, ...layers) {
+
+    let defaultLayer = layers[0];
+
+    superClass.prototype._initContent = function () {
+        this._content = new Group();
+        for (let layer of layers) {
+            this[layer] = new Group();
+            this._content.add(this[layer]);
+        }
+        return this._content;
+    };
+
+    superClass.prototype.__clear = function () {
+        for (let layer of layers) {
+            this[layer].clear();
+        }
+    };
+
+    superClass.prototype.__add = function (element) {
+        let layer = element.layer || defaultLayer;
+        this[layer].add(element._root);
+    };
+
+    superClass.prototype.__insert = function (previous, element) {
+        let layer = element.layer || defaultLayer;
+        this[layer].insert(previous._root, element._root);
+    };
+
+    superClass.prototype.__replace = function (previous, element) {
+        let layer = element.layer || defaultLayer;
+        this[layer].replace(previous._root, element._root);
+    };
+
+    superClass.prototype.__remove = function (element) {
+        let layer = element.layer || defaultLayer;
+        this[layer].remove(element._root);
+    };
+}
+
+export function makeMultiLayeredContainer(superClass, ...layers) {
+    makeContainer(superClass);
+    makeContainerMultiLayered(superClass);
+}
+
+export function makeLayered(superClass, layer) {
+
+    Object.defineProperty(superClass.prototype, "layer", {
+        configurable: true,
+        get: function () {
+            return layer;
+        }
+    });
+
+}
+
+export class Pedestal {
+
+    constructor(element, parent, zIndex, host) {
+        this._root = new Group();
+        this._root._owner = this;
+        this._element = element;
+        this._host = host;
+        this._zIndex = zIndex;
+        this.level.add(this._root);
+        host._pedestals.set(element, this);
+        if (parent) {
+            host._pedestals.get(parent)._register(this);
+        }
+    }
+
+    _memento() {
+        for (let eroot of this._root.children) {
+            let child = eroot._owner;
+            Memento.register(child);
+        }
+        return {
+            _matrix : this._root.matrix
+        }
+    }
+
+    _revert(memento) {
+        this._root.matrix = memento._matrix;
+    }
+
+    get level() {
+        return this._host.level(this._zIndex);
+    }
+
+    finalize() {
+        let level = this._host.level(this._zIndex);
+        level.remove(this._root);
+        this._host._pedestals.delete(this._element);
+        if (this._children) {
+            for (let pedestal of this._children) {
+                pedestal.finalize();
+            }
+        }
+    }
+
+    _proto(container) {
+        let proto = container.__proto__;
+        let that = this;
+        let pedestal = that._host._pedestal(container, that._element, that._zIndex);
+        container.__proto__ = {
+            _add(element) {
+                proto._add.call(this, element);
+                that._host._takeInElementContent(element, this, that._zIndex + 1);
+            },
+            _insert(previous, element) {
+                proto._insert.call(this, previous, element);
+                that._host._takeInElementContent(element, this, that._zIndex + 1);
+            },
+            _replace(previous, element) {
+                that._host._takeOutElementContent(element);
+                proto._replace.call(this, previous, element);
+                that._host._takeInElementContent(element, this, that._zIndex + 1);
+            },
+            _remove(element) {
+                that._host._takeOutElementContent(element);
+                proto._remove.call(this, element);
+            },
+            _clear() {
+                proto.__clear.call(this);
+            },
+            __add(element) {
+                pedestal.add(element);
+            },
+            __insert(previous, element) {
+                pedestal.insert(element);
+            },
+            __replace(previous, element) {
+                pedestal.replace(previous, element);
+            },
+            __remove(element) {
+                pedestal.remove(element);
+            },
+            __clear() {
+                pedestal.clear()
+            },
+            _memento() {
+                Memento.register(pedestal);
+                return super._memento();
+            },
+            pedestal,
+            __pass__:true,
+            __proto__:proto,
+            constructor:proto.constructor
+        }
+    }
+
+    _unproto(container) {
+        container.pedestal._parent._unregister(container.pedestal);
+        container.__proto__ = container.__proto__._proto_;
+    }
+
+    get elements() {
+        let elements = new List();
+        for (let eroot of this._root.children) {
+            elements.push(eroot._owner);
+        }
+        return elements;
+    }
+
+    clear() {
+        this._root.clear();
+    }
+
+    add(element) {
+        this._root.add(element._root);
+    }
+
+    insert(previous, element) {
+        this._root.insert(previous._root, element._root);
+    }
+
+    replace(previous, element) {
+        this._root.replace(previous._root, element._root);
+    }
+
+    remove(element) {
+        this._root.remove(element._root);
+    }
+
+    _register(pedestal) {
+        if (!this._children) {
+            this._children = new List();
+        }
+        this._children.add(pedestal);
+        pedestal._parent = this;
+        if (this.level) {
+            pedestal.matrix = computeMatrix(this.level, pedestal._element.content);
+        }
+    }
+
+    _unregister(pedestal) {
+        pedestal.finalize();
+        this._children.remove(pedestal);
+    }
+
+    get matrix() {
+        return this._root.matrix;
+    }
+
+    set matrix(matrix) {
+        this._root.matrix = matrix;
+        if (this._children) {
+            for (let pedestal of this._children) {
+                console.log(this.level.ref)
+                console.log(pedestal._element.content.ref)
+                console.log(this._zIndex+" <> "+pedestal._zIndex)
+                pedestal.matrix = computeMatrix(this.level, pedestal._element.content);
+            }
+        }
+    }
+
+    refresh() {
+        let parent = this._parent;
+        this.matrix =  computeMatrix(parent.level, this._element.content);
+    }
+}
+
+export function makeContainerZindex(superClass) {
+
+    superClass.prototype._initContent = function () {
+        this._content = new Group();
+        this._levels = new List();
+        this._pedestals = new Map();
+        this._rootPedestal = new Pedestal(this, null, 0, this);
+        let config = {attributes: true, childList: true, subtree: true}
+        let action = mutations=> {
+            let updates = new Set();
+            for (let mutation of mutations) {
+                if (mutation.type === Mutation.ATTRIBUTES && mutation.attributeName==="transform" ) {
+                    let svgElement = SVGElement.elementOn(mutation.target);
+                    let element = svgElement.owner;
+                    if (element !== this) {
+                        updates.add(element);
+                    }
+                }
+            }
+            let processed = new Set();
+            let roots = new Set();
+            function process(pedestal, isRoot) {
+                if (!processed.has(pedestal)) {
+                    processed.add(pedestal);
+                    if (isRoot) {
+                        roots.add(pedestal);
+                    }
+                    if (pedestal._children) {
+                        for (let child of pedestal._children) {
+                            process(child, false);
+                        }
+                    }
+                }
+                else {
+                    roots.delete(pedestal);
+                }
+            }
+            for (let element of updates) {
+                let pedestal = this._pedestals.get(element);
+                pedestal && process(pedestal, true);
+            }
+            Context.mutationObservers.disconnect(this);
+            for (let pedestal of roots) {
+                pedestal.refresh();
+            }
+            Context.mutationObservers.observe(this, action, this._content._node, config);
+        };
+        Context.mutationObservers.observe(this, action, this._content._node, config);
+        return this._content;
+    };
+
+    superClass.prototype.level = function(index) {
+        if (!this._levels[index]) {
+            for (let idx = this._levels.length; idx<=index; idx++) {
+                Memento.register(this);
+                this._levels[idx] = new Group();
+                this._content.add(this._levels[idx]);
+            }
+        }
+        return this._levels[index];
+    };
+
+    superClass.prototype._pedestal = function(element, parent, zIndex) {
+        let pedestal = this._pedestals.get(element);
+        if (!pedestal) {
+            pedestal = new Pedestal(element, parent, zIndex + 1, this);
+            this._pedestals.set(element, pedestal);
+        }
+        return pedestal;
+    };
+
+    superClass.prototype._takeInElementContent = function(element, parent, zIndex) {
+        let children = element.children || [];
+        if (element.isSupport) {
+            for (let child of children) {
+                element._remove(child);
+            }
+            this._pedestals.get(parent)._proto(element);
+            for (let child of children) {
+                element._add(child);
+            }
+        }
+        else {
+            for (let child of children) {
+                this._takeInElementContent(child, parent, zIndex);
+            }
+        }
+    };
+
+    superClass.prototype._takeOutElementContent = function(element) {
+        if (element.isSupport) {
+            let pedestal = this._pedestals.get(element);
+            if (pedestal) {
+                let elements = pedestal.elements;
+                for (let child of elements) {
+                    element._remove(child);
+                }
+                pedestal._unproto(element);
+                element.__proto__ = element.__proto__.__proto__;
+                for (let child of elements) {
+                    element._add(child);
+                }
+            }
+        }
+        else {
+            let children = element.children;
+            if (children && children.length>0) {
+                for (let child of children) {
+                    this._takeOutElementContent(child);
+                }
+            }
+        }
+    };
+
+    superClass.prototype.__clear = function () {
+        this._content.clear();
+        this._levels.clear();
+        this._pedestals.clear();
+        this._rootPedestal.clear();
+        this._pedestals.set(this, this._rootPedestal);
+        this.level(0).add(this._rootPedestal._root);
+    };
+
+    let _add = superClass.prototype._add;
+    superClass.prototype._add = function (element) {
+        _add.call(this, element);
+        this._takeInElementContent(element, this, 0);
+    };
+
+    let _insert = superClass.prototype._insert;
+    superClass.prototype._insert = function (previous, element) {
+        _insert.call(this, previous, element);
+        this._takeInElementContent(element, this, 0);
+    };
+
+    let _replace = superClass.prototype._replace;
+    superClass.prototype._replace = function (previous, element) {
+        this._takeOutElementContent(previous);
+        _replace.call(this, previous, element);
+        this._takeInElementContent(element, this, 0);
+    };
+
+    let _remove = superClass.prototype._remove;
+    superClass.prototype._remove = function (element) {
+        this._takeOutElementContent(element);
+        _remove.call(this, element);
+    };
+
+    superClass.prototype.__add = function (element) {
+        this._rootPedestal.add(element);
+    };
+
+    superClass.prototype.__insert = function (previous, element) {
+        this._rootPedestal.insert(previous, element);
+    };
+
+    superClass.prototype.__replace = function (previous, element) {
+        this._rootPedestal.replace(previous, element);
+    };
+
+    superClass.prototype.__remove = function (element) {
+        this._rootPedestal.remove(element);
+    };
+
+    let superMemento = superClass.prototype._memento;
+    if (superMemento) {
+        superClass.prototype._memento = function () {
+            function justLevel(level) {
+                let pedestals = new List();
+                for (let proot of level.children) {
+                    let pedestal = proot.owner;
+                    pedestals.push(pedestal);
+                }
+                return pedestals;
+            }
+            let memento = superMemento.call(this);
+            memento._pedestals = new Map(this._pedestals.entries());
+            memento._levels = new List();
+            for (let level of this._levels) {
+                memento._levels.push(justLevel(level));
+            }
+            Memento.register(this._rootPedestal);
+            return memento;
+        };
+
+        let superRevert = superClass.prototype._revert;
+        superClass.prototype._revert = function (memento) {
+            superRevert.call(this, memento);
+            this._pedestals = new Map(memento._pedestals.entries());
+            let index=0;
+            for (let level of memento._levels) {
+                let rlevel = this._levels[index++];
+                if (!rlevel) {
+                    rlevel = new Group();
+                    this._levels.push(rlevel);
+                }
+                for (let pedestal of level) {
+                    rlevel.add(pedestal._root);
+                }
+                this._content.add(rlevel);
+            }
+            let config = {attributes: true, childList: true, subtree: true};
+            return this;
+        };
+    }
+}
+
+export function makeZindexContainer(superClass) {
+    makeContainer(superClass);
+    makeContainerZindex(superClass);
 }
 
 export class BoardArea extends BoardElement {
@@ -882,7 +1370,7 @@ export function makeClickable(superClass) {
     superClass.prototype._clickHandler = function(handler) {
         this._clickHdl = handler;
         if (this._clickHdlImpl) {
-            this._root.off(Events.CLICK, this._clickHdlImpl);
+            this._root.off(MouseEvents.CLICK, this._clickHdlImpl);
         }
         this._clickHdlImpl = event => {
             Context.selection.adjustSelection(this, event, true);
@@ -1088,17 +1576,13 @@ export class DragMoveOperation extends DragOperation {
         let gy = element.gy;
         Context.canvas.hideGlass();
         let target = Context.canvas.getElementFromPoint(gx, gy);
-        if (!target || !target._owner) {
+        if (!target || !target.owner) {
             Context.canvas._adjustContent(-gx, -gy);
             target = Context.canvas.getElementFromPoint(0, 0);
             Context.canvas._adjustContent(0, 0);
         }
         Context.canvas.showGlass();
-        while (target) {
-            if (target._owner) return target._owner;
-            target = target.parent;
-        }
-        return null;
+        return target.owner;
     }
 
     /**
@@ -1144,11 +1628,11 @@ export class DragMoveOperation extends DragOperation {
                 if (target && target._dropTarget) {
                     target = target._dropTarget();
                 }
-                if (target && getCanvasLayer(target._root) instanceof BaseLayer) {
-                    let { x, y } = computePosition(selectedElement._root, target._root);
+                if (target && target.content && getCanvasLayer(target._root) instanceof BaseLayer) {
+                    let { x, y } = computePosition(selectedElement._root, target.content);
                     selectedElement.move(x, y);
                     if (selectedElement.rotate) {
-                        let angle = computeAngle(selectedElement._hinge, target._root);
+                        let angle = computeAngle(selectedElement._hinge, target.content);
                         selectedElement.rotate(angle);
                     }
                     if ((target._acceptDrop && !target._acceptDrop(selectedElement)) ||
@@ -1165,6 +1649,7 @@ export class DragMoveOperation extends DragOperation {
         }
         let dropped = new Set();
         for (let selectedElement of [...this._dragSet]) {
+            Context.canvas.removeElementFromGlass(selectedElement);
             if (!selectedElement.dropCancelled()) {
                 dropped.add(selectedElement);
                 selectedElement.attach(selectedElement._origin.target);
@@ -1172,7 +1657,7 @@ export class DragMoveOperation extends DragOperation {
             else {
                 selectedElement._revert(selectedElement._origin);
                 selectedElement._recover && selectedElement._recover(selectedElement._origin);
-                selectedElement.attach(selectedElement._origin.parent);
+                selectedElement._origin._parent._add(selectedElement);
             }
             delete selectedElement._origin;
         }
@@ -1199,7 +1684,6 @@ export class DragMoveOperation extends DragOperation {
             Context.memento.cancel();
         }
     }
-
 }
 Context.moveDrag = new DragMoveOperation();
 
@@ -1346,7 +1830,7 @@ export class DragSelectAreaOperation extends DragOperation {
 
     doDrop(element, x, y, event) {
         this._doSelection(event);
-        this._selectArea.detach();
+        Context.canvas.removeArtifactFromGlass(this._selectArea);
     }
 
     _doSelection(event) {
@@ -1711,6 +2195,20 @@ export class GlassLayer extends CanvasLayer {
     constructor(canvas) {
         super(canvas);
         this._canvas = canvas;
+        this._initContent();
+    }
+
+    _initContent() {
+        this._content = new Group();
+        this._root.add(this._content);
+    }
+
+    putArtifact(artifact) {
+        this._content.add(artifact);
+    }
+
+    removeArtifact(artifact) {
+        this._content.remove(artifact);
     }
 
     reset() {
@@ -1730,16 +2228,12 @@ export class GlassLayer extends CanvasLayer {
         this._root.matrix = this._canvas._toolsLayer.matrix;
     }
 
-    putArtifact(artifact) {
-        this._root.add(artifact);
-    }
-
     putElement(element, x, y) {
         let ematrix = element.global;
         let dmatrix = ematrix.multLeft(this._canvas._baseLayer.matrix.invert());
         let pedestal = new Group(Matrix.translate(dmatrix.dx, dmatrix.dy).rotate(dmatrix.angle, 0, 0));
         this._pedestals.add(pedestal);
-        this._root.add(pedestal);
+        this.putArtifact(pedestal, element);
         let imatrix = ematrix.invert();
         pedestal.dragX = imatrix.x(x, y);
         pedestal.dragY = imatrix.y(x, y);
@@ -1753,7 +2247,13 @@ export class GlassLayer extends CanvasLayer {
         let invertedMatrix = pedestal.globalMatrix.invert();
         let dX = invertedMatrix.x(x, y) - pedestal.dragX;
         let dY = invertedMatrix.y(x, y) - pedestal.dragY;
-        element.translation = Matrix.translate(dX, dY);
+        element._setPosition(dX, dY);
+    }
+
+    removeElement(element) {
+        let pedestal = element._root.parent;
+        this._pedestals.delete(pedestal);
+        this.removeArtifact(pedestal, element);
     }
 
     getPoint(x, y) {
@@ -1764,6 +2264,30 @@ export class GlassLayer extends CanvasLayer {
         };
     }
 
+}
+
+export function makeMultiLayeredGlass(...layers) {
+
+    let defaultLayer = layers[0];
+
+    GlassLayer.prototype._initContent = function(artifact, element) {
+        this._content = new Group();
+        for (let layer of layers) {
+            this[layer] = new Group();
+            this._content.add(this[layer]);
+        }
+        this._root.add(this._content);
+    };
+
+    GlassLayer.prototype.putArtifact = function(artifact, element) {
+        let layer = element && element.layer ? element.layer : defaultLayer;
+        this[layer].add(artifact);
+    };
+
+    GlassLayer.prototype.removeArtifact = function(artifact, element) {
+        let layer = element && element.layer ? element.layer : defaultLayer;
+        this[layer].remove(artifact);
+    };
 }
 
 export class ModalsLayer extends CanvasLayer {
@@ -1939,8 +2463,10 @@ export class Canvas {
     putArtifactOnToolsLayer(artifact) { this._toolsLayer.putArtifact(artifact);}
 
     putArtifactOnGlass(artifact) { this._glassLayer.putArtifact(artifact);}
+    removeArtifactFromGlass(artifact) { this._glassLayer.removeArtifact(artifact);}
     putElementOnGlass(element, x, y) { this._glassLayer.putElement(element, x, y);}
     moveElementOnGlass(element, x, y) {this._glassLayer.moveElement(element, x, y);}
+    removeElementFromGlass(element) {this._glassLayer.removeElement(element);}
     getPointOnGlass(x, y) {return this._glassLayer.getPoint(x, y);}
     resetGlass() {this._glassLayer.reset();}
     prepareGlassForDragStart() {this._glassLayer.prepareDragStart();}
@@ -1950,6 +2476,50 @@ export class Canvas {
     showGlass() {this._glassLayer.show();}
 }
 makeObservable(Canvas);
+
+export class MutationObservers {
+    constructor() {
+        this._mutations = new Map();
+    }
+
+    observe(element, action, node, config) {
+        let observerInfo = this._mutations.get(element);
+        if (!observerInfo) {
+            observerInfo = {
+                observer:new MutationObserver(action)
+            };
+            this._mutations.set(element, observerInfo);
+        }
+        observerInfo.node = node;
+        observerInfo.config = config;
+        observerInfo.connected = true;
+        observerInfo.observer.observe(observerInfo.node, observerInfo.config);
+    }
+
+    disconnect(element) {
+        let observerInfo = this._mutations.get(element);
+        observerInfo.connected = false;
+        observerInfo.observer.disconnect();
+    }
+
+    stop() {
+        for (let observerInfo of this._mutations.values()) {
+            if (observerInfo.connected) {
+                observerInfo.observer.disconnect();
+            }
+        }
+    }
+
+    restart() {
+        for (let observerInfo of this._mutations.values()) {
+            if (observerInfo.connected) {
+                observerInfo.observer.observe(observerInfo.node, observerInfo.config);
+            }
+        }
+    }
+}
+
+Context.mutationObservers = new MutationObservers();
 
 export class CopyPaste {
 
@@ -1995,6 +2565,7 @@ export class CopyPaste {
             let { cx, cy } = center();
             for (let element of elements) {
                 let copy = element.clone();
+                copy._parent = null;
                 let { x, y } = computePosition(element._root, element.canvasLayer._root);
                 copy._setPosition(x - cx, y - cy);
                 result.add(copy);
@@ -2087,6 +2658,9 @@ CopyPaste.clone = function(source, duplicata) {
     copy = {};
     duplicata.set(source, copy);
     copy.__proto__ = source.__proto__;
+    while(copy.__proto__.__pass__) {
+        copy.__proto__ = copy.__proto__.__proto__;
+    }
     for (let property in source) {
         if (source.hasOwnProperty(property)) {
             if (source[property] && typeof(source[property])==='object') {
@@ -2163,11 +2737,22 @@ export class Memento {
         if (this.opened) {
             let current = this._current();
             if (!current.has(element)) {
-                current.set(element, element._memento());
+                current.set(element, this.__memento(element));
                 this._fire(Memento.events.KEEP, element);
             }
             return this;
         }
+    }
+
+    __memento(element) {
+        let memento = element._memento();
+        memento._proto_ = element.__proto__;
+        return memento;
+    }
+
+    __revert(element, memento) {
+        element.__proto__ = memento._proto_;
+        element._revert(memento);
     }
 
     undo() {
@@ -2178,17 +2763,19 @@ export class Memento {
             }
             if (current) {
                 this.opened = false;
+                Context.mutationObservers.stop();
                 let redo = new Map();
                 for (let element of current.keys()) {
-                    redo.set(element, element._memento());
+                    redo.set(element, this.__memento(element));
                 }
                 for (let element of current.keys()) {
-                    element._revert(current.get(element));
+                    this.__revert(element, current.get(element));
                 }
                 for (let element of current.keys()) {
                     element._recover && element._recover(current.get(element));
                 }
                 this.opened = true;
+                Context.mutationObservers.restart();
                 this._redoTrx.push(redo);
                 this._fire(Memento.events.UNDO);
             }
@@ -2202,12 +2789,13 @@ export class Memento {
             let current = this._redoTrx.pop();
             if (current) {
                 this.opened = false;
+                Context.mutationObservers.stop();
                 let undo = new Map();
                 for (let element of current.keys()) {
-                    undo.set(element, element._memento());
+                    undo.set(element, this.__memento(element));
                 }
                 for (let element of current.keys()) {
-                    element._revert(current.get(element));
+                    this.__revert(element, current.get(element));
                 }
                 for (let element of current.keys()) {
                     element._recover && element._recover(current.get(element));
@@ -2216,6 +2804,7 @@ export class Memento {
                     this._undoTrx.pop();
                 }
                 this.opened = true;
+                Context.mutationObservers.restart();
                 this._undoTrx.push(undo);
                 this._fire(Memento.events.REDO);
             }

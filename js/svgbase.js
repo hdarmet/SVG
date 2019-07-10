@@ -80,6 +80,22 @@ export function globalOffset(svgNode) {
     };
 }
 
+export function computeMatrix(from, to) {
+    if (!from) console.log("from null !")
+    if (!to) console.log("to null !")
+    let matrix = to.matrix;
+    let parent = to.parent;
+    while (parent && parent!==from) {
+        let pmatrix = parent._attrs.matrix;
+        if (pmatrix) {
+            matrix._multLeft(pmatrix);
+        }
+        parent = parent.parent;
+    }
+    if (!parent) console.log("from not included in to !");
+    return parent ? matrix : null;
+}
+
 export function computePosition(source, target, x = 0, y = 0) {
     let sourceMatrix = source ? source.globalMatrix : null;
     let targetMatrix = target.globalMatrix;
@@ -838,6 +854,16 @@ export class Matrix {
         return this.add(matrix.invert());
     }
 
+    _mult(matrix) {
+        delete this._split;
+        this._add(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
+        return this;
+    };
+
+    mult(matrix) {
+        return this.clone()._mult(matrix);
+    }
+
     _multLeft(matrix) {
         delete this._split;
         let aNew = matrix.a * this.a + matrix.c * this.b;
@@ -990,12 +1016,19 @@ export const Visibility = {
     COLLAPSE : "collapse"
 };
 
+let ref = 0;
+
 export class SVGElement {
 
     // Testé
     constructor(type) {
         this.node(type);
+        this._ref = ref++;
         this._attrs = {};
+    }
+
+    get ref() {
+        return this._parent ? ""+this._ref+"-"+this._parent.ref : ""+this._ref;
     }
 
     // Testé
@@ -1360,6 +1393,16 @@ export class SVGElement {
             }
         }
     }
+
+    get owner() {
+        let elem = this;
+        while (elem) {
+            if (elem._owner) return elem._owner;
+            elem = elem.parent;
+        }
+        return null;
+    };
+
 
 }
 
@@ -3114,3 +3157,8 @@ export function l2l(sourceMatrix, targetMatrix, ...points) {
     }
     return result;
 }
+
+export const Mutation = {
+    CHILDLIST : "childlist",
+    ATTRIBUTES : "attributes"
+};
