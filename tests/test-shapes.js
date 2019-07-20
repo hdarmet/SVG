@@ -2,7 +2,7 @@
 
 import {describe, it, before, assert} from "./test-toolkit.js";
 import {SVGElement, ClipPath, Mask, Rect, Circle, Ellipse, Line, Svg, Group, Translation, Rotation, Scaling,
-    Polygon, Polyline, RasterImage, SvgImage, SvgRasterImage,
+    Polygon, Polyline, RasterImage, ClippedRasterImage, SvgImage, SvgRasterImage,
     MouseEvents, Colors, Visibility, FeGaussianBlur, Filter, P100,
     FilterUnits, ColorInterpolationFilters, FeEdgeMode, FeIn
 } from "../js/svgbase.js";
@@ -586,5 +586,56 @@ describe("Basic SVG Objects", ()=> {
         assert(group.outerHTML).equalsTo('<g><mask id="ID1" x="0" y="0" width="50" height="25">' +
             '<rect x="0" y="0" width="50" height="50" fill="#0F0F0F"></rect></mask>' +
             '<rect x="10" y="20" width="100" height="200" mask="url(#ID1)" id="rect"></rect></g>');
+    });
+
+    it ("Shows a clipped rasterized image", (done)=>{
+        let image = new ClippedRasterImage("images/home.png", 5, 5, 25, 25);
+        svg.add(image);
+        assert(svg.innerHTML).equalsTo('<defs></defs><g></g>');
+        setTimeout(()=>{
+            assert(svg.innerHTML).contains(
+                '<defs></defs><image xlink:href="data:image/png;base64,iVBOR');
+            done();
+        }, 50);
+    });
+
+    it ("Build a clone of a clipped rasterized image", (done)=>{
+        let image = new ClippedRasterImage("images/home.png", 5, 5, 25, 25);
+        svg.add(image.clone());
+        setTimeout(()=>{
+            assert(svg.innerHTML).contains(
+                '<defs></defs><image xlink:href="data:image/png;base64,iVBOR');
+            done();
+        }, 50);
+    });
+
+    it ("Change clip of a clipped rasterized image", (done)=>{
+        let image = new ClippedRasterImage("images/home.png", 5, 5, 25, 25);
+        svg.add(image);
+        setTimeout(()=>{
+            assert(svg.innerHTML).contains(
+                '<defs></defs><image xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABkAAAAZCAYAAADE6YVjAAABRklEQVRIS+');
+            image.clip(10, 10, 20, 20);
+            setTimeout(()=>{
+                assert(svg.innerHTML).contains(
+                    '<defs></defs><image xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAqUlEQVQ4T+');
+                done();
+            });
+        }, 50);
+    });
+
+    it ("Change image of a clipped rasterized image", (done)=>{
+        let image = new ClippedRasterImage("images/home.png", 5, 5, 25, 25);
+        svg.add(image);
+        setTimeout(()=>{
+            assert(svg.innerHTML).contains(
+                '<defs></defs><image xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABkAAAAZCAYAAADE6YVjAAABRklEQVRIS+');
+            image.href = "images/profile.png";
+            setTimeout(()=>{
+                assert(svg.innerHTML).contains(
+                    '<defs></defs><image xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABkAAAAZCAYAAADE6YVjAAACF0lEQVRIS7XVSciPUR');
+                done();
+            });
+        }, 50);
     });
 });

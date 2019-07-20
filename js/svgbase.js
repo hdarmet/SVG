@@ -80,6 +80,16 @@ export function globalOffset(svgNode) {
     };
 }
 
+export function createUUID(){
+    let dt = new Date().getTime();
+    let uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        let r = (dt + Math.random()*16)%16 | 0;
+        dt = Math.floor(dt/16);
+        return (c=='x' ? r :(r&0x3|0x8)).toString(16);
+    });
+    return uuid;
+}
+
 export function computeMatrix(from, to) {
     if (!from) console.log("from null !")
     if (!to) console.log("to null !")
@@ -398,8 +408,11 @@ export function rasterizeSvg(img, callback) {
         img instanceof DocumentFragment
             ? img.querySelector("svg")
             : img;
+    let width = node.getAttribute(Attrs.WIDTH);
+    width = width ? parseInt(width) : 200;
+    let height = node.getAttribute(Attrs.HEIGHT);
+    height = height ? parseInt(height) : 200;
     let svgText = node.outerHTML;
-    if (!svgText) svgText = img.querySelector("svg").outerHTML;
     if (!svgText.match(/xmlns=\"/mi)){
         svgText = svgText.replace ('<svg ','<svg xmlns="http://www.w3.org/2000/svg" ') ;
     }
@@ -407,11 +420,6 @@ export function rasterizeSvg(img, callback) {
         type: "image/svg+xml;charset=utf-8"
     });
     let url = URL.createObjectURL(svg);
-    // figure out the height and width from svg text
-    let match = svgText.match(/height=\"(\d+)/m);
-    let height = match && match[1] ? parseInt(match[1],10) : 200;
-    match = svgText.match(/width=\"(\d+)/m);
-    let width = match && match[1] ? parseInt(match[1],10) : 200;
     // create a canvas element to pass through
     let canvas = doc.createElement("canvas");
     canvas.width = width;
@@ -1267,8 +1275,10 @@ export class SVGElement {
             dragStart : dragStart,
             dragMove : dragMove,
             dragDrop : dragDrop,
+            event: null,
             start : event=> {
                 if (!event._drag) {
+                    this._dnd.event = event;
                     dndMove = this._dnd.move;
                     dndDrop = this._dnd.drop;
                     if (this._node.setCapture) {
@@ -1286,9 +1296,12 @@ export class SVGElement {
                     event._drag = true;
                 }
             },
-            move : function(event) {
-                dragMove.call(this, event);
-                event.preventDefault();
+            move : event=> {
+                if (event.pageX!==this._dnd.event.pageX||event.pageY!==this._dnd.event.pageY) {
+                    this._dnd.event = event;
+                    dragMove.call(this, event);
+                    event.preventDefault();
+                }
             },
             drop : event=> {
                 dragDrop.call(this, event);
@@ -2302,7 +2315,7 @@ export class RasterImage extends Shape {
         if (!width || !height) {
             this.node("g");
             loadRasterImage(url, raster=>{
-               this._setImage(raster, width, height, url)
+               this._setImage(raster, width, height)
             });
         }
         else {
@@ -2353,6 +2366,101 @@ export class RasterImage extends Shape {
 }
 // Partiel
 defineXYWidthHeightProperties(RasterImage);
+
+export class ClippedRasterImage extends Shape {
+
+    constructor(url, cx, cy, cw, ch, x=0, y=0, width=0, height=0) {
+        super();
+        this._attrs.width = width;
+        this._attrs.height = height;
+        this._attrs.href=url;
+        this._attrs.x = x;
+        this._attrs.y = y;
+        this._attrs.cx = cx;
+        this._attrs.cy = cy;
+        this._attrs.cw = cw;
+        this._attrs.ch = ch;
+        this._attrs.preserveAspectRatio = AspectRatio.NONE;
+        this.node("g");
+        this.setImage();
+    }
+
+    _build(rasterImage, cx, cy, cw, ch) {
+        let canvas = doc.createElement("canvas");
+        canvas.width = cw;
+        canvas.height = ch;
+        let ctx = canvas.getContext("2d");
+        ctx.drawImage(rasterImage, cx, cy, cw, ch, 0, 0, cw, ch);
+        this.node('image');
+        this._node.setAttributeNS(XLINK_NS, "href", canvas.toDataURL());
+        this.attrs({
+            x: this._attrs.x,
+            y: this._attrs.y,
+            width: this._attrs.width,
+            height: this._attrs.height
+        });
+    }
+
+    setImage() {
+        loadRasterImage(this._attrs.href, raster=>{
+            this._setImage(raster,
+                this._attrs.cx, this._attrs.cy,
+                this._attrs.cw, this._attrs.ch,
+                this._attrs.width, this._attrs.height)
+        });
+    }
+
+    _setImage(raster, cx, cy, cw, ch, width, height) {
+        if (!width || !height) {
+            if (width) {
+                height = ch * width / cw;
+            } else if (height) {
+                width = cw * height / ch;
+            } else {
+                width = cw;
+                height = ch;
+            }
+        }
+        this._old = this._node;
+        this._attrs.width = width;
+        this._attrs.height = height;
+        this._build(raster, cx, cy, cw, ch);
+        if (this.parent) {
+            this.parent.reset(this);
+        }
+    }
+
+    clone() {
+        let copy = super.clone();
+        loadRasterImage(this.href, raster=> {
+            copy._setImage(raster,
+                this._attrs.cx, this._attrs.cy,
+                this._attrs.cw, this._attrs.ch,
+                this._attrs.width, this._attrs.height);
+        });
+        return copy;
+    }
+
+    get href() {
+        return this._attrs.href;
+    }
+
+    set href(href) {
+        this._attrs.href = href;
+        this.setImage();
+    }
+
+    clip(cx, cy, cw, ch) {
+        this._attrs.cx = cx;
+        this._attrs.cy = cy;
+        this._attrs.cw = cw;
+        this._attrs.ch = ch;
+        this.setImage();
+    }
+
+}
+// Partiel
+defineXYWidthHeightProperties(ClippedRasterImage);
 
 // Testé
 export class SvgImage extends Shape {

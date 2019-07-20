@@ -1,15 +1,24 @@
 'use strict';
 
-import {Rect, Rotation, Colors} from "./svgbase.js";
-import {Context, Memento, Selection, Canvas, BoardElement, BoardTable,
+import {
+    Rect, Rotation, Colors
+} from "./svgbase.js";
+import {
+    Context, Memento, Selection, Canvas, DragSwitchOperation,
+    makeMultiLayeredGlass
+} from "./toolkit.js";
+import {
+    BoardElement, BoardTable,
     makeMoveable, makeRotatable, makeShaped, makeDraggable, makeClickable, makeSelectable,
-    makeContainerMultiLayered, makeLayered, makeMultiLayeredGlass, makeContainerZindex,
-    DragSwitchOperation} from "./toolkit.js";
-import {ToolCommandPopup, ToolCommand, ToolToggleCommand, ToolExpandablePopup, ToolExpandablePanel,
+    makeContainerMultiLayered, makeLayered, makeContainerZindex,
+} from "./base-element.js";
+import {
+    ToolCommandPopup, ToolCommand, ToolToggleCommand, ToolExpandablePopup, ToolExpandablePanel,
     ToolGridPanelContent, ToolCell,
-    makeMenuOwner, TextMenuOption, TextToggleMenuOption, CheckMenuOption, ColorChooserMenuOption, BoardItemBuilder} from "./tools.js";
-import {BoardBox, BoardImageBox, BoardCounter, BoardMap} from "./elements.js";
-
+    makeMenuOwner, TextMenuOption, TextToggleMenuOption, CheckMenuOption, ColorChooserMenuOption, BoardItemBuilder,
+    zoomInCommand, zoomOutCommand, zoomExtentCommand, zoomSelectionCommand
+} from "./tools.js";
+import {BoardBox, BoardImageBox, BoardCounter, BoardDie, BoardMap} from "./elements.js";
 
 Context.rotateOrMoveDrag = new DragSwitchOperation()
     .add(()=>true, Context.rotateDrag)
@@ -66,6 +75,10 @@ let toggle = true;
 
 function createCommandPopup() {
     let cmdPopup = new ToolCommandPopup(78, 32).display(39, 16);
+    zoomInCommand(cmdPopup);
+    zoomOutCommand(cmdPopup);
+    zoomExtentCommand(cmdPopup);
+    zoomSelectionCommand(cmdPopup);
     cmdPopup.add(new ToolCommand("./images/icons/comments_on.svg", () => {
         console.log("commands")
     }));
@@ -111,7 +124,7 @@ function createPalettePopup() {
 createCommandPopup();
 createPalettePopup();
 
-let area = new BoardTable(800, 400, "#A0A0A0");
+let area = new BoardTable(4000, 3000, "#A0A0A0");
 Context.canvas.putOnBase(area);
 
 let dummy1 = new BoardDummy(30, 20, "#FF0000");
@@ -125,10 +138,15 @@ area.add(dummy2);
 area.add(box1);
 area.add(box2);
 
-let counter1 = new BoardCounter(50, 50, Colors.GREY, "./images/JemmapesRecto1_001.jpg", "./images/JemmapesVerso1_001.jpg");
+let counter1 = new BoardCounter(40, 40, Colors.GREY, "./images/JemmapesRecto1_001.jpg", "./images/JemmapesVerso1_001.jpg");
 area.add(counter1);
-let counter2 = new BoardCounter(50, 50, Colors.GREY, "./images/JemmapesRecto1_001.jpg", "./images/JemmapesVerso1_001.jpg");
+let counter2 = new BoardCounter(40, 40, Colors.GREY, "./images/JemmapesRecto1_001.jpg", "./images/JemmapesVerso1_001.jpg");
 area.add(counter2);
-let map1 = new BoardMap(400, 200, Colors.GREY, "./images/Jemmapes.jpg");
+let map1 = new BoardMap(1256, 888, Colors.GREY, "./images/Jemmapes.jpg");
 area.add(map1);
+let d8 = new BoardDie(50, 50, "none", "./images/game/d8.png",
+    {x:16, y:16, width:90, height:104}, {x:130, y:16, width:90, height:104}, {x:244, y:16, width:90, height:104},
+    {x:72, y:123, width:90, height:104}, {x:187, y:123, width:90, height:104},
+    {x:16, y:230, width:90, height:104}, {x:130, y:230, width:90, height:104}, {x:244, y:230, width:90, height:104});
+area.add(d8);
 Context.memento.opened = true;

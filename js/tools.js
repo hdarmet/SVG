@@ -1,9 +1,15 @@
-'use strict'
+'use strict';
 
 import {
     Visibility, computePosition, List, Matrix, RasterImage, SvgRasterImage, Group, ClipPath, Rect, Text,
-    Colors, MouseEvents, TextAnchor, win, Cursor} from "./svgbase.js";
-import {Context, Events, boundingBox, makeDraggable, makeObservable, DragOperation, Memento, Canvas, BoardElement} from "./toolkit.js";
+    Colors, MouseEvents, TextAnchor, win, Cursor
+} from "./svgbase.js";
+import {
+    Context, Events, boundingBox, DragOperation, Memento, Canvas, makeObservable
+} from "./toolkit.js";
+import {
+    makeDraggable, BoardElement
+} from "./base-element.js";
 
 export class Menu {
 
@@ -1104,4 +1110,109 @@ export class BoardItemBuilder extends ToolCell {
         }
     }
 
+}
+
+export function zoomInCommand(toolPopup) {
+
+    function isMaxZoom() {
+        return Context.canvas.maxZoom <= Context.canvas.zoom;
+    }
+    function zoomInSelect() {
+        if (!isMaxZoom()) {
+            let bbox = boundingBox(Context.selection.selection(), Context.canvas.globalMatrix);
+            if (bbox !== null) {
+                let px = (bbox.left + bbox.right) / 2;
+                let py = (bbox.top + bbox.bottom) / 2;
+                Context.canvas.zoomIn(px, py);
+            } else {
+                let matrix = Context.canvas.globalMatrix.invert();
+                let cx = Context.canvas.clientWidth / 2;
+                let cy = Context.canvas.clientHeight / 2;
+                let px = matrix.x(cx, cy);
+                let py = matrix.y(cx, cy);
+                Context.canvas.zoomIn(px, py);
+            }
+        }
+    }
+
+    toolPopup.add(new ToolToggleCommand("./images/icons/zoom-in_on.svg", "./images/icons/zoom-in_off.svg",
+        () => {
+            zoomInSelect();
+        }, () => !isMaxZoom())
+    );
+}
+
+export function zoomOutCommand(toolPopup) {
+
+    function isMinZoom() {
+        return Context.canvas.minZoom >= Context.canvas.zoom;
+    }
+    function zoomOutSelect() {
+        if (!isMinZoom()) {
+            let bbox = boundingBox(Context.selection.selection(), Context.canvas.globalMatrix);
+            if (bbox !== null) {
+                let px = (bbox.left + bbox.right) / 2;
+                let py = (bbox.top + bbox.bottom) / 2;
+                Context.canvas.zoomOut(px, py);
+            } else {
+                let matrix = Context.canvas.globalMatrix.invert();
+                let cx = Context.canvas.clientWidth / 2;
+                let cy = Context.canvas.clientHeight / 2;
+                let px = matrix.x(cx, cy);
+                let py = matrix.y(cx, cy);
+                Context.canvas.zoomOut(px, py);
+            }
+        }
+    }
+
+    toolPopup.add(new ToolToggleCommand("./images/icons/zoom-out_on.svg", "./images/icons/zoom-out_off.svg",
+        () => {
+            zoomOutSelect();
+        }, () => !isMinZoom())
+    );
+}
+
+function zoomFit(elements) {
+    let bbox = boundingBox(elements, Context.canvas.baseGlobalMatrix);
+    if (bbox !== null) {
+        let width = bbox.right - bbox.left;
+        let height = bbox.bottom - bbox.top;
+        let scale = Math.min(Context.canvas.clientWidth / width, Context.canvas.clientHeight / height) * 0.9;
+        Context.canvas.zoomSet(scale, 0, 0);
+        let px = (bbox.left + bbox.right) / 2;
+        let py = (bbox.top + bbox.bottom) / 2;
+        Context.canvas.scrollTo(px, py);
+    }
+}
+
+export function zoomExtentCommand(toolPopup) {
+
+    function isMinZoom() {
+        return Context.canvas.minZoom >= Context.canvas.zoom;
+    }
+    function zoomExtent() {
+        zoomFit(Context.canvas.baseChildren);
+    }
+
+    toolPopup.add(new ToolToggleCommand("./images/icons/zoom-extent_on.svg", "./images/icons/zoom-extent_off.svg",
+        () => {
+            zoomExtent();
+        }, () => !isMinZoom())
+    );
+}
+
+export function zoomSelectionCommand(toolPopup) {
+
+    function selectionEmpty() {
+        return Context.selection.selection().size === 0;
+    }
+    function zoomSelection() {
+        zoomFit(Context.selection.selection());
+    }
+
+    toolPopup.add(new ToolToggleCommand("./images/icons/zoom-selection_on.svg", "./images/icons/zoom-selection_off.svg",
+        () => {
+            zoomSelection();
+        }, () => !selectionEmpty())
+    );
 }

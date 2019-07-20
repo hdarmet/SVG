@@ -1,223 +1,22 @@
 'use strict';
+
 import {
-    Memento,
-    BoardElement, Context, Events, DragSwitchOperation,
-    makeShaped, makeContainer, makeSupport, makeDraggable, makeSelectable, makeMoveable, makeRotatable, makeClickable
+    List, Group, Rect, RasterImage, ClippedRasterImage, Fill, Visibility, win
+} from "./svgbase.js";
+import {
+    Memento, Context, Events, DragSwitchOperation
 } from "./toolkit.js";
 import {
-    List, Group, Rect, RasterImage, Fill, Visibility
-} from "./svgbase.js";
+    BoardElement, BoardSupport,
+    makeContainer, makeSupport, makeDraggable, makeSelectable, makeMoveable, makeRotatable, makeClickable,
+    makePositionningContainer, makePart, makeFramed, makeSingleImaged, makeMultiImaged, makeClipImaged
+} from "./base-element.js";
+
 import {TextToggleMenuOption, makeMenuOwner} from "./tools.js";
 
 Context.itemDrag = new DragSwitchOperation()
     .add(()=>true, Context.rotateDrag)
     .add(()=>true, Context.moveDrag);
-
-export function makeFramed(superClass) {
-
-    makeShaped(superClass);
-
-    superClass.prototype._initFrame = function(width, height, strokeColor, backgroundColor) {
-        let background = new Rect(-width/2, -height/2, width, height);
-        background.stroke = strokeColor;
-        background.fill = backgroundColor;
-        return this._initShape(background);
-    };
-
-    Object.defineProperty(superClass.prototype, "fill", {
-        configurable:true,
-        get: function () {
-            return this.shape.fill;
-        }
-    });
-}
-
-export function makeImaged(superClass) {
-
-    makeShaped(superClass);
-
-    superClass.prototype._initBackground = function (width, height, strokeColor, image) {
-        let background = new Group();
-        background.add(image);
-        if (strokeColor) {
-            background.add(new Rect(-width / 2, -height / 2, width, height).attrs({
-                fill: Fill.NONE,
-                stroke: strokeColor
-            }));
-        }
-        return this._initShape(background);
-    };
-
-    Object.defineProperty(superClass.prototype, "background", {
-        configurable:true,
-        get: function () {
-            return this.shape._children[0];
-        }
-    });
-
-    Object.defineProperty(superClass.prototype, "frame", {
-        configurable:true,
-        get: function () {
-            return this.shape._children[1];
-        }
-    });
-
-    Object.defineProperty(superClass.prototype, "url", {
-        configurable:true,
-        get: function () {
-            return this.background.href;
-        }
-    });
-
-    Object.defineProperty(superClass.prototype, "width", {
-        configurable:true,
-        get: function () {
-            return this.background.width;
-        },
-        set: function(width) {
-            Memento.register(this);
-            this.background.attrs({width:width, x:-width/2});
-            this.frame.attrs({width:width, x:-width/2});
-        }
-    });
-
-    Object.defineProperty(superClass.prototype, "height", {
-        configurable:true,
-        get: function () {
-            return this.background.height;
-        },
-        set: function(height) {
-            Memento.register(this);
-            this.background.attrs({height:height, y:-height/2});
-            this.frame.attrs({height:height, y:-height/2});
-        }
-    });
-}
-
-export function makeSingleImaged(superClass) {
-
-    makeImaged(superClass);
-
-    superClass.prototype._initImage = function (width, height, strokeColor, backgroundURL) {
-        return this._initBackground(width, height, strokeColor,
-            new RasterImage(backgroundURL, -width / 2, -height / 2, width, height));
-    };
-
-    return superClass;
-}
-
-export function makeMultiImaged(superClass) {
-
-    makeImaged(superClass);
-
-    superClass.prototype._initImages = function (width, height, strokeColor, ...backgroundURLs) {
-        return this._initBackground(width, height, strokeColor,
-            this._loadImages(width, height, backgroundURLs));
-    };
-
-    superClass.prototype._loadImages = function(width, height, backgroundURLs) {
-        this._images = new List();
-        for (let backgroundURL of backgroundURLs) {
-            this._images.add(new RasterImage(backgroundURL, -width / 2, -height / 2, width, height));
-        }
-        return this._images[0];
-    };
-
-    superClass.prototype._setImageIndex = function(index) {
-        let idx = index%this._images.length;
-        this.shape.replace(this.background, this._images[idx]);
-        return this;
-    };
-
-    Object.defineProperty(superClass.prototype, "imageIndex", {
-        configurable:true,
-        get: function () {
-            return this._images.indexOf(this.background);
-        },
-        set: function(index) {
-            Memento.register(this);
-            this._setImageIndex(index);
-        }
-    });
-
-    let superMemento = superClass.prototype._memento;
-    if (superMemento) {
-        superClass.prototype._memento = function () {
-            let memento = superMemento.call(this);
-            memento._images = new List(...this._images);
-            return memento;
-        };
-
-        let superRevert = superClass.prototype._revert;
-        superClass.prototype._revert = function (memento) {
-            superRevert.call(this, memento);
-            this._images = new List(...memento._images);
-            return this;
-        };
-    }
-
-    return superClass;
-}
-
-export function makePart(superClass) {
-
-    superClass.prototype._initPart = function(owner) {
-        this._owner = owner;
-        return this;
-    };
-
-    if (!superClass.prototype.hasOwnProperty("selectable")) {
-        Object.defineProperty(superClass.prototype, "selectable", {
-            configurable:true,
-            get() {
-                return this.parent.selectable;
-            }
-        });
-    }
-
-    let superMemento = superClass.prototype._memento;
-    if (superMemento) {
-        superClass.prototype._memento = function () {
-            let memento = superMemento.call(this);
-            memento._owner = this._owner;
-            return memento;
-        };
-
-        let superRevert = superClass.prototype._revert;
-        superClass.prototype._revert = function (memento) {
-            superRevert.call(this, memento);
-            this._owner = memento._owner;
-            return this;
-        };
-    }
-
-    Object.defineProperty(superClass.prototype, "menuOptions", {
-        get: function () {
-            let menuOptions = this._owner.menuOptions;
-            if (menuOptions) {
-                if (this._menuOptions) {
-                    menuOptions.push(...this._menuOptions);
-                }
-                return menuOptions;
-            }
-            else {
-                return this._menuOptions;
-            }
-        }
-    });
-
-}
-
-export class BoardSupport extends BoardElement {
-
-    constructor(...args) {
-        super();
-        this._root.add(this.initShape(...args)).add(this._initContent());
-    }
-
-}
-makeSupport(BoardSupport);
-makeDraggable(BoardSupport);
 
 export class AbstractBoardContent extends BoardSupport {
 
@@ -510,6 +309,7 @@ export class AbstractBoardCounter extends BoardElement {
         );
         this._dragOperation(Context.itemDrag);
         this._clickHandler(function () {
+            console.log("click")
             this.imageIndex = this.imageIndex+1;
         });
     }
@@ -522,6 +322,7 @@ makeDraggable(AbstractBoardCounter);
 makeClickable(AbstractBoardCounter);
 makeMenuOwner(AbstractBoardCounter);
 makeSupport(AbstractBoardCounter);
+makePositionningContainer(AbstractBoardCounter, function() {return [{x:0, y:0}]});
 
 export class BoardCounter extends AbstractBoardCounter {
 
@@ -535,6 +336,48 @@ export class BoardCounter extends AbstractBoardCounter {
 
 }
 makeMultiImaged(BoardCounter);
+
+export class AbstractBoardDie extends BoardElement {
+
+    constructor(width, height, ...args) {
+        super();
+        this._root.add(this.initShape(width, height, ...args))
+            .add(this._initContent());
+        this._dragOperation(Context.moveDrag);
+        this._clickHandler(function () {
+            for (let t=0; t<10; t++) {
+                win.setTimeout(() => {
+                    let index = Math.floor(Math.random() * this.faceCount);
+                    this.imageIndex = index;
+                }, t * 100);
+            }
+        });
+    }
+
+    get faceCount() {
+        return this._faceCount;
+    }
+}
+makeSelectable(AbstractBoardDie);
+makeMoveable(AbstractBoardDie);
+makeDraggable(AbstractBoardDie);
+makeClickable(AbstractBoardDie);
+makeMenuOwner(AbstractBoardDie);
+makeSupport(AbstractBoardDie);
+
+export class BoardDie extends AbstractBoardDie {
+
+    constructor(width, height, strokeColor, imageURL, ...clipped) {
+        super(width, height, strokeColor, imageURL, ...clipped);
+        this._faceCount = clipped.length;
+    }
+
+    initShape(width, height, strokeColor, imageURL, ...clipped) {
+        return this._initImages(width, height, strokeColor, imageURL, ...clipped);
+    }
+
+}
+makeClipImaged(BoardDie);
 
 export class AbstractBoardMap extends BoardElement {
 
