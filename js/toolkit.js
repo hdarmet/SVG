@@ -255,7 +255,7 @@ export class DragOperation {
 }
 makeObservable(DragOperation);
 
-export class DragMoveOperation extends DragOperation {
+export class DragMoveSelectionOperation extends DragOperation {
 
     constructor() {
         super();
@@ -409,8 +409,6 @@ export class DragMoveOperation extends DragOperation {
         for (let selectedElement of [...this._dragSet]) {
             if (!selectedElement._dropCancelled) {
                 let target = this.getTarget(selectedElement);
-                console.log("Drop")
-                console.log(target)
                 if (target && target._dropTarget) {
                     target = target._dropTarget();
                 }
@@ -471,10 +469,10 @@ export class DragMoveOperation extends DragOperation {
         }
     }
 }
-Context.moveDrag = new DragMoveOperation();
+Context.moveSelectionDrag = new DragMoveSelectionOperation();
 
 
-class DragRotateOperation extends DragOperation {
+class DragRotateSelectionOperation extends DragOperation {
 
     constructor() {
         super();
@@ -570,7 +568,7 @@ class DragRotateOperation extends DragOperation {
         }
     }
 }
-Context.rotateDrag = new DragRotateOperation();
+Context.rotateSelectionDrag = new DragRotateSelectionOperation();
 
 export class DragSelectAreaOperation extends DragOperation {
 
@@ -1081,12 +1079,48 @@ export function makeMultiLayeredGlass(...layers) {
 }
 
 export class ModalsLayer extends CanvasLayer {
+
     constructor(canvas) {
         super(canvas);
-        this._curtain = new Rect(canvas.width/2, canvas.height/2, canvas.width, canvas.height)
-            .attrs({fill: Colors.BLACK, opacity: 0.5}, {visibility: Visibility.HIDDEN});
+        this._curtain = new Rect(-canvas.width/2, -canvas.height/2, canvas.width, canvas.height)
+            .attrs({fill: Colors.BLACK, opacity: 0.5, visibility: Visibility.HIDDEN});
         this._root.add(this._curtain);
     }
+
+    openPopup(onOpen, data, onValidate, onCancel) {
+        onOpen(
+            data,
+            data=>{
+                onValidate && onValidate(data);
+            },
+            data=>{
+                onCancel && onCancel(data);
+            }
+        )
+    }
+
+    openModal(onOpen, data, onValidate, onCancel) {
+        this._modalOpened = true;
+        this._curtain.visibility = Visibility.VISIBLE;
+        onOpen(
+            data,
+            data=>{
+                this._curtain.visibility = Visibility.HIDDEN;
+                this._modalOpened = false;
+                onValidate && onValidate(data);
+            },
+            data=>{
+                this._curtain.visibility = Visibility.HIDDEN;
+                this._modalOpened = false;
+                onCancel && onCancel(data);
+            }
+        )
+    }
+
+    get modalOpened() {
+        return this._modalOpened;
+    }
+
 }
 
 export class Canvas {
@@ -1238,6 +1272,8 @@ export class Canvas {
     get matrix() {return this._content.matrix;}
     get globalMatrix() {return this._content.globalMatrix;}
     mouse2canvas(event) {return this._content.global2local(this.canvasX(event.pageX), this.canvasY(event.pageY));}
+
+    // Base Layer
     setBaseSize(width, height) {this._baseLayer.setSize(width, height);}
     scrollTo(x, y) {this._baseLayer.scrollTo(x, y);}
     zoomIn(x, y) {this._baseLayer.zoomIn(x, y);}
@@ -1252,8 +1288,10 @@ export class Canvas {
     get baseMatrix() {return this._baseLayer.matrix;}
     get baseGlobalMatrix() {return this._baseLayer.globalMatrix;}
 
+    // Tool layer
     putArtifactOnToolsLayer(artifact) { this._toolsLayer.putArtifact(artifact);}
 
+    // Glass Layer
     putArtifactOnGlass(artifact) { this._glassLayer.putArtifact(artifact);}
     removeArtifactFromGlass(artifact) { this._glassLayer.removeArtifact(artifact);}
     putElementOnGlass(element, x, y) { this._glassLayer.putElement(element, x, y);}
@@ -1266,7 +1304,13 @@ export class Canvas {
     prepareGlassForToolsDrag() {this._glassLayer.prepareToolsDrag();}
     hideGlass() {this._glassLayer.hide();}
     showGlass() {this._glassLayer.show();}
+
+    // Modal layer
+    openPopup(onOpen, data, onValidate, onCancel) { this._modalsLayer.openPopup(onOpen, data, onValidate, onCancel); }
+    openModal(onOpen, data, onValidate, onCancel) { this._modalsLayer.openModal(onOpen, data, onValidate, onCancel); }
+    get modalOpened() { return this._modalsLayer.modalOpened; }
 }
+
 makeObservable(Canvas);
 
 export class MutationObservers {

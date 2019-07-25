@@ -1217,7 +1217,9 @@ export function makePart(superClass) {
 
 export class BoardElement {
 
-    constructor() {
+    constructor(width, height) {
+        this._width = width;
+        this._height = height;
         this._createStructure();
         this._id = createUUID();
     }
@@ -1235,12 +1237,16 @@ export class BoardElement {
     _memento() {
         let memento = {};
         memento._parent = this._parent;
+        memento._width = this._width;
+        memento._height = this._height;
         memento.rootMatrix = this._root.matrix.clone();
         return memento;
     }
 
     _revert(memento) {
         this._parent = memento._parent;
+        this._width = memento._width;
+        this._height = memento._height;
         this._root.matrix = memento.rootMatrix;
         return this;
     }
@@ -1262,8 +1268,8 @@ export class BoardElement {
 
     get x() {return 0;}
     get y() {return 0;}
-    get width() {return 0;}
-    get height() {return 0;}
+    get width() {return this._width;}
+    get height() {return this._height;}
     get left() {return this.x - this.width/2;}
     get right() {return this.x + this.width/2;}
     get top() {return this.y - this.height/2;}
@@ -1394,7 +1400,7 @@ makeObservable(BoardElement);
 export class BoardArea extends BoardElement {
 
     constructor(width, height, backgroundColor) {
-        super();
+        super(width, height);
         let background = new Rect(-width/2, -height/2, width, height);
         background.fill = backgroundColor;
         this._root
@@ -1460,9 +1466,9 @@ export class BoardTable extends BoardArea {
 
 export class BoardSupport extends BoardElement {
 
-    constructor(...args) {
-        super();
-        this._root.add(this.initShape(...args)).add(this._initContent());
+    constructor(width, height, ...args) {
+        super(width, height);
+        this._root.add(this.initShape(width, height, ...args)).add(this._initContent());
     }
 
 }

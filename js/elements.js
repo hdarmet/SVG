@@ -1,27 +1,28 @@
 'use strict';
 
 import {
-    List, Group, Rect, RasterImage, ClippedRasterImage, Fill, Visibility, win
+    Group, Rect, Fill, Visibility, win, Colors, Circle, Line
 } from "./svgbase.js";
 import {
-    Memento, Context, Events, DragSwitchOperation
+    Memento, Context, Events, DragSwitchOperation, DragOperation
 } from "./toolkit.js";
 import {
     BoardElement, BoardSupport,
     makeContainer, makeSupport, makeDraggable, makeSelectable, makeMoveable, makeRotatable, makeClickable,
-    makePositionningContainer, makePart, makeFramed, makeSingleImaged, makeMultiImaged, makeClipImaged
+    makePositionningContainer, makePart, makeFramed, makeSingleImaged, makeMultiImaged, makeClipImaged, makeShaped
 } from "./base-element.js";
-
-import {TextToggleMenuOption, makeMenuOwner} from "./tools.js";
+import {
+    TextMenuOption, TextToggleMenuOption, makeMenuOwner
+} from "./tools.js";
 
 Context.itemDrag = new DragSwitchOperation()
-    .add(()=>true, Context.rotateDrag)
-    .add(()=>true, Context.moveDrag);
+    .add(()=>true, Context.rotateSelectionDrag)
+    .add(()=>true, Context.moveSelectionDrag);
 
 export class AbstractBoardContent extends BoardSupport {
 
-    constructor(owner, ...args) {
-        super(...args);
+    constructor(owner, width, height, ...args) {
+        super(width, height, ...args);
         this._initPart(owner);
     }
 
@@ -94,11 +95,11 @@ makePart(AbstractBoardContent);
 
 export class AbstractBoardCover extends BoardElement {
 
-    constructor(owner, ...args) {
-        super();
+    constructor(owner, width, height, ...args) {
+        super(width, height);
         this._initPart(owner);
         this._hidden = false;
-        this._root.add(this.initShape(...args)).add(this._initContent());
+        this._root.add(this.initShape(width, height,...args)).add(this._initContent());
     }
 
     _memento() {
@@ -149,14 +150,14 @@ makeContainer(AbstractBoardCover);
 
 export class AbstractBoardBox extends BoardElement {
 
-    constructor(...args) {
-        super();
+    constructor(width, height, ...args) {
+        super(width, height);
         this._root.add(this._initRotatable()
-            .add(this.initShape(...args))
+            .add(this.initShape(width, height,...args))
             .add(this._initContent()));
         this._dragOperation(Context.itemDrag);
-        this._boxContent = this.initBoxContent(...args);
-        this._boxCover = this.initBoxCover(...args);
+        this._boxContent = this.initBoxContent(width, height,...args);
+        this._boxCover = this.initBoxCover(width, height,...args);
         this._add(this._boxContent);
         this._add(this._boxCover);
         this.addMenuOption(new TextToggleMenuOption("Hide cover", "Show cover",
@@ -302,14 +303,13 @@ makeSingleImaged(BoardImageBox);
 export class AbstractBoardCounter extends BoardElement {
 
     constructor(width, height, ...args) {
-        super();
+        super(width, height);
         this._root.add(this._initRotatable()
             .add(this.initShape(width, height, ...args))
             .add(this._initContent())
         );
         this._dragOperation(Context.itemDrag);
         this._clickHandler(function () {
-            console.log("click")
             this.imageIndex = this.imageIndex+1;
         });
     }
@@ -340,10 +340,10 @@ makeMultiImaged(BoardCounter);
 export class AbstractBoardDie extends BoardElement {
 
     constructor(width, height, ...args) {
-        super();
+        super(width, height);
         this._root.add(this.initShape(width, height, ...args))
             .add(this._initContent());
-        this._dragOperation(Context.moveDrag);
+        this._dragOperation(Context.moveSelectionDrag);
         this._clickHandler(function () {
             for (let t=0; t<10; t++) {
                 win.setTimeout(() => {
@@ -382,12 +382,27 @@ makeClipImaged(BoardDie);
 export class AbstractBoardMap extends BoardElement {
 
     constructor(width, height, ...args) {
-        super();
+        super(width, height);
         this._root.add(this._initRotatable()
             .add(this.initShape(width, height, ...args))
             .add(this._initContent())
         );
         this._dragOperation(Context.itemDrag);
+        this.addMenuOption(new TextMenuOption("Generate targets",
+            function() {
+                this.generateTargets();
+            },
+            ()=>true));
+    }
+
+    generateTargets() {
+        Context.canvas.openModal(
+            generateTargets,
+            {x:0},
+            data=>{
+                Context.memento.open();
+                console.log(data.x);
+            });
     }
 
 }
@@ -410,3 +425,251 @@ export class BoardMap extends AbstractBoardMap {
 
 }
 makeSingleImaged(BoardMap);
+
+export class DragHandleOperation extends DragOperation {
+
+    constructor() {
+        super();
+    }
+
+    accept(element, x, y, event) {
+        return (!Context.readOnly && element.moveable && super.accept(element, x, y, event));
+    }
+
+    doDragStart(element, x, y, event) {
+        Context.memento.open();
+        Memento.register(element);
+        let invertedMatrix = element.global.invert();
+        this.dragX = invertedMatrix.x(x, y);
+        this.dragY = invertedMatrix.y(x, y);
+    }
+
+    doDragMove(element, x, y, event) {
+        let invertedMatrix = element.parent.global.invert();
+        let dX = invertedMatrix.x(x, y) - this.dragX;
+        let dY = invertedMatrix.y(x, y) - this.dragY;
+        element._setPosition(dX, dY);
+        element.parent._receiveMove && element.parent._receiveMove(element);
+    }
+
+    doDrop(element, x, y, event) {
+        element.parent._receiveDrop && element.parent._receiveDrop(element);
+        element._droppedIn(element.parent);
+    }
+}
+DragHandleOperation.instance = new DragHandleOperation();
+
+export class BoardHandle extends BoardElement {
+
+    constructor() {
+        let zoom = Context.canvas.zoom;
+        super(0, 0);
+        this._root.add(this.initShape(BoardHandle.SIZE/zoom, BoardHandle.SIZE/zoom, BoardHandle.COLOR, zoom));
+        this._dragOperation(DragHandleOperation.instance);
+        Context.canvas.addObserver(this);
+    }
+
+    finalize() {
+        Context.canvas.removeObserver(this);
+    }
+
+    _notified(source, event, data) {
+        if (event === Events.ZOOM) {
+            let zoom = Context.canvas.zoom;
+            this.shape.attrs({
+                x:-BoardHandle.SIZE/zoom/2, y:-BoardHandle.SIZE/zoom/2,
+                width:BoardHandle.SIZE/zoom, height:BoardHandle.SIZE/zoom, stroke_width:1/zoom
+            });
+        }
+    }
+
+    initShape(width, height, strokeColor, zoom) {
+        let shape = new Rect(-width/2, -height/2, width, height)
+            .attrs({stroke:strokeColor, fill_opacity:0.01, stroke_width:1/zoom});
+        return this._initShape(shape);
+    }
+
+    _droppedIn() {}
+}
+makeMoveable(BoardHandle);
+makeShaped(BoardHandle);
+makeDraggable(BoardHandle);
+BoardHandle.SIZE = 8;
+BoardHandle.COLOR = Colors.RED;
+
+export function makeResizeable(superClass) {
+
+    superClass.prototype._initResize = function() {
+        this._leftTopHandle = this._createHandle();
+        this._topHandle = this._createHandle();
+        this._rightTopHandle = this._createHandle();
+        this._rightHandle = this._createHandle();
+        this._rightBottomHandle = this._createHandle();
+        this._bottomHandle = this._createHandle();
+        this._leftBottomHandle = this._createHandle();
+        this._leftHandle = this._createHandle();
+        this._placeHandles();
+    };
+
+    superClass.prototype._placeHandles = function() {
+
+        function setPosition(handle, x, y) {
+            Memento.register(handle);
+            handle._setPosition(x, y);
+        }
+
+        setPosition(this._leftTopHandle, -this.width/2, -this.height/2);
+        setPosition(this._topHandle, 0, -this.height/2);
+        setPosition(this._rightTopHandle, this.width/2, -this.height/2);
+        setPosition(this._rightHandle, this.width/2, 0);
+        setPosition(this._rightBottomHandle, this.width/2, this.height/2);
+        setPosition(this._bottomHandle, 0, this.height/2);
+        setPosition(this._leftBottomHandle, -this.width/2, this.height/2);
+        setPosition(this._leftHandle, -this.width/2, 0);
+    };
+
+    superClass.prototype._createHandle = function() {
+        let handle = new BoardHandle();
+        this._root.add(handle._root);
+        handle._parent = this;
+        return handle;
+    };
+
+    if (!superClass.prototype.bounds) {
+        superClass.prototype.bounds = function () {
+            return {
+                left: -this.parent.width / 2-this.lx, right: this.parent.width / 2-this.lx,
+                top: -this.parent.height / 2-this.ly, bottom: this.parent.height / 2-this.ly
+            }
+        };
+    }
+
+    superClass.prototype._receiveMove = function(element) {
+
+        function rebound(element, bounds) {
+            let lx = element.lx;
+            let ly = element.ly;
+            if (lx<bounds.left) lx = bounds.left;
+            if (lx>bounds.right) lx = bounds.right;
+            if (ly<bounds.top) ly = bounds.top;
+            if (ly>bounds.bottom) ly = bounds.bottom;
+            if (lx!==element.lx || ly!==element.ly) {
+                Memento.register(element);
+                element._setPosition(lx, ly);
+            }
+        }
+
+        if (element instanceof BoardHandle) {
+            rebound(element, this.bounds());
+            let width = this.width;
+            let height = this.height;
+            let lx = this.lx;
+            let ly = this.ly;
+            if (element===this._leftTopHandle || element===this._leftHandle || element===this._leftBottomHandle) {
+                width = -element.lx+this.width/2;
+                lx += (this.width-width)/2;
+            }
+            else if (element===this._rightTopHandle || element===this._rightHandle || element===this._rightBottomHandle) {
+                width = element.lx+this.width/2;
+                lx += (width-this.width)/2;
+            }
+            if (element===this._leftTopHandle || element===this._topHandle || element===this._rightTopHandle) {
+                height = -element.ly+this.height/2;
+                ly += (this.height-height)/2;
+            }
+            else if (element===this._leftBottomHandle || element===this._bottomHandle || element===this._rightBottomHandle) {
+                height = element.ly+this.height/2;
+                ly += (height-this.height)/2;
+            }
+            if (width<0) {
+                width = -width;
+                let hdl = this._leftTopHandle; this._leftTopHandle = this._rightTopHandle; this._rightTopHandle = hdl;
+                hdl = this._leftHandle; this._leftHandle = this._rightHandle; this._rightHandle = hdl;
+                hdl = this._leftBottomHandle; this._leftBottomHandle = this._rightBottomHandle; this._rightBottomHandle = hdl;
+            }
+            if (height<0) {
+                height = -height;
+                let hdl = this._leftTopHandle; this._leftTopHandle = this._leftBottomHandle; this._leftBottomHandle = hdl;
+                hdl = this._topHandle; this._topHandle = this._bottomHandle; this._bottomHandle = hdl;
+                hdl = this._rightTopHandle; this._rightTopHandle = this._rightBottomHandle; this._rightBottomHandle = hdl;
+            }
+            Memento.register(this);
+            this._setPosition(lx, ly);
+            this._setSize(width, height);
+            this._placeHandles();
+        }
+    }
+}
+
+export class BoardFrame extends BoardElement {
+
+    constructor(width, height) {
+        super(width, height);
+        this._root.add(this.initShape(width, height, BoardFrame.COLOR));
+        this._initResize();
+        Context.canvas.addObserver(this);
+    }
+
+    finalize() {
+        Context.canvas.removeObserver(this);
+    }
+
+    _notified(source, event, data) {
+        if (event === Events.ZOOM) {
+            let zoom = Context.canvas.zoom;
+            this.shape.attrs({stroke_width:1/zoom});
+        }
+    }
+
+    _setSize(width, height) {
+        this._width = width;
+        this._height = height;
+        this.shape.attrs({x:-width/2, y:-height/2, width:width, height:height});
+    }
+
+    initShape(width, height, strokeColor) {
+        let shape = new Rect(-width/2, -height/2, width, height)
+            .attrs({stroke: strokeColor, fill:Fill.NONE, stroke_width: 1});
+        return this._initShape(shape);
+    }
+
+}
+makeShaped(BoardFrame);
+makeResizeable(BoardFrame);
+
+export class BoardTarget extends BoardElement {
+
+    constructor(size, color) {
+        super(size, size);
+        this._root.add(this.initShape(size, color));
+        this._dragOperation(Context.moveSelectionDrag);
+        Context.canvas.addObserver(this);
+    }
+
+    finalize() {
+        Context.canvas.removeObserver(this);
+    }
+
+    _notified(source, event, data) {
+        if (event === Events.ZOOM) {
+            let zoom = Context.canvas.zoom;
+            this.shape.attrs({stroke_width:1/zoom});
+        }
+    }
+
+    initShape(size, strokeColor) {
+        let shape = new Group()
+            .add(new Line(-size/2, 0, size/2, 0))
+            .add(new Line(0, -size/2, 0, size/2))
+            .add(new Circle(0, 0, size/4).attrs({fill_opacity:0.001}))
+            .attrs({stroke: strokeColor, stroke_width: 1});
+        return this._initShape(shape);
+    }
+
+}
+makeShaped(BoardTarget);
+makeSelectable(BoardTarget);
+makeMoveable(BoardTarget);
+makeDraggable(BoardTarget);
+
+BoardFrame.COLOR = Colors.RED;

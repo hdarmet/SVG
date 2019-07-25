@@ -18,11 +18,13 @@ import {
     makeMenuOwner, TextMenuOption, TextToggleMenuOption, CheckMenuOption, ColorChooserMenuOption, BoardItemBuilder,
     zoomInCommand, zoomOutCommand, zoomExtentCommand, zoomSelectionCommand
 } from "./tools.js";
-import {BoardBox, BoardImageBox, BoardCounter, BoardDie, BoardMap} from "./elements.js";
+import {
+    BoardBox, BoardImageBox, BoardCounter, BoardDie, BoardMap, BoardHandle, BoardFrame, BoardTarget
+} from "./elements.js";
 
 Context.rotateOrMoveDrag = new DragSwitchOperation()
-    .add(()=>true, Context.rotateDrag)
-    .add(()=>true, Context.moveDrag);
+    .add(()=>true, Context.rotateSelectionDrag)
+    .add(()=>true, Context.moveSelectionDrag);
 
 class BoardDummy extends BoardElement {
 
@@ -149,4 +151,13 @@ let d8 = new BoardDie(50, 50, "none", "./images/game/d8.png",
     {x:72, y:123, width:90, height:104}, {x:187, y:123, width:90, height:104},
     {x:16, y:230, width:90, height:104}, {x:130, y:230, width:90, height:104}, {x:244, y:230, width:90, height:104});
 area.add(d8);
+
+let handle = new BoardHandle();
+area.add(handle);
+let frame = new BoardFrame(100, 50);
+map1.add(frame);
+let target = new BoardTarget(16, Colors.RED);
+map1.add(target);
+
+
 Context.memento.opened = true;
