@@ -4,12 +4,13 @@ import {
     Group, Rect, Fill, Visibility, win, Colors, Circle, Line
 } from "./svgbase.js";
 import {
-    Memento, Context, Events, DragSwitchOperation, DragOperation
+    Memento, Box, Context, Events, DragSwitchOperation, DragOperation
 } from "./toolkit.js";
 import {
-    BoardElement, BoardSupport,
+    BoardElement, BoardSupport, BoardLayer, BoardZindexLayer,
     makeContainer, makeSupport, makeDraggable, makeSelectable, makeMoveable, makeRotatable, makeClickable,
-    makePositionningContainer, makePart, makeFramed, makeSingleImaged, makeMultiImaged, makeClipImaged, makeShaped
+    makePositionningContainer, makePart, makeFramed, makeSingleImaged, makeMultiImaged, makeClipImaged, makeShaped,
+    makeLayersWithContainers, makeLayered
 } from "./base-element.js";
 import {
     TextMenuOption, TextToggleMenuOption, makeMenuOwner
@@ -49,11 +50,11 @@ export class AbstractBoardContent extends BoardSupport {
 
     add(element) {
         super.add(element);
-        element.addObserver(this);
+        this._observe(element);
     }
 
     remove(element) {
-        element.removeObserver(this);
+        this._forget(element);
         super.remove(element);
     }
 
@@ -336,6 +337,7 @@ export class BoardCounter extends AbstractBoardCounter {
 
 }
 makeMultiImaged(BoardCounter);
+makeLayered(BoardCounter, "content");
 
 export class AbstractBoardDie extends BoardElement {
 
@@ -385,24 +387,12 @@ export class AbstractBoardMap extends BoardElement {
         super(width, height);
         this._root.add(this._initRotatable()
             .add(this.initShape(width, height, ...args))
-            .add(this._initContent())
         );
         this._dragOperation(Context.itemDrag);
-        this.addMenuOption(new TextMenuOption("Generate targets",
-            function() {
-                this.generateTargets();
-            },
-            ()=>true));
+        this._build();
     }
 
-    generateTargets() {
-        Context.canvas.openModal(
-            generateTargets,
-            {x:0},
-            data=>{
-                Context.memento.open();
-                console.log(data.x);
-            });
+    _build() {
     }
 
 }
@@ -411,7 +401,7 @@ makeMoveable(AbstractBoardMap);
 makeRotatable(AbstractBoardMap);
 makeDraggable(AbstractBoardMap);
 makeMenuOwner(AbstractBoardMap);
-makeSupport(AbstractBoardMap);
+makeLayersWithContainers(AbstractBoardMap);
 
 export class BoardMap extends AbstractBoardMap {
 
@@ -466,11 +456,7 @@ export class BoardHandle extends BoardElement {
         super(0, 0);
         this._root.add(this.initShape(BoardHandle.SIZE/zoom, BoardHandle.SIZE/zoom, BoardHandle.COLOR, zoom));
         this._dragOperation(DragHandleOperation.instance);
-        Context.canvas.addObserver(this);
-    }
-
-    finalize() {
-        Context.canvas.removeObserver(this);
+        this._observe(Context.canvas);
     }
 
     _notified(source, event, data) {
@@ -607,11 +593,7 @@ export class BoardFrame extends BoardElement {
         super(width, height);
         this._root.add(this.initShape(width, height, BoardFrame.COLOR));
         this._initResize();
-        Context.canvas.addObserver(this);
-    }
-
-    finalize() {
-        Context.canvas.removeObserver(this);
+        this._observe(Context.canvas);
     }
 
     _notified(source, event, data) {
@@ -633,9 +615,13 @@ export class BoardFrame extends BoardElement {
         return this._initShape(shape);
     }
 
+    get box() {
+        return new Box(this.lx-this.width/2, this.ly-this.height/2, this.width, this.height);
+    }
 }
 makeShaped(BoardFrame);
 makeResizeable(BoardFrame);
+makeLayered(BoardFrame, "configuration");
 
 export class BoardTarget extends BoardElement {
 
@@ -643,11 +629,32 @@ export class BoardTarget extends BoardElement {
         super(size, size);
         this._root.add(this.initShape(size, color));
         this._dragOperation(Context.moveSelectionDrag);
-        Context.canvas.addObserver(this);
+        this._observe(Context.canvas);
+        this.addMenuOption(new TextMenuOption("Edit Target",
+            function () {
+                this.edit();
+            },
+            () => true));
     }
 
-    finalize() {
-        Context.canvas.removeObserver(this);
+    edit() {
+        console.log(this.lx+" "+this.ly)
+        Context.canvas.openModal(
+            editTarget,
+            {
+                x: this.lx,
+                y: this.ly,
+                color: null
+            },
+            data => {
+                Context.memento.open();
+                this.update(data);
+            });
+    }
+
+    update(data) {
+        Memento.register(this);
+        this.move(data.x, data.y);
     }
 
     _notified(source, event, data) {
@@ -671,5 +678,125 @@ makeShaped(BoardTarget);
 makeSelectable(BoardTarget);
 makeMoveable(BoardTarget);
 makeDraggable(BoardTarget);
+makeMenuOwner(BoardTarget);
+makeLayered(BoardTarget, "configuration");
 
 BoardFrame.COLOR = Colors.RED;
+
+export function makeConfigurableMap(superClass, positionFct) {
+
+    class ContentLayer extends BoardZindexLayer {
+    }
+    makePositionningContainer(ContentLayer, function(element) {
+        return positionFct.call(this.parent, element);
+    });
+
+    let build = superClass.prototype._build;
+    superClass.prototype._build = function () {
+        build && build.call(this);
+        this._hinge.add(this._initContent({
+            configuration:new BoardLayer(),
+            content:new ContentLayer()
+        }));
+        this.addMenuOption(new TextToggleMenuOption("Hide Configuration", "Show Configuration",
+            function () {
+                this.hideConfiguration();
+            },
+            function () {
+                this.showConfiguration();
+            },
+            function() { return !this.configurationShown; },
+            () => true));
+        this.addMenuOption(new TextMenuOption("Generate Hex Targets",
+            function () {
+                this.callForHexTargetsGeneration();
+            },
+            () => true));
+        this.addMenuOption(new TextMenuOption("Generate Square Targets",
+            function () {
+                this.callForSquareTargetsGeneration();
+            },
+            () => true));
+        this.configFrame = new BoardFrame(100, 50);
+        this.add(this.configFrame);
+    };
+
+    superClass.prototype.callForHexTargetsGeneration = function () {
+        Context.canvas.openModal(
+            generateHexTargets,
+            {
+                colCount: 10,
+                rowCount: 10,
+                type: 1
+            },
+            data => {
+                Context.memento.open();
+                this.generateHexTargets(this.configFrame.box, data.colCount, data.rowCount, data.type);
+            });
+    };
+
+    superClass.prototype.callForSquareTargetsGeneration = function () {
+        Context.canvas.openModal(
+            generateSquareTargets,
+            {
+                colCount: 10,
+                rowCount: 10
+            },
+            data => {
+                Context.memento.open();
+                this.generateSquareTargets(this.configFrame.box, data.colCount, data.rowCount);
+            });
+    };
+
+    superClass.prototype.generateHexTargets = function(bounds, colCount, rowCount, type) {
+        if (type===1 || type===2) {
+            let colSliceWidth = bounds.width/(colCount*3+1);
+            let rowHeight = bounds.height/rowCount;
+            let margin = type===1 ? 0 : rowHeight/2;
+            for (let x = colSliceWidth * 2; x < bounds.width; x += colSliceWidth*3) {
+                for (let y = margin + rowHeight / 2; y < bounds.height; y += rowHeight) {
+                    this.add(new BoardTarget(16, Colors.RED).move(x + bounds.x, y + bounds.y));
+                }
+                margin = margin ? 0 : rowHeight/2;
+            }
+        }
+        else if (type===3 || type===4) {
+            let rowSliceHeight = bounds.height/(rowCount*3+1);
+            let colWidth = bounds.width/colCount;
+            let margin = type===3 ? 0 : colWidth/2;
+            for (let y = rowSliceHeight * 2; y < bounds.height; y += rowSliceHeight*3) {
+                for (let x = margin + colWidth / 2; x < bounds.width; x += colWidth) {
+                    this.add(new BoardTarget(16, Colors.RED).move(x + bounds.x, y + bounds.y));
+                }
+                margin = margin ? 0 : colWidth/2;
+            }
+        }
+    };
+
+    superClass.prototype.generateSquareTargets = function(bounds, colCount, rowCount) {
+        let colWidth = bounds.width/colCount;
+        let rowHeight = bounds.height/rowCount;
+        for (let x = colWidth/2; x<bounds.width; x+=colWidth) {
+            for (let y = rowHeight/2; y<bounds.height; y+=rowHeight) {
+                this.add(new BoardTarget(16, Colors.RED).move(x+bounds.x, y+bounds.y));
+            }
+        }
+    };
+
+    superClass.prototype.showConfiguration = function() {
+        this.showLayer("configuration");
+    };
+
+    superClass.prototype.hideConfiguration = function() {
+        this.hideLayer("configuration");
+    };
+
+    if (!superClass.prototype.hasOwnProperty("configurationShown")) {
+        Object.defineProperty(superClass.prototype, "configurationShown", {
+            configurable:true,
+            get() {
+                return this.hidden("configuration");
+            }
+        });
+    }
+}

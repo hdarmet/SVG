@@ -8,6 +8,24 @@ import {
     Memento, makeObservable, CopyPaste, Events, getBox, Context, getCanvasLayer
 } from "./toolkit.js";
 
+export function makeDeletable(superClass) {
+
+    superClass.prototype.delete = function() {
+        this.detach();
+        this.finalize();
+        this._fire(Events.DELETED, this);
+    };
+
+    if (!superClass.prototype.hasOwnProperty("deletable")) {
+        Object.defineProperty(superClass.prototype, "deletable", {
+            configurable:true,
+            get() {
+                return true;
+            }
+        });
+    }
+}
+
 export function makeMoveable(superClass) {
 
     superClass.prototype.move = function(x, y) {
@@ -200,6 +218,16 @@ export function makeContainer(superClass) {
         return this._content;
     };
 
+    let finalize = superClass.prototype.finalize;
+    superClass.prototype.finalize = function() {
+        finalize.call(this);
+        if (this._children) {
+            for (let child of this._children) {
+                child.finalize();
+            }
+        }
+    };
+
     superClass.prototype.__clear = function() {
         this._content.clear()
     };
@@ -381,9 +409,10 @@ export function makePositionningContainer(superClass, positionsFct) {
         let ly = element.ly;
         let distance = Infinity;
         let position = {x:lx, y:ly};
-        for (let _position of positionsFct.bind(this)()) {
-            let _distance = (_position.x-lx)*(_position.x-lx)+(_position.x-lx)*(_position.x-lx);
+        for (let _position of positionsFct.call(this, element)) {
+            let _distance = (_position.x-lx)*(_position.x-lx)+(_position.y-ly)*(_position.y-ly);
             if (_distance<distance) {
+                distance = _distance;
                 position = _position;
             }
         }
@@ -416,43 +445,134 @@ export function makeContainerMultiLayered(superClass, ...layers) {
 
     superClass.prototype._initContent = function () {
         this._content = new Group();
+        this._layers = {};
         for (let layer of layers) {
-            this[layer] = new Group();
-            this._content.add(this[layer]);
+            this._layers[layer] = new Group();
+            this._content.add(this._layers[layer]);
         }
         return this._content;
     };
 
     superClass.prototype.__clear = function () {
         for (let layer of layers) {
-            this[layer].clear();
+            this._layers[layer].clear();
         }
     };
 
     superClass.prototype.__add = function (element) {
         let layer = element.layer || defaultLayer;
-        this[layer].add(element._root);
+        if (!this._layers[layer]) layer = defaultLayer;
+        this._layers[layer].add(element._root);
     };
 
     superClass.prototype.__insert = function (previous, element) {
         let layer = element.layer || defaultLayer;
-        this[layer].insert(previous._root, element._root);
+        if (!this._layers[layer]) layer = defaultLayer;
+        this._layers[layer].insert(previous._root, element._root);
     };
 
     superClass.prototype.__replace = function (previous, element) {
         let layer = element.layer || defaultLayer;
-        this[layer].replace(previous._root, element._root);
+        if (!this._layers[layer]) layer = defaultLayer;
+        this._layers[layer].replace(previous._root, element._root);
     };
 
     superClass.prototype.__remove = function (element) {
         let layer = element.layer || defaultLayer;
-        this[layer].remove(element._root);
+        if (!this._layers[layer]) layer = defaultLayer;
+        this._layers[layer].remove(element._root);
     };
+
 }
 
 export function makeMultiLayeredContainer(superClass, ...layers) {
     makeContainer(superClass);
     makeContainerMultiLayered(superClass);
+}
+
+export function makeLayersWithContainers(superClass) {
+
+    let defaultLayer;
+
+    superClass.prototype._initContent = function (layers) {
+        this._content = new Group();
+        this._layers = {};
+        for (let layer in layers) {
+            if (!defaultLayer) defaultLayer = layer;
+            this._layers[layer] = layers[layer];
+            this._layers[layer].pedestal = new Group();
+            this._content.add(this._layers[layer].pedestal.add(layers[layer]._root));
+            layers[layer]._parent = this;
+        }
+        return this._content;
+    };
+
+    let finalize = superClass.prototype.finalize;
+    superClass.prototype.finalize = function() {
+        finalize.call(this);
+        for (let layer of this._layers) {
+            layer.finalize();
+        }
+    };
+
+    superClass.prototype.clear = function () {
+        for (let layer of layers) {
+            this._layers[layer].clear();
+        }
+    };
+
+    superClass.prototype.add = function (element) {
+        let layer = element.layer || defaultLayer;
+        if (!this._layers[layer]) layer = defaultLayer;
+        this._layers[layer].add(element);
+    };
+
+    superClass.prototype.insert = function (previous, element) {
+        let layer = element.layer || defaultLayer;
+        if (!this._layers[layer]) layer = defaultLayer;
+        this._layers[layer].insert(previous, element);
+    };
+
+    superClass.prototype.replace = function (previous, element) {
+        let layer = element.layer || defaultLayer;
+        if (!this._layers[layer]) layer = defaultLayer;
+        this._layers[layer].replace(previous, element);
+    };
+
+    superClass.prototype.remove = function (element) {
+        let layer = element.layer || defaultLayer;
+        if (!this._layers[layer]) layer = defaultLayer;
+        this._layers[layer].remove(element);
+    };
+
+    superClass.prototype.showLayer = function(layer) {
+        this._layers[layer].pedestal.add(this._layers[layer]._root);
+    };
+
+    superClass.prototype.hideLayer = function(layer) {
+        this._layers[layer].pedestal.remove(this._layers[layer]._root);
+    };
+
+    superClass.prototype.hidden = function(layer) {
+        return !!this._layers[layer]._root.parent;
+    };
+
+    superClass.prototype.children = function (layer) {
+        return this._layers[layer].children;
+    };
+
+    superClass.prototype._acceptDrop = function(element) {
+        let layer = element.layer || defaultLayer;
+        if (!this._layers[layer]) layer = defaultLayer;
+        return this._layers[layer]._acceptDrop(element);
+    };
+
+    Object.defineProperty(superClass.prototype, "content", {
+        configurable: true,
+        get: function () {
+            return this._content;
+        }
+    });
 }
 
 export function makeLayered(superClass, layer) {
@@ -1211,7 +1331,7 @@ export function makePart(superClass) {
                 return this._menuOptions;
             }
         }
-    });
+    })
 
 }
 
@@ -1222,6 +1342,20 @@ export class BoardElement {
         this._height = height;
         this._createStructure();
         this._id = createUUID();
+    }
+
+    finalize() {
+        Memento.register(this);
+        if (this._observables) {
+            for (let observable of this._observables) {
+                observable.removeObserver(this);
+            }
+        }
+        if (this._observers) {
+            for (let observer of this._observers) {
+                this.removeObserver(observer);
+            }
+        }
     }
 
     _notified(source, type) {}
@@ -1239,6 +1373,9 @@ export class BoardElement {
         memento._parent = this._parent;
         memento._width = this._width;
         memento._height = this._height;
+        if (this._observables) {
+            memento._observables = [...this._observables];
+        }
         memento.rootMatrix = this._root.matrix.clone();
         return memento;
     }
@@ -1247,16 +1384,32 @@ export class BoardElement {
         this._parent = memento._parent;
         this._width = memento._width;
         this._height = memento._height;
+        if (memento._observables) {
+            this._observables = [...memento._observables];
+            for (let observable of this._observables) {
+                observable._addObserver(this);
+            }
+        }
         this._root.matrix = memento.rootMatrix;
         return this;
     }
 
     _observe(observable) {
+        if (!this._observables) {
+            this._observables = new Set();
+        }
+        this._observables.add(observable);
         observable.addObserver(this);
         return this;
     }
 
     _forget(observable) {
+        if (this._observables) {
+            this._observables.delete(observable);
+            if (!this._observables.size) {
+                this._observables = null;
+            }
+        }
         observable.removeObserver(this);
         return this;
     }
@@ -1445,7 +1598,7 @@ export class BoardTable extends BoardArea {
 
     constructor(width, height, backgroundColor) {
         super(width, height, backgroundColor);
-        Context.copyPaste.addObserver(this);
+        this._observe(Context.copyPaste);
     }
 
     _setSize(width, height) {
@@ -1474,3 +1627,42 @@ export class BoardSupport extends BoardElement {
 }
 makeSupport(BoardSupport);
 makeDraggable(BoardSupport);
+
+export class BoardBaseLayer extends BoardElement {
+
+    constructor() {
+        super(0, 0);
+    }
+
+    get width() {
+        return this.parent.width;
+    }
+
+    get height() {
+        return this.parent.height;
+    }
+
+    _acceptDrop(element) {
+        return true;
+    }
+}
+
+export class BoardLayer extends BoardBaseLayer {
+
+    constructor() {
+        super();
+        this._root.add(this._initContent());
+    }
+
+}
+makeContainer(BoardLayer);
+
+export class BoardZindexLayer extends BoardBaseLayer {
+
+    constructor() {
+        super();
+        this._root.add(this._initContent());
+    }
+
+}
+makeZindexContainer(BoardZindexLayer);

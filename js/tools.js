@@ -2,7 +2,7 @@
 
 import {
     Visibility, computePosition, List, Matrix, RasterImage, SvgRasterImage, Group, ClipPath, Rect, Text,
-    Colors, MouseEvents, TextAnchor, win, Cursor
+    Colors, MouseEvents, TextAnchor, win, doc, Cursor
 } from "./svgbase.js";
 import {
     Context, Events, boundingBox, DragOperation, Memento, Canvas, makeObservable
@@ -1203,16 +1203,113 @@ export function zoomExtentCommand(toolPopup) {
 
 export function zoomSelectionCommand(toolPopup) {
 
-    function selectionEmpty() {
-        return Context.selection.selection().size === 0;
-    }
     function zoomSelection() {
         zoomFit(Context.selection.selection());
+    }
+    function selectionEmpty() {
+        return Context.selection.selection().size === 0;
     }
 
     toolPopup.add(new ToolToggleCommand("./images/icons/zoom-selection_on.svg", "./images/icons/zoom-selection_off.svg",
         () => {
             zoomSelection();
         }, () => !selectionEmpty())
+    );
+}
+
+export function copyCommand(toolPopup) {
+
+    function selectionEmpty() {
+        return Context.selection.selection().size === 0;
+    }
+    function copy() {
+        Context.copyPaste.copyModel(Context.selection.selection());
+    }
+
+    toolPopup.add(new ToolToggleCommand("./images/icons/copy_on.svg", "./images/icons/copy_off.svg",
+        () => {
+            copy();
+        }, () => !selectionEmpty())
+    );
+}
+
+export function pasteCommand(toolPopup) {
+
+    function pastable() {
+        return Context.copyPaste.pastable;
+    }
+    function paste() {
+        Context.copyPaste.pasteModel();
+    }
+
+    toolPopup.add(new ToolToggleCommand("./images/icons/paste_on.svg", "./images/icons/paste_off.svg",
+        () => {
+            paste();
+        }, () => pastable())
+    );
+}
+
+export function undoCommand(toolPopup) {
+
+    function undoable() {
+        return Context.memento.undoable();
+    }
+    function undo() {
+        Context.memento.undo();
+    }
+
+    toolPopup.add(new ToolToggleCommand("./images/icons/undo_on.svg", "./images/icons/undo_off.svg",
+        () => {
+            undo();
+        }, () => undoable())
+    );
+}
+
+export function redoCommand(toolPopup) {
+
+    function redoable() {
+        return Context.memento.redoable();
+    }
+    function redo() {
+        Context.memento.redo();
+    }
+
+    toolPopup.add(new ToolToggleCommand("./images/icons/redo_on.svg", "./images/icons/redo_off.svg",
+        () => {
+            redo();
+        }, () => redoable())
+    );
+}
+
+function deleteSelection() {
+    Context.memento.open();
+    for (let child of [...Context.selection.selection()]) {
+        child.delete();
+    }
+}
+
+export function deleteCommand(toolPopup) {
+
+    doc.addEventListener("keyup", event => {
+        if (!Context.freezed) {
+            if (event.key === "Delete" || event.key === "Backspace")
+                deleteSelection();
+            }
+        }
+    );
+
+    function selectionDeletable() {
+        let selection = [...Context.selection.selection()];
+        if (!selection.length) return false;
+        for (let child of selection) {
+            if (!child.deletable) return false;
+        }
+        return true;
+    }
+
+    toolPopup.add(new ToolToggleCommand("./images/icons/trash_on.svg", "./images/icons/trash_off.svg",
+        () => {
+            deleteSelection();
+        }, () => selectionDeletable(), 66)
     );
 }

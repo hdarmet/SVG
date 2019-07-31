@@ -10,16 +10,17 @@ import {
 import {
     BoardElement, BoardTable,
     makeMoveable, makeRotatable, makeShaped, makeDraggable, makeClickable, makeSelectable,
-    makeContainerMultiLayered, makeLayered, makeContainerZindex,
+    makeContainerMultiLayered, makeLayered, makeDeletable
 } from "./base-element.js";
 import {
     ToolCommandPopup, ToolCommand, ToolToggleCommand, ToolExpandablePopup, ToolExpandablePanel,
     ToolGridPanelContent, ToolCell,
     makeMenuOwner, TextMenuOption, TextToggleMenuOption, CheckMenuOption, ColorChooserMenuOption, BoardItemBuilder,
-    zoomInCommand, zoomOutCommand, zoomExtentCommand, zoomSelectionCommand
+    zoomInCommand, zoomOutCommand, zoomExtentCommand, zoomSelectionCommand,
+    copyCommand, pasteCommand, redoCommand, undoCommand, deleteCommand
 } from "./tools.js";
 import {
-    BoardBox, BoardImageBox, BoardCounter, BoardDie, BoardMap, BoardHandle, BoardFrame, BoardTarget
+    BoardBox, BoardImageBox, BoardCounter, BoardDie, BoardMap, BoardHandle, BoardTarget, makeConfigurableMap
 } from "./elements.js";
 
 Context.rotateOrMoveDrag = new DragSwitchOperation()
@@ -66,8 +67,7 @@ makeMultiLayeredGlass("_down",  "_middle", "_up");
 makeContainerMultiLayered(BoardTable, "_down",  "_middle", "_up");
 makeContainerMultiLayered(BoardBox, "_down",  "_middle", "_up");
 makeLayered(BoardBox, "_down");
-makeLayered(BoardMap, "_down");
-makeContainerZindex(BoardMap);
+makeDeletable(BoardCounter);
 
 Context.selection = new Selection();
 Context.canvas = new Canvas("#board", 1200, 600);
@@ -77,27 +77,23 @@ let toggle = true;
 
 function createCommandPopup() {
     let cmdPopup = new ToolCommandPopup(78, 32).display(39, 16);
+    copyCommand(cmdPopup);
+    pasteCommand(cmdPopup);
+    cmdPopup.addMargin();
     zoomInCommand(cmdPopup);
     zoomOutCommand(cmdPopup);
     zoomExtentCommand(cmdPopup);
     zoomSelectionCommand(cmdPopup);
-    cmdPopup.add(new ToolCommand("./images/icons/comments_on.svg", () => {
-        console.log("commands")
-    }));
-    cmdPopup.add(new ToolCommand("./images/icons/copy_on.svg", () => {
-        console.log("commands")
-    }));
     cmdPopup.addMargin();
-    cmdPopup.add(new ToolCommand("./images/icons/comments_on.svg", () => {
-        console.log("commands")
-    }));
-    cmdPopup.add(new ToolToggleCommand("./images/icons/copy_on.svg", "./images/icons/copy_off.svg",
-        () => {
-            toggle = !toggle
-        }, () => toggle));
+    undoCommand(cmdPopup);
+    redoCommand(cmdPopup);
+    cmdPopup.addMargin();
+    deleteCommand(cmdPopup);
+    /*
     cmdPopup.add(new ToolCommand("./images/icons/copy_on.svg", () => {
         console.log("commands")
     }, 66));
+    */
     return cmdPopup;
 }
 
@@ -144,7 +140,23 @@ let counter1 = new BoardCounter(40, 40, Colors.GREY, "./images/JemmapesRecto1_00
 area.add(counter1);
 let counter2 = new BoardCounter(40, 40, Colors.GREY, "./images/JemmapesRecto1_001.jpg", "./images/JemmapesVerso1_001.jpg");
 area.add(counter2);
-let map1 = new BoardMap(1256, 888, Colors.GREY, "./images/Jemmapes.jpg");
+
+class BoardHexMap extends BoardMap {
+    constructor(...args) {
+        super(...args);
+    }
+
+    get handlePositions() {
+        return this.children("configuration")
+            .filter(element=>element instanceof BoardTarget)
+            .map(handle=>{return {x:handle.lx, y:handle.ly}});
+    }
+}
+makeLayered(BoardHexMap, "_down");
+makeConfigurableMap(BoardHexMap, function(element) {
+   return this.handlePositions;
+});
+let map1 = new BoardHexMap(1256, 888, Colors.GREY, "./images/Jemmapes.jpg");
 area.add(map1);
 let d8 = new BoardDie(50, 50, "none", "./images/game/d8.png",
     {x:16, y:16, width:90, height:104}, {x:130, y:16, width:90, height:104}, {x:244, y:16, width:90, height:104},
@@ -154,8 +166,7 @@ area.add(d8);
 
 let handle = new BoardHandle();
 area.add(handle);
-let frame = new BoardFrame(100, 50);
-map1.add(frame);
+
 let target = new BoardTarget(16, Colors.RED);
 map1.add(target);
 

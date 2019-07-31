@@ -26,6 +26,7 @@ export const Events = {
     REMOVE : "remove",
     ATTACH : "attach",
     DETACH : "detach",
+    DELETED : "deleted",
     DISPLACE : "displace",
     DISPLACED : "displaced",
     SELECT : "select",
@@ -141,14 +142,22 @@ export function makeObservable(superClass) {
 
     superClass.prototype.addObserver = function(observer) {
         Memento.register(this);
+        this._addObserver(observer);
+    };
+
+    superClass.prototype.removeObserver = function(observer) {
+        Memento.register(this);
+        this._removeObserver(observer);
+    };
+
+    superClass.prototype._addObserver = function(observer) {
         if (!this._observers) {
             this._observers = new Set();
         }
         this._observers.add(observer);
     };
 
-    superClass.prototype.removeObserver = function(observer) {
-        Memento.register(this);
+    superClass.prototype._removeObserver = function(observer) {
         if (this._observers) {
             this._observers.delete(observer);
             if (this._observers.size === 0) {
@@ -1069,11 +1078,13 @@ export function makeMultiLayeredGlass(...layers) {
 
     GlassLayer.prototype.putArtifact = function(artifact, element) {
         let layer = element && element.layer ? element.layer : defaultLayer;
+        if (!this[layer]) layer = defaultLayer;
         this[layer].add(artifact);
     };
 
     GlassLayer.prototype.removeArtifact = function(artifact, element) {
         let layer = element && element.layer ? element.layer : defaultLayer;
+        if (!this[layer]) layer = defaultLayer;
         this[layer].remove(artifact);
     };
 }
@@ -1434,7 +1445,7 @@ export class CopyPaste {
     }
 
     get pastable() {
-        return this._models.length > 0;
+        return this._models.size > 0;
     }
 }
 CopyPaste.clone = function(source, duplicata) {
@@ -1550,8 +1561,7 @@ export class Memento {
 
     undoable() {
         return (
-            this._undoTrx.length > 1 ||
-            (this._current() && this._current().keys().length > 0)
+            this._undoTrx.length > 1 || (this._current() && this._current().size > 0)
         );
     }
 
@@ -1760,10 +1770,12 @@ export class Selection {
     unselect(element) {
         let selectable = element.selectable;
         if (selectable) {
-            this._selection.delete(selectable);
-            selectable.unselect && selectable.unselect();
-            selectable.selectFrame && (selectable.selectFrame.filter = null);
-            this._fire(Events.UNSELECT, selectable);
+            if (this._selection.has(selectable)) {
+                this._selection.delete(selectable);
+                selectable.unselect && selectable.unselect();
+                selectable.selectFrame && (selectable.selectFrame.filter = null);
+                this._fire(Events.UNSELECT, selectable);
+            }
             return true;
         }
         return false;
