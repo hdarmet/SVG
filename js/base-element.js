@@ -2,10 +2,10 @@
 
 import {
     SVGElement, Translation, Rotation, Group, Rect, createUUID, MouseEvents, Matrix, l2l, List, RasterImage, Fill,
-    ClippedRasterImage, Mutation, computeMatrix
+    ClippedRasterImage, Mutation, Colors, computeMatrix
 } from "./svgbase.js";
 import {
-    Memento, makeObservable, CopyPaste, Events, getBox, Context, getCanvasLayer
+    Memento, makeObservable, CopyPaste, Events, getBox, Context, getCanvasLayer, makeNotCloneable, makeCloneable
 } from "./toolkit.js";
 
 export function makeDeletable(superClass) {
@@ -445,7 +445,7 @@ export function makeContainerMultiLayered(superClass, ...layers) {
 
     superClass.prototype._initContent = function () {
         this._content = new Group();
-        this._layers = {};
+        this._layers = {cloneable:true};
         for (let layer of layers) {
             this._layers[layer] = new Group();
             this._content.add(this._layers[layer]);
@@ -496,7 +496,7 @@ export function makeLayersWithContainers(superClass) {
 
     superClass.prototype._initContent = function (layers) {
         this._content = new Group();
-        this._layers = {};
+        this._layers = {cloneable:true};
         for (let layer in layers) {
             if (!defaultLayer) defaultLayer = layer;
             this._layers[layer] = layers[layer];
@@ -557,7 +557,18 @@ export function makeLayersWithContainers(superClass) {
         return !!this._layers[layer]._root.parent;
     };
 
-    superClass.prototype.children = function (layer) {
+    Object.defineProperty(superClass.prototype, "children", {
+        configurable: true,
+        get: function () {
+            let result = new List();
+            for (let layer in this._layers) {
+                result.push(...this._layers[layer].children);
+            }
+            return result;
+        }
+    });
+
+    superClass.prototype.layerChildren = function (layer) {
         return this._layers[layer].children;
     };
 
@@ -748,6 +759,7 @@ export class Pedestal {
         this.matrix =  computeMatrix(parent.level, this._element.content);
     }
 }
+makeCloneable(Pedestal);
 
 export function makeContainerZindex(superClass) {
 
@@ -1319,6 +1331,7 @@ export function makePart(superClass) {
     }
 
     Object.defineProperty(superClass.prototype, "menuOptions", {
+        configurable: true,
         get: function () {
             let menuOptions = this._owner.menuOptions;
             if (menuOptions) {
@@ -1332,6 +1345,66 @@ export function makePart(superClass) {
             }
         }
     })
+
+}
+
+export function makeStrokeUpdatable(superClass) {
+
+    superClass.prototype._initStroke = function(data) {
+        this._setStrokeColor(data.strokeColor || this._strokeColor  || Colors.BLACK);
+        this._setStrokeWidth(data.strokeWidth || this._strokeWidth  || 1);
+    };
+
+    Object.defineProperty(superClass.prototype, "strokeColor", {
+        configurable: true,
+        get: function() {
+            return this._strokeColor;
+        },
+        set: function(strokeColor) {
+            Memento.register(this);
+            this._setStrokeColor(strokeColor);
+        }
+    });
+
+    Object.defineProperty(superClass.prototype, "strokeWidth", {
+        configurable: true,
+        get: function() {
+            return this._strokeWidth;
+        },
+        set: function(strokeWidth) {
+            Memento.register(strokeWidth);
+            this._setStrokeWidth(strokeWidth);
+        }
+    });
+
+    superClass.prototype._setStrokeColor = function(strokeColor) {
+        this._strokeColor = strokeColor;
+        this._shape.child.attrs({stroke: strokeColor});
+    };
+
+    superClass.prototype._setStrokeWidth = function(strokeWidth) {
+        this._strokeWidth = strokeWidth;
+        this._shape.child.attrs({stroke_width: strokeWidth});
+    };
+
+    let superMemento = superClass.prototype._memento;
+    if (superMemento) {
+        superClass.prototype._memento = function () {
+            let memento = superMemento.call(this);
+            memento._strokeColor = this._strokeColor;
+            memento._strokeWidth = this._strokeWidth;
+            return memento;
+        };
+
+        let superRevert = superClass.prototype._revert;
+        superClass.prototype._revert = function (memento) {
+            superRevert.call(this, memento);
+            this._strokeColor = memento._strokeColor;
+            this._strokeWidth = memento._strokeWidth;
+            this._shape.child.attrs({stroke: this._strokeColor, stroke_width: this._strokeWidth});
+            return this;
+        };
+    }
 
 }
 
@@ -1593,6 +1666,7 @@ export class BoardArea extends BoardElement {
 makeShaped(BoardArea);
 makeContainer(BoardArea);
 makeDraggable(BoardArea);
+makeNotCloneable(BoardArea);
 
 export class BoardTable extends BoardArea {
 

@@ -4,13 +4,13 @@ import {
     Group, Rect, Fill, Visibility, win, Colors, Circle, Line
 } from "./svgbase.js";
 import {
-    Memento, Box, Context, Events, DragSwitchOperation, DragOperation
+    Memento, Box, Context, Events, DragSwitchOperation, DragOperation, makeNotCloneable
 } from "./toolkit.js";
 import {
     BoardElement, BoardSupport, BoardLayer, BoardZindexLayer,
     makeContainer, makeSupport, makeDraggable, makeSelectable, makeMoveable, makeRotatable, makeClickable,
     makePositionningContainer, makePart, makeFramed, makeSingleImaged, makeMultiImaged, makeClipImaged, makeShaped,
-    makeLayersWithContainers, makeLayered
+    makeLayersWithContainers, makeLayered, makeStrokeUpdatable
 } from "./base-element.js";
 import {
     TextMenuOption, TextToggleMenuOption, makeMenuOwner
@@ -170,8 +170,7 @@ export class AbstractBoardBox extends BoardElement {
                 Context.memento.open();
                 this._boxCover.show();
             },
-            function() {return this._boxCover.hidden;},
-            ()=>true));
+            function() {return this._boxCover.hidden;}));
     }
 
     get orientation() {
@@ -447,6 +446,7 @@ export class DragHandleOperation extends DragOperation {
         element._droppedIn(element.parent);
     }
 }
+makeNotCloneable(DragHandleOperation);
 DragHandleOperation.instance = new DragHandleOperation();
 
 export class BoardHandle extends BoardElement {
@@ -625,26 +625,24 @@ makeLayered(BoardFrame, "configuration");
 
 export class BoardTarget extends BoardElement {
 
-    constructor(size, color) {
+    constructor(size, strokeColor) {
         super(size, size);
-        this._root.add(this.initShape(size, color));
+        this._root.add(this.initShape(size, strokeColor));
         this._dragOperation(Context.moveSelectionDrag);
         this._observe(Context.canvas);
         this.addMenuOption(new TextMenuOption("Edit Target",
             function () {
                 this.edit();
-            },
-            () => true));
+            }));
     }
 
     edit() {
-        console.log(this.lx+" "+this.ly)
         Context.canvas.openModal(
             editTarget,
             {
                 x: this.lx,
                 y: this.ly,
-                color: null
+                strokeColor: this.strokeColor
             },
             data => {
                 Context.memento.open();
@@ -655,12 +653,13 @@ export class BoardTarget extends BoardElement {
     update(data) {
         Memento.register(this);
         this.move(data.x, data.y);
+        this._initStroke(data);
     }
 
     _notified(source, event, data) {
         if (event === Events.ZOOM) {
             let zoom = Context.canvas.zoom;
-            this.shape.attrs({stroke_width:1/zoom});
+            this.shape.attrs({stroke_width:this._strokeWidth/zoom});
         }
     }
 
@@ -668,18 +667,21 @@ export class BoardTarget extends BoardElement {
         let shape = new Group()
             .add(new Line(-size/2, 0, size/2, 0))
             .add(new Line(0, -size/2, 0, size/2))
-            .add(new Circle(0, 0, size/4).attrs({fill_opacity:0.001}))
-            .attrs({stroke: strokeColor, stroke_width: 1});
-        return this._initShape(shape);
+            .add(new Circle(0, 0, size/4).attrs({fill_opacity:0.001}));
+        this._initShape(shape);
+        this._initStroke({strokeColor:strokeColor});
+        return this._shape;
     }
 
 }
+
 makeShaped(BoardTarget);
 makeSelectable(BoardTarget);
 makeMoveable(BoardTarget);
 makeDraggable(BoardTarget);
 makeMenuOwner(BoardTarget);
 makeLayered(BoardTarget, "configuration");
+makeStrokeUpdatable(BoardTarget);
 
 BoardFrame.COLOR = Colors.RED;
 
@@ -705,18 +707,15 @@ export function makeConfigurableMap(superClass, positionFct) {
             function () {
                 this.showConfiguration();
             },
-            function() { return !this.configurationShown; },
-            () => true));
+            function() { return !this.configurationShown; }));
         this.addMenuOption(new TextMenuOption("Generate Hex Targets",
             function () {
                 this.callForHexTargetsGeneration();
-            },
-            () => true));
+            }));
         this.addMenuOption(new TextMenuOption("Generate Square Targets",
             function () {
                 this.callForSquareTargetsGeneration();
-            },
-            () => true));
+            }));
         this.configFrame = new BoardFrame(100, 50);
         this.add(this.configFrame);
     };
@@ -731,7 +730,7 @@ export function makeConfigurableMap(superClass, positionFct) {
             },
             data => {
                 Context.memento.open();
-                this.generateHexTargets(this.configFrame.box, data.colCount, data.rowCount, data.type);
+                this.generateHexTargets(this.configFrame.box, data);
             });
     };
 
@@ -744,41 +743,43 @@ export function makeConfigurableMap(superClass, positionFct) {
             },
             data => {
                 Context.memento.open();
-                this.generateSquareTargets(this.configFrame.box, data.colCount, data.rowCount);
+                this.generateSquareTargets(this.configFrame.box, data);
             });
     };
 
-    superClass.prototype.generateHexTargets = function(bounds, colCount, rowCount, type) {
-        if (type===1 || type===2) {
-            let colSliceWidth = bounds.width/(colCount*3+1);
-            let rowHeight = bounds.height/rowCount;
-            let margin = type===1 ? 0 : rowHeight/2;
+    superClass.prototype.generateHexTargets = function(bounds, data) {
+        data.strokeColor=data.strokeColor||Colors.RED;
+        if (data.type===1 || data.type===2) {
+            let colSliceWidth = bounds.width/(data.colCount*3+1);
+            let rowHeight = bounds.height/data.rowCount;
+            let margin = data.type===1 ? 0 : rowHeight/2;
             for (let x = colSliceWidth * 2; x < bounds.width; x += colSliceWidth*3) {
                 for (let y = margin + rowHeight / 2; y < bounds.height; y += rowHeight) {
-                    this.add(new BoardTarget(16, Colors.RED).move(x + bounds.x, y + bounds.y));
+                    this.add(new BoardTarget(16, data.strokeColor).move(x + bounds.x, y + bounds.y));
                 }
                 margin = margin ? 0 : rowHeight/2;
             }
         }
-        else if (type===3 || type===4) {
-            let rowSliceHeight = bounds.height/(rowCount*3+1);
-            let colWidth = bounds.width/colCount;
-            let margin = type===3 ? 0 : colWidth/2;
+        else if (data.type===3 || data.type===4) {
+            let rowSliceHeight = bounds.height/(data.rowCount*3+1);
+            let colWidth = bounds.width/data.colCount;
+            let margin = data.type===3 ? 0 : colWidth/2;
             for (let y = rowSliceHeight * 2; y < bounds.height; y += rowSliceHeight*3) {
                 for (let x = margin + colWidth / 2; x < bounds.width; x += colWidth) {
-                    this.add(new BoardTarget(16, Colors.RED).move(x + bounds.x, y + bounds.y));
+                    this.add(new BoardTarget(16, data.strokeColor).move(x + bounds.x, y + bounds.y));
                 }
                 margin = margin ? 0 : colWidth/2;
             }
         }
     };
 
-    superClass.prototype.generateSquareTargets = function(bounds, colCount, rowCount) {
-        let colWidth = bounds.width/colCount;
-        let rowHeight = bounds.height/rowCount;
+    superClass.prototype.generateSquareTargets = function(bounds, data) {
+        data.strokeColor=data.strokeColor||Colors.RED;
+        let colWidth = bounds.width/data.colCount;
+        let rowHeight = bounds.height/data.rowCount;
         for (let x = colWidth/2; x<bounds.width; x+=colWidth) {
             for (let y = rowHeight/2; y<bounds.height; y+=rowHeight) {
-                this.add(new BoardTarget(16, Colors.RED).move(x+bounds.x, y+bounds.y));
+                this.add(new BoardTarget(16, data.strokeColor).move(x+bounds.x, y+bounds.y));
             }
         }
     };

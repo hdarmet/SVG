@@ -6,7 +6,7 @@ Vue.component('generate-hex-targets', {
             colCount:0,
             rowCount:0,
             type:1,
-            color:null,
+            strokeColor:null,
             visible:false,
             onValidate:null,
             onCancel:null
@@ -23,7 +23,8 @@ Vue.component('generate-hex-targets', {
             this.onValidate({
                 colCount: parseInt(this.colCount),
                 rowCount: parseInt(this.rowCount),
-                type: parseInt(this.type)
+                type: parseInt(this.type),
+                strokeColor: this.strokeColor
             });
             this.visible = false;
         },
@@ -71,7 +72,7 @@ Vue.component('generate-hex-targets', {
                 <label>Color:</label>
               </b-col>
               <b-col md="10">
-                <swatches v-model="color" inline></swatches>
+                <swatches v-model="strokeColor" inline></swatches>
               </b-col>
             </b-row> 
           </b-container>
@@ -99,7 +100,7 @@ Vue.component('generate-square-targets', {
         return {
             colCount:0,
             rowCount:0,
-            color:null,
+            strokeColor:null,
             visible:false,
             onValidate:null,
             onCancel:null
@@ -112,7 +113,8 @@ Vue.component('generate-square-targets', {
         validate() {
             this.onValidate({
                 colCount: parseInt(this.colCount),
-                rowCount: parseInt(this.rowCount)
+                rowCount: parseInt(this.rowCount),
+                strokeColor: this.strokeColor
             });
             this.visible = false;
         },
@@ -145,7 +147,7 @@ Vue.component('generate-square-targets', {
                 <label>Color:</label>
               </b-col>
               <b-col md="10">
-                <swatches v-model="color" inline></swatches>
+                <swatches v-model="strokeColor" inline></swatches>
               </b-col>
             </b-row>
           </b-container>
@@ -172,7 +174,7 @@ Vue.component('edit-target', {
         return {
             x:0,
             y:0,
-            color:null,
+            strokeColor:null,
             visible:false,
             onValidate:null,
             onCancel:null
@@ -184,8 +186,9 @@ Vue.component('edit-target', {
     methods: {
         validate() {
             this.onValidate({
-                colCount: parseInt(this.x),
-                rowCount: parseInt(this.y)
+                x: parseInt(this.x),
+                y: parseInt(this.y),
+                strokeColor: this.strokeColor
             });
             this.visible = false;
         },
@@ -218,7 +221,7 @@ Vue.component('edit-target', {
                 <label>Color:</label>
               </b-col>
               <b-col md="10">
-                <swatches v-model="color" inline></swatches>
+                <swatches v-model="strokeColor" inline></swatches>
               </b-col>
             </b-row>
           </b-container>
@@ -235,6 +238,7 @@ function editTarget(data, onValidate, onCancel) {
     console.log(data)
     editTargetWidget.x = data.x;
     editTargetWidget.y = data.y;
+    editTargetWidget.strokeColor = data.strokeColor,
     editTargetWidget.visible = true;
     editTargetWidget.onValidate = onValidate;
     editTargetWidget.onCancel = onCancel;

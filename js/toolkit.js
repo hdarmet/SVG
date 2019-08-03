@@ -200,6 +200,28 @@ export function makeObservable(superClass) {
     return superClass;
 }
 
+export function makeCloneable(superClass) {
+
+    Object.defineProperty(superClass.prototype, "cloneable", {
+        configurable: true,
+        get: function () {
+            return true;
+        }
+    });
+
+}
+
+export function makeNotCloneable(superClass) {
+
+    Object.defineProperty(superClass.prototype, "notCloneable", {
+        configurable: true,
+        get: function () {
+            return true;
+        }
+    });
+
+}
+
 export class DragOperation {
 
     constructor() {
@@ -290,7 +312,7 @@ export class DragMoveSelectionOperation extends DragOperation {
         }
         let dragSet = this.extendsSelection(Context.selection.selection(element=>true));
         for (let element of [...dragSet]) {
-            if (inSelection(element.parent, dragSet)) {
+            if (!element.moveable || inSelection(element.parent, dragSet)) {
                 dragSet.delete(element);
             }
         }
@@ -439,6 +461,7 @@ export class DragMoveSelectionOperation extends DragOperation {
                     selectedElement.cancelDrop();
                 }
             }
+            selectedElement._drag = null;
         }
         let dropped = new Set();
         for (let selectedElement of [...this._dragSet]) {
@@ -478,6 +501,7 @@ export class DragMoveSelectionOperation extends DragOperation {
         }
     }
 }
+makeNotCloneable(DragMoveSelectionOperation);
 Context.moveSelectionDrag = new DragMoveSelectionOperation();
 
 
@@ -515,12 +539,14 @@ class DragRotateSelectionOperation extends DragOperation {
         let dragY = element._drag.matrix.y(x, y);
         element._drag.angle = Math.atan2(-dragX, dragY);
         for (let selectedElement of Context.selection.selection()) {
-            Memento.register(selectedElement);
-            selectedElement._origin = selectedElement._memento();
-            if (!selectedElement._drag) {
-                selectedElement._drag = {};
+            if (selectedElement.rotatable) {
+                Memento.register(selectedElement);
+                selectedElement._origin = selectedElement._memento();
+                if (!selectedElement._drag) {
+                    selectedElement._drag = {};
+                }
+                selectedElement._drag.startAngle = selectedElement.angle;
             }
-            selectedElement._drag.startAngle = selectedElement.angle;
         }
     }
 
@@ -529,45 +555,54 @@ class DragRotateSelectionOperation extends DragOperation {
         let ly = element._drag.matrix.y(x, y);
         let angle = Math.atan2(-lx, ly);
         for (let selectedElement of Context.selection.selection()) {
-            selectedElement.rotate(selectedElement._drag.startAngle + deg(angle - element._drag.angle));
+            if (selectedElement.rotatable) {
+                selectedElement.rotate(selectedElement._drag.startAngle + deg(angle - element._drag.angle));
+            }
         }
     }
 
     doDrop(element, x, y, event) {
+        element._drag = null;
         for (let selectedElement of Context.selection.selection()) {
-            if (!selectedElement._dropCancelled) {
-                if ((selectedElement.parent._acceptRotation && !selectedElement.parent._acceptRotation(selectedElement)) ||
-                    selectedElement._acceptRotated && !selectedElement._acceptRotated(selectedElement.parent)) {
-                    selectedElement.cancelDrop();
+            if (selectedElement.rotatable) {
+                if (!selectedElement._dropCancelled) {
+                    if ((selectedElement.parent._acceptRotation && !selectedElement.parent._acceptRotation(selectedElement)) ||
+                        selectedElement._acceptRotated && !selectedElement._acceptRotated(selectedElement.parent)) {
+                        selectedElement.cancelDrop();
+                    }
                 }
             }
         }
         let dropped = new Set();
         for (let selectedElement of Context.selection.selection()) {
-            if (!selectedElement.dropCancelled()) {
-                dropped.add(selectedElement);
+            if (selectedElement.rotatable) {
+                if (!selectedElement.dropCancelled()) {
+                    dropped.add(selectedElement);
+                }
+                else {
+                    selectedElement._revert(selectedElement._origin);
+                    selectedElement._recover && selectedElement._recover(selectedElement._origin);
+                }
+                delete selectedElement._origin;
             }
-            else {
-                selectedElement._revert(selectedElement._origin);
-                selectedElement._recover && selectedElement._recover(selectedElement._origin);
-            }
-            delete selectedElement._origin;
         }
         if (dropped.size>0) {
             for (let selectedElement of Context.selection.selection()) {
-                if (dropped.has(selectedElement)) {
-                    let parent = selectedElement.parent;
-                    parent._receiveRotation && target._receiveRotation(selectedElement);
-                    parent._fire(Events.RECEIVE_ROTATION, selectedElement);
-                    selectedElement._rotated && !selectedElement._rotated(parent);
-                    selectedElement._fire(Events.ROTATED, parent);
-                }
-                else {
-                    let parent = selectedElement.parent;
-                    parent._revertRotation && selectedElement.parent._revertRotation(selectedElement);
-                    parent._fire(Events.REVERT_ROTATION, selectedElement);
-                    selectedElement._revertRotated && !selectedElement._revertRotated(parent);
-                    selectedElement._fire(Events.REVERT_ROTATED, parent);
+                if (selectedElement.rotatable) {
+                    if (dropped.has(selectedElement)) {
+                        let parent = selectedElement.parent;
+                        parent._receiveRotation && target._receiveRotation(selectedElement);
+                        parent._fire(Events.RECEIVE_ROTATION, selectedElement);
+                        selectedElement._rotated && !selectedElement._rotated(parent);
+                        selectedElement._fire(Events.ROTATED, parent);
+                    }
+                    else {
+                        let parent = selectedElement.parent;
+                        parent._revertRotation && selectedElement.parent._revertRotation(selectedElement);
+                        parent._fire(Events.REVERT_ROTATION, selectedElement);
+                        selectedElement._revertRotated && !selectedElement._revertRotated(parent);
+                        selectedElement._fire(Events.REVERT_ROTATED, parent);
+                    }
                 }
             }
             this._fire(Events.DRAG_ROTATED, new Set(dropped.keys()));
@@ -577,6 +612,7 @@ class DragRotateSelectionOperation extends DragOperation {
         }
     }
 }
+makeNotCloneable(DragRotateSelectionOperation);
 Context.rotateSelectionDrag = new DragRotateSelectionOperation();
 
 export class DragSelectAreaOperation extends DragOperation {
@@ -673,6 +709,7 @@ export class DragSelectAreaOperation extends DragOperation {
     }
 
 }
+makeNotCloneable(DragSelectAreaOperation);
 Context.selectAreaDrag = new DragSelectAreaOperation();
 
 export class DragScrollOperation extends DragOperation {
@@ -706,6 +743,7 @@ export class DragScrollOperation extends DragOperation {
         );
     }
 }
+makeNotCloneable(DragScrollOperation);
 Context.scrollDrag = new DragScrollOperation();
 
 export class DragSwitchOperation extends DragOperation {
@@ -744,6 +782,7 @@ export class DragSwitchOperation extends DragOperation {
         this._currentOperation && this._currentOperation.onDrop(element, x, y, event);
     }
 }
+makeNotCloneable(DragSwitchOperation);
 
 export class ParentDragOperation extends DragOperation {
     constructor() {
@@ -777,6 +816,7 @@ export class ParentDragOperation extends DragOperation {
         }
     }
 }
+makeNotCloneable(ParentDragOperation);
 Context.parentDrag = new ParentDragOperation();
 
 Context.scrollOrSelectAreaDrag = new DragSwitchOperation()
@@ -814,6 +854,7 @@ export class CanvasLayer {
         return this._root.global2local(x, y);
     }
 }
+makeNotCloneable(CanvasLayer);
 
 export class BaseLayer extends CanvasLayer {
 
@@ -1321,7 +1362,7 @@ export class Canvas {
     openModal(onOpen, data, onValidate, onCancel) { this._modalsLayer.openModal(onOpen, data, onValidate, onCancel); }
     get modalOpened() { return this._modalsLayer.modalOpened; }
 }
-
+makeNotCloneable(Canvas);
 makeObservable(Canvas);
 
 export class MutationObservers {
@@ -1365,6 +1406,7 @@ export class MutationObservers {
         }
     }
 }
+makeNotCloneable(MutationObservers);
 
 Context.mutationObservers = new MutationObservers();
 
@@ -1441,6 +1483,14 @@ export class CopyPaste {
     pasteModel() {
         let pasted = this.duplicateForPaste(this._models);
         Context.selection.selectOnly(...pasted);
+        let matrix = Context.canvas.baseGlobalMatrix.invert();
+        let cx = Context.canvas.clientWidth / 2;
+        let cy = Context.canvas.clientHeight / 2;
+        let vx = matrix.x(cx, cy);
+        let vy = matrix.y(cx, cy);
+        for (let copy of pasted) {
+            copy.move(copy.lx + vx, copy.ly + vy);
+        }
         this._fire(CopyPaste.events.PASTE_MODEL, pasted);
     }
 
@@ -1460,7 +1510,10 @@ CopyPaste.clone = function(source, duplicata) {
             }
         }
 
-        if (source.clone) {
+        if (source.notCloneable) {
+            return source;
+        }
+        else if (source.clone) {
             return source.clone(duplicata, false);
         }
         else if (source instanceof List) {
@@ -1495,8 +1548,11 @@ CopyPaste.clone = function(source, duplicata) {
             }
             return result;
         }
-        else {
+        else if (source.cloneable) {
             return CopyPaste.clone(source, duplicata);
+        }
+        else {
+            throw source+" is not cloneable."
         }
     }
 
@@ -1521,6 +1577,7 @@ CopyPaste.clone = function(source, duplicata) {
     return copy;
 };
 makeObservable(CopyPaste);
+makeNotCloneable(CopyPaste);
 
 Context.copyPaste = new CopyPaste();
 
@@ -1674,6 +1731,7 @@ export class Memento {
     }
 }
 makeObservable(Memento);
+makeNotCloneable(Memento);
 
 Context.memento = new Memento();
 
@@ -1808,6 +1866,7 @@ export class Selection {
 
 }
 makeObservable(Selection);
+makeNotCloneable(Selection);
 
 export class Groups extends Selection {
 
@@ -1937,4 +1996,5 @@ export class Groups extends Selection {
         return !!group;
     }
 }
+makeNotCloneable(Groups);
 

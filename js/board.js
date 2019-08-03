@@ -13,7 +13,7 @@ import {
     makeContainerMultiLayered, makeLayered, makeDeletable
 } from "./base-element.js";
 import {
-    ToolCommandPopup, ToolCommand, ToolToggleCommand, ToolExpandablePopup, ToolExpandablePanel,
+    ToolCommandPopup, ToolExpandablePopup, ToolExpandablePanel,
     ToolGridPanelContent, ToolCell,
     makeMenuOwner, TextMenuOption, TextToggleMenuOption, CheckMenuOption, ColorChooserMenuOption, BoardItemBuilder,
     zoomInCommand, zoomOutCommand, zoomExtentCommand, zoomSelectionCommand,
@@ -147,7 +147,7 @@ class BoardHexMap extends BoardMap {
     }
 
     get handlePositions() {
-        return this.children("configuration")
+        return this.layerChildren("configuration")
             .filter(element=>element instanceof BoardTarget)
             .map(handle=>{return {x:handle.lx, y:handle.ly}});
     }

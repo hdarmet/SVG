@@ -5,7 +5,7 @@ import {
     Colors, MouseEvents, TextAnchor, win, doc, Cursor
 } from "./svgbase.js";
 import {
-    Context, Events, boundingBox, DragOperation, Memento, Canvas, makeObservable
+    Context, Events, boundingBox, DragOperation, Memento, Canvas, makeObservable, makeNotCloneable
 } from "./toolkit.js";
 import {
     makeDraggable, BoardElement
@@ -257,11 +257,12 @@ export class MenuOption {
         menuGeometry.height += bbox.height;
     }
 }
+makeNotCloneable(MenuOption);
 MenuOption.CLASS = "menuOption";
 MenuOption.TEXT_CLASS = "menuOptionText";
 
 export class TextMenuOption extends MenuOption {
-    constructor(label, action, active) {
+    constructor(label, action, active=function() {return true;}) {
         super(label, action, active);
     }
 
@@ -280,7 +281,7 @@ export class TextMenuOption extends MenuOption {
 }
 
 export class TextToggleMenuOption extends TextMenuOption {
-    constructor(label, altLabel, action, altAction, predicate, active) {
+    constructor(label, altLabel, action, altAction, predicate, active=function() {return true;}) {
         super(label, action, active);
         this._predicate = predicate;
         this._altLabel = altLabel;
