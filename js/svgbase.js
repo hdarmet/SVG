@@ -73,7 +73,7 @@ export function localOffset(element) {
 }
 
 export function globalOffset(svgNode) {
-    let box = svgNode.getBoundingClientRect();
+    let box = svgNode._node.getBoundingClientRect();
     return {
         x: box.left,
         y: box.top
@@ -1040,15 +1040,16 @@ export class SVGElement {
     }
 
     // Testé
-    clone(duplicata = new Map(), withEvents=true) {
+    clone(duplicata = new Map()) {
         let copy = duplicata.get(this);
         if (copy) return copy;
         copy = this._clone();
         duplicata.set(this, copy);
-        this._cloneAttrs(copy);
-        this._cloneContent(copy, duplicata, withEvents);
-        if (withEvents) {
-            this._cloneEvents(copy, duplicata)
+        if (!this.shallowCloning) {
+            this._cloneContent(copy, duplicata);
+        }
+        if (this.eventCloning) {
+            this._cloneEvent(copy, duplicata);
         }
         return copy;
     }
@@ -1058,6 +1059,7 @@ export class SVGElement {
         copy.__proto__ = this.__proto__;
         copy.node(this._node.nodeName);
         copy._attrs = {};
+        this._cloneAttrs(copy);
         return copy;
     }
 
@@ -1066,10 +1068,10 @@ export class SVGElement {
         return this;
     }
 
-    _cloneContent(copy, duplicata, withEvents) {
+    _cloneContent(copy, duplicata) {
         if (this._children) {
             for (let child of this._children) {
-                copy.add(child.clone(duplicata, withEvents));
+                copy.add(child.clone(duplicata));
             }
         }
     }
@@ -1129,6 +1131,10 @@ export class SVGElement {
             }
         }
         return this;
+    }
+
+    get inDOM() {
+        return this._parent && this._parent.inDOM;
     }
 
     // Testé
@@ -1353,8 +1359,8 @@ export class SVGElement {
 
     // Testé
     getElementFromPoint(x, y) {
-        let offset = localOffset(this);
-        return SVGElement.getElementFromPoint(x-offset.x, y-offset.y);
+        let offset = globalOffset(this);
+        return SVGElement.getElementFromPoint(x+offset.x, y+offset.y);
     }
 
     memento() {
@@ -1505,6 +1511,10 @@ export class Svg extends SVGElement {
         matrixOp++;
         node.appendChild(this._node);
         return this;
+    }
+
+    get inDOM() {
+        return true;
     }
 
     // Testé
@@ -2515,6 +2525,7 @@ export class SvgImage extends Shape {
         copy._sizer = doc.createElementNS(SVG_NS, "g");
         matrixOp++;
         copy._node.appendChild(this._sizer);
+        this._cloneAttrs(copy);
         return copy;
     }
 

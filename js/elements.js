@@ -9,17 +9,25 @@ import {
 import {
     BoardElement, BoardSupport, BoardLayer, BoardZindexLayer,
     makeContainer, makeSupport, makeDraggable, makeSelectable, makeMoveable, makeRotatable, makeClickable,
-    makePositionningContainer, makePart, makeFramed, makeSingleImaged, makeMultiImaged, makeClipImaged, makeShaped,
-    makeLayersWithContainers, makeLayered, makeStrokeUpdatable
+    makePart, makeFramed, makeSingleImaged, makeMultiImaged, makeClipImaged, makeShaped,
+    makeLayersWithContainers, makeLayered, makeStrokeUpdatable, makeContainerASandBox, makeContainerASupport
 } from "./base-element.js";
 import {
     TextMenuOption, TextToggleMenuOption, makeMenuOwner
 } from "./tools.js";
+import {
+    makePositionningContainer
+} from "./physics.js";
 
 Context.itemDrag = new DragSwitchOperation()
     .add(()=>true, Context.rotateSelectionDrag)
     .add(()=>true, Context.moveSelectionDrag);
 
+/**
+ * Base class for elements that materialize the "content" of something. For example the content of a box. Essentially,
+ * it is a "support" (other elements may dropped on) with a shape (a background visual) and is not independant (part of
+ * another element, cannot be moved by itself).
+ */
 export class AbstractBoardContent extends BoardSupport {
 
     constructor(owner, width, height, ...args) {
@@ -156,7 +164,7 @@ export class AbstractBoardBox extends BoardElement {
         this._root.add(this._initRotatable()
             .add(this.initShape(width, height,...args))
             .add(this._initContent()));
-        this._dragOperation(Context.itemDrag);
+        this._dragOperation(function() {return Context.itemDrag;});
         this._boxContent = this.initBoxContent(width, height,...args);
         this._boxCover = this.initBoxCover(width, height,...args);
         this._add(this._boxContent);
@@ -308,12 +316,25 @@ export class AbstractBoardCounter extends BoardElement {
             .add(this.initShape(width, height, ...args))
             .add(this._initContent())
         );
-        this._dragOperation(Context.itemDrag);
+        this._dragOperation(function() {return Context.itemDrag;});
         this._clickHandler(function () {
-            this.imageIndex = this.imageIndex+1;
+            return ()=>this.imageIndex = this.imageIndex+1;
         });
     }
 
+    /*
+    _memento() {
+        let memento = super._memento();
+        console.log("memento !!")
+        return memento;
+    }
+
+
+    _revert(memento) {
+        super._revert(memento);
+        console.log("revert !!")
+    }
+*/
 }
 makeSelectable(AbstractBoardCounter);
 makeMoveable(AbstractBoardCounter);
@@ -344,13 +365,15 @@ export class AbstractBoardDie extends BoardElement {
         super(width, height);
         this._root.add(this.initShape(width, height, ...args))
             .add(this._initContent());
-        this._dragOperation(Context.moveSelectionDrag);
+        this._dragOperation(function() {return Context.moveSelectionDrag;});
         this._clickHandler(function () {
-            for (let t=0; t<10; t++) {
-                win.setTimeout(() => {
-                    let index = Math.floor(Math.random() * this.faceCount);
-                    this.imageIndex = index;
-                }, t * 100);
+            return ()=> {
+                for (let t = 0; t < 10; t++) {
+                    win.setTimeout(() => {
+                        let index = Math.floor(Math.random() * this.faceCount);
+                        this.imageIndex = index;
+                    }, t * 100);
+                }
             }
         });
     }
@@ -387,11 +410,12 @@ export class AbstractBoardMap extends BoardElement {
         this._root.add(this._initRotatable()
             .add(this.initShape(width, height, ...args))
         );
-        this._dragOperation(Context.itemDrag);
+        this._dragOperation(function() {return Context.itemDrag;});
         this._build();
     }
 
     _build() {
+        this._hinge.add(this._initContent());
     }
 
 }
@@ -400,7 +424,6 @@ makeMoveable(AbstractBoardMap);
 makeRotatable(AbstractBoardMap);
 makeDraggable(AbstractBoardMap);
 makeMenuOwner(AbstractBoardMap);
-makeLayersWithContainers(AbstractBoardMap);
 
 export class BoardMap extends AbstractBoardMap {
 
@@ -455,7 +478,7 @@ export class BoardHandle extends BoardElement {
         let zoom = Context.canvas.zoom;
         super(0, 0);
         this._root.add(this.initShape(BoardHandle.SIZE/zoom, BoardHandle.SIZE/zoom, BoardHandle.COLOR, zoom));
-        this._dragOperation(DragHandleOperation.instance);
+        this._dragOperation(function() {return DragHandleOperation.instance;});
         this._observe(Context.canvas);
     }
 
@@ -476,6 +499,11 @@ export class BoardHandle extends BoardElement {
     }
 
     _droppedIn() {}
+
+    _cloned(copy, duplicata) {
+        super._cloned();
+        copy._observe(Context.canvas);
+    }
 }
 makeMoveable(BoardHandle);
 makeShaped(BoardHandle);
@@ -618,6 +646,11 @@ export class BoardFrame extends BoardElement {
     get box() {
         return new Box(this.lx-this.width/2, this.ly-this.height/2, this.width, this.height);
     }
+
+    _cloned(copy, duplicata) {
+        super._cloned();
+        copy._observe(Context.canvas);
+    }
 }
 makeShaped(BoardFrame);
 makeResizeable(BoardFrame);
@@ -628,7 +661,7 @@ export class BoardTarget extends BoardElement {
     constructor(size, strokeColor) {
         super(size, size);
         this._root.add(this.initShape(size, strokeColor));
-        this._dragOperation(Context.moveSelectionDrag);
+        this._dragOperation(function() {return Context.moveSelectionDrag;});
         this._observe(Context.canvas);
         this.addMenuOption(new TextMenuOption("Edit Target",
             function () {
@@ -673,6 +706,11 @@ export class BoardTarget extends BoardElement {
         return this._shape;
     }
 
+    _cloned(copy, duplicata) {
+        super._cloned();
+        copy._observe(Context.canvas);
+    }
+
 }
 
 makeShaped(BoardTarget);
@@ -685,21 +723,33 @@ makeStrokeUpdatable(BoardTarget);
 
 BoardFrame.COLOR = Colors.RED;
 
-export function makeConfigurableMap(superClass, positionFct) {
+export function makeConfigurableMap(superClass, positionsFct) {
 
-    class ContentLayer extends BoardZindexLayer {
-    }
-    makePositionningContainer(ContentLayer, function(element) {
-        return positionFct.call(this.parent, element);
+    let ContentLayer = makePositionningContainer(class ContentLayer extends BoardZindexLayer {},
+        function(element) {
+            return positionsFct.call(this.parent, element);
+        }
+    );
+
+    makeLayersWithContainers(superClass, ()=>{
+        return {
+            configuration:new BoardLayer(),
+            content:new ContentLayer(),
+            top:new BoardLayer()
+        };
     });
+    makeContainerASupport(superClass);
+    makeContainerASandBox(superClass);
 
     let build = superClass.prototype._build;
     superClass.prototype._build = function () {
         build && build.call(this);
-        this._hinge.add(this._initContent({
-            configuration:new BoardLayer(),
-            content:new ContentLayer()
-        }));
+        this._contextMenu();
+        this.configFrame = new BoardFrame(100, 50);
+        this.add(this.configFrame);
+    };
+
+    superClass.prototype._contextMenu = function() {
         this.addMenuOption(new TextToggleMenuOption("Hide Configuration", "Show Configuration",
             function () {
                 this.hideConfiguration();
@@ -716,8 +766,6 @@ export function makeConfigurableMap(superClass, positionFct) {
             function () {
                 this.callForSquareTargetsGeneration();
             }));
-        this.configFrame = new BoardFrame(100, 50);
-        this.add(this.configFrame);
     };
 
     superClass.prototype.callForHexTargetsGeneration = function () {
@@ -799,5 +847,13 @@ export function makeConfigurableMap(superClass, positionFct) {
                 return this.hidden("configuration");
             }
         });
+    }
+
+    let getLayer = superClass.prototype._getLayer;
+    superClass.prototype._getLayer = function(element) {
+        if (element.isSandBox) {
+            return "top";
+        }
+        else return getLayer.call(this, element);
     }
 }

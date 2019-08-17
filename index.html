@@ -5,8 +5,17 @@
     <title>SVG</title>
 </head>
 <body>
-
+<!--
 <script type="module" src="./js/test.js"></script>
+-->
+<div tabindex="0" id="AA">
+    <svg width="100" height="100"><circle x="10" y="10" r="10"></circle></svg>
+</div>
+
+<script>
+    let anchor = document.querySelector("#AA");
+    anchor.addEventListener("keydown", event=>{console.log("KD")});
+</script>
 
 <!--
 <script type="module">

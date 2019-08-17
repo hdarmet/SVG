@@ -204,23 +204,31 @@ export function makeCloneable(superClass) {
 
     Object.defineProperty(superClass.prototype, "cloneable", {
         configurable: true,
+        enumerable: false,
         get: function () {
             return true;
         }
     });
 
 }
+
+export function CloneableObject() {}
+makeCloneable(CloneableObject);
 
 export function makeNotCloneable(superClass) {
 
     Object.defineProperty(superClass.prototype, "notCloneable", {
         configurable: true,
+        enumerable: false,
         get: function () {
             return true;
         }
     });
 
 }
+
+export function NotCloneableObject() {}
+makeNotCloneable(NotCloneableObject);
 
 export class DragOperation {
 
@@ -286,21 +294,49 @@ export class DragOperation {
 }
 makeObservable(DragOperation);
 
+/**
+ * Move (not rotate) selected elements by drag and drop.
+ */
 export class DragMoveSelectionOperation extends DragOperation {
 
     constructor() {
         super();
     }
 
+    /**
+     * Accept drag/drop if element is moveable.
+     * @param element element to be dragged and dropped
+     * @param x mouse position
+     * @param y mouse position
+     * @param event mouve event
+     * @returns {boolean|*} true if drag/drop accepted
+     */
     accept(element, x, y, event) {
         return (!Context.readOnly && element.moveable && super.accept(element, x, y, event));
     }
 
+    /**
+     * For future exention...
+     * @param selection
+     * @returns {Set}
+     */
     extendsSelection(selection) {
         return new Set(selection);
     }
 
+    /**
+     * Defines the set of elements to be dragged. This set is made with relevant selected element (eventually extended :
+     * including possible companion elements attached to selected element), but excluding the elements that are already
+     * "naturally" dragged because they belong to another (ancestor) dragged element.
+     * @returns {Set}
+     */
     dragSet() {
+        /**
+         * Check if an ancestor of an element is already selected
+         * @param parent parent of the checked element
+         * @param dragSet elements already selected
+         * @returns {boolean} true if an ancestor ot the current element is already selected
+         */
         function inSelection(parent, dragSet) {
             while (parent != null) {
                 if (dragSet.has(parent)) {
@@ -325,12 +361,12 @@ export class DragMoveSelectionOperation extends DragOperation {
         if (!Context.selection.selected(element)) {
             Context.selection.adjustSelection(element, event);
         }
-        Context.canvas.prepareGlassForDragStart();
+        Context.canvas.prepareGlassForElementsDrag();
         this._dragSet = this.dragSet();
         for (let selectedElement of this._dragSet.values()) {
             Memento.register(selectedElement);
             selectedElement._origin = selectedElement._memento();
-            Context.canvas.putElementOnGlass(selectedElement, x, y);
+            Context.canvas.putElementOnGlass(selectedElement, selectedElement.parent, x, y);
             selectedElement._drag = {
                 lastX: x,
                 lastY: y
@@ -344,6 +380,13 @@ export class DragMoveSelectionOperation extends DragOperation {
         this._fire(Events.DRAG_START, new Set(this._dragSet));
     }
 
+    /**
+     * Sort selection so the most "advanced" selected element is processed first. An element is advanced if it is ahead
+     * on the direction of the move.
+     * @param dx offset on x axis of the drag move
+     * @param dy offset on y axis of the drag move
+     * @returns {List|*} the dagged elements (sorted)
+     */
     sortedSelection(dx, dy) {
         const FAR_AWAY = 10000;
         let index = 0, px = 0, py = 0;
@@ -372,13 +415,38 @@ export class DragMoveSelectionOperation extends DragOperation {
         return result;
     }
 
+    /**
+     * Move an element still in the glass.
+     * <p> The main problem solved here is the fact that an element can "switch" support. Each time an element hovers
+     * another one (not dragged), it have to change support.
+     * <p> targets and supports are the same objects : before becoming a support, an element on the board is a target
+     * (target to be support :) ).
+     * @param element element to drag
+     * @param x mouse coordinate on X
+     * @param y mouse coordinate on Y
+     * @param event mouse event
+     */
     doDragMove(element, x, y, event) {
-        Context.canvas.prepareGlassForDragMove();
         let sortedSelection = this.sortedSelection(x - this._drag.lastX, y - this._drag.lastY);
+        // get initial supports and move elements on glass without changing support.
         for (let selectedElement of sortedSelection) {
-            selectedElement._drag.lastX = selectedElement.gx;
-            selectedElement._drag.lastY = selectedElement.gy;
-            Context.canvas.moveElementOnGlass(selectedElement, x, y);
+            selectedElement._drag.lastX = x;
+            selectedElement._drag.lastY = y;
+            Context.canvas.moveElementOnGlass(selectedElement, null, x, y);
+        }
+        // get targets (using final positions of dragged elements)
+        let targets = this.getTargets(this._dragSet);
+        // Possible change of support...
+        for (let selectedElement of sortedSelection) {
+            let target = targets.get(selectedElement);
+            // No target at all : element is outside viewport
+            if (!target) {
+                Context.canvas.moveElementOnGlass(selectedElement, null,
+                    selectedElement._drag.lastX, selectedElement._drag.lastY);
+            } else // Support has changed
+                if (target!==selectedElement.parent) {
+                Context.canvas.moveElementOnGlass(selectedElement, target, x, y);
+            }
             selectedElement._fire(Events.DRAG_MOVE);
         }
         this._drag.lastX = x;
@@ -386,18 +454,75 @@ export class DragMoveSelectionOperation extends DragOperation {
         this._fire(Events.DRAG_MOVE, sortedSelection);
     }
 
-    getTarget(element) {
-        let gx = element.gx;
-        let gy = element.gy;
-        Context.canvas.hideGlass();
-        let target = Context.canvas.getElementFromPoint(gx, gy);
-        if (!target || !target.owner) {
-            Context.canvas._adjustContent(-gx, -gy);
-            target = Context.canvas.getElementFromPoint(0, 0);
-            Context.canvas._adjustContent(0, 0);
+    /**
+     * Find targets function.
+     * Its a VERY optimized version (so it's a little bit complex).
+     * <p> First, it finds all targets at once for a set of element in order to avoid "management" operations (like
+     * hiding/showing the glass.
+     * <p> Second, it contains two "passes". The first very efficient, to find targets for elements which center are on
+     * the visible part of the canvas. The second pass is necessary to find targets "outside" the visible part of the
+     * canvas, due to limitations of the getElementFromPoint DOM feature (i.e. the point must be visible to be
+     * correctly processed). The second pass is much, much less efficient (x10 at least).
+     * <p> Positions are computed before glass layer is hidden in order to get targets when elements are on glass
+     * (dragMove)
+     * @param elements set of elements on the glass
+     */
+    getTargets(elements) {
+
+        /**
+         * Adjust target identification, using the target found under mouse position.
+         * <ul>
+         *     <li>dragged element may "choose" another target (if getDropTarget is defined for this element)</li>
+         * </ul>
+         * @param element element dragged
+         * @param target target found under mouse position.
+         * @returns {*} the definitive target
+         */
+        function getTarget(element, target) {
+            console.assert(target != null);
+            if (element.getDropTarget) {
+                return element.getDropTarget(target);
+            }
+            else {
+                return target;
+            }
         }
+
+        let targets = new Map();
+        let inside = new Map();
+        // Keep positions of dragged elements on glass
+        for (let element of elements) {
+            let gx = element.gx;
+            let gy = element.gy;
+            inside.set(element, {gx, gy});
+        }
+        // Remove glass (global positions of elements cannot be computed from here)
+        Context.canvas.hideGlass();
+        let outside = new Map();
+        // Look for targets using previously kept positions
+        // First case : position is on visible part of viewport
+        for (let element of elements) {
+            let {gx, gy} = inside.get(element);
+            let target = Context.canvas.getElementFromPoint(gx, gy);
+            if (!target || !target.owner) {
+                outside.set(element, {gx, gy});
+            }
+            else {
+                targets.set(element, getTarget(element, target.owner));
+            }
+        }
+        // For those elements which positions are not on the visible area we have to move viewport position so the
+        // element position become visible
+        for (let element of outside.keys()) {
+            let {gx, gy} = outside.get(element);
+            Context.canvas._adjustContent(-gx, -gy);
+            let target = Context.canvas.getElementFromPoint(0, 0);
+            if (target) targets.set(element, getTarget(element, target.owner));
+        }
+        // Revert viewport and glass
+        if (outside.size) Context.canvas._adjustContent(0, 0);
         Context.canvas.showGlass();
-        return target.owner;
+        return targets;
     }
 
     /**
@@ -437,20 +562,26 @@ export class DragMoveSelectionOperation extends DragOperation {
      * @param element the element to be dropped
      */
     doDrop(element, x, y, event) {
+        let targets = this.getTargets(this._dragSet);
+        // Check for drop acceptation and execute requested drop cancellation.
         for (let selectedElement of [...this._dragSet]) {
+            let target = targets.get(selectedElement);
+            // Can be cancelled before processed due to another element action
             if (!selectedElement._dropCancelled) {
-                let target = this.getTarget(selectedElement);
                 if (target && target._dropTarget) {
                     target = target._dropTarget();
                 }
                 if (target && target.content && getCanvasLayer(target._root) instanceof BaseLayer) {
                     let { x, y } = computePosition(selectedElement._root, target.content);
                     selectedElement.move(x, y);
+                    // if dropped element can rotate, adjust angle to cancel "target" orientation
                     if (selectedElement.rotate) {
                         let angle = computeAngle(selectedElement._hinge, target.content);
                         selectedElement.rotate(angle);
                     }
+                    // Ask target if it "accepts" the drop
                     if ((target._acceptDrop && !target._acceptDrop(selectedElement)) ||
+                        // Ask dropped element if it "accepts" the drop.
                         selectedElement._acceptDropped && !selectedElement._acceptDropped(target)) {
                         selectedElement.cancelDrop();
                     }
@@ -463,20 +594,25 @@ export class DragMoveSelectionOperation extends DragOperation {
             }
             selectedElement._drag = null;
         }
+        // Starting from here, drop decision is done : accepted or cancelled
+        // Execute drop (or execute drop cancellation).
         let dropped = new Set();
         for (let selectedElement of [...this._dragSet]) {
             Context.canvas.removeElementFromGlass(selectedElement);
             if (!selectedElement.dropCancelled()) {
+                // ... when drop succeeded
                 dropped.add(selectedElement);
                 selectedElement.attach(selectedElement._origin.target);
             }
             else {
+                // ... when drop failed
                 selectedElement._revert(selectedElement._origin);
                 selectedElement._recover && selectedElement._recover(selectedElement._origin);
                 selectedElement._origin._parent._add(selectedElement);
             }
             delete selectedElement._origin;
         }
+        // Call final elements callbacks and emit drop events
         if (dropped.size!==0) {
             for (let selectedElement of [...this._dragSet]) {
                 if (dropped.has(selectedElement)) {
@@ -626,7 +762,6 @@ export class DragSelectAreaOperation extends DragOperation {
     }
 
     doDragStart(element, x, y, event) {
-        Context.canvas.resetGlass();
         this._start = Context.canvas.getPointOnGlass(x, y);
         this._selectArea = new Rect(this._start.x, this._start.y, 1, 1)
             .attrs({
@@ -1028,17 +1163,115 @@ export class ToolsLayer extends CanvasLayer {
     }
 }
 
-export class GlassLayer extends CanvasLayer {
+class GlassPedestal {
 
-    constructor(canvas) {
-        super(canvas);
-        this._canvas = canvas;
+    constructor(matrix) {
+        this._root = new Group();
+        this._root.matrix = matrix;
+        this._pedestals = new Map();
         this._initContent();
     }
 
     _initContent() {
         this._content = new Group();
         this._root.add(this._content);
+    }
+
+    has(element) {
+        return !!this._pedestals.get(element);
+    }
+
+    putElement(element, x, y) {
+        let ematrix = element.global;
+        let dmatrix = ematrix.multLeft(this._root.globalMatrix.invert());
+        let pedestal = new Group(dmatrix);
+        this._pedestals.set(element, pedestal);
+        this.putArtifact(pedestal, element);
+        let invertedMatrix = pedestal.globalMatrix.invert();
+        pedestal.dragX = invertedMatrix.x(x, y);
+        pedestal.dragY = invertedMatrix.y(x, y);
+        element.rotate && element.rotate(0);
+        element.detach();
+        pedestal.add(element._root);
+        element._setPosition(0, 0);
+    }
+
+    moveElement(element, x, y) {
+        let pedestal = this._pedestals.get(element);
+        let invertedMatrix = pedestal.globalMatrix.invert();
+        let dX = invertedMatrix.x(x, y) - pedestal.dragX;
+        let dY = invertedMatrix.y(x, y) - pedestal.dragY;
+        element._setPosition(dX, dY);
+    }
+
+    removeElement(element) {
+        let pedestal = this._pedestals.get(element);
+        this._pedestals.delete(element);
+        this.removeArtifact(pedestal, element);
+    }
+
+    putArtifact(artifact, element) {
+        this._content.add(artifact);
+    }
+
+    removeArtifact(artifact, element) {
+        this._content.remove(artifact);
+    }
+
+}
+
+export function makeMultiLayeredGlass(superClass, ...layers) {
+
+    let defaultLayer = layers[0];
+
+    superClass.prototype._initContent = function() {
+        this._content = new Group();
+        for (let layer of layers) {
+            this[layer] = new Group();
+            this._content.add(this[layer]);
+        }
+        this._root.add(this._content);
+    };
+
+    superClass.prototype.putArtifact = function(artifact, element) {
+        let layer = element && element.layer ? element.layer : defaultLayer;
+        if (!this[layer]) layer = defaultLayer;
+        this[layer].add(artifact);
+    };
+
+    superClass.prototype.removeArtifact = function(artifact, element) {
+        let layer = element && element.layer ? element.layer : defaultLayer;
+        if (!this[layer]) layer = defaultLayer;
+        this[layer].remove(artifact);
+    };
+}
+
+export class GlassLayer extends CanvasLayer {
+
+    constructor(canvas) {
+        super(canvas);
+        this._initContent();
+        this._elements = new Map();
+    }
+
+    _initContent() {
+        this._content = new Group();
+        this._root.add(this._content);
+    }
+
+    _getPedestal(support) {
+        if (!support.canvasLayer || !(support.canvasLayer instanceof BaseLayer)) {
+            support = this.canvas._baseLayer;
+        }
+        let pedestal = this._pedestals.get(support);
+        if (!pedestal) {
+            let pedestalClass = support.glassStrategy;
+            if (!pedestalClass) pedestalClass = GlassPedestal;
+            pedestal = new pedestalClass(support._root.globalMatrix.multLeft(this._root.globalMatrix.invert()));
+            this._pedestals.set(support, pedestal);
+            this._content.add(pedestal._root);
+        }
+        return pedestal;
     }
 
     putArtifact(artifact) {
@@ -1049,49 +1282,37 @@ export class GlassLayer extends CanvasLayer {
         this._content.remove(artifact);
     }
 
-    reset() {
-        this._root.matrix = Matrix.identity;
+    prepareElementsDrag() {
+        this._pedestals = new Map();
+        this._elements = new Map();
+        this._content.clear();
     }
 
-    prepareDragStart() {
-        this._root.matrix = this._canvas._baseLayer.matrix;
-        this._pedestals = new Set();
+    putElement(element, support, x, y) {
+        let supportPedestal = this._getPedestal(support);
+        let elementPedestal = this._elements.get(element);
+        console.assert(!elementPedestal);
+        supportPedestal.putElement(element, x, y);
+        this._elements.set(element, supportPedestal);
     }
 
-    prepareDragMove() {
-        this._root.matrix = this._canvas._baseLayer.matrix;
-    }
-
-    prepareToolsDrag() {
-        this._root.matrix = this._canvas._toolsLayer.matrix;
-    }
-
-    putElement(element, x, y) {
-        let ematrix = element.global;
-        let dmatrix = ematrix.multLeft(this._canvas._baseLayer.matrix.invert());
-        let pedestal = new Group(Matrix.translate(dmatrix.dx, dmatrix.dy).rotate(dmatrix.angle, 0, 0));
-        this._pedestals.add(pedestal);
-        this.putArtifact(pedestal, element);
-        let imatrix = ematrix.invert();
-        pedestal.dragX = imatrix.x(x, y);
-        pedestal.dragY = imatrix.y(x, y);
-        element.rotate && element.rotate(0);
-        element.detach();
-        pedestal.add(element._root);
-    }
-
-    moveElement(element, x, y) {
-        let pedestal = element._root.parent;
-        let invertedMatrix = pedestal.globalMatrix.invert();
-        let dX = invertedMatrix.x(x, y) - pedestal.dragX;
-        let dY = invertedMatrix.y(x, y) - pedestal.dragY;
-        element._setPosition(dX, dY);
+    moveElement(element, support, x, y) {
+        let elementPedestal = this._elements.get(element);
+        let supportPedestal = support ? this._getPedestal(support) : elementPedestal;
+        if (supportPedestal === elementPedestal) {
+            elementPedestal.moveElement(element, x, y);
+        }
+        else {
+            supportPedestal.putElement(element, x, y);
+            elementPedestal.removeElement(element);
+            this._elements.set(element, supportPedestal);
+        }
     }
 
     removeElement(element) {
-        let pedestal = element._root.parent;
-        this._pedestals.delete(pedestal);
-        this.removeArtifact(pedestal, element);
+        let elementPedestal = this._elements.get(element);
+        elementPedestal.removeElement(element);
+        this._elements.delete(element);
     }
 
     getPoint(x, y) {
@@ -1104,30 +1325,26 @@ export class GlassLayer extends CanvasLayer {
 
 }
 
-export function makeMultiLayeredGlass(...layers) {
+export function setGlassStrategy(superClass, glassStrategy) {
 
-    let defaultLayer = layers[0];
-
-    GlassLayer.prototype._initContent = function(artifact, element) {
-        this._content = new Group();
-        for (let layer of layers) {
-            this[layer] = new Group();
-            this._content.add(this[layer]);
+    Object.defineProperty(superClass.prototype, "glassStrategy", {
+        configurable: true,
+        enumerable: false,
+        get: function () {
+            return glassStrategy;
         }
-        this._root.add(this._content);
-    };
+    });
 
-    GlassLayer.prototype.putArtifact = function(artifact, element) {
-        let layer = element && element.layer ? element.layer : defaultLayer;
-        if (!this[layer]) layer = defaultLayer;
-        this[layer].add(artifact);
-    };
+}
 
-    GlassLayer.prototype.removeArtifact = function(artifact, element) {
-        let layer = element && element.layer ? element.layer : defaultLayer;
-        if (!this[layer]) layer = defaultLayer;
-        this[layer].remove(artifact);
+export function setLayeredGlassStrategy(superClass, ...layers) {
+
+    let glassStrategy = class extends GlassPedestal {
+        constructor(...args) {super(...args);}
     };
+    makeMultiLayeredGlass(glassStrategy, ...layers);
+    setGlassStrategy(superClass, glassStrategy);
+
 }
 
 export class ModalsLayer extends CanvasLayer {
@@ -1191,7 +1408,10 @@ export class Canvas {
         this._zoomOnWheel();
         this.shadowFilter = defineShadow("_shadow_", Colors.BLACK);
         this._root.addDef(this.shadowFilter);
-        win.addEventListener(MouseEvents.CONTEXT_MENU, function(event) {
+        this._anchor.addEventListener(MouseEvents.MOUSE_UP, event=>{
+            this._anchor.focus();
+        });
+        this._anchor.addEventListener(MouseEvents.CONTEXT_MENU, function(event) {
             event.preventDefault();
             return false;
         });
@@ -1346,14 +1566,11 @@ export class Canvas {
     // Glass Layer
     putArtifactOnGlass(artifact) { this._glassLayer.putArtifact(artifact);}
     removeArtifactFromGlass(artifact) { this._glassLayer.removeArtifact(artifact);}
-    putElementOnGlass(element, x, y) { this._glassLayer.putElement(element, x, y);}
-    moveElementOnGlass(element, x, y) {this._glassLayer.moveElement(element, x, y);}
+    putElementOnGlass(element, support, x, y) { this._glassLayer.putElement(element, support, x, y);}
+    moveElementOnGlass(element, support, x, y) {this._glassLayer.moveElement(element, support, x, y);}
     removeElementFromGlass(element) {this._glassLayer.removeElement(element);}
     getPointOnGlass(x, y) {return this._glassLayer.getPoint(x, y);}
-    resetGlass() {this._glassLayer.reset();}
-    prepareGlassForDragStart() {this._glassLayer.prepareDragStart();}
-    prepareGlassForDragMove() {this._glassLayer.prepareDragMove();}
-    prepareGlassForToolsDrag() {this._glassLayer.prepareToolsDrag();}
+    prepareGlassForElementsDrag() {this._glassLayer.prepareElementsDrag();}
     hideGlass() {this._glassLayer.hide();}
     showGlass() {this._glassLayer.show();}
 
@@ -1450,10 +1667,11 @@ export class CopyPaste {
         }
 
         let result = new Set();
+        let duplicata = new Map();
         if (elements.size > 0) {
             let { cx, cy } = center();
             for (let element of elements) {
-                let copy = element.clone();
+                let copy = element.clone(duplicata, true);
                 copy._parent = null;
                 let { x, y } = computePosition(element._root, element.canvasLayer._root);
                 copy._setPosition(x - cx, y - cy);
@@ -1472,8 +1690,9 @@ export class CopyPaste {
 
     duplicateForPaste(elements) {
         let pasted = new Set();
+        let duplicata = new Map();
         for (let element of elements) {
-            let copy = element.clone();
+            let copy = element.clone(duplicata, true);
             copy._setPosition(element.lx, element.ly);
             pasted.add(copy);
         }
@@ -1510,52 +1729,60 @@ CopyPaste.clone = function(source, duplicata) {
             }
         }
 
+        let copy = duplicata.get(source);
+        if (copy) return copy;
         if (source.notCloneable) {
             return source;
         }
         else if (source.clone) {
-            return source.clone(duplicata, false);
+            return source.clone(duplicata);
         }
         else if (source instanceof List) {
-            let result = new List();
-            duplicata.set(source, result);
-            for (let record of source) {
-                result.add(cloneRecord(record, duplicata));
+            copy = new List();
+            duplicata.set(source, copy);
+            if (!source.shallowCloning) {
+                for (let record of source) {
+                    copy.add(cloneRecord(record, duplicata));
+                }
             }
-            return result;
         }
         else if (source instanceof Array) {
-            let result = [];
-            duplicata.set(source, result);
-            for (let record of source) {
-                result.push(cloneRecord(record, duplicata));
+            copy = [];
+            duplicata.set(source, copy);
+            if (!source.shallowCloning) {
+                for (let record of source) {
+                    copy.push(cloneRecord(record, duplicata));
+                }
             }
-            return result;
         }
         else if (source instanceof Set) {
-            let result = new Set();
-            duplicata.set(source, result);
-            for (let record of source) {
-                result.add(cloneRecord(record, duplicata));
+            copy = new Set();
+            duplicata.set(source, copy);
+            if (!source.shallowCloning) {
+                for (let record of source) {
+                    copy.add(cloneRecord(record, duplicata));
+                }
             }
-            return result;
         }
         else if (source instanceof Map) {
-            let result = new Map();
-            duplicata.set(source, result);
-            for (let entry of source.entries()) {
-                result.set(cloneRecord(entry[0], duplicata), cloneRecord(entry[1], duplicata));
+            copy = new Map();
+            duplicata.set(source, copy);
+            if (!source.shallowCloning) {
+                for (let entry of source.entries()) {
+                    copy.set(cloneRecord(entry[0], duplicata), cloneRecord(entry[1], duplicata));
+                }
             }
-            return result;
         }
         else if (source.cloneable) {
-            return CopyPaste.clone(source, duplicata);
+            copy = CopyPaste.clone(source, duplicata);
         }
         else {
             throw source+" is not cloneable."
         }
+        return copy;
     }
 
+    if (source === null || source === undefined) return null;
     let copy = duplicata.get(source);
     if (copy) return copy;
     copy = {};
@@ -1564,13 +1791,15 @@ CopyPaste.clone = function(source, duplicata) {
     while(copy.__proto__.__pass__) {
         copy.__proto__ = copy.__proto__.__proto__;
     }
-    for (let property in source) {
-        if (source.hasOwnProperty(property)) {
-            if (source[property] && typeof(source[property])==='object') {
-                copy[property] = cloneObject(source[property], duplicata);
-            }
-            else {
-                copy[property] = source[property];
+    if (!source.shallowCloning) {
+        for (let property in source) {
+            if (source.hasOwnProperty(property)) {
+                if (source[property] && typeof(source[property]) === 'object') {
+                    copy[property] = cloneObject(source[property], duplicata);
+                }
+                else {
+                    copy[property] = source[property];
+                }
             }
         }
     }

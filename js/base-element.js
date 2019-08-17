@@ -3,9 +3,10 @@
 import {
     SVGElement, Translation, Rotation, Group, Rect, createUUID, MouseEvents, Matrix, l2l, List, RasterImage, Fill,
     ClippedRasterImage, Mutation, Colors, computeMatrix
-} from "./svgbase.js";
+} from "./svgbase.js"
 import {
-    Memento, makeObservable, CopyPaste, Events, getBox, Context, getCanvasLayer, makeNotCloneable, makeCloneable
+    Memento, makeObservable, CopyPaste, Events, getBox, Context, getCanvasLayer, makeNotCloneable, makeCloneable,
+    CloneableObject
 } from "./toolkit.js";
 
 export function makeDeletable(superClass) {
@@ -215,6 +216,7 @@ export function makeContainer(superClass) {
 
     superClass.prototype._initContent = function() {
         this._content = new Group();
+        this._content.shallowCloning = true;
         return this._content;
     };
 
@@ -251,6 +253,7 @@ export function makeContainer(superClass) {
     superClass.prototype._add = function(element) {
         if (!this._children) {
             this._children = new List();
+            this._children.shallowCloning = true;
         }
         this._children.add(element);
         this.__add(element);
@@ -372,59 +375,60 @@ export function makeContainer(superClass) {
         }
     });
 
+    superClass.prototype._memorizeContent = function(memento) {
+        if (this._children) {
+            memento._children = new List(...this._children);
+        }
+    };
+
+    superClass.prototype._revertContent = function(memento) {
+        this.__clear();
+        if (memento._children) {
+            this._children = new List(...memento._children);
+            for (let child of this._children) {
+                this.__add(child);
+            }
+        }
+        else {
+            delete this._children;
+        }
+    };
+
     let superMemento = superClass.prototype._memento;
     if (superMemento) {
         superClass.prototype._memento = function () {
             let memento = superMemento.call(this);
-            if (this._children) {
-                memento._children = new List(...this._children);
-            }
+            this._memorizeContent(memento);
             return memento;
         };
 
         let superRevert = superClass.prototype._revert;
         superClass.prototype._revert = function (memento) {
             superRevert.call(this, memento);
-            this.__clear();
-            if (memento._children) {
-                this._children = new List(...memento._children);
-                for (let child of this._children) {
-                    this.__add(child);
-                }
-            }
-            else {
-                delete this._children;
-            }
+            this._revertContent(memento);
             return this;
         };
     }
 
-    return superClass;
-}
-
-export function makePositionningContainer(superClass, positionsFct) {
-
-    superClass.prototype._receiveDrop = function(element) {
-        let lx = element.lx;
-        let ly = element.ly;
-        let distance = Infinity;
-        let position = {x:lx, y:ly};
-        for (let _position of positionsFct.call(this, element)) {
-            let _distance = (_position.x-lx)*(_position.x-lx)+(_position.y-ly)*(_position.y-ly);
-            if (_distance<distance) {
-                distance = _distance;
-                position = _position;
-            }
+    let cloning = superClass.prototype._cloning;
+    superClass.prototype._cloning = function (duplicata) {
+        let copy = cloning.call(this, duplicata);
+        for (let child of this.children) {
+            let childCopy = child.clone(duplicata);
+            copy._add(childCopy);
         }
-        element.move(position.x, position.y);
+        return copy;
     };
 
     return superClass;
 }
 
-export function makeSupport(superClass) {
-
-    makeContainer(superClass);
+/**
+ * Make a container class a support : (already) container instances then accept other elements to be dropped on.
+ * <p> Note that the element must be a container (of any type) to give value to this trait.
+ * @param superClass class to be enhanced.
+ */
+export function makeContainerASupport(superClass) {
 
     Object.defineProperty(superClass.prototype, "isSupport", {
         configurable: true,
@@ -439,13 +443,52 @@ export function makeSupport(superClass) {
 
 }
 
+/**
+ * Make an element class a support. This class is made a container AND a support (combinaison of two traits :
+ * makeContainer and makeContainerASupport). A support is a container class that accept other elements to be dropped in.
+ * <p> Note that the "container" aspect of the class may be enhanced (to be a multi layered container for example).
+ * @param superClass to be enhanced
+ */
+export function makeSupport(superClass) {
+
+    makeContainer(superClass);
+    makeContainerASupport(superClass);
+
+}
+
+/**
+ * Make a container class a sandbox : (already) container instances should be systematically put on "top" layers of
+ * their own parent element in order to never have an element they do not own, "flying" on them.
+ * <p> Note that this is just a marking trait : by itself, the instance do nothing. Layered parent instance should ask
+ * for this trait to add accordingly this element in their content.
+ * @param superClass class to be enhanced.
+ */
+export function makeContainerASandBox(superClass) {
+
+    Object.defineProperty(superClass.prototype, "isSandBox", {
+        configurable: true,
+        get: function () {
+            return true;
+        }
+    });
+
+}
+
+export function makeSandBox(superClass) {
+
+    makeSupport(superClass);
+    makeContainerASandBox(superClass);
+
+}
+
 export function makeContainerMultiLayered(superClass, ...layers) {
 
     let defaultLayer = layers[0];
 
     superClass.prototype._initContent = function () {
         this._content = new Group();
-        this._layers = {cloneable:true};
+        this._content.shallowCloning = true;
+        this._layers = new CloneableObject();
         for (let layer of layers) {
             this._layers[layer] = new Group();
             this._content.add(this._layers[layer]);
@@ -460,43 +503,48 @@ export function makeContainerMultiLayered(superClass, ...layers) {
     };
 
     superClass.prototype.__add = function (element) {
-        let layer = element.layer || defaultLayer;
+        let layer = this._getLayer(element);
         if (!this._layers[layer]) layer = defaultLayer;
         this._layers[layer].add(element._root);
     };
 
     superClass.prototype.__insert = function (previous, element) {
-        let layer = element.layer || defaultLayer;
+        let layer = this._getLayer(element);
         if (!this._layers[layer]) layer = defaultLayer;
         this._layers[layer].insert(previous._root, element._root);
     };
 
     superClass.prototype.__replace = function (previous, element) {
-        let layer = element.layer || defaultLayer;
+        let layer = this._getLayer(element);
         if (!this._layers[layer]) layer = defaultLayer;
         this._layers[layer].replace(previous._root, element._root);
     };
 
     superClass.prototype.__remove = function (element) {
-        let layer = element.layer || defaultLayer;
+        let layer = this._getLayer(element);
         if (!this._layers[layer]) layer = defaultLayer;
         this._layers[layer].remove(element._root);
+    };
+
+    superClass.prototype._getLayer = function(element) {
+        return element.getLayer && element.getLayer(this) || defaultLayer;
     };
 
 }
 
 export function makeMultiLayeredContainer(superClass, ...layers) {
     makeContainer(superClass);
-    makeContainerMultiLayered(superClass);
+    makeContainerMultiLayered(superClass, ...layers);
 }
 
-export function makeLayersWithContainers(superClass) {
+export function makeLayersWithContainers(superClass, layersFct) {
 
     let defaultLayer;
+    let layers = layersFct();
 
-    superClass.prototype._initContent = function (layers) {
+    superClass.prototype._initContent = function () {
         this._content = new Group();
-        this._layers = {cloneable:true};
+        this._layers = new CloneableObject();
         for (let layer in layers) {
             if (!defaultLayer) defaultLayer = layer;
             this._layers[layer] = layers[layer];
@@ -522,25 +570,25 @@ export function makeLayersWithContainers(superClass) {
     };
 
     superClass.prototype.add = function (element) {
-        let layer = element.layer || defaultLayer;
+        let layer = this._getLayer(element);
         if (!this._layers[layer]) layer = defaultLayer;
         this._layers[layer].add(element);
     };
 
     superClass.prototype.insert = function (previous, element) {
-        let layer = element.layer || defaultLayer;
+        let layer = this._getLayer(element);
         if (!this._layers[layer]) layer = defaultLayer;
         this._layers[layer].insert(previous, element);
     };
 
     superClass.prototype.replace = function (previous, element) {
-        let layer = element.layer || defaultLayer;
+        let layer = this._getLayer(element);
         if (!this._layers[layer]) layer = defaultLayer;
         this._layers[layer].replace(previous, element);
     };
 
     superClass.prototype.remove = function (element) {
-        let layer = element.layer || defaultLayer;
+        let layer = this._getLayer(element);
         if (!this._layers[layer]) layer = defaultLayer;
         this._layers[layer].remove(element);
     };
@@ -573,9 +621,13 @@ export function makeLayersWithContainers(superClass) {
     };
 
     superClass.prototype._acceptDrop = function(element) {
-        let layer = element.layer || defaultLayer;
+        let layer = this._getLayer(element);
         if (!this._layers[layer]) layer = defaultLayer;
         return this._layers[layer]._acceptDrop(element);
+    };
+
+    superClass.prototype._getLayer = function(element) {
+        return element.getLayer && element.getLayer(this) || defaultLayer;
     };
 
     Object.defineProperty(superClass.prototype, "content", {
@@ -588,27 +640,29 @@ export function makeLayersWithContainers(superClass) {
 
 export function makeLayered(superClass, layer) {
 
-    Object.defineProperty(superClass.prototype, "layer", {
-        configurable: true,
-        get: function () {
-            return layer;
+    let getLayer = superClass.prototype.getLayer;
+    superClass.prototype.getLayer = function(target) {
+        if (getLayer) {
+            let layer = getLayer.call(this, target);
+            if (layer) return layer;
         }
-    });
+        return layer;
+    };
 
 }
 
 export class Pedestal {
 
-    constructor(element, parent, zIndex, host) {
+    constructor(element, parent, zIndex, support) {
         this._root = new Group();
         this._root._owner = this;
         this._element = element;
-        this._host = host;
+        this._support = support;
         this._zIndex = zIndex;
         this.level.add(this._root);
-        host._pedestals.set(element, this);
+        support._pedestals.set(element, this);
         if (parent) {
-            host._pedestals.get(parent)._register(this);
+            support._pedestals.get(parent)._register(this);
         }
     }
 
@@ -618,22 +672,25 @@ export class Pedestal {
             Memento.register(child);
         }
         return {
+            _rootChildren : [...this._root.children],
             _matrix : this._root.matrix
         }
     }
 
     _revert(memento) {
+        this._root.clear();
+        for (let svgChild of memento._rootChildren) {
+            this._root.add(svgChild);
+        }
         this._root.matrix = memento._matrix;
     }
 
     get level() {
-        return this._host.level(this._zIndex);
+        return this._support.level(this._zIndex);
     }
 
     finalize() {
-        let level = this._host.level(this._zIndex);
-        level.remove(this._root);
-        this._host._pedestals.delete(this._element);
+        this._support.removePedestal(this);
         if (this._children) {
             for (let pedestal of this._children) {
                 pedestal.finalize();
@@ -644,27 +701,52 @@ export class Pedestal {
     _proto(container) {
         let proto = container.__proto__;
         let that = this;
-        let pedestal = that._host._pedestal(container, that._element, that._zIndex);
+        let pedestal = that._support._pedestal(container, that._element, that._zIndex);
         container.__proto__ = {
+            add(element) {
+                Memento.register(pedestal);
+                that._support._memorizeElementContent(element);
+                proto.add.call(this, element);
+            },
+            insert(previous, element) {
+                Memento.register(pedestal);
+                that._support._memorizeElementContent(element);
+                proto.insert.call(this, previous, element);
+            },
+            replace(previous, element) {
+                Memento.register(pedestal);
+                that._support._memorizeElementContent(element);
+                proto.replace.call(this, previous, element);
+            },
+            remove(element) {
+                Memento.register(pedestal);
+                that._support._memorizeElementContent(element);
+                proto.remove.call(this, element);
+            },
+            clear() {
+                Memento.register(pedestal);
+                proto.clear.call(this);
+            },
             _add(element) {
                 proto._add.call(this, element);
-                that._host._takeInElementContent(element, this, that._zIndex + 1);
+                that._support._takeInElementContent(element, this, that._zIndex + 1);
             },
             _insert(previous, element) {
                 proto._insert.call(this, previous, element);
-                that._host._takeInElementContent(element, this, that._zIndex + 1);
+                that._support._takeInElementContent(element, this, that._zIndex + 1);
             },
             _replace(previous, element) {
-                that._host._takeOutElementContent(element);
+                that._support._takeOutElementContent(element);
                 proto._replace.call(this, previous, element);
-                that._host._takeInElementContent(element, this, that._zIndex + 1);
+                that._support._takeInElementContent(element, this, that._zIndex + 1);
             },
             _remove(element) {
-                that._host._takeOutElementContent(element);
+                that._support._takeOutElementContent(element);
                 proto._remove.call(this, element);
             },
             _clear() {
-                proto.__clear.call(this);
+//                proto.__clear.call(this);
+                proto._clear.call(this);
             },
             __add(element) {
                 pedestal.add(element);
@@ -694,7 +776,7 @@ export class Pedestal {
 
     _unproto(container) {
         container.pedestal._parent._unregister(container.pedestal);
-        container.__proto__ = container.__proto__._proto_;
+        container.__proto__ = container.__proto__.__proto__;
     }
 
     get elements() {
@@ -761,21 +843,27 @@ export class Pedestal {
 }
 makeCloneable(Pedestal);
 
-export function makeContainerZindex(superClass) {
+class ZIndexSupport {
 
-    superClass.prototype._initContent = function () {
-        this._content = new Group();
+    clone(duplicata) {
+        let support = new ZIndexSupport(duplicata.get(this._host));
+        duplicata.set(this, support);
+        return support;
+    }
+
+    constructor(host) {
+        this._host = host;
         this._levels = new List();
         this._pedestals = new Map();
-        this._rootPedestal = new Pedestal(this, null, 0, this);
-        let config = {attributes: true, childList: true, subtree: true}
+        this._rootPedestal = new Pedestal(this._host, null, 0, this);
+        let config = {attributes: true, childList: true, subtree: true};
         let action = mutations=> {
             let updates = new Set();
             for (let mutation of mutations) {
                 if (mutation.type === Mutation.ATTRIBUTES && mutation.attributeName==="transform" ) {
                     let svgElement = SVGElement.elementOn(mutation.target);
                     let element = svgElement.owner;
-                    if (element !== this) {
+                    if (element !== this._host) {
                         updates.add(element);
                     }
                 }
@@ -802,28 +890,38 @@ export function makeContainerZindex(superClass) {
                 let pedestal = this._pedestals.get(element);
                 pedestal && process(pedestal, true);
             }
-            Context.mutationObservers.disconnect(this);
+            Context.mutationObservers.disconnect(this._host);
             for (let pedestal of roots) {
                 pedestal.refresh();
             }
-            Context.mutationObservers.observe(this, action, this._content._node, config);
+            Context.mutationObservers.observe(this._host, action, this._host._content._node, config);
         };
-        Context.mutationObservers.observe(this, action, this._content._node, config);
-        return this._content;
-    };
+        Context.mutationObservers.observe(this._host, action, this._host._content._node, config);
+    }
 
-    superClass.prototype.level = function(index) {
+    removePedestal(pedestal) {
+        let level = this.level(pedestal._zIndex);
+        level.remove(pedestal._root);
+        this._pedestals.delete(pedestal._element);
+    }
+
+    level(index) {
         if (!this._levels[index]) {
-            for (let idx = this._levels.length; idx<=index; idx++) {
-                Memento.register(this);
-                this._levels[idx] = new Group();
-                this._content.add(this._levels[idx]);
-            }
+            Memento.register(this._host);
+            this._level(index);
         }
         return this._levels[index];
     };
 
-    superClass.prototype._pedestal = function(element, parent, zIndex) {
+    _level(index) {
+        for (let idx = this._levels.length; idx<=index; idx++) {
+            this._levels[idx] = new Group();
+            this._host._content.add(this._levels[idx]);
+        }
+        return this._levels[index];
+    };
+
+    _pedestal(element, parent, zIndex) {
         let pedestal = this._pedestals.get(element);
         if (!pedestal) {
             pedestal = new Pedestal(element, parent, zIndex + 1, this);
@@ -832,144 +930,236 @@ export function makeContainerZindex(superClass) {
         return pedestal;
     };
 
-    superClass.prototype._takeInElementContent = function(element, parent, zIndex) {
-        let children = element.children || [];
-        if (element.isSupport) {
-            for (let child of children) {
-                element._remove(child);
-            }
-            this._pedestals.get(parent)._proto(element);
-            for (let child of children) {
-                element._add(child);
-            }
-        }
-        else {
-            for (let child of children) {
-                this._takeInElementContent(child, parent, zIndex);
+    _memorizeElementContent(element) {
+        Memento.register(element);
+        if (element.children) {
+            for (let child of element.children) {
+                this._memorizeElementContent(child);
             }
         }
     };
 
-    superClass.prototype._takeOutElementContent = function(element) {
-        if (element.isSupport) {
-            let pedestal = this._pedestals.get(element);
-            if (pedestal) {
-                let elements = pedestal.elements;
-                for (let child of elements) {
+    _takeInElementContent(element, parent, zIndex) {
+        let children = element.children || [];
+        if (!element.isSandBox) {
+            if (element.isSupport) {
+                for (let child of children) {
                     element._remove(child);
                 }
-                pedestal._unproto(element);
-                element.__proto__ = element.__proto__.__proto__;
-                for (let child of elements) {
+                this._pedestals.get(parent)._proto(element);
+                for (let child of children) {
                     element._add(child);
                 }
             }
-        }
-        else {
-            let children = element.children;
-            if (children && children.length>0) {
+            else {
                 for (let child of children) {
-                    this._takeOutElementContent(child);
+                    this._takeInElementContent(child, parent, zIndex);
                 }
             }
         }
+    };
+
+    _takeOutElementContent(element) {
+        if (!element.isSandBox) {
+            if (element.isSupport) {
+                let pedestal = this._pedestals.get(element);
+                if (pedestal) {
+                    let elements = pedestal.elements;
+                    for (let child of elements) {
+                        element._remove(child);
+                    }
+                    pedestal._unproto(element);
+                    for (let child of elements) {
+                        element._add(child);
+                    }
+                }
+            }
+            else {
+                let children = element.children;
+                if (children && children.length > 0) {
+                    for (let child of children) {
+                        this._takeOutElementContent(child);
+                    }
+                }
+            }
+        }
+    };
+
+    _clear() {
+        this._levels.clear();
+        this._pedestals.clear();
+        this._rootPedestal.clear();
+        this._pedestals.set(this._host, this._rootPedestal);
+        this.level(0).add(this._rootPedestal._root);
+    };
+
+    _add(add, element) {
+        add.call(this._host, element);
+        this._takeInElementContent(element, this._host, 0);
+    };
+
+    _insert(insert, previous, element) {
+        insert.call(this._host, previous, element);
+        this._takeInElementContent(element, this._host, 0);
+    };
+
+    _replace(replace, previous, element) {
+        this._takeOutElementContent(previous);
+        replace.call(this._host, previous, element);
+        this._takeInElementContent(element, this._host, 0);
+    };
+
+    _remove(remove, element) {
+        this._takeOutElementContent(element);
+        remove.call(this._host, element);
+    };
+
+    __add = function (element) {
+        this._rootPedestal.add(element);
+    };
+
+    __insert(previous, element) {
+        this._rootPedestal.insert(previous, element);
+    };
+
+    __replace(previous, element) {
+        this._rootPedestal.replace(previous, element);
+    };
+
+    __remove(element) {
+        this._rootPedestal.remove(element);
+    };
+
+    _memento() {
+        function justLevel(level) {
+            let pedestals = new List();
+            for (let proot of level.children) {
+                let pedestal = proot.owner;
+                pedestals.push(pedestal);
+            }
+            return pedestals;
+        }
+
+        let memento = {};
+        memento._pedestals = new Map([...this._pedestals.entries()]);
+        memento._levels = new List();
+        for (let level of this._levels) {
+            memento._levels.push(justLevel(level));
+        }
+        Memento.register(this._rootPedestal);
+        return memento;
+    };
+
+    _revert(memento) {
+        this._pedestals = new Map([...memento._pedestals.entries()]);
+        let index=0;
+        this._levels.clear();
+        this._host._content.clear();
+        for (let level of memento._levels) {
+            let rlevel = new Group();
+            this._levels.push(rlevel);
+            for (let pedestal of level) {
+                rlevel.add(pedestal._root);
+            }
+            this._host._content.add(rlevel);
+        }
+        return this;
+    };
+}
+
+export function makeContainerZindex(superClass) {
+
+    superClass.prototype._initContent = function () {
+        this._content = new Group();
+        this._zIndexSupport = new ZIndexSupport(this);
+        return this._content;
     };
 
     superClass.prototype.__clear = function () {
         this._content.clear();
-        this._levels.clear();
-        this._pedestals.clear();
-        this._rootPedestal.clear();
-        this._pedestals.set(this, this._rootPedestal);
-        this.level(0).add(this._rootPedestal._root);
+        this._zIndexSupport._clear();
+    };
+
+    let add = superClass.prototype.add;
+    superClass.prototype.add = function (element) {
+        Memento.register(this._zIndexSupport);
+        this._zIndexSupport._memorizeElementContent(element);
+        return add.call(this, element);
+    };
+
+    let insert = superClass.prototype.insert;
+    superClass.prototype.insert = function (previous, element) {
+        Memento.register(this._zIndexSupport);
+        this._zIndexSupport._memorizeElementContent(element);
+        return insert.call(this, previous, element);
+    };
+
+    let replace = superClass.prototype.replace;
+    superClass.prototype.replace = function (previous, element) {
+        Memento.register(this._zIndexSupport);
+        this._zIndexSupport._memorizeElementContent(element);
+        return replace.call(this, previous, element);
+    };
+
+    let remove = superClass.prototype.remove;
+    superClass.prototype.remove = function (element) {
+        Memento.register(this._zIndexSupport);
+        this._zIndexSupport._memorizeElementContent(element);
+        return remove.call(this, element);
     };
 
     let _add = superClass.prototype._add;
     superClass.prototype._add = function (element) {
-        _add.call(this, element);
-        this._takeInElementContent(element, this, 0);
+        this._zIndexSupport._add(_add, element);
     };
 
     let _insert = superClass.prototype._insert;
     superClass.prototype._insert = function (previous, element) {
-        _insert.call(this, previous, element);
-        this._takeInElementContent(element, this, 0);
+        this._zIndexSupport._insert(_insert, previous, element);
     };
 
     let _replace = superClass.prototype._replace;
     superClass.prototype._replace = function (previous, element) {
-        this._takeOutElementContent(previous);
-        _replace.call(this, previous, element);
-        this._takeInElementContent(element, this, 0);
+        this._zIndexSupport._replace(_replace, previous, element);
     };
 
     let _remove = superClass.prototype._remove;
     superClass.prototype._remove = function (element) {
-        this._takeOutElementContent(element);
-        _remove.call(this, element);
+        this._zIndexSupport._remove(_remove, element);
     };
 
     superClass.prototype.__add = function (element) {
-        this._rootPedestal.add(element);
+        this._zIndexSupport.__add(element);
     };
 
     superClass.prototype.__insert = function (previous, element) {
-        this._rootPedestal.insert(previous, element);
+        this._zIndexSupport.__insert(previous, element);
     };
 
     superClass.prototype.__replace = function (previous, element) {
-        this._rootPedestal.replace(previous, element);
+        this._zIndexSupport.__replace(previous, element);
     };
 
     superClass.prototype.__remove = function (element) {
-        this._rootPedestal.remove(element);
+        this._zIndexSupport.__remove(element);
     };
 
-    let superMemento = superClass.prototype._memento;
-    if (superMemento) {
-        superClass.prototype._memento = function () {
-            function justLevel(level) {
-                let pedestals = new List();
-                for (let proot of level.children) {
-                    let pedestal = proot.owner;
-                    pedestals.push(pedestal);
-                }
-                return pedestals;
-            }
-            let memento = superMemento.call(this);
-            memento._pedestals = new Map(this._pedestals.entries());
-            memento._levels = new List();
-            for (let level of this._levels) {
-                memento._levels.push(justLevel(level));
-            }
-            Memento.register(this._rootPedestal);
-            return memento;
-        };
+    superClass.prototype._memorizeContent = function(memento) {
+        Memento.register(this._zIndexSupport);
+    };
 
-        let superRevert = superClass.prototype._revert;
-        superClass.prototype._revert = function (memento) {
-            superRevert.call(this, memento);
-            this._pedestals = new Map(memento._pedestals.entries());
-            let index=0;
-            for (let level of memento._levels) {
-                let rlevel = this._levels[index++];
-                if (!rlevel) {
-                    rlevel = new Group();
-                    this._levels.push(rlevel);
-                }
-                for (let pedestal of level) {
-                    rlevel.add(pedestal._root);
-                }
-                this._content.add(rlevel);
-            }
-            let config = {attributes: true, childList: true, subtree: true};
-            return this;
-        };
-    }
+    superClass.prototype._revertContent = function(memento) {
+    };
+
 }
 
 export function makeZindexContainer(superClass) {
     makeContainer(superClass);
+    makeContainerZindex(superClass);
+}
+
+export function makeZindexSupport(superClass) {
+    makeSandBox(superClass);
     makeContainerZindex(superClass);
 }
 
@@ -1005,20 +1195,21 @@ export function makeDraggable(superClass) {
         this._dragOp = operation;
         if (operation) {
             let accepted = false;
+            let op = operation.call(this);
             let dragStart = event=> {
-                accepted = operation._accept(this, event.pageX, event.pageY, event);
+                accepted = op._accept(this, event.pageX, event.pageY, event);
                 if (accepted) {
-                    operation._onDragStart(this, event.pageX, event.pageY, event);
+                    op._onDragStart(this, event.pageX, event.pageY, event);
                 }
             };
             let dragMove = event=> {
                 if (accepted) {
-                    operation._onDragMove(this, event.pageX, event.pageY, event);
+                    op._onDragMove(this, event.pageX, event.pageY, event);
                 }
             };
             let dragDrop = event=> {
                 if (accepted) {
-                    operation._onDrop(this, event.pageX, event.pageY, event);
+                    op._onDrop(this, event.pageX, event.pageY, event);
                 }
             };
             this._root.onDrag(dragStart, dragMove, dragDrop);
@@ -1036,15 +1227,13 @@ export function makeDraggable(superClass) {
         return this._origin && this._origin.cancelled;
     };
 
-    let superLink = superClass.prototype._link;
-    if (superLink) {
-        superClass.prototype._link = function(copy, duplicata) {
-            superLink.call(this, copy, duplicata);
-            if (this._dragOp) {
-                copy._dragOperation(this._dragOp);
-            }
+    let superCloned = superClass.prototype._cloned;
+    superClass.prototype._cloned = function(copy, duplicata) {
+        superCloned && superCloned.call(this, copy, duplicata);
+        if (this._dragOp) {
+            copy._dragOperation(this._dragOp);
         }
-    }
+    };
 
     return superClass;
 }
@@ -1097,7 +1286,7 @@ export function makeClickable(superClass) {
         }
         this._clickHdlImpl = event => {
             Context.selection.adjustSelection(this, event, true);
-            handler && handler.call(this, event);
+            handler && handler.call(this)(event);
         };
         this._root.on(MouseEvents.CLICK, this._clickHdlImpl);
     };
@@ -1109,23 +1298,21 @@ export function makeClickable(superClass) {
         }
         this._doubleClickHdlImpl = event => {
             Context.selection.adjustSelection(this, event, true);
-            handler && handler.call(this, event);
+            handler && handler.call(this)(event);
         };
         this._root.on(MouseEvents.DOUBLE_CLICK, this._doubleClickHdlImpl);
     };
 
-    let superLink = superClass.prototype._link;
-    if (superLink) {
-        superClass.prototype._link = function(copy, duplicata) {
-            superLink.call(this, copy, duplicata);
-            if (this._clickHdl) {
-                copy._clickHandler(this._clickHdl);
-            }
-            if (this._doubleClickHdl) {
-                copy._doubleClickHandler(this._doubleClickHdl);
-            }
+    let superCloned = superClass.prototype._cloned;
+    superClass.prototype._cloned = function(copy, duplicata) {
+        superCloned && superCloned.call(this, copy, duplicata);
+        if (this._clickHdl) {
+            copy._clickHandler(this._clickHdl);
         }
-    }
+        if (this._doubleClickHdl) {
+            copy._doubleClickHandler(this._doubleClickHdl);
+        }
+    };
 
     return superClass;
 }
@@ -1458,7 +1645,7 @@ export class BoardElement {
         this._width = memento._width;
         this._height = memento._height;
         if (memento._observables) {
-            this._observables = [...memento._observables];
+            this._observables = new List(...memento._observables);
             for (let observable of this._observables) {
                 observable._addObserver(this);
             }
@@ -1595,31 +1782,40 @@ export class BoardElement {
         return false;
     }
 
-    clone(duplicata) {
-        let root = false;
+    clone(duplicata, root=false) {
         if (!duplicata) {
-            root = true;
             duplicata = new Map();
         }
-        let copy = this._clone(duplicata);
+        let copy = null;
         if (root) {
+            let parent = this._parent;
+            delete this._parent;
+            try {
+                copy = this._cloning(duplicata);
+            } finally {
+                this._parent = parent;
+            }
             for (let entry of duplicata.entries()) {
                 let [that, thatCopy] = entry;
-                if (that._link) {
-                    that._link(thatCopy, duplicata);
+                if (that._cloned) {
+                    that._cloned(thatCopy, duplicata);
                 }
             }
         }
+        else {
+            copy = this._cloning(duplicata);
+        }
         return copy;
     }
 
-    _clone(duplicata) {
+    _cloning(duplicata) {
         let copy = CopyPaste.clone(this, duplicata);
         copy._root._owner = copy;
+        copy._id = createUUID();
         return copy;
     }
 
-    _link(copy, duplicata) {}
+    _cloned(copy, duplicata) {}
 }
 makeObservable(BoardElement);
 
@@ -1633,7 +1829,7 @@ export class BoardArea extends BoardElement {
             .add(this._initShape(background))
             .add(this._initContent());
         this._setSize(width, height);
-        this._dragOperation(Context.scrollOrSelectAreaDrag);
+        this._dragOperation(function() {return Context.scrollOrSelectAreaDrag;});
     }
 
     get color() {
@@ -1691,6 +1887,9 @@ export class BoardTable extends BoardArea {
 
 }
 
+/**
+ *
+ */
 export class BoardSupport extends BoardElement {
 
     constructor(width, height, ...args) {

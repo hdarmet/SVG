@@ -5,12 +5,12 @@ import {
 } from "./svgbase.js";
 import {
     Context, Memento, Selection, Canvas, DragSwitchOperation,
-    makeMultiLayeredGlass
+    setLayeredGlassStrategy
 } from "./toolkit.js";
 import {
     BoardElement, BoardTable,
     makeMoveable, makeRotatable, makeShaped, makeDraggable, makeClickable, makeSelectable,
-    makeContainerMultiLayered, makeLayered, makeDeletable
+    makeContainerMultiLayered, makeLayered, makeDeletable, makeZindexSupport
 } from "./base-element.js";
 import {
     ToolCommandPopup, ToolExpandablePopup, ToolExpandablePanel,
@@ -21,7 +21,7 @@ import {
 } from "./tools.js";
 import {
     BoardBox, BoardImageBox, BoardCounter, BoardDie, BoardMap, BoardHandle, BoardTarget, makeConfigurableMap
-} from "./elements.js";
+} from "./elements.js"
 
 Context.rotateOrMoveDrag = new DragSwitchOperation()
     .add(()=>true, Context.rotateSelectionDrag)
@@ -34,9 +34,9 @@ class BoardDummy extends BoardElement {
         let background = new Rect(-width/2, -height/2, width, height);
         background.fill = backgroundColor;
         this._root.add(this._initRotatable().add(this._initShape(background)));
-        this._dragOperation(Context.rotateOrMoveDrag);
-        this._clickHandler(()=>{console.log("clicked");});
-        this._doubleClickHandler(()=>{console.log("2 clicked");});
+        this._dragOperation(function() {return Context.rotateOrMoveDrag;});
+        this._clickHandler(function() {()=>{console.log("clicked");}});
+        this._doubleClickHandler(function() {()=> {console.log("2 clicked");}});
         this.addMenuOption(new TextMenuOption("click me", ()=>console.log("click me")));
         this.addMenuOption(new TextMenuOption("active me", ()=>console.log("active me")));
         this.addMenuOption(new TextToggleMenuOption("black", "white",
@@ -63,9 +63,10 @@ makeClickable(BoardDummy);
 makeMenuOwner(BoardDummy);
 makeLayered(BoardDummy, "_up");
 
-makeMultiLayeredGlass("_down",  "_middle", "_up");
 makeContainerMultiLayered(BoardTable, "_down",  "_middle", "_up");
+setLayeredGlassStrategy(BoardTable, "_down",  "_middle", "_up");
 makeContainerMultiLayered(BoardBox, "_down",  "_middle", "_up");
+setLayeredGlassStrategy(BoardBox, "_up", "_middle", "_down");
 makeLayered(BoardBox, "_down");
 makeDeletable(BoardCounter);
 
@@ -136,9 +137,9 @@ area.add(dummy2);
 area.add(box1);
 area.add(box2);
 
-let counter1 = new BoardCounter(40, 40, Colors.GREY, "./images/JemmapesRecto1_001.jpg", "./images/JemmapesVerso1_001.jpg");
+window.counter1 = new BoardCounter(40, 40, Colors.GREY, "./images/JemmapesRecto1_001.jpg", "./images/JemmapesVerso1_001.jpg");
 area.add(counter1);
-let counter2 = new BoardCounter(40, 40, Colors.GREY, "./images/JemmapesRecto1_001.jpg", "./images/JemmapesVerso1_001.jpg");
+let counter2 = new BoardCounter(50, 50, Colors.GREY, "./images/JemmapesRecto1_001.jpg", "./images/JemmapesVerso1_001.jpg");
 area.add(counter2);
 
 class BoardHexMap extends BoardMap {
@@ -151,11 +152,17 @@ class BoardHexMap extends BoardMap {
             .filter(element=>element instanceof BoardTarget)
             .map(handle=>{return {x:handle.lx, y:handle.ly}});
     }
+
 }
 makeLayered(BoardHexMap, "_down");
+
+makeZindexSupport(BoardHexMap);
+/*
 makeConfigurableMap(BoardHexMap, function(element) {
    return this.handlePositions;
 });
+*/
+
 let map1 = new BoardHexMap(1256, 888, Colors.GREY, "./images/Jemmapes.jpg");
 area.add(map1);
 let d8 = new BoardDie(50, 50, "none", "./images/game/d8.png",

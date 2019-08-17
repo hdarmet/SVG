@@ -2,7 +2,7 @@
 
 import {
     Visibility, computePosition, List, Matrix, RasterImage, SvgRasterImage, Group, ClipPath, Rect, Text,
-    Colors, MouseEvents, TextAnchor, win, doc, Cursor
+    Colors, MouseEvents, TextAnchor, win, doc, Cursor, KeyboardEvents
 } from "./svgbase.js";
 import {
     Context, Events, boundingBox, DragOperation, Memento, Canvas, makeObservable, makeNotCloneable
@@ -198,12 +198,10 @@ export function makeMenuOwner(superClass) {
         };
     }
 
-    let superLink = superClass.prototype._link;
-    if (superLink) {
-        superClass.prototype._link = function(copy, duplicata) {
-            superLink.call(this, copy, duplicata);
-            copy._triggerContextMenu();
-        }
+    let superCloned = superClass.prototype._cloned;
+    superClass.prototype._cloned = function(copy, duplicata) {
+        superCloned && superCloned.call(this, copy, duplicata);
+        copy._triggerContextMenu();
     }
 }
 
@@ -436,7 +434,7 @@ export class ToolPopup {
         this._restore = new ToolTitleCommand(ToolPopup.RESTORE_URL, this.width/2-ToolPopup.HEADER_MARGIN,
             () => this.restore()
         );
-        this._dragOperation(Context.dragPopup);
+        this._dragOperation(function() {return Context.dragPopup;});
         Context.canvas.addObserver(this);
         Context.canvas.putArtifactOnToolsLayer(this._root);
     }
@@ -557,7 +555,6 @@ export class DragPopupOperation extends DragOperation {
     }
 
     doDragStart(popup, x, y, event) {
-        Context.canvas.prepareGlassForToolsDrag();
         let dmatrix = Matrix.translate(popup._root.matrix.dx, popup._root.matrix.dy);
         let pedestal = new Group(dmatrix);
         Context.canvas.putArtifactOnToolsLayer(pedestal);
@@ -568,7 +565,6 @@ export class DragPopupOperation extends DragOperation {
     }
 
     doDragMove(popup, x, y, event) {
-        Context.canvas.prepareGlassForToolsDrag();
         let pedestal = popup._root.parent;
         let imatrix = pedestal.globalMatrix.invert();
         let pX = imatrix.x(x, y) - pedestal.dragX;
@@ -1285,13 +1281,15 @@ export function redoCommand(toolPopup) {
 function deleteSelection() {
     Context.memento.open();
     for (let child of [...Context.selection.selection()]) {
-        child.delete();
+        if (child.deletable) {
+            child.delete();
+        }
     }
 }
 
 export function deleteCommand(toolPopup) {
 
-    doc.addEventListener("keyup", event => {
+    Context.canvas._anchor.addEventListener(KeyboardEvents.KEY_UP, event => {
         if (!Context.freezed) {
             if (event.key === "Delete" || event.key === "Backspace")
                 deleteSelection();
