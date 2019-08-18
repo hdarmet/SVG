@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    win
+    win, List
 } from "./svgbase.js";
 
 export class Physic {
@@ -28,6 +28,11 @@ export class Physic {
         this._reset();
     }
 
+    hover(elements) {
+        this._hover(elements);
+        this._refresh();
+    }
+
     refresh() {
         try {
             this._refresh();
@@ -49,6 +54,7 @@ export class Physic {
 
     _reset() {}
     _refresh() {}
+    _hover(elements) {}
     _add() {}
     _remove() {}
 }
@@ -64,11 +70,21 @@ export function makePositionningPhysic(superClass) {
         for (let element of this._elements) {
             this._refreshElement(element);
         }
+        if (this._hoveredElements) {
+            for (let element of this._hoveredElements) {
+                this._refreshElement(element);
+            }
+            this._hoveredElements.clear();
+        }
         this._elements.clear();
     };
 
     superClass.prototype._reset = function() {
         this._elements = new Set(this._host.children);
+    };
+
+    superClass.prototype._hover = function(elements) {
+        this._hoveredElements = new List(...elements);
     };
 
     superClass.prototype._add = function(element) {
@@ -146,6 +162,12 @@ export function addPhysicToContainer(superClass, physicCreator) {
         this._physic.remove(element);
     };
 
+    let hover = superClass.prototype.hover;
+    superClass.prototype.hover = function(elements) {
+        hover && hover.call(this, elements);
+        this._physic.hover(elements);
+    };
+
     let superMemento = superClass.prototype._memento;
     if (superMemento) {
         let recover = superClass.prototype._recover;
@@ -161,23 +183,6 @@ export function makePositionningContainer(superClass, positionsFct) {
     addPhysicToContainer(superClass, function() {
         return new PositionningPhysic(this, positionsFct);
     });
-
-    /*
-    superClass.prototype._receiveDrop = function(element) {
-        let lx = element.lx;
-        let ly = element.ly;
-        let distance = Infinity;
-        let position = {x:lx, y:ly};
-        for (let _position of positionsFct.call(this, element)) {
-            let _distance = (_position.x-lx)*(_position.x-lx)+(_position.y-ly)*(_position.y-ly);
-            if (_distance<distance) {
-                distance = _distance;
-                position = _position;
-            }
-        }
-        element.move(position.x, position.y);
-    };
-    */
 
     return superClass;
 }

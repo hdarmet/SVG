@@ -361,16 +361,18 @@ export class DragMoveSelectionOperation extends DragOperation {
         if (!Context.selection.selected(element)) {
             Context.selection.adjustSelection(element, event);
         }
-        Context.canvas.prepareGlassForElementsDrag();
+        Context.canvas.clearGlass();
         this._dragSet = this.dragSet();
         for (let selectedElement of this._dragSet.values()) {
             Memento.register(selectedElement);
             selectedElement._origin = selectedElement._memento();
-            Context.canvas.putElementOnGlass(selectedElement, selectedElement.parent, x, y);
             selectedElement._drag = {
+                dragX: x-selectedElement.gx,
+                dragY: y-selectedElement.gy,
                 lastX: x,
                 lastY: y
             };
+            Context.canvas.putElementOnGlass(selectedElement, selectedElement.parent, x, y);
             selectedElement._fire(Events.DRAG_START);
         }
         this._drag = {
@@ -415,6 +417,14 @@ export class DragMoveSelectionOperation extends DragOperation {
         return result;
     }
 
+    _doHover() {
+        for (let support of Context.canvas.glassSupports) {
+            if (support.hover) {
+                support.hover(Context.canvas.getHoveredElements(support));
+            }
+        }
+    }
+
     /**
      * Move an element still in the glass.
      * <p> The main problem solved here is the fact that an element can "switch" support. Each time an element hovers
@@ -452,6 +462,7 @@ export class DragMoveSelectionOperation extends DragOperation {
         this._drag.lastX = x;
         this._drag.lastY = y;
         this._fire(Events.DRAG_MOVE, sortedSelection);
+        this._doHover();
     }
 
     /**
@@ -574,11 +585,6 @@ export class DragMoveSelectionOperation extends DragOperation {
                 if (target && target.content && getCanvasLayer(target._root) instanceof BaseLayer) {
                     let { x, y } = computePosition(selectedElement._root, target.content);
                     selectedElement.move(x, y);
-                    // if dropped element can rotate, adjust angle to cancel "target" orientation
-                    if (selectedElement.rotate) {
-                        let angle = computeAngle(selectedElement._hinge, target.content);
-                        selectedElement.rotate(angle);
-                    }
                     // Ask target if it "accepts" the drop
                     if ((target._acceptDrop && !target._acceptDrop(selectedElement)) ||
                         // Ask dropped element if it "accepts" the drop.
@@ -602,6 +608,11 @@ export class DragMoveSelectionOperation extends DragOperation {
             if (!selectedElement.dropCancelled()) {
                 // ... when drop succeeded
                 dropped.add(selectedElement);
+                // if dropped element can rotate, adjust angle to cancel "target" orientation
+                if (selectedElement.rotate) {
+                    let angle = computeAngle(selectedElement._hinge, selectedElement._origin.target.content);
+                    selectedElement.rotate(angle);
+                }
                 selectedElement.attach(selectedElement._origin.target);
             }
             else {
@@ -1165,11 +1176,16 @@ export class ToolsLayer extends CanvasLayer {
 
 class GlassPedestal {
 
-    constructor(matrix) {
+    constructor(support, matrix) {
+        this._support = support;
         this._root = new Group();
         this._root.matrix = matrix;
         this._pedestals = new Map();
         this._initContent();
+    }
+
+    get support() {
+        return this._support;
     }
 
     _initContent() {
@@ -1181,33 +1197,51 @@ class GlassPedestal {
         return !!this._pedestals.get(element);
     }
 
+    get empty() {
+        return this._pedestals.size === 0;
+    }
+
+    get elements() {
+        return new List(...this._pedestals.keys());
+    }
+
     putElement(element, x, y) {
-        let ematrix = element.global;
+        //let ematrix = element.global;
+        let ematrix = this._support.global;
         let dmatrix = ematrix.multLeft(this._root.globalMatrix.invert());
         let pedestal = new Group(dmatrix);
         this._pedestals.set(element, pedestal);
         this.putArtifact(pedestal, element);
         let invertedMatrix = pedestal.globalMatrix.invert();
-        pedestal.dragX = invertedMatrix.x(x, y);
-        pedestal.dragY = invertedMatrix.y(x, y);
-        element.rotate && element.rotate(0);
-        element.detach();
+        element.rotate && element.rotate(element.globalAngle+invertedMatrix.angle);
+        if (element.parent) {
+            element.detach();
+        }
         pedestal.add(element._root);
-        element._setPosition(0, 0);
+        let fx = x-element._drag.dragX;
+        let fy = y-element._drag.dragY;
+        let dX = invertedMatrix.x(fx, fy);
+        let dY = invertedMatrix.y(fx, fy);
+        element._setPosition(dX, dY);
     }
 
     moveElement(element, x, y) {
         let pedestal = this._pedestals.get(element);
         let invertedMatrix = pedestal.globalMatrix.invert();
-        let dX = invertedMatrix.x(x, y) - pedestal.dragX;
-        let dY = invertedMatrix.y(x, y) - pedestal.dragY;
+        let fx = x-element._drag.dragX;
+        let fy = y-element._drag.dragY;
+        let dX = invertedMatrix.x(fx, fy);
+        let dY = invertedMatrix.y(fx, fy);
         element._setPosition(dX, dY);
     }
 
     removeElement(element) {
         let pedestal = this._pedestals.get(element);
+        let invertedMatrix = pedestal.globalMatrix.invert();
+        element.rotate && element.rotate(element.globalAngle/*-invertedMatrix.angle*/);
         this._pedestals.delete(element);
         this.removeArtifact(pedestal, element);
+        this.putArtifact(element._root, element);
     }
 
     putArtifact(artifact, element) {
@@ -1252,6 +1286,7 @@ export class GlassLayer extends CanvasLayer {
         super(canvas);
         this._initContent();
         this._elements = new Map();
+        this._pedestals = new Map();
     }
 
     _initContent() {
@@ -1267,7 +1302,7 @@ export class GlassLayer extends CanvasLayer {
         if (!pedestal) {
             let pedestalClass = support.glassStrategy;
             if (!pedestalClass) pedestalClass = GlassPedestal;
-            pedestal = new pedestalClass(support._root.globalMatrix.multLeft(this._root.globalMatrix.invert()));
+            pedestal = new pedestalClass(support, support._root.globalMatrix.multLeft(this._root.globalMatrix.invert()));
             this._pedestals.set(support, pedestal);
             this._content.add(pedestal._root);
         }
@@ -1282,9 +1317,9 @@ export class GlassLayer extends CanvasLayer {
         this._content.remove(artifact);
     }
 
-    prepareElementsDrag() {
-        this._pedestals = new Map();
-        this._elements = new Map();
+    clear() {
+        this._pedestals.clear();
+        this._elements.clear();
         this._content.clear();
     }
 
@@ -1303,8 +1338,11 @@ export class GlassLayer extends CanvasLayer {
             elementPedestal.moveElement(element, x, y);
         }
         else {
-            supportPedestal.putElement(element, x, y);
             elementPedestal.removeElement(element);
+            supportPedestal.putElement(element, x, y);
+            if (elementPedestal.empty) {
+                this._pedestals.delete(elementPedestal.support);
+            }
             this._elements.set(element, supportPedestal);
         }
     }
@@ -1312,7 +1350,19 @@ export class GlassLayer extends CanvasLayer {
     removeElement(element) {
         let elementPedestal = this._elements.get(element);
         elementPedestal.removeElement(element);
+        if (elementPedestal.empty) {
+            this._pedestals.delete(elementPedestal.support);
+        }
         this._elements.delete(element);
+    }
+
+    get supports() {
+        return new List(...this._pedestals.keys());
+    }
+
+    getHoveredElements(support) {
+        let supportPedestal = this._pedestals.get(support);
+        return supportPedestal ? supportPedestal.elements : new List();
     }
 
     getPoint(x, y) {
@@ -1340,7 +1390,7 @@ export function setGlassStrategy(superClass, glassStrategy) {
 export function setLayeredGlassStrategy(superClass, ...layers) {
 
     let glassStrategy = class extends GlassPedestal {
-        constructor(...args) {super(...args);}
+        constructor(support, matrix, ...args) {super(support, matrix, ...args);}
     };
     makeMultiLayeredGlass(glassStrategy, ...layers);
     setGlassStrategy(superClass, glassStrategy);
@@ -1570,9 +1620,11 @@ export class Canvas {
     moveElementOnGlass(element, support, x, y) {this._glassLayer.moveElement(element, support, x, y);}
     removeElementFromGlass(element) {this._glassLayer.removeElement(element);}
     getPointOnGlass(x, y) {return this._glassLayer.getPoint(x, y);}
-    prepareGlassForElementsDrag() {this._glassLayer.prepareElementsDrag();}
+    clearGlass() {this._glassLayer.clear();}
     hideGlass() {this._glassLayer.hide();}
     showGlass() {this._glassLayer.show();}
+    get glassSupports() { return this._glassLayer.supports; }
+    getHoveredElements(support) { return this._glassLayer.getHoveredElements(support); }
 
     // Modal layer
     openPopup(onOpen, data, onValidate, onCancel) { this._modalsLayer.openPopup(onOpen, data, onValidate, onCancel); }

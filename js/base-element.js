@@ -60,6 +60,13 @@ export function makeRotatable(superClass) {
         }
     });
 
+    Object.defineProperty(superClass.prototype, "globalAngle", {
+        configurable:true,
+        get() {
+            return this._hinge.globalMatrix.angle;
+        }
+    });
+
     Object.defineProperty(superClass.prototype, "local", {
         configurable:true,
         get() {
@@ -591,6 +598,31 @@ export function makeLayersWithContainers(superClass, layersFct) {
         let layer = this._getLayer(element);
         if (!this._layers[layer]) layer = defaultLayer;
         this._layers[layer].remove(element);
+    };
+
+    superClass.prototype.getElementsInLayers = function (elements) {
+        let elementsInLayers = new Map();
+        for (let element of elements) {
+            let layer = this._getLayer(element);
+            let elements = elementsInLayers.get(layer);
+            if (!elements) {
+                elements = new List();
+                elementsInLayers.set(layer, elements);
+            }
+            elements.add(element);
+        }
+        return elementsInLayers;
+    };
+
+    let hover = superClass.prototype.hover;
+    superClass.prototype.hover = function (elements) {
+        hover && hover.call(this, elements);
+        let elementsInLayers = this.getElementsInLayers(elements);
+        for (let layer of elementsInLayers.keys()) {
+            if (this._layers[layer].hover) {
+                this._layers[layer].hover(elementsInLayers.get(layer));
+            }
+        }
     };
 
     superClass.prototype.showLayer = function(layer) {

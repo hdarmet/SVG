@@ -156,12 +156,12 @@ class BoardHexMap extends BoardMap {
 }
 makeLayered(BoardHexMap, "_down");
 
-makeZindexSupport(BoardHexMap);
-/*
+//makeZindexSupport(BoardHexMap);
+
 makeConfigurableMap(BoardHexMap, function(element) {
    return this.handlePositions;
 });
-*/
+
 
 let map1 = new BoardHexMap(1256, 888, Colors.GREY, "./images/Jemmapes.jpg");
 area.add(map1);
