@@ -549,6 +549,10 @@ export function makeResizeable(superClass) {
         return handle;
     };
 
+    /**
+     * Defines in the bounds, the resizeable item cannot exceed. The defaulting value is the geometry of the item
+     * parent.
+     */
     if (!superClass.prototype.bounds) {
         superClass.prototype.bounds = function () {
             return {
@@ -558,8 +562,24 @@ export function makeResizeable(superClass) {
         };
     }
 
+    /**
+     * Process the "drop" of one of the resizeable item handles. This method has three missions:
+     * <ul>
+     *     <li> Ensure the item cannot go outside the allowed bounds.
+     *     <li> Ensure that handles are not permuted ("left" handles go to right and vice versa, or "top" handles go to
+     *     bottom and vice versa). If handles are permuted, this method reorganize the handles accordingly.
+     *     <li> Update the geometry (size and position) of the resizeable item (and update handles positions).
+     * </ul>
+     * @param element resizeable item
+     * @private
+     */
     superClass.prototype._receiveMove = function(element) {
 
+        /**
+         * Ensure that the frame is indside the allowed bounds. If not, reduce the frame geometry accordingly.
+         * @param element resizeable item to rebound
+         * @param bounds the allowed bounds
+         */
         function rebound(element, bounds) {
             let lx = element.lx;
             let ly = element.ly;
@@ -579,6 +599,7 @@ export function makeResizeable(superClass) {
             let height = this.height;
             let lx = this.lx;
             let ly = this.ly;
+            // Permutation management
             if (element===this._leftTopHandle || element===this._leftHandle || element===this._leftBottomHandle) {
                 width = -element.lx+this.width/2;
                 lx += (this.width-width)/2;
@@ -607,6 +628,7 @@ export function makeResizeable(superClass) {
                 hdl = this._topHandle; this._topHandle = this._bottomHandle; this._bottomHandle = hdl;
                 hdl = this._rightTopHandle; this._rightTopHandle = this._rightBottomHandle; this._rightBottomHandle = hdl;
             }
+            // Geometry update
             Memento.register(this);
             this._setPosition(lx, ly);
             this._setSize(width, height);
@@ -632,8 +654,7 @@ export class BoardFrame extends BoardElement {
     }
 
     _setSize(width, height) {
-        this._width = width;
-        this._height = height;
+        super._setSize(width, height);
         this.shape.attrs({x:-width/2, y:-height/2, width:width, height:height});
     }
 

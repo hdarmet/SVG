@@ -6,7 +6,7 @@ import {
 } from "./svgbase.js"
 import {
     Memento, makeObservable, CopyPaste, Events, getBox, Context, getCanvasLayer, makeNotCloneable, makeCloneable,
-    CloneableObject
+    CloneableObject, Box
 } from "./toolkit.js";
 
 export function makeDeletable(superClass) {
@@ -30,8 +30,7 @@ export function makeDeletable(superClass) {
 export function makeMoveable(superClass) {
 
     superClass.prototype.move = function(x, y) {
-        Memento.register(this);
-        this._setPosition(x, y);
+        this.setPosition(x, y);
         return this;
     };
 
@@ -1706,8 +1705,32 @@ export class BoardElement {
         return this;
     }
 
+    setPosition(x, y) {
+        if (x!=this.lx || y!=this.ly) {
+            Memento.register(this);
+            this._setPosition(x, y);
+            this._fire(Events.GEOMETRY, this.lx, this.ly, this.width, this.height);
+        }
+        return this;
+    }
+
+    setSize(width, height) {
+        if (width!=this.width || height!=this.height) {
+            Memento.register(this);
+            this._setSize(width, height);
+            this._fire(Events.GEOMETRY, this.lx, this.ly, this.width, this.height);
+        }
+        return this;
+    }
+
     _setPosition(x, y) {
         this._matrix = Matrix.translate(x, y);
+        return this;
+    }
+
+    _setSize(width, height) {
+        this._width = width;
+        this._height = height;
         return this;
     }
 
@@ -1754,11 +1777,11 @@ export class BoardElement {
         let y1 = matrix.y(left, top);
         let x2 = matrix.x(right, bottom);
         let y2 = matrix.y(right, bottom);
-        return {
-            x:matrix.dx, y:matrix.dy,
-            left:x1>x2?x2:x1, right:x1>x2?x1:x2,
-            top:y1>y2?y2:y1, bottom:y1>y2?y1:y2
-        };
+        left = x1>x2?x2:x1;
+        right = x1>x2?x1:x2;
+        top = y1>y2?y2:y1;
+        bottom = y1>y2?y1:y2;
+        return new Box(left, top, right-left, bottom-top);
     }
 
     get localGeometry() { return this._geometry(this.matrix); }
@@ -1873,18 +1896,13 @@ export class BoardArea extends BoardElement {
     }
 
     _setSize(width, height) {
+        super._setSize(width, height);
         this.shape.attrs({
             width: width,
             height: height,
             x: -width / 2,
             y: -height / 2
         });
-    }
-
-    setSize(width, height) {
-        Memento.register(this);
-        this._setSize(width, height);
-        this._fire(Events.GEOMETRY);
     }
 
     _acceptDrop() {
@@ -1920,7 +1938,9 @@ export class BoardTable extends BoardArea {
 }
 
 /**
- *
+ * Abstract class for element that (generally) are part of another element and define the "content" of this element:
+ * the area where other first class elements can be dropped on.
+ * <p> Note that a support is a valid drop target (it must have a reachable "shape" like a rect or an image).
  */
 export class BoardSupport extends BoardElement {
 
@@ -1933,6 +1953,12 @@ export class BoardSupport extends BoardElement {
 makeSupport(BoardSupport);
 makeDraggable(BoardSupport);
 
+/**
+ * Base class for layers. Layers are part elements that materialize slices in a "stack" of invisible supports elements.
+ * Generally the "stack" is the content of a first class element.
+ * <p> Note that a layer is not a support : it has no shape and cannot be a reachable target of a drop operation (a
+ * simple "g" cannot be targeted). "Dropped" element are given by parent element to the layer.
+ */
 export class BoardBaseLayer extends BoardElement {
 
     constructor() {
@@ -1952,6 +1978,9 @@ export class BoardBaseLayer extends BoardElement {
     }
 }
 
+/**
+ * Class for simple layers (the layer is a basic container)
+ */
 export class BoardLayer extends BoardBaseLayer {
 
     constructor() {
@@ -1962,6 +1991,9 @@ export class BoardLayer extends BoardBaseLayer {
 }
 makeContainer(BoardLayer);
 
+/**
+ * Class for layers that use the z-index strategy to place the dropped elements.
+ */
 export class BoardZindexLayer extends BoardBaseLayer {
 
     constructor() {

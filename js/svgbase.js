@@ -803,6 +803,13 @@ export class Matrix {
         this.d = d;
         this.e = e;
         this.f = f;
+        this._check();
+    }
+
+    _check() {
+        if (isNaN(this.a+this.b+this.c+this.d+this.e+this.f)) {
+            error();
+        }
     }
 
     clone() {
@@ -851,6 +858,7 @@ export class Matrix {
         this.d = c * this.b + d * this.d;
         this.a = aNew;
         this.b = bNew;
+        this._check();
         return this;
     };
 
@@ -883,6 +891,7 @@ export class Matrix {
         this.a = aNew;
         this.c = cNew;
         this.e = eNew;
+        this._check();
         return this;
     };
 
@@ -905,6 +914,7 @@ export class Matrix {
         this.d = d;
         this.e = e;
         this.f = f;
+        this._check();
         return this;
     }
 
@@ -916,6 +926,7 @@ export class Matrix {
         delete this._split;
         this.e += dx * this.a + dy * this.c;
         this.f += dx * this.b + dy * this.d;
+        this._check();
         return this;
     }
 
@@ -931,6 +942,7 @@ export class Matrix {
         this.c *= sy;
         this.d *= sy;
         (cx || cy) && this._translate(-cx, -cy);
+        this._check();
         return this;
     }
 

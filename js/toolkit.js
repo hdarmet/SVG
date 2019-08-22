@@ -32,6 +32,8 @@ export const Events = {
     SELECT : "select",
     UNSELECT : "unselect",
     ZOOM : "zoom",
+    SCROLL : "scroll",
+    RESIZE : "resize",
     GEOMETRY : "geometry",
     DRAG_START : "drag-start",
     DRAG_MOVE : "drag-move",
@@ -102,6 +104,16 @@ export class Box {
         let bottom = Math.min(this.bottom, box.bottom);
         return new Box(left, top, right-left, bottom-top);
     }
+
+    collides(box) {
+        return (
+            box.left < this.right &&
+            box.right > this.left &&
+            box.top < this.bottom &&
+            box.bottom > this.top
+        );
+    }
+
 }
 
 export function getBox(points) {
@@ -369,6 +381,8 @@ export class DragMoveSelectionOperation extends DragOperation {
             selectedElement._drag = {
                 dragX: x-selectedElement.gx,
                 dragY: y-selectedElement.gy,
+                originX: x,
+                originY: y,
                 lastX: x,
                 lastY: y
             };
@@ -646,6 +660,7 @@ export class DragMoveSelectionOperation extends DragOperation {
         else {
             Context.memento.cancel();
         }
+        this._doHover();
     }
 }
 makeNotCloneable(DragMoveSelectionOperation);
@@ -972,7 +987,7 @@ Context.scrollOrSelectAreaDrag = new DragSwitchOperation()
 export class CanvasLayer {
 
     constructor(canvas) {
-        this.canvas = canvas;
+        this._canvas = canvas;
         this._root = new Group();
         this._root.that = this;
         this._root._owner = this;
@@ -980,6 +995,10 @@ export class CanvasLayer {
     }
 
     _notified(source, type, ...values) {
+    }
+
+    get canvas() {
+        return this._canvas;
     }
 
     hide() {
@@ -1037,11 +1056,11 @@ export class BaseLayer extends CanvasLayer {
     }
 
     get clientWidth() {
-        return this.canvas.clientWidth;
+        return this._canvas.clientWidth;
     }
 
     get clientHeight() {
-        return this.canvas.clientHeight;
+        return this._canvas.clientHeight;
     }
 
     get matrix() {
@@ -1056,11 +1075,13 @@ export class BaseLayer extends CanvasLayer {
         this.width = width;
         this.height = height;
         this._adjustGeometry();
+        this._fire(Events.RESIZE, width, height);
     }
 
     scrollTo(x, y) {
         let matrix = this._root.matrix.translate(-x, -y);
         this._adjustGeometry(matrix);
+        this._fire(Events.SCROLL, x, y);
     }
 
     zoomIn(x, y) {
@@ -1107,7 +1128,7 @@ export class BaseLayer extends CanvasLayer {
     }
 
     _notified(source, type, ...values) {
-        if (source===this.canvas && type===Events.GEOMETRY) {
+        if (source===this._canvas && type===Events.GEOMETRY) {
             this._adjustGeometry();
         }
     }
@@ -1141,7 +1162,7 @@ export class BaseLayer extends CanvasLayer {
     }
 
     _fire(event, ...args) {
-        this.canvas._fire(event, ...args);
+        this._canvas._fire(event, ...args);
         return this;
     }
 }
@@ -1176,10 +1197,11 @@ export class ToolsLayer extends CanvasLayer {
 
 class GlassPedestal {
 
-    constructor(support, matrix) {
+    constructor(glass, support) {
+        this._glass = glass;
         this._support = support;
         this._root = new Group();
-        this._root.matrix = matrix;
+        this._root.matrix = support._root.globalMatrix.multLeft(this._glass._root.globalMatrix.invert());
         this._pedestals = new Map();
         this._initContent();
     }
@@ -1206,8 +1228,7 @@ class GlassPedestal {
     }
 
     putElement(element, x, y) {
-        //let ematrix = element.global;
-        let ematrix = this._support.global;
+        let ematrix = this._root.globalMatrix;
         let dmatrix = ematrix.multLeft(this._root.globalMatrix.invert());
         let pedestal = new Group(dmatrix);
         this._pedestals.set(element, pedestal);
@@ -1289,6 +1310,20 @@ export class GlassLayer extends CanvasLayer {
         this._pedestals = new Map();
     }
 
+    get matrix() {
+        return this._root.matrix;
+    }
+
+    set matrix(matrix) {
+        this._root.matrix = matrix;
+    }
+
+    _notified(source, type, ...values) {
+        if (source===this._canvas && (type===Events.ZOOM || type===Events.SCROLL || type===Events.RESIZE)) {
+            this.matrix = this.canvas.baseMatrix;
+        }
+    }
+
     _initContent() {
         this._content = new Group();
         this._root.add(this._content);
@@ -1296,13 +1331,13 @@ export class GlassLayer extends CanvasLayer {
 
     _getPedestal(support) {
         if (!support.canvasLayer || !(support.canvasLayer instanceof BaseLayer)) {
-            support = this.canvas._baseLayer;
+            support = this._canvas._baseLayer;
         }
         let pedestal = this._pedestals.get(support);
         if (!pedestal) {
             let pedestalClass = support.glassStrategy;
             if (!pedestalClass) pedestalClass = GlassPedestal;
-            pedestal = new pedestalClass(support, support._root.globalMatrix.multLeft(this._root.globalMatrix.invert()));
+            pedestal = new pedestalClass(this, support);
             this._pedestals.set(support, pedestal);
             this._content.add(pedestal._root);
         }
@@ -1340,9 +1375,11 @@ export class GlassLayer extends CanvasLayer {
         else {
             elementPedestal.removeElement(element);
             supportPedestal.putElement(element, x, y);
+            /*
             if (elementPedestal.empty) {
                 this._pedestals.delete(elementPedestal.support);
             }
+            */
             this._elements.set(element, supportPedestal);
         }
     }
@@ -1350,9 +1387,11 @@ export class GlassLayer extends CanvasLayer {
     removeElement(element) {
         let elementPedestal = this._elements.get(element);
         elementPedestal.removeElement(element);
+        /*
         if (elementPedestal.empty) {
             this._pedestals.delete(elementPedestal.support);
         }
+        */
         this._elements.delete(element);
     }
 
@@ -1390,7 +1429,7 @@ export function setGlassStrategy(superClass, glassStrategy) {
 export function setLayeredGlassStrategy(superClass, ...layers) {
 
     let glassStrategy = class extends GlassPedestal {
-        constructor(support, matrix, ...args) {super(support, matrix, ...args);}
+        constructor(glass, support, ...args) {super(glass, support, ...args);}
     };
     makeMultiLayeredGlass(glassStrategy, ...layers);
     setGlassStrategy(superClass, glassStrategy);

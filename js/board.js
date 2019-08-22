@@ -20,8 +20,12 @@ import {
     copyCommand, pasteCommand, redoCommand, undoCommand, deleteCommand
 } from "./tools.js";
 import {
-    BoardBox, BoardImageBox, BoardCounter, BoardDie, BoardMap, BoardHandle, BoardTarget, makeConfigurableMap
+    BoardBox, BoardImageBox, BoardCounter, BoardDie, BoardMap, BoardHandle, BoardTarget, makeConfigurableMap,
+    BoardContent
 } from "./elements.js"
+import {
+    makeCollisionContainer
+} from "./physics.js";
 
 Context.rotateOrMoveDrag = new DragSwitchOperation()
     .add(()=>true, Context.rotateSelectionDrag)
@@ -130,14 +134,30 @@ let dummy1 = new BoardDummy(30, 20, "#FF0000");
 let dummy2 = new BoardDummy(30, 20, "#00FF00");
 let box1 = new BoardImageBox(150, 200, 10, Colors.BLACK, "./images/wood3.jpg", "./images/wood3.jpg", "./images/wood3.jpg");
 box1.orientation=90;
-let box2 = new BoardBox(150, 200, 10, Colors.BLACK, Colors.LIGHT_GREY);
+
+class BoardCollisionContent extends BoardContent {
+    constructor(...args) {
+        super(...args);
+    }
+}
+makeCollisionContainer(BoardCollisionContent, {all:true});
+
+class BoardCollisionBox extends BoardBox {
+    constructor(...args) {
+        super(...args);
+    }
+    initBoxContent(width, height, margin, strokeColor, backgroundColor) {
+        return new BoardCollisionContent(this, width-margin/2, height-margin/2, strokeColor, backgroundColor);
+    }
+}
+window.box2 = new BoardCollisionBox(150, 200, 10, Colors.BLACK, Colors.LIGHT_GREY);
 
 area.add(dummy1);
 area.add(dummy2);
 area.add(box1);
 area.add(box2);
 
-window.counter1 = new BoardCounter(40, 40, Colors.GREY, "./images/JemmapesRecto1_001.jpg", "./images/JemmapesVerso1_001.jpg");
+let counter1 = new BoardCounter(40, 40, Colors.GREY, "./images/JemmapesRecto1_001.jpg", "./images/JemmapesVerso1_001.jpg");
 area.add(counter1);
 let counter2 = new BoardCounter(50, 50, Colors.GREY, "./images/JemmapesRecto1_001.jpg", "./images/JemmapesVerso1_001.jpg");
 area.add(counter2);
@@ -162,7 +182,6 @@ makeConfigurableMap(BoardHexMap, function(element) {
    return this.handlePositions;
 });
 
-
 let map1 = new BoardHexMap(1256, 888, Colors.GREY, "./images/Jemmapes.jpg");
 area.add(map1);
 let d8 = new BoardDie(50, 50, "none", "./images/game/d8.png",
@@ -176,6 +195,5 @@ area.add(handle);
 
 let target = new BoardTarget(16, Colors.RED);
 map1.add(target);
-
 
 Context.memento.opened = true;
