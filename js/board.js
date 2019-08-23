@@ -139,8 +139,9 @@ class BoardCollisionContent extends BoardContent {
     constructor(...args) {
         super(...args);
     }
+
 }
-makeCollisionContainer(BoardCollisionContent, {all:true});
+makeCollisionContainer(BoardCollisionContent, element=>element instanceof BoardCounter, {all:true});
 
 class BoardCollisionBox extends BoardBox {
     constructor(...args) {
@@ -178,7 +179,7 @@ makeLayered(BoardHexMap, "_down");
 
 //makeZindexSupport(BoardHexMap);
 
-makeConfigurableMap(BoardHexMap, function(element) {
+makeConfigurableMap(BoardHexMap, element=>element instanceof BoardCounter, function(element) {
    return this.handlePositions;
 });
 

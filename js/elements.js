@@ -260,6 +260,7 @@ export class BoardBox extends AbstractBoardBox {
     initBoxCover(width, height, margin, strokeColor, backgroundColor) {
         return new BoardCover(this, width, height, strokeColor, backgroundColor);
     }
+
 }
 makeFramed(BoardBox);
 
@@ -343,7 +344,7 @@ makeDraggable(AbstractBoardCounter);
 makeClickable(AbstractBoardCounter);
 makeMenuOwner(AbstractBoardCounter);
 makeSupport(AbstractBoardCounter);
-makePositionningContainer(AbstractBoardCounter, function() {return [{x:0, y:0}]});
+makePositionningContainer(AbstractBoardCounter, element=>element instanceof BoardCounter, function() {return [{x:0, y:0}]});
 
 export class BoardCounter extends AbstractBoardCounter {
 
@@ -744,9 +745,10 @@ makeStrokeUpdatable(BoardTarget);
 
 BoardFrame.COLOR = Colors.RED;
 
-export function makeConfigurableMap(superClass, positionsFct) {
+export function makeConfigurableMap(superClass, predicate, positionsFct) {
 
     let ContentLayer = makePositionningContainer(class ContentLayer extends BoardZindexLayer {},
+        predicate,
         function(element) {
             return positionsFct.call(this.parent, element);
         }

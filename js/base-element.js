@@ -416,8 +416,8 @@ export function makeContainer(superClass) {
         };
     }
 
-    let cloning = superClass.prototype._cloning;
-    superClass.prototype._cloning = function (duplicata) {
+    let cloning = superClass.prototype.__cloning;
+    superClass.prototype.__cloning = function (duplicata) {
         let copy = cloning.call(this, duplicata);
         for (let child of this.children) {
             let childCopy = child.clone(duplicata);
@@ -510,32 +510,38 @@ export function makeContainerMultiLayered(superClass, ...layers) {
 
     superClass.prototype.__add = function (element) {
         let layer = this._getLayer(element);
-        if (!this._layers[layer]) layer = defaultLayer;
         this._layers[layer].add(element._root);
     };
 
     superClass.prototype.__insert = function (previous, element) {
         let layer = this._getLayer(element);
-        if (!this._layers[layer]) layer = defaultLayer;
         this._layers[layer].insert(previous._root, element._root);
     };
 
     superClass.prototype.__replace = function (previous, element) {
         let layer = this._getLayer(element);
-        if (!this._layers[layer]) layer = defaultLayer;
         this._layers[layer].replace(previous._root, element._root);
     };
 
     superClass.prototype.__remove = function (element) {
         let layer = this._getLayer(element);
-        if (!this._layers[layer]) layer = defaultLayer;
         this._layers[layer].remove(element._root);
     };
 
     superClass.prototype._getLayer = function(element) {
-        return element.getLayer && element.getLayer(this) || defaultLayer;
+        let layer = element.getLayer && element.getLayer(this) || defaultLayer;
+        if (!this._layers[layer]) layer = defaultLayer;
+        return layer;
     };
 
+    let cloning = superClass.prototype.__cloning;
+    superClass.prototype.__cloning = function(duplicata) {
+        let copy = cloning.call(this, duplicata);
+        for (let layer of layers) {
+            copy._content.add(copy._layers[layer]);
+        }
+        return copy;
+    };
 }
 
 export function makeMultiLayeredContainer(superClass, ...layers) {
@@ -577,25 +583,21 @@ export function makeLayersWithContainers(superClass, layersFct) {
 
     superClass.prototype.add = function (element) {
         let layer = this._getLayer(element);
-        if (!this._layers[layer]) layer = defaultLayer;
         this._layers[layer].add(element);
     };
 
     superClass.prototype.insert = function (previous, element) {
         let layer = this._getLayer(element);
-        if (!this._layers[layer]) layer = defaultLayer;
         this._layers[layer].insert(previous, element);
     };
 
     superClass.prototype.replace = function (previous, element) {
         let layer = this._getLayer(element);
-        if (!this._layers[layer]) layer = defaultLayer;
         this._layers[layer].replace(previous, element);
     };
 
     superClass.prototype.remove = function (element) {
         let layer = this._getLayer(element);
-        if (!this._layers[layer]) layer = defaultLayer;
         this._layers[layer].remove(element);
     };
 
@@ -653,12 +655,13 @@ export function makeLayersWithContainers(superClass, layersFct) {
 
     superClass.prototype._acceptDrop = function(element) {
         let layer = this._getLayer(element);
-        if (!this._layers[layer]) layer = defaultLayer;
         return this._layers[layer]._acceptDrop(element);
     };
 
     superClass.prototype._getLayer = function(element) {
-        return element.getLayer && element.getLayer(this) || defaultLayer;
+        let layer = element.getLayer && element.getLayer(this) || defaultLayer;
+        if (!this._layers[layer]) layer = defaultLayer;
+        return layer;
     };
 
     Object.defineProperty(superClass.prototype, "content", {
@@ -1864,6 +1867,14 @@ export class BoardElement {
     }
 
     _cloning(duplicata) {
+        let copy = duplicata.get(this);
+        if (!copy) {
+            copy = this.__cloning(duplicata);
+        }
+        return copy;
+    }
+
+    __cloning(duplicata) {
         let copy = CopyPaste.clone(this, duplicata);
         copy._root._owner = copy;
         copy._id = createUUID();

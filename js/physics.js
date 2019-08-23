@@ -9,8 +9,9 @@ import {
 
 export class Physic {
 
-    constructor(host, ...args) {
+    constructor(host, predicate, ...args) {
         this._host = host;
+        this._predicate = predicate;
         this._init(...args);
         this._triggered = false;
     }
@@ -40,8 +41,18 @@ export class Physic {
         this._reset();
     }
 
+    _managedElements(elements) {
+        let managedElements = new List();
+        for (let element of elements) {
+            if (this._predicate(element)) {
+                managedElements.add(element);
+            }
+        }
+        return managedElements;
+    }
+
     hover(elements) {
-        this._hover(elements);
+        this._hover(this._managedElements(elements));
         this._refresh();
     }
 
@@ -55,8 +66,10 @@ export class Physic {
     }
 
     add(element) {
-        this._trigger();
-        this._add(element);
+        if (this._predicate(element)) {
+            this._trigger();
+            this._add(element);
+        }
     }
 
     remove(element) {
@@ -124,12 +137,12 @@ export function makePositionningPhysic(superClass) {
 }
 
 export class PositionningPhysic extends Physic {
-    constructor(...args) {
-        super(...args);
+    constructor(host, predicate, ...args) {
+        super(host, predicate, ...args);
     }
 
     clone(duplicata) {
-        let _copy = new PositionningPhysic(duplicata.get(this._host), this._positionsFct);
+        let _copy = new PositionningPhysic(duplicata.get(this._host), this._predicate, this._positionsFct);
         _copy._trigger();
         return _copy;
     }
@@ -197,10 +210,10 @@ export function addPhysicToContainer(superClass, physicCreator) {
     }
 }
 
-export function makePositionningContainer(superClass, positionsFct) {
+export function makePositionningContainer(superClass, predicate, positionsFct) {
 
     addPhysicToContainer(superClass, function() {
-        return new PositionningPhysic(this, positionsFct);
+        return new PositionningPhysic(this, predicate, positionsFct);
     });
 
     return superClass;
@@ -694,7 +707,7 @@ export function makeCollisionPhysic(superClass) {
     };
 
     superClass.prototype.hover = function(elements) {
-        this._hover(elements);
+        this._hover(this._managedElements(elements));
     };
 
     superClass.prototype._hover = function(elements) {
@@ -959,12 +972,12 @@ export function addBordersToCollisionPhysic(superClass, specs) {
 
 export class CollisionPhysic extends Physic {
 
-    constructor(...args) {
-        super(...args);
+    constructor(host, predicate, ...args) {
+        super(host, predicate, ...args);
     }
 
     clone(duplicata) {
-        let _copy = new CollisionPhysic(duplicata.get(this._host), this._positionsFct);
+        let _copy = new CollisionPhysic(duplicata.get(this._host), this._predicate, this._positionsFct);
         _copy._trigger();
         return _copy;
     }
@@ -972,7 +985,7 @@ export class CollisionPhysic extends Physic {
 }
 makeCollisionPhysic(CollisionPhysic);
 
-export function makeCollisionContainer(superClass, specs = null) {
+export function makeCollisionContainer(superClass, predicate, specs = null) {
 
     class ContainerPhysic extends CollisionPhysic {};
     if (specs) {
@@ -980,7 +993,7 @@ export function makeCollisionContainer(superClass, specs = null) {
     }
 
     addPhysicToContainer(superClass, function() {
-        return new ContainerPhysic(this);
+        return new ContainerPhysic(this, predicate);
     });
 
     return superClass;
