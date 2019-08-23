@@ -188,6 +188,12 @@ export function addPhysicToContainer(superClass, physicCreator) {
         this._physic.remove(element);
     };
 
+    let acceptDrop = superClass.prototype._acceptDrop;
+    superClass.prototype._acceptDrop = function(element) {
+        if (element._drag.invalid) return false;
+        return acceptDrop ? acceptDrop.call(this, element) : true;
+    };
+
     let hover = superClass.prototype.hover;
     superClass.prototype.hover = function(elements) {
         hover && hover.call(this, elements);
@@ -848,11 +854,11 @@ export function makeCollisionPhysic(superClass) {
         }
         if (Math.abs(hx - sx) > ADJUST_MARGIN || Math.abs(hy - sy) > ADJUST_MARGIN) {
             put(element, sx, sy, true);
-            element.INVALID = true;
+            element._drag.invalid = true;
         } else {
             element._drag.validX = originMatrix.x(hx, hy);
             element._drag.validY = originMatrix.y(hx, hy);
-            delete element.INVALID;
+            delete element._drag.invalid;
         }
         exclude.delete(element);
     };

@@ -454,8 +454,8 @@ export class DragMoveSelectionOperation extends DragOperation {
         let sortedSelection = this.sortedSelection(x - this._drag.lastX, y - this._drag.lastY);
         // get initial supports and move elements on glass without changing support.
         for (let selectedElement of sortedSelection) {
-            selectedElement._drag.lastX = x;
-            selectedElement._drag.lastY = y;
+            selectedElement._drag.lastX = selectedElement.lx;
+            selectedElement._drag.lastY = selectedElement.ly;
             Context.canvas.moveElementOnGlass(selectedElement, null, x, y);
         }
         // get targets (using final positions of dragged elements)
@@ -1375,11 +1375,6 @@ export class GlassLayer extends CanvasLayer {
         else {
             elementPedestal.removeElement(element);
             supportPedestal.putElement(element, x, y);
-            /*
-            if (elementPedestal.empty) {
-                this._pedestals.delete(elementPedestal.support);
-            }
-            */
             this._elements.set(element, supportPedestal);
         }
     }
@@ -1387,11 +1382,6 @@ export class GlassLayer extends CanvasLayer {
     removeElement(element) {
         let elementPedestal = this._elements.get(element);
         elementPedestal.removeElement(element);
-        /*
-        if (elementPedestal.empty) {
-            this._pedestals.delete(elementPedestal.support);
-        }
-        */
         this._elements.delete(element);
     }
 
