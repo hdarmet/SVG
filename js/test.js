@@ -1,7 +1,9 @@
 'use strict';
 
-import {Rect, Rotation, Translation, Scaling, Path, Ellipse, Line, Polygon, Polyline, M, L, RasterImage,
-    SvgImage, SvgRasterImage, MouseEvents, ClipPath, Circle, Svg, Animate, Attrs, Stroke, AttributeType, AnimationFill} from "./svgbase.js";
+import {
+    Rect, Rotation, Translation, Scaling, Path, Ellipse, Line, Polygon, Polyline, M, L, RasterImage,
+    SvgImage, SvgRasterImage, MouseEvents, ClipPath, Circle, Svg, Animate, Attrs, Stroke, AttributeType, AnimationFill
+} from "./graphics.js";
 import {Animation, Serial, Parallel, play, animate} from "./animator.js";
 
 function testSvg4() {

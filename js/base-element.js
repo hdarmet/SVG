@@ -1,9 +1,18 @@
 'use strict';
 
 import {
-    SVGElement, Translation, Rotation, Group, Rect, createUUID, MouseEvents, Matrix, l2l, List, RasterImage, Fill,
+    createUUID
+} from "./misc.js";
+import {
+    List
+} from "./collections.js";
+import {
+    Matrix
+} from "./geometry.js";
+import {
+    SVGElement, Translation, Rotation, Group, Rect, MouseEvents, l2l, RasterImage, Fill,
     ClippedRasterImage, Mutation, Colors, computeMatrix
-} from "./svgbase.js"
+} from "./graphics.js";
 import {
     Memento, makeObservable, CopyPaste, Events, getBox, Context, getCanvasLayer, makeNotCloneable, makeCloneable,
     CloneableObject, Box
@@ -127,13 +136,13 @@ export function makeSelectable(superClass) {
     });
 
     if (!superClass.prototype.hasOwnProperty("selectable")) {
-        Object.defineProperty(superClass.prototype, "selectable", {
-            configurable:true,
-            get() {
-                return this;
-            }
-        });
     }
+    Object.defineProperty(superClass.prototype, "selectable", {
+        configurable:true,
+        get() {
+            return this;
+        }
+    });
 
     let superMemento = superClass.prototype._memento;
     if (superMemento) {
@@ -1679,7 +1688,7 @@ export class BoardElement {
         this._width = memento._width;
         this._height = memento._height;
         if (memento._observables) {
-            this._observables = new List(...memento._observables);
+            this._observables = new Set(memento._observables);
             for (let observable of this._observables) {
                 observable._addObserver(this);
             }

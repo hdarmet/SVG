@@ -1,5 +1,12 @@
 'use strict';
 
+import {
+    List
+} from "./collections.js";
+import {
+    Matrix
+} from "./geometry.js";
+
 console.log("Svgbase loaded");
 
 export let SVG_NS = "http://www.w3.org/2000/svg";
@@ -78,16 +85,6 @@ export function globalOffset(svgNode) {
         x: box.left,
         y: box.top
     };
-}
-
-export function createUUID(){
-    let dt = new Date().getTime();
-    let uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        let r = (dt + Math.random()*16)%16 | 0;
-        dt = Math.floor(dt/16);
-        return (c=='x' ? r :(r&0x3|0x8)).toString(16);
-    });
-    return uuid;
 }
 
 export function computeMatrix(from, to) {
@@ -280,14 +277,6 @@ export const Fill = {
     NONE : "none"
 };
 
-export function evaluate(label, code) {
-    let begin = new Date().getMilliseconds();
-    let result = code();
-    let end = new Date().getMilliseconds();
-    //console.log(label+": "+(end-begin));
-    return result;
-}
-
 let Cache = {
     rasterImages : new Map(),
     rasterImageLoaders : new Map(),
@@ -461,78 +450,6 @@ export function loadRasterSvgImage(url, callback) {
             });
         }
         Cache.rasterImageLoaders.get(url).add(callback);
-    }
-}
-
-/**
- * Arrays that enforce uniqueness
- */
-export class List extends Array {
-
-    constructor(...args) {
-        super(...args);
-    }
-
-    /**
-     * Add a value at the end of the list IF the list does not already contain that value.
-     * @param val to add
-     * @returns index of added value (= last record of the list).
-     */
-    add(val) {
-        if (this.indexOf(val)>-1) return undefined;
-        this.push(val);
-        return this.length-1;
-    }
-
-    replace(oldVal, val) {
-        if (this.indexOf(val)>-1) return undefined;
-        let i = this.indexOf(oldVal);
-        if (i===-1) return undefined;
-        this[i] = val;
-        return i;
-    }
-
-    insert(beforeVal, val) {
-        if (this.indexOf(val)>-1) return undefined;
-        let i = this.indexOf(beforeVal);
-        if (i===-1) return undefined;
-        this.splice(i, 0, val);
-        return i;
-    }
-
-    remove(val) {
-        let i = this.indexOf(val);
-        if (i===-1) return undefined;
-        this.splice(i, 1);
-        return val;
-    }
-
-    contains(val) {
-        return this.indexOf(val) >= 0;
-    }
-
-    equals(val) {
-        if (val.length === undefined || val.length !== this.length) {
-            return false;
-        }
-        for (let i = 0; i < this.length; i++) {
-            if (val[i] !== this[i]) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    clear() {
-        return (this.length = 0);
-    }
-
-    empty() {
-        return this.length === 0;
-    }
-
-    duplicate() {
-        return this.slice(0);
     }
 }
 
@@ -771,264 +688,6 @@ function defineXYWidthHeightProperties(clazz) {
     defineDimensionProperty(clazz, Attrs.X);
     defineDimensionProperty(clazz, Attrs.Y);
 }
-
-function _norm(array) {
-    return Math.sqrt(array[0] * array[0] + array[1] * array[1]);
-}
-
-function _normalize(array) {
-    var norm = _norm(array);
-    array[0] /= norm;
-    array[1] /= norm;
-}
-
-function _determinant(a, b, c, d) {
-    return a * d - b * c;
-}
-
-export function rad(deg) {
-    return ((deg % 360) * Math.PI) / 180;
-}
-
-export function deg(rad) {
-    return ((rad * 180) / Math.PI) % 360;
-}
-
-export class Matrix {
-
-    constructor(a=1, b=0, c=0, d=1, e=0, f=0) {
-        this.a = a;
-        this.b = b;
-        this.c = c;
-        this.d = d;
-        this.e = e;
-        this.f = f;
-        this._check();
-    }
-
-    _check() {
-        if (isNaN(this.a+this.b+this.c+this.d+this.e+this.f)) {
-            error();
-        }
-    }
-
-    clone() {
-        return new Matrix(this.a, this.b, this.c, this.d, this.e, this.f);
-    }
-
-    _compute() {
-        if (!this._split) {
-            let split = {};
-            let row = [[this.a, this.b], [this.c, this.d]];
-            split.scalex = _norm(row[0]);
-            _normalize(row[0]);
-            split.shear = row[0][0] * row[1][0] + row[0][1] * row[1][1];
-            row[1] = [
-                row[1][0] - row[0][0] * split.shear,
-                row[1][1] - row[0][1] * split.shear
-            ];
-            split.scaley = _norm(row[1]);
-            _normalize(row[1]);
-            split.shear /= split.scaley;
-            if (_determinant(this.a, this.b, this.c, this.d) < 0) {
-                split.scalex = -split.scalex;
-            }
-            let sin = row[0][1];
-            let cos = row[1][1];
-            if (cos < 0) {
-                split.angle = deg(Math.acos(cos));
-                if (sin < 0) {
-                    split.angle = 360 - split.angle;
-                }
-            } else {
-                split.angle = deg(Math.asin(sin));
-            }
-            this._split = split;
-        }
-        return this._split;
-    }
-
-    _add(a, b, c, d, e, f) {
-        delete this._split;
-        let aNew = a * this.a + b * this.c;
-        let bNew = a * this.b + b * this.d;
-        this.e += e * this.a + f * this.c;
-        this.f += e * this.b + f * this.d;
-        this.c = c * this.a + d * this.c;
-        this.d = c * this.b + d * this.d;
-        this.a = aNew;
-        this.b = bNew;
-        this._check();
-        return this;
-    };
-
-    add(matrix) {
-        return this.clone()._add(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
-    }
-
-    diff(matrix) {
-        return this.add(matrix.invert());
-    }
-
-    _mult(matrix) {
-        delete this._split;
-        this._add(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
-        return this;
-    };
-
-    mult(matrix) {
-        return this.clone()._mult(matrix);
-    }
-
-    _multLeft(matrix) {
-        delete this._split;
-        let aNew = matrix.a * this.a + matrix.c * this.b;
-        let cNew = matrix.a * this.c + matrix.c * this.d;
-        let eNew = matrix.a * this.e + matrix.c * this.f + matrix.e;
-        this.b = matrix.b * this.a + matrix.d * this.b;
-        this.d = matrix.b * this.c + matrix.d * this.d;
-        this.f = matrix.b * this.e + matrix.d * this.f + matrix.f;
-        this.a = aNew;
-        this.c = cNew;
-        this.e = eNew;
-        this._check();
-        return this;
-    };
-
-    multLeft(matrix) {
-        return this.clone()._multLeft(matrix);
-    }
-
-    _invert() {
-        delete this._split;
-        let x = this.a * this.d - this.b * this.c;
-        let a = this.d / x;
-        let b = -this.b / x;
-        let c = -this.c / x;
-        let d = this.a / x;
-        let e = (this.c * this.f - this.d * this.e) / x;
-        let f = (this.b * this.e - this.a * this.f) / x;
-        this.a = a;
-        this.b = b;
-        this.c = c;
-        this.d = d;
-        this.e = e;
-        this.f = f;
-        this._check();
-        return this;
-    }
-
-    invert() {
-        return this.clone()._invert();
-    }
-
-    _translate(dx, dy) {
-        delete this._split;
-        this.e += dx * this.a + dy * this.c;
-        this.f += dx * this.b + dy * this.d;
-        this._check();
-        return this;
-    }
-
-    translate(dx, dy) {
-        return this.clone()._translate(dx, dy);
-    }
-
-    _scale(sx, sy, cx, cy) {
-        delete this._split;
-        (cx || cy) && this._translate(cx, cy);
-        this.a *= sx;
-        this.b *= sx;
-        this.c *= sy;
-        this.d *= sy;
-        (cx || cy) && this._translate(-cx, -cy);
-        this._check();
-        return this;
-    }
-
-    scale(x, y, cx, cy) {
-        return this.clone()._scale(x, y, cx, cy);
-    }
-
-    _rotate(a, cx, cy) {
-        delete this._split;
-        a = rad(a);
-        cx = cx || 0;
-        cy = cy || 0;
-        let cos = +Math.cos(a).toFixed(9);
-        let sin = +Math.sin(a).toFixed(9);
-        this._add(cos, sin, -sin, cos, cx, cy);
-        return this._add(1, 0, 0, 1, -cx, -cy);
-    };
-
-    rotate(a, cx, cy) {
-        return this.clone()._rotate(a, cx, cy);
-    }
-
-    _skew(x, y) {
-        delete this._split;
-        x = rad(x);
-        y = rad(y);
-        let c = Math.tan(x).toFixed(9);
-        let b = Math.tan(y).toFixed(9);
-        return this._add(1, b, c, 1, 0, 0);
-    };
-
-    skew(x, y) {
-        return this.clone()._skew(x, y);
-    }
-
-    x(x, y) {
-        return this.a*x+this.c*y+this.e;
-    }
-
-    y(x, y) {
-        return this.b*x+this.d*y+this.f;
-    }
-
-    get dx() {
-        return this.e;
-    }
-
-    get dy() {
-        return this.f;
-    }
-
-    get angle() {
-        return this._compute().angle;
-    }
-
-    get scalex() {
-        return this._compute().scalex;
-    }
-
-    get scaley() {
-        return this._compute().scaley;
-    }
-
-    get shear() {
-        return this._compute().shear;
-    }
-
-    toString() {
-        return "matrix("+this.a+" "+this.b+" "+this.c+" "+this.d+" "+this.e+" "+this.f+")";
-    }
-}
-Matrix.translate = function(dx, dy) {
-    return new Matrix()._translate(dx, dy);
-};
-Matrix.scale = function(sx, sy, cx, cy) {
-    return new Matrix()._scale(sx, sy, cx, cy);
-};
-Matrix.rotate = function(a, cx, cy) {
-    return new Matrix()._rotate(a, cx, cy);
-};
-Matrix.skew = function(x, y) {
-    return new Matrix()._skew(x, y);
-};
-Object.defineProperty(Matrix, "identity", {
-    get: function() {return new Matrix();}
-});
 
 export const Visibility = {
     VISIBLE : "visible",

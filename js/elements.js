@@ -2,7 +2,7 @@
 
 import {
     Group, Rect, Fill, Visibility, win, Colors, Circle, Line
-} from "./svgbase.js";
+} from "./graphics.js";
 import {
     Memento, Box, Context, Events, DragSwitchOperation, DragOperation, makeNotCloneable
 } from "./toolkit.js";

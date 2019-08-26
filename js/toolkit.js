@@ -1,13 +1,19 @@
 'use strict';
 
+import {
+    evaluate
+} from "./misc.js";
+import {
+    List
+} from "./collections.js";
+import {
+    Matrix, deg
+} from "./geometry.js";
 import {win, doc,
-    evaluate, createUUID, deg,
-    MouseEvents, KeyboardEvents, Buttons, List, Matrix, SVGElement,
-    Svg, Rect, Group, Translation, Rotation,
-    Fill, Colors, Visibility, Mutation,
-    localOffset, globalOffset, computePosition, computeAngle, computeMatrix,
-    l2l
-} from "./svgbase.js";
+    MouseEvents, KeyboardEvents, Buttons,
+    Svg, Rect, Group, Translation, Fill, Colors, Visibility,
+    localOffset, globalOffset, computePosition, computeAngle
+} from "./graphics.js";
 import {
     defineShadow
 } from "./svgtools.js";
@@ -340,6 +346,8 @@ export class DragMoveSelectionOperation extends DragOperation {
      * Defines the set of elements to be dragged. This set is made with relevant selected element (eventually extended :
      * including possible companion elements attached to selected element), but excluding the elements that are already
      * "naturally" dragged because they belong to another (ancestor) dragged element.
+     * <p> Note that an element may refuse the drag operation by implementing accordingly the _acceptDrag
+     * method.
      * @returns {Set}
      */
     dragSet() {
@@ -360,7 +368,9 @@ export class DragMoveSelectionOperation extends DragOperation {
         }
         let dragSet = this.extendsSelection(Context.selection.selection(element=>true));
         for (let element of [...dragSet]) {
-            if (!element.moveable || inSelection(element.parent, dragSet)) {
+            if (!element.moveable ||
+                element._acceptDrag && !element._acceptDrag() ||
+                inSelection(element.parent, dragSet)) {
                 dragSet.delete(element);
             }
         }
@@ -377,8 +387,8 @@ export class DragMoveSelectionOperation extends DragOperation {
         this._dragSet = this.dragSet();
         for (let selectedElement of this._dragSet.values()) {
             Memento.register(selectedElement);
-            selectedElement._origin = selectedElement._memento();
             selectedElement._drag = {
+                origin: selectedElement._memento(),
                 dragX: x-selectedElement.gx,
                 dragY: y-selectedElement.gy,
                 originX: x,
@@ -386,7 +396,9 @@ export class DragMoveSelectionOperation extends DragOperation {
                 lastX: x,
                 lastY: y
             };
-            Context.canvas.putElementOnGlass(selectedElement, selectedElement.parent, x, y);
+            let support = selectedElement.parent;
+            Context.canvas.putElementOnGlass(selectedElement, support, x, y);
+            selectedElement._draggedFrom && selectedElement._draggedFrom(support, this._dragSet);
             selectedElement._fire(Events.DRAG_START);
         }
         this._drag = {
@@ -606,13 +618,12 @@ export class DragMoveSelectionOperation extends DragOperation {
                         selectedElement.cancelDrop();
                     }
                     else {
-                        selectedElement._origin.target = target;
+                        selectedElement._drag.target = target;
                     }
                 } else {
                     selectedElement.cancelDrop();
                 }
             }
-            selectedElement._drag = null;
         }
         // Starting from here, drop decision is done : accepted or cancelled
         // Execute drop (or execute drop cancellation).
@@ -624,18 +635,18 @@ export class DragMoveSelectionOperation extends DragOperation {
                 dropped.add(selectedElement);
                 // if dropped element can rotate, adjust angle to cancel "target" orientation
                 if (selectedElement.rotate) {
-                    let angle = computeAngle(selectedElement._hinge, selectedElement._origin.target.content);
+                    let angle = computeAngle(selectedElement._hinge, selectedElement._drag.target.content);
                     selectedElement.rotate(angle);
                 }
-                selectedElement.attach(selectedElement._origin.target);
+                selectedElement.attach(selectedElement._drag.target);
             }
             else {
                 // ... when drop failed
-                selectedElement._revert(selectedElement._origin);
-                selectedElement._recover && selectedElement._recover(selectedElement._origin);
-                selectedElement._origin._parent._add(selectedElement);
+                selectedElement._revert(selectedElement._drag.origin);
+                selectedElement._recover && selectedElement._recover(selectedElement._drag.origin);
+                selectedElement._drag.origin._parent._add(selectedElement);
             }
-            delete selectedElement._origin;
+            delete selectedElement._drag;
         }
         // Call final elements callbacks and emit drop events
         if (dropped.size!==0) {
@@ -703,7 +714,7 @@ class DragRotateSelectionOperation extends DragOperation {
         for (let selectedElement of Context.selection.selection()) {
             if (selectedElement.rotatable) {
                 Memento.register(selectedElement);
-                selectedElement._origin = selectedElement._memento();
+                selectedElement._drag.origin = selectedElement._memento();
                 if (!selectedElement._drag) {
                     selectedElement._drag = {};
                 }
@@ -742,10 +753,10 @@ class DragRotateSelectionOperation extends DragOperation {
                     dropped.add(selectedElement);
                 }
                 else {
-                    selectedElement._revert(selectedElement._origin);
-                    selectedElement._recover && selectedElement._recover(selectedElement._origin);
+                    selectedElement._revert(selectedElement._drag.origin);
+                    selectedElement._recover && selectedElement._recover(selectedElement._drag.origin);
                 }
-                delete selectedElement._origin;
+                delete selectedElement._drag.origin;
             }
         }
         if (dropped.size>0) {
@@ -1907,7 +1918,7 @@ export class Memento {
     }
 
     _keyboardCommands() {
-        doc.addEventListener("keyup", event => {
+        doc.addEventListener(KeyboardEvents.KEY_UP, event => {
             if (!Context.freezed) {
                 if (event.ctrlKey || event.metaKey) {
                     if (event.key === "z") {

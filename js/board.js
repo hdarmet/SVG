@@ -1,8 +1,8 @@
 'use strict';
 
 import {
-    Rect, Rotation, Colors
-} from "./svgbase.js";
+    Rect, Colors
+} from "./graphics.js";
 import {
     Context, Memento, Selection, Canvas, DragSwitchOperation,
     setLayeredGlassStrategy
@@ -24,7 +24,7 @@ import {
     BoardContent
 } from "./elements.js"
 import {
-    makeCollisionContainer
+    makeCollisionContainer, makeGravitationContainer
 } from "./physics.js";
 
 Context.rotateOrMoveDrag = new DragSwitchOperation()
@@ -141,7 +141,9 @@ class BoardCollisionContent extends BoardContent {
     }
 
 }
-makeCollisionContainer(BoardCollisionContent, element=>element instanceof BoardCounter, {all:true});
+//makeCollisionContainer(BoardCollisionContent, element=>element instanceof BoardCounter, {all:true});
+makeGravitationContainer(BoardCollisionContent, element=>element instanceof BoardCounter, {all:true});
+
 
 class BoardCollisionBox extends BoardBox {
     constructor(...args) {

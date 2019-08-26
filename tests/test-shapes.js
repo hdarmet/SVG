@@ -5,7 +5,7 @@ import {SVGElement, ClipPath, Mask, Rect, Circle, Ellipse, Line, Svg, Group, Tra
     Polygon, Polyline, RasterImage, ClippedRasterImage, SvgImage, SvgRasterImage,
     MouseEvents, Colors, Visibility, FeGaussianBlur, Filter, P100,
     FilterUnits, ColorInterpolationFilters, FeEdgeMode, FeIn
-} from "../js/svgbase.js";
+} from "./graphics.js";
 
 function mouse(evType, target) {
     let event = new MouseEvent(evType);

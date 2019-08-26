@@ -1,6 +1,8 @@
 'use strict';
 
-import {Filter, FeDropShadow, P100, FilterUnits, FeIn} from "./svgbase.js"
+import {
+    Filter, FeDropShadow, FilterUnits, FeIn
+} from "./graphics.js";
 
 export function defineShadow(id, color) {
     let shadowFilter = new Filter();

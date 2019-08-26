@@ -1,4 +1,9 @@
-import {List, Attrs, Animate, AnimateMotion, AnimateTransform, AnimationFill} from "./svgbase.js";
+import {
+    List
+} from "./collections.js";
+import {
+    Attrs, Animate, AnimateMotion, AnimateTransform, AnimationFill
+} from "./graphics.js";
 
 let animationCount = 0;
 

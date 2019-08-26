@@ -12,21 +12,78 @@
     <svg width="100" height="100"><circle x="10" y="10" r="10"></circle></svg>
 </div>
 
+<!--
 <script>
     let anchor = document.querySelector("#AA");
     anchor.addEventListener("keydown", event=>{console.log("KD")});
 </script>
+-->
 
-<!--
 <script type="module">
     'use strict';
 
-    import {message, helloWorld} from  "./js/monmodule.js";
+    function evaluate(label, code) {
+        let result = code();
+        let end = new Date().getMilliseconds();
+        return result;
+    }
 
-    helloWorld();
-    console.log(message);
+    import {AVLTree} from "./js/collections.js";
+
+    let tree = new AVLTree((a, b)=>a-b);
+
+    for (let i = 10; i>=0; i--) {
+        tree.insert(i);
+    }
+    tree.inOrder();
+    /*
+    tree.insert(0);
+    tree.insert(10);
+    tree.insert(20);
+    tree.insert(30);
+    tree.insert(40);
+    tree.insert(90);
+    tree.insert(80);
+    tree.insert(70);
+    tree.insert(60);
+    tree.insert(50);
+    tree.inOrder();
+
+    console.log("=======================")
+    tree.delete(5);
+    tree.delete(7);
+    tree.delete(6);
+    tree.delete(9);
+    tree.delete(8);
+    tree.delete(40);
+    tree.inOrder();
+
+    console.log(tree.find(70));
+    console.log(tree.find(40));
+    console.log(tree.find(100));
+    */
+/*
+    let it = tree.iterator();
+    console.log(it.next());
+    console.log(it.next());
+    console.log(it.next());
+    console.log(it.next());
+    console.log(it.next());
+    console.log(it.next());
+    console.log(it.next());
+    console.log(it.next());
+    console.log(it.next());
+    console.log(it.next());
+*/
+/*
+    console.log("===================")
+    for (let data of tree.iterator(15, 75)) {
+        console.log(data);
+    }
+    */
+
 </script>
--->
+
 <!--
 <script>
     let a = {

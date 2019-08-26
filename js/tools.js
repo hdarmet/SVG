@@ -1,9 +1,15 @@
 'use strict';
 
 import {
-    Visibility, computePosition, List, Matrix, RasterImage, SvgRasterImage, Group, ClipPath, Rect, Text,
-    Colors, MouseEvents, TextAnchor, win, doc, Cursor, KeyboardEvents
-} from "./svgbase.js";
+    List
+} from "./collections.js";
+import {
+    Matrix
+} from "./geometry.js";
+import {
+    Visibility, computePosition, RasterImage, SvgRasterImage, Group, ClipPath, Rect, Text,
+    Colors, MouseEvents, TextAnchor, win, Cursor, KeyboardEvents
+} from "./graphics.js";
 import {
     Context, Events, boundingBox, DragOperation, Memento, Canvas, makeObservable, makeNotCloneable
 } from "./toolkit.js";

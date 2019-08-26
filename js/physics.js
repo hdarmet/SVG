@@ -1,11 +1,20 @@
 'use strict';
 
 import {
-    win, List, evaluate
-} from "./svgbase.js";
+    evaluate
+} from "./misc.js";
 import {
-    Box
+    List
+} from "./collections.js";
+import {
+    win
+} from "./graphics.js";
+import {
+    Box, Memento
 } from "./toolkit.js";
+import {
+    AVLTree
+} from "./collections.js";
 
 export class Physic {
 
@@ -290,6 +299,8 @@ export class SAPRecord {
 
     createBounds(element) {
         this._element = element;
+        this._x = this._element.lx;
+        this._y = this._element.ly;
         this._bound = this._createBound(element);
     }
 
@@ -736,6 +747,7 @@ export function makeCollisionPhysic(superClass) {
     };
 
     superClass.prototype._add = function(element) {
+        console.log("ADD");
         this._elements.add(element);
         this._supportSAP.add(element);
     };
@@ -1003,4 +1015,335 @@ export function makeCollisionContainer(superClass, predicate, specs = null) {
     });
 
     return superClass;
+}
+
+class Ground {
+
+    constructor(physic) {
+        this._physic = physic;
+        this._segments = new AVLTree((s1, s2)=>{
+            let value = s1.right-s2.right;
+            return value ? value : s1.id-s2.id;
+        });
+    }
+
+    process(element) {
+        let id = 1;
+        let record = this._physic._supportSAP._getRecord(element);
+        let left = record.left(element);
+        let right = record.right(element);
+        let top = record.top(element);
+        let it = this._segments.inside({right:left, id:0}, null);
+        let ground = this._physic._host.bottom;
+        let segment = it.next().value;
+        while (segment && segment.left < right) {
+            console.log("=>");
+            console.log(segment);
+            if (segment.top < ground) {
+                ground = segment.top;
+            }
+            if (segment.left > left && segment.right < right) {
+                this._segments.delete(segment);
+            }
+            segment = it.next().value;
+        }
+        let ly = ground - (record.bottom(element)-record.y(element));
+        if (ly != element.ly) {
+            element.move(record.x(element), ly);
+            this._physic._supportSAP.update(element);
+            top = record.top(element);
+        }
+        this._segments.insert({left, right, id:id++, top, element})
+    }
+
+}
+
+export function addGravitationToCollisionPhysic(superClass) {
+
+    let refresh = superClass.prototype._refresh;
+    superClass.prototype._refresh = function() {
+
+        let comparator = (e1, e2)=> {
+            let b1 = this._supportSAP.bottom(e1);
+            let b2 = this._supportSAP.bottom(e2);
+            return b2-b1;
+        };
+
+        refresh.call(this);
+        let elements = new List(...this._elements).sort(comparator);
+        console.log(this._elements);
+        let ground = new Ground(this);
+        for (let element of elements) {
+            ground.process(element);
+        }
+    };
+
+    return superClass;
+}
+
+export class GravitationPhysic extends CollisionPhysic {
+
+    constructor(host, predicate, ...args) {
+        super(host, predicate, ...args);
+    }
+
+    clone(duplicata) {
+        let _copy = new GravitationPhysic(duplicata.get(this._host), this._predicate, this._positionsFct);
+        _copy._trigger();
+        return _copy;
+    }
+
+}
+addGravitationToCollisionPhysic(GravitationPhysic);
+
+export function makeGravitationContainer(superClass, predicate, specs = null) {
+
+    class ContainerPhysic extends GravitationPhysic {};
+    if (specs) {
+        addBordersToCollisionPhysic(ContainerPhysic, specs);
+    }
+
+    addPhysicToContainer(superClass, function() {
+        return new ContainerPhysic(this, predicate);
+    });
+
+    return superClass;
+}
+
+export function makeCarrier(superClass) {
+
+    superClass.prototype.addCarried = function(element) {
+        if (element.__addCarriedBy) {
+            Memento.register(this);
+            Memento.register(element);
+            this._addCarried(element);
+        }
+    };
+
+    superClass.prototype.removeCarried = function(element) {
+        if (element.__removeCarriedBy) {
+            Memento.register(this);
+            Memento.register(element);
+            this._removeCarried(element);
+        }
+    };
+
+    /*
+    superClass.prototype.clearCarried = function() {
+        Memento.register(this);
+        this._clearCarried();
+    };
+    */
+
+    superClass.prototype.__addCarried = function(element, record) {
+        if (!this._carried) {
+            this._carried = new Map();
+        }
+        this._carried.set(element, record);
+    };
+
+    superClass.prototype.__removeCarried = function(element) {
+        if (this._carried) {
+            this._carried.delete(element);
+            if (!this._carried.size) {
+                delete this._carried;
+            }
+        }
+    };
+
+    superClass.prototype._addCarried = function(element) {
+        this.__addCarried(element, {
+            dx:element.lx-this.lx,
+            dy:element.ly-this.ly
+        });
+        element.__addCarriedBy(this);
+    };
+
+    superClass.prototype._removeCarried = function(element) {
+        this.__removeCarried(element);
+        element.__removeCarriedBy(this);
+    };
+
+    superClass.prototype._clearCarried = function() {
+        delete this._carriedBy;
+    };
+
+    let getExtension = superClass.prototype.getExtension;
+    superClass.prototype.getExtension = function() {
+        let extension = getExtension ? getExtension.call(this) : new Set();
+        if (this._carried) {
+            for (let element of this._carried.keys()) {
+                extension.add(element);
+                if (element.getExtension) {
+                    for (let child of element.getExtension()) {
+                        extension.add(child);
+                    }
+                }
+            }
+        }
+        return extension
+    };
+
+    let move = superClass.prototype.move;
+    superClass.prototype.move = function(x, y) {
+        move.call(this, x, y);
+        if (this._carried) {
+            for (let element of this._carried.keys()) {
+                let record = this._carried.get(element);
+                element.move(this.lx + record.dx, this.ly + record.dy);
+            }
+        }
+        return this;
+    };
+
+    let cloned = superClass.prototype._cloned;
+    superClass.prototype._cloned = function (copy, duplicata) {
+        cloned && cloned.call(this, copy, duplicata);
+        if (this._carried) {
+            for (let element of this._carried.keys()) {
+                let childCopy = duplicata.get(element);
+                let record = this._carried.get(element);
+                copy.__addCarried(childCopy, record);
+            }
+        }
+    };
+
+    let revertDroppedIn = superClass.prototype._revertDroppedIn;
+    superClass.prototype._revertDroppedIn = function () {
+        revertDroppedIn && revertDroppedIn.call(this);
+        if (this._carried) {
+            for (let element of this._carried.keys()) {
+                let record = this._carried.get(element);
+                element.__addCarriedBy(this, record);
+            }
+        }
+    };
+
+    let superDelete = superClass.prototype.delete;
+    superClass.prototype.delete = function() {
+        let result = superDelete.call(this);
+        if (this._carried) {
+            for (let element of this._carried.keys()) {
+                this.removeCarried(element);
+            }
+        }
+        return result;
+    };
+
+    let superMemento = superClass.prototype._memento;
+    superClass.prototype._memento = function () {
+        let memento = superMemento.call(this);
+        if (this._carried) {
+            memento._carried = new Map(this._carried);
+        }
+        return memento;
+    };
+
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function (memento) {
+        superRevert.call(this, memento);
+        if (memento._carried) {
+            this._carried = new Map(memento._carried);
+        }
+        return this;
+    };
+
+    return superClass;
+}
+
+export function makeCarriable(superClass) {
+
+    return superClass;
+
+    let selectable = Object.getOwnPropertyDescriptor(superClass.prototype, "selectable");
+    Object.defineProperty(superClass.prototype, "selectable", {
+        configurable:true,
+        get() {
+            if (this._carriedBy && this._carriedBy.size) {
+                return this._carriedBy.values().next().value.selectable;
+            }
+            return selectable.get.call(this);
+        }
+    });
+
+    superClass.prototype.__addCarriedBy = function(element, record) {
+        if (!this._carriedBy) {
+            this._carriedBy = new Set();
+        }
+        this._carriedBy.set(element, record);
+    };
+
+    superClass.prototype.__removeCarriedBy = function(element) {
+        if (this._carriedBy) {
+            this._carriedBy.delete(element);
+            if (!this._carriedBy.size) {
+                delete this._carriedBy;
+            }
+        }
+    };
+
+    let draggedFrom = superClass.prototype._draggedFrom;
+    superClass.prototype._draggedFrom = function(support, dragSet) {
+        draggedFrom && draggedFrom.call(this, support, dragSet);
+        if (this._carriedBy) {
+            for (let support of [...this._carriedBy.keys()]) {
+                if (!dragSet.has(support)) {
+                    support.removeCarried(this);
+                }
+            }
+        }
+    };
+
+    let revertDroppedIn = superClass.prototype._revertDroppedIn;
+    superClass.prototype._revertDroppedIn = function () {
+        revertDroppedIn && revertDroppedIn.call(this);
+        if (this._carriedBy) {
+            for (let element of this._carriedBy.keys()) {
+                let record = this._carriedBy.get(element);
+                element.__addCarried(this, record);
+            }
+        }
+    };
+
+    let cloned = superClass.prototype._cloned;
+    superClass.prototype._cloned = function (copy, duplicata) {
+        cloned && cloned.call(this, copy, duplicata);
+        if (this._carriedBy) {
+            for (let element of this._carriedBy.keys()) {
+                let childCopy = duplicata.get(element);
+                let record = this._carriedBy.get(element);
+                copy.__addCarriedBy(childCopy, record);
+            }
+        }
+    };
+
+    let superDelete = superClass.prototype.delete;
+    superClass.prototype.delete = function() {
+        let result = superDelete.call(this);
+        if (this._carriedBy) {
+            for (let element of this._carriedBy.keys()) {
+                element.removeCarried(this);
+            }
+        }
+        return result;
+    };
+
+    let superMemento = superClass.prototype._memento;
+    superClass.prototype._memento = function () {
+        let memento = superMemento.call(this);
+        if (this._carriedBy) {
+            memento._carriedBy = new Map(this._carriedBy);
+        }
+        return memento;
+    };
+
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function (memento) {
+        superRevert.call(this, memento);
+        if (memento._carriedBy) {
+            this._carriedBy = new Map(memento._carriedBy);
+        }
+        return this;
+    };
+
 }
