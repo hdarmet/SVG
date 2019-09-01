@@ -17,3 +17,18 @@ export function evaluate(label, code) {
     //console.log(label+": "+(end-begin));
     return result;
 }
+
+export function getPropertyDescriptor(prototype, property) {
+    let descriptor = Object.getOwnPropertyDescriptor(prototype, property);
+    while (!descriptor && prototype) {
+        prototype = prototype.__proto__;
+        descriptor = Object.getOwnPropertyDescriptor(prototype, property);
+    }
+    return descriptor ? descriptor : null;
+}
+
+export function same(v1, v2) {
+    if (v1===v2) return true;
+    if (!v1 || !v2) return false;
+    return v1-v2>-0.0001 && v1-v2<0.001;
+}

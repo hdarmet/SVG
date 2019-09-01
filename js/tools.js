@@ -47,7 +47,7 @@ export class Menu {
             height: Menu.YMARGIN
         };
         for (let option of this._menuOptions) {
-            if (!Context.readOnly) {
+            if (!Context.isReadOnly()) {
                 option.prepare(that, menuGeometry);
                 this._root.add(option._root);
             }
@@ -1293,15 +1293,19 @@ function deleteSelection() {
     }
 }
 
-export function deleteCommand(toolPopup) {
-
-    Context.canvas._anchor.addEventListener(KeyboardEvents.KEY_UP, event => {
-        if (!Context.freezed) {
-            if (event.key === "Delete" || event.key === "Backspace")
-                deleteSelection();
+export function allowElementDeletion() {
+    Context.anchor.addEventListener(KeyboardEvents.KEY_UP, event => {
+            if (!Context.freezed) {
+                if (event.key === "Delete" || event.key === "Backspace")
+                    deleteSelection();
             }
         }
     );
+}
+
+export function deleteCommand(toolPopup) {
+
+    allowElementDeletion();
 
     function selectionDeletable() {
         let selection = [...Context.selection.selection()];

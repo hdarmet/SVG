@@ -1,8 +1,12 @@
 
-import {describe, it, before, assert} from "./test-toolkit.js";
-import {AVLTree} from "./collections.js";
+import {
+    describe, it, before, assert
+} from "./test-toolkit.js";
+import {
+    AVLTree
+} from "./collections.js";
 
-describe("Basic SVG Objects", ()=> {
+describe("AVL Tree implementation", ()=> {
 
         it("Creates and fill an AVL in the ascending direction", () => {
             let tree = new AVLTree((a, b) => a - b);

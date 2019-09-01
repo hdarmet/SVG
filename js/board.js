@@ -24,8 +24,9 @@ import {
     BoardContent
 } from "./elements.js"
 import {
-    makeCollisionContainer, makeGravitationContainer
+    makeCarrier, makeCarriable, makeGravitationContainer
 } from "./physics.js";
+
 
 Context.rotateOrMoveDrag = new DragSwitchOperation()
     .add(()=>true, Context.rotateSelectionDrag)
@@ -34,10 +35,10 @@ Context.rotateOrMoveDrag = new DragSwitchOperation()
 class BoardDummy extends BoardElement {
 
     constructor(width, height, backgroundColor) {
-        super();
+        super(width, height);
         let background = new Rect(-width/2, -height/2, width, height);
         background.fill = backgroundColor;
-        this._root.add(this._initRotatable().add(this._initShape(background)));
+        this._initShape(background);
         this._dragOperation(function() {return Context.rotateOrMoveDrag;});
         this._clickHandler(function() {()=>{console.log("clicked");}});
         this._doubleClickHandler(function() {()=> {console.log("2 clicked");}});
@@ -73,6 +74,8 @@ makeContainerMultiLayered(BoardBox, "_down",  "_middle", "_up");
 setLayeredGlassStrategy(BoardBox, "_up", "_middle", "_down");
 makeLayered(BoardBox, "_down");
 makeDeletable(BoardCounter);
+makeCarrier(BoardCounter);
+makeCarriable(BoardCounter);
 
 Context.selection = new Selection();
 Context.canvas = new Canvas("#board", 1200, 600);
@@ -140,6 +143,14 @@ class BoardCollisionContent extends BoardContent {
         super(...args);
     }
 
+    _memento() {
+        let memento = super._memento();
+        if (memento.children && memento.children.size===4) error();
+        return memento;
+    }
+    _revert(memento) {
+        super._revert(memento);
+    }
 }
 //makeCollisionContainer(BoardCollisionContent, element=>element instanceof BoardCounter, {all:true});
 makeGravitationContainer(BoardCollisionContent, element=>element instanceof BoardCounter, {all:true});

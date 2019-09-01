@@ -1,10 +1,13 @@
 'use strict';
 
 import {
+    Box
+} from "./geometry.js";
+import {
     Group, Rect, Fill, Visibility, win, Colors, Circle, Line
 } from "./graphics.js";
 import {
-    Memento, Box, Context, Events, DragSwitchOperation, DragOperation, makeNotCloneable
+    Memento, Context, Events, DragSwitchOperation, DragOperation, makeNotCloneable
 } from "./toolkit.js";
 import {
     BoardElement, BoardSupport, BoardLayer, BoardZindexLayer,
@@ -108,7 +111,7 @@ export class AbstractBoardCover extends BoardElement {
         super(width, height);
         this._initPart(owner);
         this._hidden = false;
-        this._root.add(this.initShape(width, height,...args)).add(this._initContent());
+        this.initShape(width, height,...args);
     }
 
     _memento() {
@@ -161,9 +164,7 @@ export class AbstractBoardBox extends BoardElement {
 
     constructor(width, height, ...args) {
         super(width, height);
-        this._root.add(this._initRotatable()
-            .add(this.initShape(width, height,...args))
-            .add(this._initContent()));
+        this.initShape(width, height,...args);
         this._dragOperation(function() {return Context.itemDrag;});
         this._boxContent = this.initBoxContent(width, height,...args);
         this._boxCover = this.initBoxCover(width, height,...args);
@@ -217,7 +218,6 @@ makeRotatable(AbstractBoardBox);
 makeContainer(AbstractBoardBox);
 makeDraggable(AbstractBoardBox);
 makeMenuOwner(AbstractBoardBox);
-
 
 export class BoardContent extends AbstractBoardContent {
 
@@ -313,10 +313,7 @@ export class AbstractBoardCounter extends BoardElement {
 
     constructor(width, height, ...args) {
         super(width, height);
-        this._root.add(this._initRotatable()
-            .add(this.initShape(width, height, ...args))
-            .add(this._initContent())
-        );
+        this.initShape(width, height, ...args);
         this._dragOperation(function() {return Context.itemDrag;});
         this._clickHandler(function () {
             return ()=>this.imageIndex = this.imageIndex+1;
@@ -364,8 +361,7 @@ export class AbstractBoardDie extends BoardElement {
 
     constructor(width, height, ...args) {
         super(width, height);
-        this._root.add(this.initShape(width, height, ...args))
-            .add(this._initContent());
+        this.initShape(width, height, ...args);
         this._dragOperation(function() {return Context.moveSelectionDrag;});
         this._clickHandler(function () {
             return ()=> {
@@ -416,7 +412,6 @@ export class AbstractBoardMap extends BoardElement {
     }
 
     _build() {
-        this._hinge.add(this._initContent());
     }
 
 }
@@ -446,7 +441,7 @@ export class DragHandleOperation extends DragOperation {
     }
 
     accept(element, x, y, event) {
-        return (!Context.readOnly && element.moveable && super.accept(element, x, y, event));
+        return (!Context.isReadOnly() && element.moveable && super.accept(element, x, y, event));
     }
 
     doDragStart(element, x, y, event) {
@@ -461,7 +456,7 @@ export class DragHandleOperation extends DragOperation {
         let invertedMatrix = element.parent.global.invert();
         let dX = invertedMatrix.x(x, y) - this.dragX;
         let dY = invertedMatrix.y(x, y) - this.dragY;
-        element._setPosition(dX, dY);
+        element._setLocation(dX, dY);
         element.parent._receiveMove && element.parent._receiveMove(element);
     }
 
@@ -530,7 +525,7 @@ export function makeResizeable(superClass) {
 
         function setPosition(handle, x, y) {
             Memento.register(handle);
-            handle._setPosition(x, y);
+            handle._setLocation(x, y);
         }
 
         setPosition(this._leftTopHandle, -this.width/2, -this.height/2);
@@ -590,7 +585,7 @@ export function makeResizeable(superClass) {
             if (ly>bounds.bottom) ly = bounds.bottom;
             if (lx!==element.lx || ly!==element.ly) {
                 Memento.register(element);
-                element._setPosition(lx, ly);
+                element._setLocation(lx, ly);
             }
         }
 
@@ -631,7 +626,7 @@ export function makeResizeable(superClass) {
             }
             // Geometry update
             Memento.register(this);
-            this._setPosition(lx, ly);
+            this._setLocation(lx, ly);
             this._setSize(width, height);
             this._placeHandles();
         }

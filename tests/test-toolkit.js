@@ -1,5 +1,12 @@
 'use strict';
 
+import {
+    Context
+} from "../js/toolkit.js";
+import {
+    doc, KeyboardEvents
+} from "../js/graphics.js";
+
 export class AssertionFailed {
     constructor(message) {
         this.message = message;
@@ -20,13 +27,19 @@ export class AssertionError {
     }
 }
 
+let NUMBER_MARGIN = 0.0001;
+
 export class Assertor {
     constructor(value) {
         this.value = value;
     }
 
-    _equalsTo(model, value) {
-        if (model!==value) {
+    _equals(model, value) {
+        if (typeof(model)==="number" && typeof(value)==="number") {
+            if (value<model-NUMBER_MARGIN || value>model+NUMBER_MARGIN) {
+                throw new AssertionFailed(`${value} is not equal to ${model}`);
+            }
+        } else if (model!==value) {
             throw new AssertionFailed(`${value} is not equal to ${model}`);
         }
     }
@@ -37,7 +50,7 @@ export class Assertor {
         }
     }
 
-    _arrayEqualsTo(model, value) {
+    _arrayEquals(model, value) {
         if (!model || !(model instanceof Array)) {
             throw new AssertionError(`${model} is not an array.`);
         }
@@ -49,16 +62,96 @@ export class Assertor {
         }
         for (let index=0; index<model.length; index++) {
             if (model[index] && (model[index] instanceof Array)) {
-                this._arrayEqualsTo(model[index], value[index]);
+                this._arrayEquals(model[index], value[index]);
             }
             else {
-                this._equalsTo(model[index], value[index]);
+                this._equals(model[index], value[index]);
             }
         }
     }
 
+    _arraySame(model, value) {
+        if (!model || !(model instanceof Array)) {
+            throw new AssertionError(`${model} is not an array.`);
+        }
+        if (!value || !(this.value instanceof Array)) {
+            throw new AssertionError(`${value} is not an array.`);
+        }
+        if (value.length!=model.length) {
+            throw new AssertionFailed(`${value} is not equal to ${model}`);
+        }
+        for (let index=0; index<model.length; index++) {
+            if (model[index] && (model[index] instanceof Array)) {
+                this._arraySame(model[index], value[index]);
+            }
+            else {
+                this._same(model[index], value[index]);
+            }
+        }
+    }
+
+    _same(model, object) {
+        if (model === object) return
+        if (!model || !object) {
+            throw new AssertionFailed(`${object} is not equal to ${model}`);
+        }
+        if (typeof(model)==='object' || typeof(object)==='object') {
+            if (model.constructor !== object.constructor) {
+                throw new AssertionFailed(`${object} and ${model} are not of same type.`);
+            }
+            if (model instanceof Array) {
+                this._sameArray(model, object);
+            }
+            else {
+                let modelPropNames = Object.getOwnPropertyNames(model);
+                for (let propName of modelPropNames) {
+                    let modelValue = model[propName];
+                    let objectValue = object[propName];
+                    this._same(modelValue, objectValue);
+                }
+            }
+        }
+        else {
+            this._equals(model, object);
+        }
+    }
+
+
+    sameTo(model) {
+        this._same(model, this.value);
+        return this;
+    }
+
     equalsTo(model) {
-        this._equalsTo(model, this.value);
+        this._equals(model, this.value);
+        return this;
+    }
+
+    isDefined() {
+        if (this.value===null || this.value===undefined) {
+            throw new AssertionFailed(`Not defined`);
+        }
+        return this;
+    }
+
+    isNotDefined() {
+        if (this.value!==null && this.value!==undefined) {
+            throw new AssertionFailed(`Defined`);
+        }
+        return this;
+    }
+
+    isTrue() {
+        if (!this.value) {
+            throw new AssertionFailed(`Not false.`);
+        }
+        return this;
+    }
+
+    isFalse() {
+        if (this.value) {
+            throw new AssertionFailed(`Not true.`);
+        }
         return this;
     }
 
@@ -68,7 +161,7 @@ export class Assertor {
     }
 
     arrayEqualsTo(model) {
-        this._arrayEqualsTo(model, this.value);
+        this._arrayEquals(model, this.value);
         return this;
     }
 
@@ -82,6 +175,7 @@ export class Assertor {
             }
         }
     }
+
 }
 
 export function assert(value) {
@@ -163,3 +257,113 @@ export function before(before) {
 export function it(caseTitle, testCase) {
     testSuite.it(caseTitle, testCase);
 }
+
+export function clickOn(target, specs) {
+    let eventSpecs = {bubbles:true};
+    specs && Object.assign(eventSpecs, specs);
+    let event = new MouseEvent('click', eventSpecs);
+    target._shape._node.dispatchEvent(event);
+}
+
+class Drag {
+
+    constructor(item) {
+        this._item = item;
+        this.bx = Context.canvas.baseLayer._root.globalMatrix.dx;
+        this.by = Context.canvas.baseLayer._root.globalMatrix.dy;
+    }
+
+    from(x, y, specs) {
+        let eventSpecs = {bubbles:true, clientX:x+this.bx, clientY:y+this.by};
+        specs && Object.assign(eventSpecs, specs);
+        let event = new MouseEvent('mousedown', eventSpecs);
+        this._item._shape._node.dispatchEvent(event);
+        return this;
+    }
+
+    through(x, y, specs) {
+        let eventSpecs = {bubbles:true, clientX:x+this.bx, clientY:y+this.by};
+        specs && Object.assign(eventSpecs, specs);
+        let event = new MouseEvent('mousemove', eventSpecs);
+        this._item._shape._node.dispatchEvent(event);
+        return this;
+    }
+
+    hover(target, x=0, y=0, specs) {
+        let eventSpecs = {bubbles:true, clientX:target.gx+x, clientY:target.gy+y};
+        specs && Object.assign(eventSpecs, specs);
+        let event = new MouseEvent('mousemove', eventSpecs);
+        this._item._shape._node.dispatchEvent(event);
+        return this;
+    }
+
+    to(x, y, specs) {
+        this.through(x, y, specs);
+        let eventSpecs = {bubbles:true, clientX:x+this.bx, clientY:y+this.by};
+        specs && Object.assign(eventSpecs, specs);
+        let event = new MouseEvent('mouseup', eventSpecs);
+        this._item._shape._node.dispatchEvent(event);
+        return this;
+    }
+
+    on(target, x=0, y=0, specs) {
+        this.hover(target, x, y, specs);
+        let eventSpecs = {bubbles:true, clientX:target.gx+x, clientY:target.gy+y};
+        specs && Object.assign(eventSpecs, specs);
+        let event = new MouseEvent('mouseup', eventSpecs);
+        this._item._shape._node.dispatchEvent(event);
+        return this;
+    }
+}
+
+export class Snapshot {
+
+    constructor(object) {
+        this._snapshot = {};
+        for (let name of Object.getOwnPropertyNames(object)) {
+            this._snapshot[name] = object[name];
+        }
+    }
+
+    assert(object) {
+        for (let name of Object.getOwnPropertyNames(object)) {
+            assert(this._snapshot[name]).sameTo(object[name]);
+        }
+    }
+
+}
+
+export function drag(item) {
+    return new Drag(item);
+}
+
+class Keyboard {
+
+    ctrl(value) {
+        return (type) => {
+            return new KeyboardEvent(type, {
+                bubbles: true,
+                cancelable: true,
+                key: value, char: value, ctrlKey: true
+            });
+        }
+    }
+
+    get delete() {
+        return (type) => {
+            return new KeyboardEvent(type, {
+                bubbles: true,
+                cancelable: true,
+                key: "Delete", char: 127, ctrlKey: true
+            });
+        }
+    }
+
+    input(eventGenerator) {
+        Context.anchor.dispatchEvent(eventGenerator(KeyboardEvents.KEY_DOWN));
+        Context.anchor.dispatchEvent(eventGenerator(KeyboardEvents.KEY_UP));
+    }
+
+}
+
+export let keyboard = new Keyboard();

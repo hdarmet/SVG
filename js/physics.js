@@ -1,20 +1,20 @@
 'use strict';
 
 import {
-    evaluate
+    evaluate, same
 } from "./misc.js";
 import {
-    List
+    List, AVLTree
 } from "./collections.js";
+import {
+    Box
+} from "./geometry.js";
 import {
     win
 } from "./graphics.js";
 import {
-    Box, Memento
+    Memento, CloneableObject
 } from "./toolkit.js";
-import {
-    AVLTree
-} from "./collections.js";
 
 export class Physic {
 
@@ -107,7 +107,7 @@ export function makePositionningPhysic(superClass) {
         }
         if (this._hoveredElements) {
             for (let element of this._hoveredElements) {
-                this._refreshElement(element);
+                this._refreshHoverElement(element);
             }
             this._hoveredElements.clear();
         }
@@ -126,7 +126,7 @@ export function makePositionningPhysic(superClass) {
         this._elements.add(element);
     };
 
-    superClass.prototype._refreshElement = function(element) {
+    superClass.prototype._elementPosition = function(element) {
         let lx = element.lx;
         let ly = element.ly;
         let distance = Infinity;
@@ -139,6 +139,16 @@ export function makePositionningPhysic(superClass) {
                 position = _position;
             }
         }
+        return position;
+    };
+
+    superClass.prototype._refreshHoverElement = function(element) {
+        let position = this._elementPosition(element);
+        element.setLocation(position.x, position.y);
+    };
+
+    superClass.prototype._refreshElement = function(element) {
+        let position = this._elementPosition(element);
         element.move(position.x, position.y);
     };
 
@@ -278,8 +288,8 @@ export class SAPRecord {
 
     _createBound(element) {
         let geometry = this._element.localGeometry;
-        let widthSlim = geometry.left===geometry.right;
-        let heightSlim = geometry.top===geometry.bottom;
+        let widthSlim = same(geometry.left, geometry.right);
+        let heightSlim = same(geometry.top, geometry.bottom);
         let bound = {
             left: {first: true, value: geometry.left, slim:widthSlim, element, index: -1, opened: new Set([element])},
             right: {first: false, value: geometry.right, slim:widthSlim, element, index: -1, opened: new Set()},
@@ -552,10 +562,10 @@ export class SweepAndPrune {
 
     elementBox(element) {
         let record = this._getRecord(element);
-        let left = record.left(element);
-        let right = record.right(element);
-        let top = record.top(element);
-        let bottom = record.bottom(element);
+        let left = record.left(element)+COLLISION_MARGIN;
+        let right = record.right(element)-COLLISION_MARGIN;
+        let top = record.top(element)+COLLISION_MARGIN;
+        let bottom = record.bottom(element)-COLLISION_MARGIN;
         return new Box(left, top, right-left, bottom-top)
     }
 
@@ -650,10 +660,10 @@ export class SweepAndPrune {
 
     collideWith(box) {
         let result = this.elementsInBox(
-            box.left,
-            box.top,
-            box.right,
-            box.bottom
+            box.left+COLLISION_MARGIN,
+            box.top+COLLISION_MARGIN,
+            box.right-COLLISION_MARGIN,
+            box.bottom-COLLISION_MARGIN
         );
         return result;
     }
@@ -747,7 +757,6 @@ export function makeCollisionPhysic(superClass) {
     };
 
     superClass.prototype._add = function(element) {
-        console.log("ADD");
         this._elements.add(element);
         this._supportSAP.add(element);
     };
@@ -756,6 +765,7 @@ export function makeCollisionPhysic(superClass) {
         this._elements.delete(element);
         this._supportSAP.remove(element);
     };
+
 
     superClass.prototype._draggedCollideWith = function(element, exclude) {
         let elementBox = this._dragAndDropSAP.elementBox(element);
@@ -786,7 +796,8 @@ export function makeCollisionPhysic(superClass) {
     superClass.prototype._avoidCollisionsForElement = function(element, exclude) {
 
         let put = (element, x, y) => {
-            element.move(x, y);
+            // setLocation(), not move(), on order to keep the DnD fluid (floating elements not correlated).
+            element.setLocation(x, y);
             this._dragAndDropSAP.update(element);
         };
 
@@ -794,10 +805,10 @@ export function makeCollisionPhysic(superClass) {
             let sweepAndPrune = this.sweepAndPrune(target);
             if (ox > hx) {
                 let rx = sweepAndPrune.right(target) + element.width / 2;
-                return ox < rx || rx === hx ? null : rx;
+                return ox < rx || same(rx, hx) ? null : rx;
             } else if (ox < hx) {
                 let rx = sweepAndPrune.left(target) - element.width / 2;
-                return ox > rx || rx === hx ? null : rx;
+                return ox > rx || same(rx, hx) ? null : rx;
             } else return null;
         };
 
@@ -805,10 +816,10 @@ export function makeCollisionPhysic(superClass) {
             let sweepAndPrune = this.sweepAndPrune(target);
             if (oy > hy) {
                 let ry = sweepAndPrune.bottom(target) + element.height / 2;
-                return oy < ry || ry === hy ? null : ry;
+                return oy < ry || same(ry, hy) ? null : ry;
             } else if (oy < hy) {
                 let ry = sweepAndPrune.top(target) - element.height / 2;
-                return oy > ry || ry === hy ? null : ry;
+                return oy > ry || same(ry, hy) ? null : ry;
             } else return null;
         };
 
@@ -1027,20 +1038,32 @@ class Ground {
         });
     }
 
+    _setCarriedBy(element, supports) {
+        element.clearCarriedBy();
+        for (let support of supports) {
+            if (support.isCarrier) {
+                support.addCarried(element);
+            }
+        }
+    }
+
     process(element) {
         let id = 1;
         let record = this._physic._supportSAP._getRecord(element);
         let left = record.left(element);
         let right = record.right(element);
         let top = record.top(element);
-        let it = this._segments.inside({right:left, id:0}, null);
+        let it = this._segments.inside({right:left+COLLISION_MARGIN, id:0}, null);
         let ground = this._physic._host.bottom;
         let segment = it.next().value;
-        while (segment && segment.left < right) {
-            console.log("=>");
-            console.log(segment);
+        let supports = new Set();
+        while (segment && segment.left+COLLISION_MARGIN < right) {
             if (segment.top < ground) {
                 ground = segment.top;
+                supports = new Set([segment.element]);
+            }
+            else if (same(segment.top, ground)) {
+                supports.add(segment.element);
             }
             if (segment.left > left && segment.right < right) {
                 this._segments.delete(segment);
@@ -1048,10 +1071,14 @@ class Ground {
             segment = it.next().value;
         }
         let ly = ground - (record.bottom(element)-record.y(element));
-        if (ly != element.ly) {
-            element.move(record.x(element), ly);
+        console.log(ly+" "+element.ly);
+        if (ly !== element.ly) {
+            element.setLocation(record.x(element), ly);
             this._physic._supportSAP.update(element);
             top = record.top(element);
+        }
+        if (element.isCarriable) {
+            this._setCarriedBy(element, supports);
         }
         this._segments.insert({left, right, id:id++, top, element})
     }
@@ -1071,7 +1098,6 @@ export function addGravitationToCollisionPhysic(superClass) {
 
         refresh.call(this);
         let elements = new List(...this._elements).sort(comparator);
-        console.log(this._elements);
         let ground = new Ground(this);
         for (let element of elements) {
             ground.process(element);
@@ -1111,6 +1137,13 @@ export function makeGravitationContainer(superClass, predicate, specs = null) {
 }
 
 export function makeCarrier(superClass) {
+
+    Object.defineProperty(superClass.prototype, "isCarrier", {
+        configurable:true,
+        get() {
+            return true;
+        }
+    });
 
     superClass.prototype.addCarried = function(element) {
         if (element.__addCarriedBy) {
@@ -1152,10 +1185,10 @@ export function makeCarrier(superClass) {
     };
 
     superClass.prototype._addCarried = function(element) {
-        this.__addCarried(element, {
+        this.__addCarried(element, new CloneableObject({
             dx:element.lx-this.lx,
             dy:element.ly-this.ly
-        });
+        }));
         element.__addCarriedBy(this);
     };
 
@@ -1186,14 +1219,21 @@ export function makeCarrier(superClass) {
 
     let move = superClass.prototype.move;
     superClass.prototype.move = function(x, y) {
-        move.call(this, x, y);
-        if (this._carried) {
-            for (let element of this._carried.keys()) {
-                let record = this._carried.get(element);
-                element.move(this.lx + record.dx, this.ly + record.dy);
+        if (move.call(this, x, y)) {
+            if (this._carried) {
+                for (let element of this._carried.keys()) {
+                    let record = this._carried.get(element);
+                    if (element.parent === this.parent) {
+                        element.move(this.lx + record.dx, this.ly + record.dy);
+                    }
+                    else {
+                        this.removeCarried(element);
+                    }
+                }
             }
+            return true;
         }
-        return this;
+        return false;
     };
 
     let cloned = superClass.prototype._cloned;
@@ -1253,22 +1293,16 @@ export function makeCarrier(superClass) {
 
 export function makeCarriable(superClass) {
 
-    return superClass;
-
-    let selectable = Object.getOwnPropertyDescriptor(superClass.prototype, "selectable");
-    Object.defineProperty(superClass.prototype, "selectable", {
+    Object.defineProperty(superClass.prototype, "isCarriable", {
         configurable:true,
         get() {
-            if (this._carriedBy && this._carriedBy.size) {
-                return this._carriedBy.values().next().value.selectable;
-            }
-            return selectable.get.call(this);
+            return true;
         }
     });
 
     superClass.prototype.__addCarriedBy = function(element, record) {
         if (!this._carriedBy) {
-            this._carriedBy = new Set();
+            this._carriedBy = new Map();
         }
         this._carriedBy.set(element, record);
     };
@@ -1278,6 +1312,14 @@ export function makeCarriable(superClass) {
             this._carriedBy.delete(element);
             if (!this._carriedBy.size) {
                 delete this._carriedBy;
+            }
+        }
+    };
+
+    superClass.prototype.clearCarriedBy = function() {
+        if (this._carriedBy) {
+            for (let support of [...this._carriedBy.keys()]) {
+                support.removeCarried(this);
             }
         }
     };
@@ -1346,4 +1388,5 @@ export function makeCarriable(superClass) {
         return this;
     };
 
+    return superClass;
 }

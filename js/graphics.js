@@ -4,7 +4,7 @@ import {
     List
 } from "./collections.js";
 import {
-    Matrix
+    Matrix, Box
 } from "./geometry.js";
 
 console.log("Svgbase loaded");
@@ -43,6 +43,9 @@ export let doc = {
     },
     elementFromPoint(x, y) {
         return document.elementFromPoint(x, y);
+    },
+    dispatchEvent(event) {
+        document.dispatchEvent(event);
     }
 };
 
@@ -67,8 +70,8 @@ export let win = {
     }
 };
 
-export function localOffset(element) {
-    let box = element._node.getBoundingClientRect();
+export function localOffset(svgNode) {
+    let box = svgNode._node.getBoundingClientRect();
     let body = doc.body;
     let html = doc.documentElement;
     let left = box.left + (win.pageXOffset || html.scrollLeft || body.scrollLeft);
@@ -88,8 +91,8 @@ export function globalOffset(svgNode) {
 }
 
 export function computeMatrix(from, to) {
-    if (!from) console.log("from null !")
-    if (!to) console.log("to null !")
+    if (!from) console.log("from null !");
+    if (!to) console.log("to null !");
     let matrix = to.matrix;
     let parent = to.parent;
     while (parent && parent!==from) {

@@ -24,8 +24,19 @@ export const Context = {
     memento : null,
     selection : null,
     readOnly : 0,
-    freezed : 0
+    freezed : 0,
+    isReadOnly() {
+        return this.readOnly;
+    }
 };
+
+export function setRef(item, reference) {
+    item._root.id = reference;
+}
+
+export function html(item) {
+    return item._root.outerHTML;
+}
 
 export const Events = {
     ADD : "add",
@@ -68,72 +79,6 @@ export function sortByDistance(elements, gx, gy) {
         return distance(elem1, gx, gy) - distance(elem2, gx, gy);
     });
 
-}
-
-export class Box {
-
-    constructor(x, y, width, height) {
-        this.x = x;
-        this.y = y;
-        this.width = width;
-        this.height = height;
-    }
-
-    get left() {
-        return this.x;
-    }
-
-    get top() {
-        return this.y;
-    }
-
-    get right() {
-        return this.x+this.width;
-    }
-
-    get bottom() {
-        return this.y+this.height;
-    }
-
-    get cx() {
-        return this.x+this.width/2;
-    }
-
-    get cy() {
-        return this.y+this.height/2;
-    }
-
-    add(box) {
-        let left = Math.min(this.left, box.left);
-        let top = Math.min(this.top, box.top);
-        let right = Math.min(this.right, box.right);
-        let bottom = Math.min(this.bottom, box.bottom);
-        return new Box(left, top, right-left, bottom-top);
-    }
-
-    collides(box) {
-        return (
-            box.left < this.right &&
-            box.right > this.left &&
-            box.top < this.bottom &&
-            box.bottom > this.top
-        );
-    }
-
-}
-
-export function getBox(points) {
-    let left = points[0];
-    let right = points[0];
-    let top = points[1];
-    let bottom = points[1];
-    for (let index=2; index<points.length; index+=2) {
-        if (points[index]<left) left=points[index];
-        else if (points[index]>right) right=points[index];
-        if (points[index+1]<top) top=points[index+1];
-        else if (points[index+1]>bottom) bottom=points[index+1];
-    }
-    return new Box(left, top, right-left, bottom-top);
 }
 
 export function boundingBox(elements, targetMatrix) {
@@ -230,7 +175,14 @@ export function makeCloneable(superClass) {
 
 }
 
-export function CloneableObject() {}
+export class CloneableObject {
+    constructor(content)
+    {
+        if (content) {
+            Object.assign(this, content);
+        }
+    }
+}
 makeCloneable(CloneableObject);
 
 export function makeNotCloneable(superClass) {
@@ -245,7 +197,14 @@ export function makeNotCloneable(superClass) {
 
 }
 
-export function NotCloneableObject() {}
+export class NotCloneableObject {
+    constructor(content)
+    {
+        if (content) {
+            Object.assign(this, content);
+        }
+    }
+}
 makeNotCloneable(NotCloneableObject);
 
 export class DragOperation {
@@ -312,10 +271,26 @@ export class DragOperation {
 }
 makeObservable(DragOperation);
 
+export class DragElementOperation extends DragOperation {
+
+    constructor() {
+        super();
+    }
+
+    dropCancelled(element) {
+        return element._drag.cancelled;
+    }
+
+    cancelDrop(element) {
+        element._drag.cancelled = true;
+        element._cancelDrop && element._cancelDrop();
+    }
+}
+
 /**
  * Move (not rotate) selected elements by drag and drop.
  */
-export class DragMoveSelectionOperation extends DragOperation {
+export class DragMoveSelectionOperation extends DragElementOperation {
 
     constructor() {
         super();
@@ -330,16 +305,25 @@ export class DragMoveSelectionOperation extends DragOperation {
      * @returns {boolean|*} true if drag/drop accepted
      */
     accept(element, x, y, event) {
-        return (!Context.readOnly && element.moveable && super.accept(element, x, y, event));
+        return (!Context.isReadOnly() && element.moveable && super.accept(element, x, y, event));
     }
 
     /**
-     * For future exention...
-     * @param selection
-     * @returns {Set}
+     * Extend the current selection by adding any element "associated" to already selected elements (for exemple,
+     * element that are 'carried' or 'sticked' to the selected element.
+     * @param selection core selection of element
+     * @returns {Set} extended set of selected element
      */
     extendsSelection(selection) {
-        return new Set(selection);
+        let extendedSelection = new Set(selection);
+        for (let element of selection) {
+            if (element.getExtension) {
+                for (let associatedElement of element.getExtension()) {
+                    extendedSelection.add(associatedElement);
+                }
+            }
+        }
+        return extendedSelection;
     }
 
     /**
@@ -388,11 +372,17 @@ export class DragMoveSelectionOperation extends DragOperation {
         for (let selectedElement of this._dragSet.values()) {
             Memento.register(selectedElement);
             selectedElement._drag = {
+                // Memento to specifically revert that element if drop is cancelled for it (but not for the entire
+                // selection.
                 origin: selectedElement._memento(),
+                // Delta from mouse position and eleemnt position
                 dragX: x-selectedElement.gx,
                 dragY: y-selectedElement.gy,
+                // Original position of the element (when drag started). Never change.
                 originX: x,
                 originY: y,
+                // Last position occupied by the element during the drag and drop process. Change for every mouse mouve
+                // event.
                 lastX: x,
                 lastY: y
             };
@@ -415,7 +405,7 @@ export class DragMoveSelectionOperation extends DragOperation {
      * @param dy offset on y axis of the drag move
      * @returns {List|*} the dagged elements (sorted)
      */
-    sortedSelection(dx, dy) {
+    sortedSelection(collection, dx, dy) {
         const FAR_AWAY = 10000;
         let index = 0, px = 0, py = 0;
         if (dx > 0) {
@@ -434,19 +424,15 @@ export class DragMoveSelectionOperation extends DragOperation {
             index += 6;
             py = -FAR_AWAY;
         }
-        let result = this._dragSorted && this._dragSorted[index];
-        if (!result) {
-            result = [...this._dragSet];
-            sortByDistance(result, px, py);
-            this._dragSorted[index] = result;
-        }
+        let result = new List(...collection);
+        sortByDistance(result, px, py);
         return result;
     }
 
-    _doHover() {
+    _doHover(dx, dy) {
         for (let support of Context.canvas.glassSupports) {
             if (support.hover) {
-                support.hover(Context.canvas.getHoveredElements(support));
+                support.hover(this.sortedSelection(Context.canvas.getHoveredElements(support), dx, dy));
             }
         }
     }
@@ -463,17 +449,16 @@ export class DragMoveSelectionOperation extends DragOperation {
      * @param event mouse event
      */
     doDragMove(element, x, y, event) {
-        let sortedSelection = this.sortedSelection(x - this._drag.lastX, y - this._drag.lastY);
+        let dx = x - this._drag.lastX;
+        let dy = y - this._drag.lastY;
         // get initial supports and move elements on glass without changing support.
-        for (let selectedElement of sortedSelection) {
-            selectedElement._drag.lastX = selectedElement.lx;
-            selectedElement._drag.lastY = selectedElement.ly;
+        for (let selectedElement of this._dragSet) {
             Context.canvas.moveElementOnGlass(selectedElement, null, x, y);
         }
         // get targets (using final positions of dragged elements)
         let targets = this.getTargets(this._dragSet);
         // Possible change of support...
-        for (let selectedElement of sortedSelection) {
+        for (let selectedElement of this._dragSet) {
             let target = targets.get(selectedElement);
             // No target at all : element is outside viewport
             if (!target) {
@@ -482,13 +467,15 @@ export class DragMoveSelectionOperation extends DragOperation {
             } else // Support has changed
                 if (target!==selectedElement.parent) {
                 Context.canvas.moveElementOnGlass(selectedElement, target, x, y);
+                selectedElement._drag.lastX = x;
+                selectedElement._drag.lastY = y;
             }
             selectedElement._fire(Events.DRAG_MOVE);
         }
         this._drag.lastX = x;
         this._drag.lastY = y;
-        this._fire(Events.DRAG_MOVE, sortedSelection);
-        this._doHover();
+        this._fire(Events.DRAG_MOVE, this._dragSet);
+        this._doHover(dx, dy);
     }
 
     /**
@@ -554,7 +541,9 @@ export class DragMoveSelectionOperation extends DragOperation {
             let {gx, gy} = outside.get(element);
             Context.canvas._adjustContent(-gx, -gy);
             let target = Context.canvas.getElementFromPoint(0, 0);
-            if (target) targets.set(element, getTarget(element, target.owner));
+            if (target && target.owner) {
+                targets.set(element, getTarget(element, target.owner));
+            }
         }
         // Revert viewport and glass
         if (outside.size) Context.canvas._adjustContent(0, 0);
@@ -599,29 +588,31 @@ export class DragMoveSelectionOperation extends DragOperation {
      * @param element the element to be dropped
      */
     doDrop(element, x, y, event) {
+        let dx = x - this._drag.lastX;
+        let dy = y - this._drag.lastY;
         let targets = this.getTargets(this._dragSet);
         // Check for drop acceptation and execute requested drop cancellation.
         for (let selectedElement of [...this._dragSet]) {
             let target = targets.get(selectedElement);
             // Can be cancelled before processed due to another element action
-            if (!selectedElement._dropCancelled) {
+            if (!this.dropCancelled(selectedElement)) {
                 if (target && target._dropTarget) {
                     target = target._dropTarget();
                 }
                 if (target && target.content && getCanvasLayer(target._root) instanceof BaseLayer) {
                     let { x, y } = computePosition(selectedElement._root, target.content);
-                    selectedElement.move(x, y);
+                    selectedElement.setLocation(x, y);
                     // Ask target if it "accepts" the drop
                     if ((target._acceptDrop && !target._acceptDrop(selectedElement)) ||
                         // Ask dropped element if it "accepts" the drop.
                         selectedElement._acceptDropped && !selectedElement._acceptDropped(target)) {
-                        selectedElement.cancelDrop();
+                        this.cancelDrop(selectedElement);
                     }
                     else {
                         selectedElement._drag.target = target;
                     }
                 } else {
-                    selectedElement.cancelDrop();
+                    this.cancelDrop(selectedElement);
                 }
             }
         }
@@ -630,7 +621,7 @@ export class DragMoveSelectionOperation extends DragOperation {
         let dropped = new Set();
         for (let selectedElement of [...this._dragSet]) {
             Context.canvas.removeElementFromGlass(selectedElement);
-            if (!selectedElement.dropCancelled()) {
+            if (!this.dropCancelled(selectedElement)) {
                 // ... when drop succeeded
                 dropped.add(selectedElement);
                 // if dropped element can rotate, adjust angle to cancel "target" orientation
@@ -671,14 +662,14 @@ export class DragMoveSelectionOperation extends DragOperation {
         else {
             Context.memento.cancel();
         }
-        this._doHover();
+        this._doHover(dx, dy);
     }
 }
 makeNotCloneable(DragMoveSelectionOperation);
 Context.moveSelectionDrag = new DragMoveSelectionOperation();
 
 
-class DragRotateSelectionOperation extends DragOperation {
+class DragRotateSelectionOperation extends DragElementOperation {
 
     constructor() {
         super();
@@ -714,10 +705,10 @@ class DragRotateSelectionOperation extends DragOperation {
         for (let selectedElement of Context.selection.selection()) {
             if (selectedElement.rotatable) {
                 Memento.register(selectedElement);
-                selectedElement._drag.origin = selectedElement._memento();
                 if (!selectedElement._drag) {
                     selectedElement._drag = {};
                 }
+                selectedElement._drag.origin = selectedElement._memento();
                 selectedElement._drag.startAngle = selectedElement.angle;
             }
         }
@@ -735,13 +726,12 @@ class DragRotateSelectionOperation extends DragOperation {
     }
 
     doDrop(element, x, y, event) {
-        element._drag = null;
         for (let selectedElement of Context.selection.selection()) {
             if (selectedElement.rotatable) {
-                if (!selectedElement._dropCancelled) {
+                if (!this.dropCancelled(selectedElement)) {
                     if ((selectedElement.parent._acceptRotation && !selectedElement.parent._acceptRotation(selectedElement)) ||
                         selectedElement._acceptRotated && !selectedElement._acceptRotated(selectedElement.parent)) {
-                        selectedElement.cancelDrop();
+                        this.cancelDrop(selectedElement);
                     }
                 }
             }
@@ -749,7 +739,7 @@ class DragRotateSelectionOperation extends DragOperation {
         let dropped = new Set();
         for (let selectedElement of Context.selection.selection()) {
             if (selectedElement.rotatable) {
-                if (!selectedElement.dropCancelled()) {
+                if (!this.dropCancelled(selectedElement)) {
                     dropped.add(selectedElement);
                 }
                 else {
@@ -759,6 +749,7 @@ class DragRotateSelectionOperation extends DragOperation {
                 delete selectedElement._drag.origin;
             }
         }
+        element._drag = null;
         if (dropped.size>0) {
             for (let selectedElement of Context.selection.selection()) {
                 if (selectedElement.rotatable) {
@@ -1000,7 +991,7 @@ export class CanvasLayer {
     constructor(canvas) {
         this._canvas = canvas;
         this._root = new Group();
-        this._root.that = this;
+        //this._root.that = this;
         this._root._owner = this;
         canvas.addObserver(this);
     }
@@ -1212,6 +1203,7 @@ class GlassPedestal {
         this._glass = glass;
         this._support = support;
         this._root = new Group();
+        if (support._root.id) this._root.id = support._root.id;
         this._root.matrix = support._root.globalMatrix.multLeft(this._glass._root.globalMatrix.invert());
         this._pedestals = new Map();
         this._initContent();
@@ -1254,7 +1246,7 @@ class GlassPedestal {
         let fy = y-element._drag.dragY;
         let dX = invertedMatrix.x(fx, fy);
         let dY = invertedMatrix.y(fx, fy);
-        element._setPosition(dX, dY);
+        element._setLocation(dX, dY);
     }
 
     moveElement(element, x, y) {
@@ -1264,13 +1256,13 @@ class GlassPedestal {
         let fy = y-element._drag.dragY;
         let dX = invertedMatrix.x(fx, fy);
         let dY = invertedMatrix.y(fx, fy);
-        element._setPosition(dX, dY);
+        element._setLocation(dX, dY);
     }
 
     removeElement(element) {
         let pedestal = this._pedestals.get(element);
         let invertedMatrix = pedestal.globalMatrix.invert();
-        element.rotate && element.rotate(element.globalAngle/*-invertedMatrix.angle*/);
+        element.rotate && element.rotate(element.globalAngle);
         this._pedestals.delete(element);
         this.removeArtifact(pedestal, element);
         this.putArtifact(element._root, element);
@@ -1310,6 +1302,7 @@ export function makeMultiLayeredGlass(superClass, ...layers) {
         if (!this[layer]) layer = defaultLayer;
         this[layer].remove(artifact);
     };
+
 }
 
 export class GlassLayer extends CanvasLayer {
@@ -1482,12 +1475,68 @@ export class ModalsLayer extends CanvasLayer {
 
 }
 
+export class Anchor {
+    constructor() {
+        this._listeners = new List();
+        this._events = new List();
+    }
+
+    attach(svg, anchor) {
+        this._anchor = doc.querySelector(anchor);
+        this._anchor.addEventListener(MouseEvents.MOUSE_UP, event=>{
+            this._anchor.focus();
+        });
+        this._anchor.addEventListener(MouseEvents.CONTEXT_MENU, function(event) {
+            event.preventDefault();
+            return false;
+        });
+        for (let listener of this._listeners) {
+            this._anchor.addEventListener(listener.type, listener.handler);
+        }
+        for (let event of this._events) {
+            this._anchor.dispatchEvent(event);
+        }
+        svg.attach(this._anchor);
+    }
+
+    addEventListener(type, handler) {
+        if (this._anchor) {
+            this._anchor.addEventListener(type, handler);
+        }
+        else {
+            this._listeners.add({type, handler});
+        }
+        return this;
+    }
+
+    removeEventListener(type, handler) {
+        if (this._anchor) {
+            this._anchor.removeEventListener(type, handler);
+        }
+        else {
+            this._listeners = this._listeners.filter(listener=>listener.type!==type && listener.handler!==handler);
+        }
+        return this;
+    }
+
+    dispatchEvent(event) {
+        if (this._anchor) {
+            this._anchor.dispatchEvent(event);
+        }
+        else {
+            this._events.add(event);
+        }
+        return this;
+    }
+
+}
+Context.anchor = new Anchor();
+
 export class Canvas {
 
     constructor(anchor, width, height) {
-        this._anchor = doc.querySelector(anchor);
-        this._root = new Svg(width, height).attach(this._anchor);
-        this._root.that = this;
+        this._root = new Svg(width, height);
+        Context.anchor.attach(this._root, anchor);
         this._content = new Translation(this.width/2, this.height/2);
         this._root.add(this._content);
         this._baseLayer = this.createBaseLayer();
@@ -1498,13 +1547,6 @@ export class Canvas {
         this._zoomOnWheel();
         this.shadowFilter = defineShadow("_shadow_", Colors.BLACK);
         this._root.addDef(this.shadowFilter);
-        this._anchor.addEventListener(MouseEvents.MOUSE_UP, event=>{
-            this._anchor.focus();
-        });
-        this._anchor.addEventListener(MouseEvents.CONTEXT_MENU, function(event) {
-            event.preventDefault();
-            return false;
-        });
     }
 
     _adjustContent(x=0, y=0) {
@@ -1517,10 +1559,18 @@ export class Canvas {
         return layer;
     }
 
+    get baseLayer() {
+        return this._baseLayer;
+    }
+
     createToolsLayer() {
         let layer = new ToolsLayer(this);
         this.add(layer);
         return layer;
+    }
+
+    get toolsLayer() {
+        return this._toolsLayer;
     }
 
     createGlassLayer() {
@@ -1529,10 +1579,18 @@ export class Canvas {
         return layer;
     }
 
+    get glassLayer() {
+        return this._glassLayer;
+    }
+
     createModalsLayer() {
         let layer = new ModalsLayer(this);
         this.add(layer);
         return layer;
+    }
+
+    get modalsLayer() {
+        return this._modalsLayer;
     }
 
     add(layer) {
@@ -1727,7 +1785,7 @@ export class CopyPaste {
     }
 
     _keyboardCommands() {
-        doc.addEventListener(KeyboardEvents.KEY_UP, event => {
+        Context.anchor.addEventListener(KeyboardEvents.KEY_UP, event => {
             if (!Context.freezed) {
                 if (event.ctrlKey || event.metaKey) {
                     if (event.key === "c") {
@@ -1766,7 +1824,7 @@ export class CopyPaste {
                 let copy = element.clone(duplicata, true);
                 copy._parent = null;
                 let { x, y } = computePosition(element._root, element.canvasLayer._root);
-                copy._setPosition(x - cx, y - cy);
+                copy._setLocation(x - cx, y - cy);
                 result.add(copy);
             }
         }
@@ -1785,7 +1843,7 @@ export class CopyPaste {
         let duplicata = new Map();
         for (let element of elements) {
             let copy = element.clone(duplicata, true);
-            copy._setPosition(element.lx, element.ly);
+            copy._setLocation(element.lx, element.ly);
             pasted.add(copy);
         }
         return pasted;
@@ -1918,7 +1976,7 @@ export class Memento {
     }
 
     _keyboardCommands() {
-        doc.addEventListener(KeyboardEvents.KEY_UP, event => {
+        Context.anchor.addEventListener(KeyboardEvents.KEY_UP, event => {
             if (!Context.freezed) {
                 if (event.ctrlKey || event.metaKey) {
                     if (event.key === "z") {
@@ -1980,7 +2038,7 @@ export class Memento {
     }
 
     undo() {
-        if (!Context.readOnly) {
+        if (!Context.isReadOnly()) {
             let current = this._undoTrx.pop();
             if (current.size === 0) {
                 current = this._undoTrx.pop();
@@ -2009,7 +2067,7 @@ export class Memento {
     }
 
     redo() {
-        if (!Context.readOnly) {
+        if (!Context.isReadOnly()) {
             let current = this._redoTrx.pop();
             if (current) {
                 this.opened = false;
@@ -2134,35 +2192,43 @@ export class Selection {
         return result;
     }
 
+    _select(element) {
+        this._selection.add(element);
+        element.select && element.select();
+        element.selectFrame && (element.selectFrame.filter = this.selectFilter);
+        this._fire(Events.SELECT, element);
+        return true;
+    }
+
     select(element) {
         let selectable = element.selectable;
         if (selectable) {
-            this._selection.add(selectable);
-            selectable.select && selectable.select();
-            selectable.selectFrame && (selectable.selectFrame.filter = this.selectFilter);
-            this._fire(Events.SELECT, selectable);
-            return true;
+            return this._select(selectable);
         }
         return false;
+    }
+
+    _unselect(element) {
+        if (this._selection.has(element)) {
+            this._selection.delete(element);
+            element.unselect && element.unselect();
+            element.selectFrame && (element.selectFrame.filter = null);
+            this._fire(Events.UNSELECT, element);
+        }
+        return true;
     }
 
     unselect(element) {
         let selectable = element.selectable;
         if (selectable) {
-            if (this._selection.has(selectable)) {
-                this._selection.delete(selectable);
-                selectable.unselect && selectable.unselect();
-                selectable.selectFrame && (selectable.selectFrame.filter = null);
-                this._fire(Events.UNSELECT, selectable);
-            }
-            return true;
+            return this._unselect(selectable);
         }
         return false;
     }
 
     unselectAll() {
         for (let element of this._selection) {
-            this.unselect(element);
+            this._unselect(element);
         }
     }
 

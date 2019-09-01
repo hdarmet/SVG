@@ -1,21 +1,21 @@
 'use strict';
 
 import {
-    createUUID
+    createUUID, same
 } from "./misc.js";
 import {
     List
 } from "./collections.js";
 import {
-    Matrix
+    Matrix, Box, getBox
 } from "./geometry.js";
 import {
     SVGElement, Translation, Rotation, Group, Rect, MouseEvents, l2l, RasterImage, Fill,
     ClippedRasterImage, Mutation, Colors, computeMatrix
 } from "./graphics.js";
 import {
-    Memento, makeObservable, CopyPaste, Events, getBox, Context, getCanvasLayer, makeNotCloneable, makeCloneable,
-    CloneableObject, Box
+    Memento, makeObservable, CopyPaste, Events, Context, getCanvasLayer, makeNotCloneable, makeCloneable,
+    CloneableObject
 } from "./toolkit.js";
 
 export function makeDeletable(superClass) {
@@ -39,8 +39,7 @@ export function makeDeletable(superClass) {
 export function makeMoveable(superClass) {
 
     superClass.prototype.move = function(x, y) {
-        this.setPosition(x, y);
-        return this;
+        return this.setLocation(x, y);
     };
 
     if (!superClass.prototype.hasOwnProperty("moveable")) {
@@ -56,8 +55,17 @@ export function makeMoveable(superClass) {
 
 export function makeRotatable(superClass) {
 
+    let superInit = superClass.prototype._init;
+    superClass.prototype._init = function(...args) {
+        superInit.call(this, ...args);
+        this._initRotatable();
+    };
+
     superClass.prototype._initRotatable = function(angle = 0) {
         this._hinge = new Rotation(angle, 0, 0);
+        let parent = this._tray.parent;
+        this._hinge.add(this._tray);
+        parent.add(this._hinge);
         return this._hinge;
     };
 
@@ -125,6 +133,17 @@ export function makeRotatable(superClass) {
 
 export function makeSelectable(superClass) {
 
+    let superInit = superClass.prototype._init;
+    superClass.prototype._init = function(...args) {
+        superInit && superInit.call(this, ...args);
+        if (!this._clickHdlImpl) {
+            this._clickHdlImpl = event => {
+                Context.selection.adjustSelection(this, event, true);
+            };
+            this._root.on(MouseEvents.CLICK, this._clickHdlImpl);
+        }
+    };
+
     Object.defineProperty(superClass.prototype, "selectFrame", {
         configurable:true,
         get() {
@@ -136,13 +155,13 @@ export function makeSelectable(superClass) {
     });
 
     if (!superClass.prototype.hasOwnProperty("selectable")) {
+        Object.defineProperty(superClass.prototype, "selectable", {
+            configurable: true,
+            get() {
+                return this;
+            }
+        });
     }
-    Object.defineProperty(superClass.prototype, "selectable", {
-        configurable:true,
-        get() {
-            return this;
-        }
-    });
 
     let superMemento = superClass.prototype._memento;
     if (superMemento) {
@@ -168,6 +187,12 @@ export function makeShaped(superClass) {
         this._shape = new Group();
         if (svgElement) {
             this._shape.add(svgElement);
+        }
+        if (this._content) {
+            this._tray.insert(this._content, this._shape);
+        }
+        else {
+            this._tray.add(this._shape);
         }
         return this._shape;
     };
@@ -199,35 +224,16 @@ export function makeShaped(superClass) {
         }
     });
 
-    if (!superClass.prototype.hasOwnProperty("width")) {
-        Object.defineProperty(superClass.prototype, "width", {
-            configurable:true,
-            get: function () {
-                return this.shape.width;
-            },
-            set: function (width) {
-                Memento.register(this);
-                this.shape.width = width;
-            }
-        });
-    }
-
-    if (!superClass.prototype.hasOwnProperty("height")) {
-        configurable:true,
-            Object.defineProperty(superClass.prototype, "height", {
-                configurable:true,
-                get: function () {
-                    return this.shape.height;
-                },
-                set: function (height) {
-                    Memento.register(this);
-                    this.shape.height = height;
-                }
-            });
-    }
 }
 
 export function makeContainer(superClass) {
+
+    let superInit = superClass.prototype._init;
+    superClass.prototype._init = function(...args) {
+        superInit.call(this, ...args);
+        this._initContent();
+        this._tray.add(this._content);
+    };
 
     superClass.prototype._initContent = function() {
         this._content = new Group();
@@ -359,7 +365,7 @@ export function makeContainer(superClass) {
             this._children.remove(element);
             this.__remove(element);
             element._parent = null;
-            if (this._children.length===0) {
+            if (this._children.size===0) {
                 delete this._children;
             }
         }
@@ -374,6 +380,10 @@ export function makeContainer(superClass) {
             element._fire(Events.DETACH, this);
         }
         return this;
+    };
+
+    superClass.prototype.contains = function(element) {
+        return this._children && this._children.contains(element);
     };
 
     Object.defineProperty(superClass.prototype, "content", {
@@ -563,6 +573,13 @@ export function makeLayersWithContainers(superClass, layersFct) {
     let defaultLayer;
     let layers = layersFct();
 
+    let superInit = superClass.prototype._init;
+    superClass.prototype._init = function(...args) {
+        superInit.call(this, ...args);
+        this._initContent();
+        this._tray.add(this._content);
+    };
+
     superClass.prototype._initContent = function () {
         this._content = new Group();
         this._layers = new CloneableObject();
@@ -608,6 +625,11 @@ export function makeLayersWithContainers(superClass, layersFct) {
     superClass.prototype.remove = function (element) {
         let layer = this._getLayer(element);
         this._layers[layer].remove(element);
+    };
+
+    superClass.prototype.contains = function (element) {
+        let layer = this._getLayer(element);
+        return this._layers[layer].contains(element);
     };
 
     superClass.prototype.getElementsInLayers = function (elements) {
@@ -1262,14 +1284,6 @@ export function makeDraggable(superClass) {
         }
     };
 
-    superClass.prototype.cancelDrop = function() {
-        this._origin && (this._origin.cancelled = true);
-    };
-
-    superClass.prototype.dropCancelled = function() {
-        return this._origin && this._origin.cancelled;
-    };
-
     let superCloned = superClass.prototype._cloned;
     superClass.prototype._cloned = function(copy, duplicata) {
         superCloned && superCloned.call(this, copy, duplicata);
@@ -1640,11 +1654,16 @@ export function makeStrokeUpdatable(superClass) {
 
 export class BoardElement {
 
-    constructor(width, height) {
+    constructor(width, height, ...args) {
         this._width = width;
         this._height = height;
-        this._createStructure();
+        console.assert(this._width!==undefined&&this._height!==undefined);
         this._id = createUUID();
+        this._createStructure();
+        this._init(...args);
+    }
+
+    _init(...args) {
     }
 
     finalize() {
@@ -1665,9 +1684,11 @@ export class BoardElement {
 
     _createStructure() {
         this._root = new Translation();
-        this._root.that = this;
+        //this._root.that = this;
         this._root._id = "root";
         this._root._owner = this;
+        this._tray = new Group();
+        this._root.add(this._tray);
         this._parent = null;
     }
 
@@ -1717,25 +1738,27 @@ export class BoardElement {
         return this;
     }
 
-    setPosition(x, y) {
-        if (x!=this.lx || y!=this.ly) {
+    setLocation(x, y) {
+        if (!same(x, this.lx) || !same(y, this.ly)) {
             Memento.register(this);
-            this._setPosition(x, y);
+            this._setLocation(x, y);
             this._fire(Events.GEOMETRY, this.lx, this.ly, this.width, this.height);
+            return true;
         }
-        return this;
+        return false;
     }
 
     setSize(width, height) {
-        if (width!=this.width || height!=this.height) {
+        if (!same(width, this.width) || !same(height, this.height)) {
             Memento.register(this);
             this._setSize(width, height);
             this._fire(Events.GEOMETRY, this.lx, this.ly, this.width, this.height);
+            return true;
         }
-        return this;
+        return false;
     }
 
-    _setPosition(x, y) {
+    _setLocation(x, y) {
         this._matrix = Matrix.translate(x, y);
         return this;
     }
@@ -1802,6 +1825,8 @@ export class BoardElement {
     get ly() { return this.matrix.y(0, 0); }
     get gx() { return this.global.x(0, 0); }
     get gy() { return this.global.y(0, 0); }
+    get location() { return {x:this.lx, y:this.ly} }
+    get position() { return {x:this.gx, y:this.gy} }
 
     relativeGeometry(matrix) {
         let relative = this.relative(matrix);
@@ -1900,9 +1925,7 @@ export class BoardArea extends BoardElement {
         super(width, height);
         let background = new Rect(-width/2, -height/2, width, height);
         background.fill = backgroundColor;
-        this._root
-            .add(this._initShape(background))
-            .add(this._initContent());
+        this._initShape(background);
         this._setSize(width, height);
         this._dragOperation(function() {return Context.scrollOrSelectAreaDrag;});
     }
@@ -1966,7 +1989,7 @@ export class BoardSupport extends BoardElement {
 
     constructor(width, height, ...args) {
         super(width, height);
-        this._root.add(this.initShape(width, height, ...args)).add(this._initContent());
+        this.initShape(width, height, ...args);
     }
 
 }

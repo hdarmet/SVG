@@ -1,10 +1,13 @@
 'use strict';
 
-import {describe, it, before, assert} from "./test-toolkit.js";
-import {SVGElement, ClipPath, Mask, Rect, Circle, Ellipse, Line, Svg, Group, Translation, Rotation, Scaling,
+import {
+    describe, it, before, assert
+} from "./test-toolkit.js";
+import {
+    ClipPath, Mask, Rect, Circle, Ellipse, Line, Svg, Group, Translation, Rotation, Scaling,
     Polygon, Polyline, RasterImage, ClippedRasterImage, SvgImage, SvgRasterImage,
     MouseEvents, Colors, Visibility, FeGaussianBlur, Filter, P100,
-    FilterUnits, ColorInterpolationFilters, FeEdgeMode, FeIn
+    FilterUnits, FeEdgeMode, FeIn
 } from "./graphics.js";
 
 function mouse(evType, target) {

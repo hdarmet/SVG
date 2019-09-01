@@ -338,3 +338,69 @@ Matrix.skew = function(x, y) {
 Object.defineProperty(Matrix, "identity", {
     get: function() {return new Matrix();}
 });
+
+export class Box {
+
+    constructor(x, y, width, height) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+    }
+
+    get left() {
+        return this.x;
+    }
+
+    get top() {
+        return this.y;
+    }
+
+    get right() {
+        return this.x+this.width;
+    }
+
+    get bottom() {
+        return this.y+this.height;
+    }
+
+    get cx() {
+        return this.x+this.width/2;
+    }
+
+    get cy() {
+        return this.y+this.height/2;
+    }
+
+    add(box) {
+        let left = Math.min(this.left, box.left);
+        let top = Math.min(this.top, box.top);
+        let right = Math.min(this.right, box.right);
+        let bottom = Math.min(this.bottom, box.bottom);
+        return new Box(left, top, right-left, bottom-top);
+    }
+
+    collides(box) {
+        return (
+            box.left < this.right &&
+            box.right > this.left &&
+            box.top < this.bottom &&
+            box.bottom > this.top
+        );
+    }
+
+}
+
+export function getBox(points) {
+    let left = points[0];
+    let right = points[0];
+    let top = points[1];
+    let bottom = points[1];
+    for (let index=2; index<points.length; index+=2) {
+        if (points[index]<left) left=points[index];
+        else if (points[index]>right) right=points[index];
+        if (points[index+1]<top) top=points[index+1];
+        else if (points[index+1]>bottom) bottom=points[index+1];
+    }
+    return new Box(left, top, right-left, bottom-top);
+}
