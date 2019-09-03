@@ -4,7 +4,7 @@ import {
     Context
 } from "../js/toolkit.js";
 import {
-    doc, KeyboardEvents
+    win, KeyboardEvents
 } from "../js/graphics.js";
 
 export class AssertionFailed {
@@ -91,8 +91,8 @@ export class Assertor {
     }
 
     _same(model, object) {
-        if (model === object) return
-        if (!model || !object) {
+        if (model === object) return;
+        if (model===null || model===undefined || object===null || object===undefined) {
             throw new AssertionFailed(`${object} is not equal to ${model}`);
         }
         if (typeof(model)==='object' || typeof(object)==='object') {
@@ -212,6 +212,10 @@ export class TestSuite {
 
             if (index<this.its.length) {
                 try {
+                    this.timeouts = [];
+                    win.setTimeout = (action, delay)=> {
+                        this.timeouts.push({delay, action});
+                    };
                     for (let before of this.befores) {
                         before();
                     }
@@ -242,6 +246,13 @@ export class TestSuite {
         _executeIt.call(this, 0);
     }
 
+    executeTimeouts() {
+        this.timeouts.sort((timeout1, timeout2)=>timeout1.delay-timeout2.delay);
+        for (let timeout of this.timeouts) {
+            timeout.action();
+        }
+        this.timeouts = [];
+    }
 }
 
 export function describe(title, procedure) {
@@ -256,6 +267,10 @@ export function before(before) {
 
 export function it(caseTitle, testCase) {
     testSuite.it(caseTitle, testCase);
+}
+
+export function executeTimeouts() {
+    testSuite.executeTimeouts();
 }
 
 export function clickOn(target, specs) {
@@ -367,3 +382,4 @@ class Keyboard {
 }
 
 export let keyboard = new Keyboard();
+

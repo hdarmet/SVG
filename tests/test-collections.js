@@ -4,7 +4,7 @@ import {
 } from "./test-toolkit.js";
 import {
     AVLTree
-} from "./collections.js";
+} from "../js/collections.js";
 
 describe("AVL Tree implementation", ()=> {
 

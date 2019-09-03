@@ -668,47 +668,14 @@ export class SweepAndPrune {
         return result;
     }
 
-    onLeftSide(element) {
+    near(element, left=1, top=1, right=1, bottom=1) {
         let record = this._getRecord(element);
         if (!record) return new List();
         return this.elementsInBox(
-            record.left(element) -1,
-            record.top(element),
-            record.right(element),
-            record.bottom(element)
-        );
-    }
-
-    onRightSide(element) {
-        let record = this._getRecord(element);
-        if (!record) return new List();
-        return this.elementsInBox(
-            record.left(element),
-            record.top(element),
-            record.right(element) +1,
-            record.bottom(element)
-        );
-    }
-
-    onTopSide(element) {
-        let record = this._getRecord(element);
-        if (!record) return new List();
-        return this.elementsInBox(
-            record.left(element),
-            record.top(element) -1,
-            record.right(element),
-            record.bottom(element)
-        );
-    }
-
-    onBottomSide(element) {
-        let record = this._getRecord(element);
-        if (!record) return new List();
-        return this.elementsInBox(
-            record.left(element),
-            record.top(element),
-            record.right(element),
-            record.bottom(element) + 1
+            record.left(element) -left,
+            record.top(element) -top,
+            record.right(element) +right,
+            record.bottom(element) +bottom
         );
     }
 }
@@ -793,14 +760,37 @@ export function makeCollisionPhysic(superClass) {
         }
     };
 
+    /**
+     * Fix the position of a DRAGGED element (NEVER an element already contained by the host of the physic) so this
+     * element (if possible...) does not collide with another one (dragged of already on host).
+     * @param element element to fix
+     * @param exclude elements to exclude from processing (these element are those that are not already processed so
+     * their positions are not relevant).
+     * @private
+     */
     superClass.prototype._avoidCollisionsForElement = function(element, exclude) {
 
+        /**
+         * Set the fixed position of the element and update physics internal structures accordingly. Note that this
+         * element is ALWAYS a DnD'ed one.
+         * @param element element to displace.
+         * @param x new X ccords of the element
+         * @param y new Y coords of the element.
+         */
         let put = (element, x, y) => {
             // setLocation(), not move(), on order to keep the DnD fluid (floating elements not correlated).
             element.setLocation(x, y);
             this._dragAndDropSAP.update(element);
         };
 
+        /**
+         * Get a proposition on the X axis. This proposition is the nearest position between the one given by "mouse"
+         * toward the "original" (= lasted valid) position of the element.
+         * @param target element to "avoid".
+         * @param ox original position
+         * @param hx the proposition.
+         * @returns {*}
+         */
         let adjustOnX = (target, ox, hx) => {
             let sweepAndPrune = this.sweepAndPrune(target);
             if (ox > hx) {
@@ -812,6 +802,14 @@ export function makeCollisionPhysic(superClass) {
             } else return null;
         };
 
+        /**
+         * Get a proposition on the Y axis. This proposition is the nearest position between the one given by "mouse"
+         * toward the "original" (= lasted valid) position of the element.
+         * @param target element to "avoid".
+         * @param oy original position
+         * @param hy the proposition.
+         * @returns {*}
+         */
         let adjustOnY = (target, oy, hy) => {
             let sweepAndPrune = this.sweepAndPrune(target);
             if (oy > hy) {
@@ -834,38 +832,39 @@ export function makeCollisionPhysic(superClass) {
             return { fx:null, fy:null };
         };
 
-        if (element._drag.validX===undefined) {
-            element._drag.validX = element._drag.lastX;
-            element._drag.validY = element._drag.lastY;
-        }
         exclude.add(element);
-        //var { x: sx, y: sy } = computePosition(element.root, this.host.root);
         let sx = element.lx, sy = element.ly;
         let hx = sx, hy = sy;
         let finished = false;
         let originMatrix = this._host.global;
         let invertedMatrix = originMatrix.invert();
+        // Coords of last valid position of the element (we have to "go" in this direction...)
         let ox = invertedMatrix.x(element._drag.validX, element._drag.validY);
         let oy = invertedMatrix.y(element._drag.validX, element._drag.validY);
+        // In order to avoid (= bug ?) infinite loop
         let cycleCount = 0;
         while (!finished && cycleCount < 100) {
             cycleCount++;
             let targets = this._draggedCollideWith(element, exclude);
             if (targets.length > 0) {
+                // Get a proposition
                 let {fx, fy} = adjust(targets);
-                if (fx !== null && fy !== null) {
+                // First case : we have to choice between X and Y : we get the smallest
+                if (fx/* !== null*/ && fy /*!== null*/) {
                     let dx = hx > fx ? hx - fx : fx - hx;
                     let dy = hy > fy ? hy - fy : fy - hy;
-                    if (dy && dx > dy) {
+                    if (/*dy &&*/ dx > dy) {
                         hy = fy;
                     } else {
                         hx = fx;
                     }
-                } else if (fx !== null) {
+                // 2nd case : only one dimension is available
+                } else if (fx/* !== null*/) {
                     hx = fx;
-                } else if (fy !== null) {
+                } else if (fy/* !== null*/) {
                     hy = fy;
                 } else {
+                    // Last case : no proposition is available. We revert to last valid position
                     hx = ox;
                     hy = oy;
                     finished = true;
@@ -875,12 +874,15 @@ export function makeCollisionPhysic(superClass) {
                 finished = true;
             }
         }
+        // If final position is "too far" from "mouse" position, revert to mouse position, but mark element drag as
+        // invalid.
         if (Math.abs(hx - sx) > ADJUST_MARGIN || Math.abs(hy - sy) > ADJUST_MARGIN) {
             put(element, sx, sy, true);
             element._drag.invalid = true;
         } else {
-            element._drag.validX = originMatrix.x(hx, hy);
-            element._drag.validY = originMatrix.y(hx, hy);
+            // Fixing accepted: update drag infos.
+            element._drag.validX = element.gx;
+            element._drag.validY = element.gy;
             delete element._drag.invalid;
         }
         exclude.delete(element);
@@ -889,7 +891,7 @@ export function makeCollisionPhysic(superClass) {
     superClass.prototype._avoidCollisionsForElements = function(elements) {
         let exclude = new Set(elements);
         for (let element of elements) {
-            evaluate("avoid collisiton for element", () => {
+            evaluate("avoid collision for element", () => {
                 this._avoidCollisionsForElement(element, exclude);
             });
         }
@@ -1016,7 +1018,7 @@ makeCollisionPhysic(CollisionPhysic);
 
 export function makeCollisionContainer(superClass, predicate, specs = null) {
 
-    class ContainerPhysic extends CollisionPhysic {};
+    class ContainerPhysic extends CollisionPhysic {}
     if (specs) {
         addBordersToCollisionPhysic(ContainerPhysic, specs);
     }
@@ -1028,64 +1030,63 @@ export function makeCollisionContainer(superClass, predicate, specs = null) {
     return superClass;
 }
 
-class Ground {
-
-    constructor(physic) {
-        this._physic = physic;
-        this._segments = new AVLTree((s1, s2)=>{
-            let value = s1.right-s2.right;
-            return value ? value : s1.id-s2.id;
-        });
-    }
-
-    _setCarriedBy(element, supports) {
-        element.clearCarriedBy();
-        for (let support of supports) {
-            if (support.isCarrier) {
-                support.addCarried(element);
-            }
-        }
-    }
-
-    process(element) {
-        let id = 1;
-        let record = this._physic._supportSAP._getRecord(element);
-        let left = record.left(element);
-        let right = record.right(element);
-        let top = record.top(element);
-        let it = this._segments.inside({right:left+COLLISION_MARGIN, id:0}, null);
-        let ground = this._physic._host.bottom;
-        let segment = it.next().value;
-        let supports = new Set();
-        while (segment && segment.left+COLLISION_MARGIN < right) {
-            if (segment.top < ground) {
-                ground = segment.top;
-                supports = new Set([segment.element]);
-            }
-            else if (same(segment.top, ground)) {
-                supports.add(segment.element);
-            }
-            if (segment.left > left && segment.right < right) {
-                this._segments.delete(segment);
-            }
-            segment = it.next().value;
-        }
-        let ly = ground - (record.bottom(element)-record.y(element));
-        console.log(ly+" "+element.ly);
-        if (ly !== element.ly) {
-            element.setLocation(record.x(element), ly);
-            this._physic._supportSAP.update(element);
-            top = record.top(element);
-        }
-        if (element.isCarriable) {
-            this._setCarriedBy(element, supports);
-        }
-        this._segments.insert({left, right, id:id++, top, element})
-    }
-
-}
-
 export function addGravitationToCollisionPhysic(superClass) {
+
+    class Ground {
+
+        constructor(physic) {
+            this._physic = physic;
+            this._segments = new AVLTree((s1, s2)=>{
+                let value = s1.right-s2.right;
+                return value ? value : s1.id-s2.id;
+            });
+        }
+
+        _setCarriedBy(element, supports) {
+            element.clearCarriedBy();
+            for (let support of supports) {
+                if (support.isCarrier) {
+                    support.addCarried(element);
+                }
+            }
+        }
+
+        process(element) {
+            let id = 1;
+            let record = this._physic._supportSAP._getRecord(element);
+            let left = record.left(element);
+            let right = record.right(element);
+            let top = record.top(element);
+            let it = this._segments.inside({right:left+COLLISION_MARGIN, id:0}, null);
+            let ground = this._physic._host.bottom;
+            let segment = it.next().value;
+            let supports = new Set();
+            while (segment && segment.left+COLLISION_MARGIN < right) {
+                if (segment.top < ground) {
+                    ground = segment.top;
+                    supports = new Set([segment.element]);
+                }
+                else if (same(segment.top, ground)) {
+                    supports.add(segment.element);
+                }
+                if (segment.left > left && segment.right < right) {
+                    this._segments.delete(segment);
+                }
+                segment = it.next().value;
+            }
+            let ly = ground - (record.bottom(element)-record.y(element));
+            if (ly !== element.ly) {
+                element.setLocation(record.x(element), ly);
+                this._physic._supportSAP.update(element);
+                top = record.top(element);
+            }
+            if (element.isCarriable) {
+                this._setCarriedBy(element, supports);
+            }
+            this._segments.insert({left, right, id:id++, top, element})
+        }
+
+    }
 
     let refresh = superClass.prototype._refresh;
     superClass.prototype._refresh = function() {
@@ -1161,13 +1162,6 @@ export function makeCarrier(superClass) {
         }
     };
 
-    /*
-    superClass.prototype.clearCarried = function() {
-        Memento.register(this);
-        this._clearCarried();
-    };
-    */
-
     superClass.prototype.__addCarried = function(element, record) {
         if (!this._carried) {
             this._carried = new Map();
@@ -1206,10 +1200,12 @@ export function makeCarrier(superClass) {
         let extension = getExtension ? getExtension.call(this) : new Set();
         if (this._carried) {
             for (let element of this._carried.keys()) {
-                extension.add(element);
-                if (element.getExtension) {
-                    for (let child of element.getExtension()) {
-                        extension.add(child);
+                if (!extension.has(element)) {
+                    extension.add(element);
+                    if (element.getExtension) {
+                        for (let child of element.getExtension()) {
+                            extension.add(child);
+                        }
                     }
                 }
             }
@@ -1386,6 +1382,320 @@ export function makeCarriable(superClass) {
             this._carriedBy = new Map(memento._carriedBy);
         }
         return this;
+    };
+
+    return superClass;
+}
+
+export function addStickingToCollisionPhysic(superClass) {
+
+    let refresh = superClass.prototype._refresh;
+    superClass.prototype._refresh = function() {
+        refresh.call(this);
+        for (let element of this._elements) {
+            if (element.isStickable) {
+                let alreadySticked = element.getSticked(false, true, true, false);
+                let stickedElements = this._supportSAP.near(element, 1, 1, 0, 0);
+                for (let neighbour of stickedElements) {
+                    if (!alreadySticked.has(neighbour)) {
+                        element.stick(neighbour);
+                    }
+                    else {
+                        alreadySticked.delete(neighbour);
+                    }
+                }
+                for (let neighbour of alreadySticked) {
+                    element.unstick(neighbour);
+                }
+            }
+        }
+    };
+
+    return superClass;
+}
+
+export function makeStickable(superClass) {
+
+    Object.defineProperty(superClass.prototype, "isStickable", {
+        configurable:true,
+        get() {
+            return true;
+        }
+    });
+
+    superClass.prototype.__stick = function(element, record) {
+        if (!this._stickedWith) {
+            this._stickedWith = new Map();
+        }
+        this._stickedWith.set(element, record);
+    };
+
+    superClass.prototype.__unstick = function(element) {
+        if (this._stickedWith) {
+            this._stickedWith.delete(element);
+            if (!this._stickedWith.size) {
+                delete this._stickedWith;
+            }
+        }
+    };
+
+    superClass.prototype._stick = function(element) {
+        this.__stick(element, this._createRecord(element));
+        element.__stick(this, element._createRecord(this));
+    };
+
+    superClass.prototype._unstick = function(element) {
+        this.__unstick(element);
+        element.__unstick(this);
+    };
+
+    superClass.prototype.stick = function(element) {
+        if (element.isStickable && !this._stickedWith.has(element)) {
+            Memento.register(this);
+            Memento.register(element);
+            this._stick(element);
+        }
+    };
+
+    superClass.prototype.unstick = function(element) {
+        if (!element.isStickable && this._stickedWith.has(element)) {
+            Memento.register(this);
+            Memento.register(element);
+            this._unstick(element);
+        }
+    };
+
+    superClass.prototype._createRecord = function(element) {
+        return new CloneableObject({
+            dx: element.lx - this.lx,
+            dy: element.ly - this.ly
+        })
+    };
+
+    superClass.prototype.clearSticked = function() {
+        if (this._stickedWith) {
+            for (let element of [...this._stickedWith.keys()]) {
+                this.unstick(element);
+            }
+        }
+    };
+
+    superClass.prototype.getSticked = function(left = true, top = true, right = true, bottom = true) {
+        let stickedWidth = new Set();
+        if (this._stickedWith) {
+            let tlx = this.lx, tly = this.ly, tw = this.width/2-COLLISION_MARGIN, th = this.height/2-COLLISION_MARGIN;
+            for (let neighbour of this._stickedWith) {
+                let nlx = neighbour.lx, nly = neighbour.ly,
+                    nw = neighbour.width / 2 - COLLISION_MARGIN, nh = neighbour.height / 2 - COLLISION_MARGIN;
+                if (left && nlx + nw <= tlx - tw) stickedWidth.add(neighbour);
+                else if (top && nly + nh <= tly - th) stickedWidth.add(neighbour);
+                else if (right && nlx - nw >= tlx + tw) stickedWidth.add(neighbour);
+                else if (bottom && nly - nh >= tly + th) stickedWidth.add(neighbour);
+            }
+        }
+    };
+
+    let getExtension = superClass.prototype.getExtension;
+    superClass.prototype.getExtension = function() {
+        let extension = getExtension ? getExtension.call(this) : new Set();
+        if (this._stickedWith) {
+            for (let element of this._stickedWith.keys()) {
+                if (!extension.has(element) && this._unstickOnDrag && this._unstickOnDrag(element)) {
+                    extension.add(element);
+                    if (element.getExtension) {
+                        for (let child of element.getExtension()) {
+                            extension.add(child);
+                        }
+                    }
+                }
+            }
+        }
+        return extension
+    };
+
+    let draggedFrom = superClass.prototype._draggedFrom;
+    superClass.prototype._draggedFrom = function(support, dragSet) {
+        draggedFrom && draggedFrom.call(this, support, dragSet);
+        if (this._stickedWith) {
+            for (let element of [...this._stickedWith.keys()]) {
+                if (this._unstickOnDrag && this._unstickOnDrag(element) && !dragSet.has(element)) {
+                    this.unstick(element);
+                }
+            }
+        }
+    };
+
+    let revertDroppedIn = superClass.prototype._revertDroppedIn;
+    superClass.prototype._revertDroppedIn = function () {
+        revertDroppedIn && revertDroppedIn.call(this);
+        if (this._stickedWith) {
+            for (let element of this._stickedWith.keys()) {
+                element.__stick(this, element._createRecord(this));
+            }
+        }
+    };
+
+    let cloned = superClass.prototype._cloned;
+    superClass.prototype._cloned = function (copy, duplicata) {
+        cloned && cloned.call(this, copy, duplicata);
+        if (this._stickedWith) {
+            for (let element of this._stickedWith.keys()) {
+                let childCopy = duplicata.get(element);
+                let record = this._stickedWith.get(element);
+                copy.__stick(childCopy, record);
+            }
+        }
+    };
+
+    let superDelete = superClass.prototype.delete;
+    superClass.prototype.delete = function() {
+        let result = superDelete.call(this);
+        if (this._stickedWith) {
+            for (let element of this._stickedWith.keys()) {
+                element.removeCarried(this);
+            }
+        }
+        return result;
+    };
+
+    let superMemento = superClass.prototype._memento;
+    superClass.prototype._memento = function () {
+        let memento = superMemento.call(this);
+        if (this._stickedWith) {
+            memento._stickedWith = new Map(this._stickedWith);
+        }
+        return memento;
+    };
+
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function (memento) {
+        superRevert.call(this, memento);
+        if (memento._stickedWith) {
+            this._stickedWith = new Map(memento._stickedWith);
+        }
+        return this;
+    };
+
+    return superClass;
+}
+
+export function addGravitationToStickingPhysic(superClass) {
+
+    class Ground {
+
+        constructor(physic) {
+            this._physic = physic;
+            this._segments = new AVLTree((s1, s2)=>{
+                let value = s1.right-s2.right;
+                return value ? value : s1.id-s2.id;
+            });
+        }
+
+        _setCarriedBy(element, supports) {
+            element.clearCarriedBy();
+            for (let support of supports) {
+                if (support.isCarrier) {
+                    support.addCarried(element);
+                }
+            }
+        }
+
+        processElement(element) {
+            let id = 1;
+            let record = this._physic._supportSAP._getRecord(element);
+            let left = record.left(element);
+            let right = record.right(element);
+            let top = record.top(element);
+            let it = this._segments.inside({right:left+COLLISION_MARGIN, id:0}, null);
+            let ground = this._physic._host.bottom;
+            let segment = it.next().value;
+            let supports = new Set();
+            while (segment && segment.left+COLLISION_MARGIN < right) {
+                if (segment.top < ground) {
+                    ground = segment.top;
+                    supports = new Set([segment.element]);
+                }
+                else if (same(segment.top, ground)) {
+                    supports.add(segment.element);
+                }
+                if (segment.left > left && segment.right < right) {
+                    this._segments.delete(segment);
+                }
+                segment = it.next().value;
+            }
+            let ly = ground - (record.bottom(element)-record.y(element));
+            let dy = ly-element.dy;
+            if (dy < COLLISION_MARGIN) {
+                element.setLocation(record.x(element), ly);
+                this._physic._supportSAP.update(element);
+                top = record.top(element);
+            }
+            if (element.isCarriable) {
+                this._setCarriedBy(element, supports);
+            }
+            this._segments.insert({left, right, id:id++, dy, top, element})
+            return segment;
+        }
+
+        adjustSegments(segments, dy) {
+            for (let segment of segments) {
+
+            }
+        }
+
+        processBlock(block) {
+            block.elements.sort(comparator);
+        }
+
+    }
+
+    superClass.prototype._getBlocks = function(elements) {
+
+        let blocks = new Map();
+
+        function setToBlock(element, block) {
+            block.elements.add(elements);
+            blocks.set(element, block);
+            let bottom = this._supportSAP.bottom(element)
+            if (block.bottom===undefined || bottom > block.bottom) {
+                block.bottom = bottom;
+            }
+        }
+
+        for (let element of elements) {
+            let block = blocks.get(element);
+            if (!block) {
+                block = {
+                    elements : new Set(),
+                    bottom : this._supportSAP.bottom(element)
+                };
+                setToBlock(element, block);
+            }
+            if (element.isStickable) {
+                for (let neighbour of element.stickedWith) {
+                    let nblock = blocks.get(element);
+                    if (nblock) {
+                        for (let friend of nblock) {
+                            setToBlock(friend, block);
+                        }
+                    }
+                    else {
+                        setToBlock(neighbour, block);
+                    }
+                }
+            }
+        }
+        return blocks;
+    };
+
+    let refresh = superClass.prototype._refresh;
+    superClass.prototype._refresh = function() {
+        refresh.call(this);
+        let blocks = new List(...this._getBlocks(this._elements)).sort((b1, b2)=>b1.bottom-b2.bottom);
+        let ground = new Ground(this);
+        for (let block of blocks) {
+            ground.processBlock(block);
+        }
     };
 
     return superClass;

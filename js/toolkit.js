@@ -364,7 +364,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
     doDragStart(element, x, y, event) {
         Context.memento.open();
         this._dragSorted = new List();
-        if (!Context.selection.selected(element)) {
+        if (!Context.selection.selected(element.selectable)) {
             Context.selection.adjustSelection(element, event);
         }
         Context.canvas.clearGlass();
@@ -375,7 +375,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 // Memento to specifically revert that element if drop is cancelled for it (but not for the entire
                 // selection.
                 origin: selectedElement._memento(),
-                // Delta from mouse position and eleemnt position
+                // Delta from mouse position and element position
                 dragX: x-selectedElement.gx,
                 dragY: y-selectedElement.gy,
                 // Original position of the element (when drag started). Never change.
@@ -384,7 +384,10 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 // Last position occupied by the element during the drag and drop process. Change for every mouse mouve
                 // event.
                 lastX: x,
-                lastY: y
+                lastY: y,
+                // Last valid position occupied by the element
+                validX: selectedElement.gx,
+                validY: selectedElement.gy
             };
             let support = selectedElement.parent;
             Context.canvas.putElementOnGlass(selectedElement, support, x, y);
@@ -474,8 +477,12 @@ export class DragMoveSelectionOperation extends DragElementOperation {
         }
         this._drag.lastX = x;
         this._drag.lastY = y;
-        this._fire(Events.DRAG_MOVE, this._dragSet);
         this._doHover(dx, dy);
+        this._fire(Events.DRAG_MOVE, this._dragSet);
+        for (let selectedElement of this._dragSet) {
+            selectedElement._drag.validX = selectedElement.gx;
+            selectedElement._drag.validY = selectedElement.gy;
+        }
     }
 
     /**
