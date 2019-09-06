@@ -29,6 +29,6 @@ export function getPropertyDescriptor(prototype, property) {
 
 export function same(v1, v2) {
     if (v1===v2) return true;
-    if (!v1 || !v2) return false;
+    if (v1!==0 && v2!==0 && (!v1 || !v2)) return false;
     return v1-v2>-0.0001 && v1-v2<0.001;
 }

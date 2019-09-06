@@ -15,7 +15,7 @@ import {
 } from "./graphics.js";
 import {
     Memento, makeObservable, CopyPaste, Events, Context, getCanvasLayer, makeNotCloneable, makeCloneable,
-    CloneableObject
+    CloneableObject, Cloning
 } from "./toolkit.js";
 
 export function makeDeletable(superClass) {
@@ -237,7 +237,7 @@ export function makeContainer(superClass) {
 
     superClass.prototype._initContent = function() {
         this._content = new Group();
-        this._content.shallowCloning = true;
+        this._content.cloning = Cloning.NONE;
         return this._content;
     };
 
@@ -274,10 +274,11 @@ export function makeContainer(superClass) {
     superClass.prototype._add = function(element) {
         if (!this._children) {
             this._children = new List();
-            this._children.shallowCloning = true;
+            this._children.cloning = Cloning.NONE;
         }
-        this._children.add(element);
+        // IMPORTANT : DOM update before this._children update !
         this.__add(element);
+        this._children.add(element);
         element._parent = this;
     };
 
@@ -297,8 +298,9 @@ export function makeContainer(superClass) {
 
     superClass.prototype._insert = function(previous, element) {
         if (this._children) {
-            this._children.insert(previous, element);
             this.__insert(previous, element);
+            // IMPORTANT : DOM update before this._children update !
+            this._children.insert(previous, element);
             element._parent = this;
         }
     };
@@ -329,8 +331,9 @@ export function makeContainer(superClass) {
         if (!this._children) {
             this._children = new List();
         }
-        this._children.replace(previous, element);
+        // IMPORTANT : DOM update before this._children update !
         this.__replace(previous, element);
+        this._children.replace(previous, element);
         previous._parent = null;
         element._parent = this;
     };
@@ -362,8 +365,9 @@ export function makeContainer(superClass) {
 
     superClass.prototype._remove = function(element) {
         if (this._children) {
-            this._children.remove(element);
+            // IMPORTANT : DOM update before this._children update !
             this.__remove(element);
+            this._children.remove(element);
             element._parent = null;
             if (this._children.size===0) {
                 delete this._children;
@@ -512,7 +516,7 @@ export function makeContainerMultiLayered(superClass, ...layers) {
 
     superClass.prototype._initContent = function () {
         this._content = new Group();
-        this._content.shallowCloning = true;
+        this._content.cloning = Cloning.NONE;
         this._layers = new CloneableObject();
         for (let layer of layers) {
             this._layers[layer] = new Group();
@@ -532,14 +536,57 @@ export function makeContainerMultiLayered(superClass, ...layers) {
         this._layers[layer].add(element._root);
     };
 
+    /**
+     * Find the first element that follow a given child in the container and that belongs to a given layer. This
+     * private method is used to replace or insert an element in place of (or before) another one that belongs to
+     * another layer.
+     * @param element starting point of the search
+     * @param layer layer of the requested element
+     * @returns {*}
+     * @private
+     */
+    superClass.prototype._findNextOnLayer = function(element, layer) {
+        let elemIdx = this._children.indexOf(element);
+        if (elemIdx === -1) return null;
+        for (let index = elemIdx+1; index<this._children.length; index++) {
+            if (this._getLayer(this._children[index]) === layer) return this._children[index];
+        }
+        return null;
+    };
+
     superClass.prototype.__insert = function (previous, element) {
+        let previousLayer = this._getLayer(previous);
         let layer = this._getLayer(element);
-        this._layers[layer].insert(previous._root, element._root);
+        if (layer===previousLayer) {
+            this._layers[layer].insert(previous._root, element._root);
+        }
+        else {
+            let next = this._findNextOnLayer(previous, layer);
+            if (next) {
+                this._layers[layer].insert(next._root, element._root);
+            }
+            else {
+                this._layers[layer].add(element._root);
+            }
+        }
     };
 
     superClass.prototype.__replace = function (previous, element) {
+        let previousLayer = this._getLayer(previous);
         let layer = this._getLayer(element);
-        this._layers[layer].replace(previous._root, element._root);
+        if (layer===previousLayer) {
+            this._layers[layer].replace(previous._root, element._root);
+        }
+        else {
+            let next = this._findNextOnLayer(previous, layer);
+            this._layers[previousLayer].remove(previous._root);
+            if (next) {
+                this._layers[layer].insert(next._root, element._root);
+            }
+            else {
+                this._layers[layer].add(element._root);
+            }
+        }
     };
 
     superClass.prototype.__remove = function (element) {

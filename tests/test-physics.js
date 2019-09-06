@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    describe, it, before, assert, clickOn, drag, Snapshot, keyboard, executeTimeouts
+    describe, it, before, assert, clickOn, drag, Snapshot, keyboard, executeTimeouts, findChild
 } from "./test-toolkit.js";
 import {
     Rect
@@ -14,7 +14,7 @@ import {
     makeDraggable, makeContainer, makeSupport, makeDeletable
 } from "../js/base-element.js";
 import {
-    makePositionningContainer, makeCollisionContainer
+    makePositioningContainer, makeCollisionContainer, makeGravitationContainer
 } from "../js/physics.js";
 
 describe("Physics", ()=> {
@@ -48,23 +48,28 @@ describe("Physics", ()=> {
         return BoardDraggable;
     }
 
-    function definePositionningContainerClass(DraggableClass, strategy) {
-        class BoardPositionningContainer extends BoardElement {
+    function defineContainerClass() {
+        class BoardContainer extends BoardElement {
             constructor(width, height) {
                 super(width, height);
                 this._initShape(new Rect(-width / 2, -height / 2, width, height).attrs({fill:"#0F0F0F"}));
             }
         }
-        makeShaped(BoardPositionningContainer);
-        makeSupport(BoardPositionningContainer);
-        makePositionningContainer(BoardPositionningContainer, element=>element instanceof DraggableClass, strategy);
-        return BoardPositionningContainer;
+        makeShaped(BoardContainer);
+        makeSupport(BoardContainer);
+        return BoardContainer;
     }
 
-    it("Uses a positionning physics", ()=>{
+    function definePositioningContainerClass(DraggableClass, strategy) {
+        let BoardPositioningContainer = defineContainerClass();
+        makePositioningContainer(BoardPositioningContainer, element=>element instanceof DraggableClass, strategy);
+        return BoardPositioningContainer;
+    }
+
+    it("Uses a positioning physics", ()=>{
         let table = putTable();
         let DraggableClass = defineDraggableClass();
-        let ContainerClass = definePositionningContainerClass(DraggableClass, function(element) {
+        let ContainerClass = definePositioningContainerClass(DraggableClass, function(element) {
             return [{x:-25, y:-25}, {x:25, y:-25}, {x:25, y:25}, {x:-25, y:25}]
         });
         let container = new ContainerClass(100, 100);
@@ -82,14 +87,7 @@ describe("Physics", ()=> {
     });
 
     function defineCollisionContainerClass(DraggableClass, specs) {
-        class BoardCollisionContainer extends BoardElement {
-            constructor(width, height) {
-                super(width, height);
-                this._initShape(new Rect(-width / 2, -height / 2, width, height).attrs({fill:"#0F0F0F"}));
-            }
-        }
-        makeShaped(BoardCollisionContainer);
-        makeSupport(BoardCollisionContainer);
+        let BoardCollisionContainer = defineContainerClass();
         makeCollisionContainer(BoardCollisionContainer, element=>element instanceof DraggableClass, specs);
         return BoardCollisionContainer;
     }
@@ -117,14 +115,20 @@ describe("Physics", ()=> {
         assert(movingElement.location).sameTo({x:-20, y:0});
     });
 
-    it("Puts borders on collision physics", ()=>{
+    function createABorderedCollisionContainer() {
         let table = putTable();
         let DraggableClass = defineDraggableClass();
         let ContainerClass = defineCollisionContainerClass(DraggableClass, {all:true});
         let container = new ContainerClass(100, 100);
-        container.setLocation(0, 0);
-        let movingElement = new DraggableClass(20, 20);
         table.add(container);
+        container.setLocation(0, 0);
+        executeTimeouts();
+        return {table, container, DraggableClass, ContainerClass};
+    }
+
+    it("Puts borders on collision physics", ()=>{
+        let {table, container, DraggableClass} = createABorderedCollisionContainer();
+        let movingElement = new DraggableClass(20, 20);
         movingElement.setLocation(-100, -100);
         table.add(movingElement);
         executeTimeouts();
@@ -154,29 +158,127 @@ describe("Physics", ()=> {
         assert(movingElement.location).sameTo({x:-40, y:40});
     });
 
-    it("Cross a border on a collision physics", ()=>{
-        let table = putTable();
-        let DraggableClass = defineDraggableClass();
-        let ContainerClass = defineCollisionContainerClass(DraggableClass, {all:true});
-        let container = new ContainerClass(100, 100);
-        container.setLocation(0, 0);
-        let movingElement = new DraggableClass(20, 20);
-        table.add(container);
-        movingElement.setLocation(-100, -100);
-        table.add(movingElement);
-        executeTimeouts();
+    function crossBorder(table, container, movingElement) {
         let dragSequence = drag(movingElement).from(-100, -100);
         // No collision at all
         dragSequence.hover(container, -55, 5);
-        assert(Context.canvas.getHoveredElements(table).contains(movingElement)).equalsTo(true);
+        assert(Context.canvas.getHoveredElements(table).contains(movingElement)).isTrue();
         assert(movingElement.location).sameTo({x:-55, y:5});
         // Collision from "outside" : no collision detected
         dragSequence.hover(container, -41, 5);
-        assert(Context.canvas.getHoveredElements(container).contains(movingElement)).equalsTo(true);
+        assert(Context.canvas.getHoveredElements(container).contains(movingElement)).isTrue();
         assert(movingElement.location).sameTo({x:-55, y:5});
         dragSequence.hover(container, -40, 5);
-        assert(Context.canvas.getHoveredElements(container).contains(movingElement)).equalsTo(true);
+        assert(Context.canvas.getHoveredElements(container).contains(movingElement)).isTrue();
         assert(movingElement.location).sameTo({x:-40, y:5});
+        // Drop somewhere to "clean" window event listeners
+        dragSequence.on(container, 0, 0);
+    }
+
+    it("Cross a border on a collision physics", ()=>{
+        let {table, container, DraggableClass} = createABorderedCollisionContainer();
+        let movingElement = new DraggableClass(20, 20);
+        movingElement.setLocation(-100, -100);
+        table.add(movingElement);
+        executeTimeouts();
+        crossBorder(table, container, movingElement);
+    });
+
+    it("Undo and redo drops inside a collision physics", ()=>{
+        let {table, container, DraggableClass} = createABorderedCollisionContainer();
+        let element1 = new DraggableClass(20, 20);
+        element1.setLocation(-100, -50);
+        table.add(element1);
+        let element2 = new DraggableClass(20, 20);
+        element2.setLocation(-100, 50);
+        table.add(element2);
+        Context.memento.opened = true;
+        Context.memento.open();
+        executeTimeouts();
+        // Undo/redo the DnD of an element
+        drag(element1).from(-100, -50).through(-60, -60).on(container, 0, 0);
+        executeTimeouts();
+        assert(element1.location).sameTo({x:0, y:0});
+        assert(container.contains(element1)).isTrue();
+        Context.memento.undo();
+        executeTimeouts();
+        assert(element1.location).sameTo({x:-100, y:-50});
+        assert(table.contains(element1)).isTrue();
+        Context.memento.redo();
+        executeTimeouts();
+        assert(element1.location).sameTo({x:0, y:0});
+        assert(container.contains(element1)).isTrue();
+        // Drag another element : the first element must hinder the move ot this incoming element
+        drag(element2).from(-100, 50).through(-60, 60).on(container, -15, 10);
+        assert(element2.location).sameTo({x:-20, y:10});
+        executeTimeouts();
+        //consolelog(container._physic);
+    });
+
+    function defineGravitationContainerClass(DraggableClass, specs) {
+        let BoardGraviationContainer = defineContainerClass();
+        makeGravitationContainer(BoardGraviationContainer, element=>element instanceof DraggableClass, specs);
+        return BoardGraviationContainer;
+    }
+
+    it("Uses a gravitation physics", ()=>{
+        let table = putTable();
+        let DraggableClass = defineDraggableClass();
+        let ContainerClass = defineGravitationContainerClass(DraggableClass);
+        let container = new ContainerClass(100, 100);
+        container.setLocation(100, 0);
+        table.add(container);
+        let movingElement = new DraggableClass(20, 20);
+        movingElement.setLocation(0, 100);
+        table.add(movingElement);
+        let dragSequence = drag(movingElement).from(0, 100).hover(container, -25, 25).on(container, 0, 0);
+        executeTimeouts();
+        // Element on the bottom of the container
+        assert(movingElement.location).sameTo({x:0, y:40});
+    });
+
+    function copyAContainerWithCollisionPhysic() {
+        let {table, container, DraggableClass, ContainerClass} = createABorderedCollisionContainer();
+        makeSelectable(ContainerClass);
+        container.setLocation(200, 0);
+        Context.selection.selectOnly(container);
+        let element1 = new DraggableClass(20, 20);
+        element1.setLocation(0, 0);
+        container.add(element1);
+        executeTimeouts();
+        Context.copyPaste.copyModel(Context.selection.selection());
+        Context.copyPaste.pasteModel();
+        executeTimeouts();
+        let containerCopy = findChild(table, 0, 0);
+        let elementCopy = findChild(containerCopy, 0, 0);
+        return {table, DraggableClass, containerCopy, elementCopy};
+    }
+
+    it("Copy/Paste a collision physic", ()=>{
+        let {containerCopy, elementCopy} = copyAContainerWithCollisionPhysic();
+        assert(containerCopy).isDefined();
+        assert(elementCopy).isDefined();
+    });
+
+    it("It drops an element in a copied collision physic", ()=>{
+        let {table, DraggableClass, containerCopy} = copyAContainerWithCollisionPhysic();
+        assert(containerCopy).isDefined();
+        let movingElement = new DraggableClass(20, 20);
+        movingElement.setLocation(0, 100);
+        table.add(movingElement);
+        drag(movingElement).from(0, 100).hover(containerCopy, -25, 25).on(containerCopy, -15, 0);
+        assert(movingElement.parent).equalsTo(containerCopy);
+        // New element does not overlap avec copied element
+        assert(movingElement.location).sameTo({x:-20, y:0})
+    });
+
+    it("It cross the border of a copied collision physic", ()=>{
+        let {table, DraggableClass, containerCopy} = copyAContainerWithCollisionPhysic();
+        assert(containerCopy).isDefined();
+        let movingElement = new DraggableClass(20, 20);
+        movingElement.setLocation(-100, -100);
+        table.add(movingElement);
+        crossBorder(table, containerCopy, movingElement);
     });
 
 });

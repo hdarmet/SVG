@@ -1865,7 +1865,7 @@ export class CopyPaste {
         let vx = matrix.x(cx, cy);
         let vy = matrix.y(cx, cy);
         for (let copy of pasted) {
-            copy.move(copy.lx + vx, copy.ly + vy);
+            copy.setLocation(copy.lx + vx, copy.ly + vy);
         }
         this._fire(CopyPaste.events.PASTE_MODEL, pasted);
     }
@@ -1874,6 +1874,12 @@ export class CopyPaste {
         return this._models.size > 0;
     }
 }
+export const Cloning = {
+  // Default value, used even if not defined :)
+  DEEP:0,
+  SHALLOW:1,
+  NONE:2
+};
 CopyPaste.clone = function(source, duplicata) {
     function cloneObject(source, duplicata) {
 
@@ -1886,57 +1892,112 @@ CopyPaste.clone = function(source, duplicata) {
             }
         }
 
+        function cloneList(source) {
+            if (!source.cloning) {
+                copy = new List();
+                duplicata.set(source, copy);
+                for (let record of source) {
+                    copy.add(cloneRecord(record, duplicata));
+                }
+            }
+            else if (source.cloning===Cloning.SHALLOW) {
+                copy = new List(...source);
+                duplicata.set(source, copy);
+            }
+            else {
+                copy = new List();
+                duplicata.set(source, copy);
+            }
+            if (source.cloning!==undefined) copy.cloning=source.cloning;
+            return copy;
+        }
+
+        function cloneArray(source) {
+            if (!source.cloning) {
+                copy = [];
+                duplicata.set(source, copy);
+                for (let record of source) {
+                    copy.add(cloneRecord(record, duplicata));
+                }
+            }
+            else if (source.cloning===Cloning.SHALLOW) {
+                copy = [...source];
+                duplicata.set(source, copy);
+            }
+            else {
+                copy = [];
+                duplicata.set(source, copy);
+            }
+            if (source.cloning!==undefined) copy.cloning=source.cloning;
+            return copy;
+        }
+
+        function cloneSet(source) {
+            if (!source.cloning) {
+                copy = new Set();
+                duplicata.set(source, copy);
+                for (let record of source) {
+                    copy.add(cloneRecord(record, duplicata));
+                }
+            }
+            else if (source.cloning===Cloning.SHALLOW) {
+                copy = new Set(source);
+                duplicata.set(source, copy);
+            }
+            else {
+                copy = new Set();
+                duplicata.set(source, copy);
+            }
+            if (source.cloning!==undefined) copy.cloning=source.cloning;
+            return copy;
+        }
+
+        function cloneMap(source) {
+            if (!source.cloning) {
+                copy = new Map();
+                duplicata.set(source, copy);
+                for (let entry of source.entries()) {
+                    copy.set(cloneRecord(entry[0], duplicata), cloneRecord(entry[1], duplicata));
+                }
+            }
+            else if (source.cloning===Cloning.SHALLOW) {
+                copy = new Map(source);
+                duplicata.set(source, copy);
+            }
+            else {
+                copy = new Map();
+                duplicata.set(source, copy);
+            }
+            if (source.cloning!==undefined) copy.cloning=source.cloning;
+            return copy;
+        }
+
         let copy = duplicata.get(source);
         if (copy) return copy;
         if (source.notCloneable) {
             return source;
         }
+        else if (source.cloneable) {
+            return CopyPaste.clone(source, duplicata);
+        }
         else if (source.clone) {
             return source.clone(duplicata);
         }
         else if (source instanceof List) {
-            copy = new List();
-            duplicata.set(source, copy);
-            if (!source.shallowCloning) {
-                for (let record of source) {
-                    copy.add(cloneRecord(record, duplicata));
-                }
-            }
+            return cloneList(source, duplicata);
         }
         else if (source instanceof Array) {
-            copy = [];
-            duplicata.set(source, copy);
-            if (!source.shallowCloning) {
-                for (let record of source) {
-                    copy.push(cloneRecord(record, duplicata));
-                }
-            }
+            return cloneArray(source, duplicata);
         }
         else if (source instanceof Set) {
-            copy = new Set();
-            duplicata.set(source, copy);
-            if (!source.shallowCloning) {
-                for (let record of source) {
-                    copy.add(cloneRecord(record, duplicata));
-                }
-            }
+            return cloneSet(source, duplicata);
         }
         else if (source instanceof Map) {
-            copy = new Map();
-            duplicata.set(source, copy);
-            if (!source.shallowCloning) {
-                for (let entry of source.entries()) {
-                    copy.set(cloneRecord(entry[0], duplicata), cloneRecord(entry[1], duplicata));
-                }
-            }
-        }
-        else if (source.cloneable) {
-            copy = CopyPaste.clone(source, duplicata);
+            return cloneMap(source, duplicata);
         }
         else {
             throw source+" is not cloneable."
         }
-        return copy;
     }
 
     if (source === null || source === undefined) return null;
@@ -1948,10 +2009,10 @@ CopyPaste.clone = function(source, duplicata) {
     while(copy.__proto__.__pass__) {
         copy.__proto__ = copy.__proto__.__proto__;
     }
-    if (!source.shallowCloning) {
+    if (source.cloning != Cloning.NONE) {
         for (let property in source) {
             if (source.hasOwnProperty(property)) {
-                if (source[property] && typeof(source[property]) === 'object') {
+                if (!source.cloning && source[property] && typeof(source[property]) === 'object') {
                     copy[property] = cloneObject(source[property], duplicata);
                 }
                 else {

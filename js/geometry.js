@@ -380,12 +380,21 @@ export class Box {
         return new Box(left, top, right-left, bottom-top);
     }
 
-    collides(box) {
+    intersects(box) {
         return (
             box.left < this.right &&
             box.right > this.left &&
             box.top < this.bottom &&
             box.bottom > this.top
+        );
+    }
+
+    includes(box) {
+        return (
+            box.left > this.left &&
+            box.right < this.right &&
+            box.top > this.top &&
+            box.bottom < this.bottom
         );
     }
 

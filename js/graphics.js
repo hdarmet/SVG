@@ -719,7 +719,8 @@ export class SVGElement {
         if (copy) return copy;
         copy = this._clone();
         duplicata.set(this, copy);
-        if (!this.shallowCloning) {
+        // IMPORTANT: cloning == false (default) means deep cloning !
+        if (!this.cloning) {
             this._cloneContent(copy, duplicata);
         }
         if (this.eventCloning) {
@@ -1380,6 +1381,14 @@ export class Translation extends Group {
         this._attrs.dx += dx;
         this._attrs.dy += dy;
         this.matrix = Matrix.translate(this._attrs.dx, this._attrs.dy);
+        return this;
+    }
+
+    _cloneAttrs(copy) {
+        let attrs = Object.assign({}, this._attrs);
+        delete attrs.dx;
+        delete attrs.dy;
+        copy.attrs(attrs);
         return this;
     }
 

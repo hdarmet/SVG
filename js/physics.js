@@ -94,7 +94,7 @@ export class Physic {
     _resize() {}
 }
 
-export function makePositionningPhysic(superClass) {
+export function makePositioningPhysic(superClass) {
 
     superClass.prototype._init = function(positionsFct, ...args) {
         this._positionsFct = positionsFct;
@@ -155,18 +155,18 @@ export function makePositionningPhysic(superClass) {
     return superClass;
 }
 
-export class PositionningPhysic extends Physic {
+export class PositioningPhysic extends Physic {
     constructor(host, predicate, ...args) {
         super(host, predicate, ...args);
     }
 
     clone(duplicata) {
-        let _copy = new PositionningPhysic(duplicata.get(this._host), this._predicate, this._positionsFct);
+        let _copy = new this.constructor(duplicata.get(this._host), this._predicate, this._positionsFct);
         _copy._trigger();
         return _copy;
     }
 }
-makePositionningPhysic(PositionningPhysic);
+makePositioningPhysic(PositioningPhysic);
 
 export function addPhysicToContainer(superClass, physicCreator) {
 
@@ -235,10 +235,10 @@ export function addPhysicToContainer(superClass, physicCreator) {
     }
 }
 
-export function makePositionningContainer(superClass, predicate, positionsFct) {
+export function makePositioningContainer(superClass, predicate, positionsFct) {
 
     addPhysicToContainer(superClass, function() {
-        return new PositionningPhysic(this, predicate, positionsFct);
+        return new PositioningPhysic(this, predicate, positionsFct);
     });
 
     return superClass;
@@ -744,7 +744,7 @@ export function makeCollisionPhysic(superClass) {
         for (let target of collisions) {
             let sweepAndPrune = this.sweepAndPrune(target);
             if (!exclude.has(target) &&
-                elementBox.collides(sweepAndPrune.elementBox(target))) {
+                elementBox.intersects(sweepAndPrune.elementBox(target))) {
                 result.add(target);
             }
         }
@@ -999,6 +999,27 @@ export function addBordersToCollisionPhysic(superClass, specs) {
         this._topBorder && this._supportSAP.add(this._topBorder);
         this._bottomBorder && this._supportSAP.add(this._bottomBorder);
     };
+
+    /*
+    let clone = superClass.prototype.clone;
+    superClass.prototype.clone = function(duplicata) {
+        let copy = clone.call(this, duplicata);
+        if (this._leftBorder) {
+            copy._addLeftBorder();
+        }
+        if (this._rightBorder) {
+            copy._addRightBorder();
+        }
+        if (this._topBorder) {
+            copy._addTopBorder();
+        }
+        if (this._bottomBorder) {
+            copy._addBottomBorder();
+        }
+        return copy;
+    };
+*/
+
 }
 
 export class CollisionPhysic extends Physic {
@@ -1008,7 +1029,7 @@ export class CollisionPhysic extends Physic {
     }
 
     clone(duplicata) {
-        let _copy = new CollisionPhysic(duplicata.get(this._host), this._predicate, this._positionsFct);
+        let _copy = new this.constructor(duplicata.get(this._host), this._predicate);
         _copy._trigger();
         return _copy;
     }
@@ -1115,7 +1136,7 @@ export class GravitationPhysic extends CollisionPhysic {
     }
 
     clone(duplicata) {
-        let _copy = new GravitationPhysic(duplicata.get(this._host), this._predicate, this._positionsFct);
+        let _copy = this.constructor(duplicata.get(this._host), this._predicate);
         _copy._trigger();
         return _copy;
     }
@@ -1281,6 +1302,9 @@ export function makeCarrier(superClass) {
         if (memento._carried) {
             this._carried = new Map(memento._carried);
         }
+        else {
+            delete this._carried;
+        }
         return this;
     };
 
@@ -1380,6 +1404,9 @@ export function makeCarriable(superClass) {
         superRevert.call(this, memento);
         if (memento._carriedBy) {
             this._carriedBy = new Map(memento._carriedBy);
+        }
+        else {
+            delete this._carriedBy;
         }
         return this;
     };
@@ -1572,6 +1599,9 @@ export function makeStickable(superClass) {
         superRevert.call(this, memento);
         if (memento._stickedWith) {
             this._stickedWith = new Map(memento._stickedWith);
+        }
+        else {
+            delete this._stickedWith;
         }
         return this;
     };

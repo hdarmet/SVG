@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    describe, it, before, assert, clickOn, drag, Snapshot, keyboard
+    describe, it, before, assert, clickOn, drag, Snapshot, keyboard, findChild
 } from "./test-toolkit.js";
 import {
     Rect
@@ -130,12 +130,17 @@ describe("App fundamentals", ()=> {
         return BoardTiny;
     }
 
-    it("Drags and drops a simple element of the board", ()=>{
+    function createATableWithOneElement() {
         let BoardTiny = defineDraggableTinyClass();
         let table = putTable();
         let tiny = new BoardTiny(30, 20);
-        tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
         table.add(tiny);
+        return {BoardTiny, table, tiny};
+    }
+
+    it("Drags and drops a simple element of the board", ()=>{
+        let {tiny} = createATableWithOneElement();
+        tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
         drag(tiny).from(0, 0).through(10, 10).to(20, 20);
         assert(tiny.location).sameTo({x:20, y:20});
     });
@@ -156,45 +161,39 @@ describe("App fundamentals", ()=> {
     }
 
     it("Drags and drops an element over another one on the board and check glass management", ()=>{
-        let BoardTiny = defineDraggableTinyClass();
+        let {tiny, table} = createATableWithOneElement();
         let BoardSimpleTarget = defineSimpleTargetClass();
-        let table = putTable();
-        let tiny = new BoardTiny(30, 20);
         let target = new BoardSimpleTarget(60, 60);
         tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
-        table.add(tiny);
         table.add(target);
         target.setLocation(100, 50);
         let dragSequence = drag(tiny).from(0, 0);
         // Start only. Nothing on glass
-        assert(Context.canvas.getHoveredElements(table).contains(tiny)).equalsTo(false);
+        assert(Context.canvas.getHoveredElements(table).contains(tiny)).isFalse();
         // First move : move on table.
         dragSequence.through(10, 10);
-        assert(Context.canvas.getHoveredElements(table).contains(tiny)).equalsTo(true);
+        assert(Context.canvas.getHoveredElements(table).contains(tiny)).isTrue();
         // Move on target
         dragSequence.hover(target, 10, 10);
-        assert(Context.canvas.getHoveredElements(table).contains(tiny)).equalsTo(false);
-        assert(Context.canvas.getHoveredElements(target).contains(tiny)).equalsTo(true);
+        assert(Context.canvas.getHoveredElements(table).contains(tiny)).isFalse();
+        assert(Context.canvas.getHoveredElements(target).contains(tiny)).isTrue();
         assert(tiny.location).sameTo({x:10, y:10});
         assert(tiny.position).sameTo({x:600+100+10, y:300+50+10});
         // On table again
         dragSequence.through(20, 20);
-        assert(Context.canvas.getHoveredElements(table).contains(tiny)).equalsTo(true);
-        assert(Context.canvas.getHoveredElements(target).contains(tiny)).equalsTo(false);
+        assert(Context.canvas.getHoveredElements(table).contains(tiny)).isTrue();
+        assert(Context.canvas.getHoveredElements(target).contains(tiny)).isFalse();
         // Drop on table
         dragSequence.to(20, 20);
-        assert(Context.canvas.getHoveredElements(table).contains(tiny)).equalsTo(false);
+        assert(Context.canvas.getHoveredElements(table).contains(tiny)).isFalse();
         assert(tiny.location).sameTo({x:20, y:20});
     });
 
     it("Drops successfully on a target", ()=>{
-        let BoardTiny = defineDraggableTinyClass();
+        let {tiny, table} = createATableWithOneElement();
         let BoardSimpleTarget = defineSimpleTargetClass();
-        let table = putTable();
-        let tiny = new BoardTiny(30, 20);
         let target = new BoardSimpleTarget(60, 60);
         tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
-        table.add(tiny);
         table.add(target);
         target.setLocation(100, 50);
         let dragSequence = drag(tiny).from(0, 0).through(10, 10).on(target, 20, 20);
@@ -220,13 +219,10 @@ describe("App fundamentals", ()=> {
     }
 
     it("Cancel drop if target not accept any drop", ()=>{
-        let BoardTiny = defineDraggableTinyClass();
+        let {tiny, table} = createATableWithOneElement();
         let BoardNotATarget = defineNotATargetClass();
-        let table = putTable();
-        let tiny = new BoardTiny(30, 20);
         let notATarget = new BoardNotATarget(60, 60);
         tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
-        table.add(tiny);
         table.add(notATarget);
         notATarget.setLocation(100, 50);
         let dragSequence = drag(tiny).from(0, 0).through(10, 10).on(notATarget, 20, 20);
@@ -235,12 +231,8 @@ describe("App fundamentals", ()=> {
     });
 
     it("Does not move dragged element outside any target", ()=>{
-        let BoardTiny = defineDraggableTinyClass();
-        let BoardNotATarget = defineNotATargetClass();
-        let table = putTable();
-        let tiny = new BoardTiny(30, 20);
+        let {tiny, table} = createATableWithOneElement();
         tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
-        table.add(tiny);
         tiny.setLocation(10, 10);
         let dragSequence = drag(tiny).from(10, 10).through(100, 100);
         assert(tiny.location).sameTo({x:100, y:100});
@@ -250,11 +242,8 @@ describe("App fundamentals", ()=> {
     });
 
     it("Undo and redo a move", ()=>{
-        let BoardTiny = defineDraggableTinyClass();
-        let table = putTable();
-        let tiny = new BoardTiny(30, 20);
+        let {tiny} = createATableWithOneElement();
         tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
-        table.add(tiny);
         let tinySnapshot = new Snapshot(tiny);
         Context.memento.opened = true;
         drag(tiny).from(0, 0).through(10, 10).to(20, 20);
@@ -266,11 +255,8 @@ describe("App fundamentals", ()=> {
     });
 
     it("Undo and redo using keyboard", ()=>{
-        let BoardTiny = defineDraggableTinyClass();
-        let table = putTable();
-        let tiny = new BoardTiny(30, 20);
+        let {tiny} = createATableWithOneElement();
         tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
-        table.add(tiny);
         let tinySnapshot = new Snapshot(tiny);
         Context.memento.opened = true;
         drag(tiny).from(0, 0).through(10, 10).to(20, 20);
@@ -282,36 +268,16 @@ describe("App fundamentals", ()=> {
     });
 
     it("Select an element by clicking on it", ()=>{
-        let BoardTiny = defineDraggableTinyClass();
-        let table = putTable();
-        let tiny = new BoardTiny(30, 20);
-        table.add(tiny);
+        let {tiny} = createATableWithOneElement();
         clickOn(tiny);
         assert(Context.selection.selected(tiny)).isTrue();
     });
 
     it("Select an element by dragging it", ()=>{
-        let BoardTiny = defineDraggableTinyClass();
-        let table = putTable();
-        let tiny = new BoardTiny(30, 20);
+        let {tiny} = createATableWithOneElement();
         tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
-        table.add(tiny);
         drag(tiny).from(0, 0).through(10, 10).to(20, 20);
         assert(Context.selection.selected(tiny)).isTrue();
-    });
-
-    it("Deselect an element if another element is selected", ()=>{
-        let BoardTiny = defineDraggableTinyClass();
-        let table = putTable();
-        let tiny1 = new BoardTiny(30, 20);
-        let tiny2 = new BoardTiny(30, 20);
-        table.add(tiny1);
-        table.add(tiny2);
-        clickOn(tiny1);
-        assert(Context.selection.selected(tiny1)).isTrue();
-        clickOn(tiny2);
-        assert(Context.selection.selected(tiny1)).isFalse();
-        assert(Context.selection.selected(tiny2)).isTrue();
     });
 
     function createATableWithTwoElements() {
@@ -325,6 +291,15 @@ describe("App fundamentals", ()=> {
         tiny2.move(20, 10);
         return {BoardTiny, table, tiny1, tiny2};
     }
+
+    it("Deselect an element if another element is selected", ()=>{
+        let {tiny1, tiny2} = createATableWithTwoElements();
+        clickOn(tiny1);
+        assert(Context.selection.selected(tiny1)).isTrue();
+        clickOn(tiny2);
+        assert(Context.selection.selected(tiny1)).isFalse();
+        assert(Context.selection.selected(tiny2)).isTrue();
+    });
 
     it("Add an element to a selection if ctrl key is used", ()=>{
         let {tiny1, tiny2} = createATableWithTwoElements();
@@ -364,6 +339,16 @@ describe("App fundamentals", ()=> {
         assert(table.contains(tiny2)).isFalse();
         assert(tiny1.parent).isNotDefined();
         assert(tiny2.parent).isNotDefined();
+    });
+
+    it("Copies a selection", ()=>{
+        let {table, tiny1, tiny2} = selectTwoElements();
+        Context.copyPaste.copyModel(Context.selection.selection());
+        Context.copyPaste.pasteModel();
+        let children = table.children;
+        assert(children.size).equalsTo(4);
+        assert(findChild(table, -5, 0)).isDefined();
+        assert(findChild(table, 5, 0)).isDefined();
     });
 
 });

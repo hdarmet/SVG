@@ -6,6 +6,9 @@ import {
 import {
     win, KeyboardEvents
 } from "../js/graphics.js";
+import {
+    same
+} from "../js/misc.js";
 
 export class AssertionFailed {
     constructor(message) {
@@ -382,4 +385,13 @@ class Keyboard {
 }
 
 export let keyboard = new Keyboard();
+
+export function findChild(element, x, y) {
+    for (let child of element.children) {
+        if (same(child.lx, x) && same(child.ly, y)) {
+            return child;
+        }
+    }
+    return null;
+}
 
