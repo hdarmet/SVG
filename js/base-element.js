@@ -4,7 +4,7 @@ import {
     createUUID, same
 } from "./misc.js";
 import {
-    List
+    List, ESet
 } from "./collections.js";
 import {
     Matrix, Box, getBox
@@ -970,7 +970,7 @@ class ZIndexSupport {
         this._rootPedestal = new Pedestal(this._host, null, 0, this);
         let config = {attributes: true, childList: true, subtree: true};
         let action = mutations=> {
-            let updates = new Set();
+            let updates = new ESet();
             for (let mutation of mutations) {
                 if (mutation.type === Mutation.ATTRIBUTES && mutation.attributeName==="transform" ) {
                     let svgElement = SVGElement.elementOn(mutation.target);
@@ -980,8 +980,8 @@ class ZIndexSupport {
                     }
                 }
             }
-            let processed = new Set();
-            let roots = new Set();
+            let processed = new ESet();
+            let roots = new ESet();
             function process(pedestal, isRoot) {
                 if (!processed.has(pedestal)) {
                     processed.add(pedestal);
@@ -1756,7 +1756,7 @@ export class BoardElement {
         this._width = memento._width;
         this._height = memento._height;
         if (memento._observables) {
-            this._observables = new Set(memento._observables);
+            this._observables = new ESet(memento._observables);
             for (let observable of this._observables) {
                 observable._addObserver(this);
             }
@@ -1767,7 +1767,7 @@ export class BoardElement {
 
     _observe(observable) {
         if (!this._observables) {
-            this._observables = new Set();
+            this._observables = new ESet();
         }
         this._observables.add(observable);
         observable.addObserver(this);

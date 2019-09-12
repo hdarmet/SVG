@@ -14,7 +14,8 @@ import {
     makeDraggable, makeContainer, makeSupport, makeDeletable
 } from "../js/base-element.js";
 import {
-    makePositioningContainer, makeCollisionContainer, makeGravitationContainer
+    makePositioningContainer, makeCollisionContainer, makeGravitationContainer, makeStickingGravitationContainer,
+    makeCarrier, makeCarriable, makeStickable
 } from "../js/physics.js";
 
 describe("Physics", ()=> {
@@ -66,18 +67,28 @@ describe("Physics", ()=> {
         return BoardPositioningContainer;
     }
 
+    function createContainer(ContainerClass, table, x, y, width=100, height=100) {
+        let container = new ContainerClass(width, height);
+        container.setLocation(x, y);
+        table.add(container);
+        return container;
+    }
+
+    function createElement(ElementClass, container, x, y, width=20, height=20) {
+        let element = new ElementClass(width, height);
+        element.setLocation(x, y);
+        container.add(element);
+        return element;
+    }
+
     it("Uses a positioning physics", ()=>{
         let table = putTable();
         let DraggableClass = defineDraggableClass();
         let ContainerClass = definePositioningContainerClass(DraggableClass, function(element) {
             return [{x:-25, y:-25}, {x:25, y:-25}, {x:25, y:25}, {x:-25, y:25}]
         });
-        let container = new ContainerClass(100, 100);
-        container.setLocation(100, 0);
-        let element = new DraggableClass(10, 10);
-        element.setLocation(0, 100);
-        table.add(container);
-        table.add(element);
+        let container = createContainer(ContainerClass, table, 100, 10);
+        let element = createElement(DraggableClass, table, 0, 100);
         let dragSequence = drag(element).from(0, 100);
         dragSequence.hover(container, 20, 20);
         assert(element.location).sameTo({x:25, y:25});
@@ -96,15 +107,9 @@ describe("Physics", ()=> {
         let table = putTable();
         let DraggableClass = defineDraggableClass();
         let ContainerClass = defineCollisionContainerClass(DraggableClass);
-        let container = new ContainerClass(100, 100);
-        container.setLocation(100, 0);
-        let elementOnContainer = new DraggableClass(20, 20);
-        let movingElement = new DraggableClass(20, 20);
-        table.add(container);
-        elementOnContainer.setLocation(0, 0);
-        container.add(elementOnContainer);
-        movingElement.setLocation(0, 100);
-        table.add(movingElement);
+        let container = createContainer(ContainerClass, table, 100, 10);
+        createElement(DraggableClass, container, 0, 0);
+        let movingElement = createElement(DraggableClass, table, 0, 100);
         let dragSequence = drag(movingElement).from(0, 100);
         dragSequence.hover(container, -25, 25);
         assert(movingElement.location).sameTo({x:-25, y:25});
@@ -128,9 +133,7 @@ describe("Physics", ()=> {
 
     it("Puts borders on collision physics", ()=>{
         let {table, container, DraggableClass} = createABorderedCollisionContainer();
-        let movingElement = new DraggableClass(20, 20);
-        movingElement.setLocation(-100, -100);
-        table.add(movingElement);
+        let movingElement = createElement(DraggableClass, table, -100, -100);
         executeTimeouts();
         let dragSequence = drag(movingElement).from(-100, -100);
         // No collision at all
@@ -177,21 +180,15 @@ describe("Physics", ()=> {
 
     it("Cross a border on a collision physics", ()=>{
         let {table, container, DraggableClass} = createABorderedCollisionContainer();
-        let movingElement = new DraggableClass(20, 20);
-        movingElement.setLocation(-100, -100);
-        table.add(movingElement);
+        let movingElement = createElement(DraggableClass, table, -100, -100);
         executeTimeouts();
         crossBorder(table, container, movingElement);
     });
 
     it("Undo and redo drops inside a collision physics", ()=>{
         let {table, container, DraggableClass} = createABorderedCollisionContainer();
-        let element1 = new DraggableClass(20, 20);
-        element1.setLocation(-100, -50);
-        table.add(element1);
-        let element2 = new DraggableClass(20, 20);
-        element2.setLocation(-100, 50);
-        table.add(element2);
+        let element1 = createElement(DraggableClass, table, -100, -50);
+        let element2 = createElement(DraggableClass, table, -100, 50);
         Context.memento.opened = true;
         Context.memento.open();
         executeTimeouts();
@@ -221,30 +218,12 @@ describe("Physics", ()=> {
         return BoardGraviationContainer;
     }
 
-    it("Uses a gravitation physics", ()=>{
-        let table = putTable();
-        let DraggableClass = defineDraggableClass();
-        let ContainerClass = defineGravitationContainerClass(DraggableClass);
-        let container = new ContainerClass(100, 100);
-        container.setLocation(100, 0);
-        table.add(container);
-        let movingElement = new DraggableClass(20, 20);
-        movingElement.setLocation(0, 100);
-        table.add(movingElement);
-        let dragSequence = drag(movingElement).from(0, 100).hover(container, -25, 25).on(container, 0, 0);
-        executeTimeouts();
-        // Element on the bottom of the container
-        assert(movingElement.location).sameTo({x:0, y:40});
-    });
-
     function copyAContainerWithCollisionPhysic() {
         let {table, container, DraggableClass, ContainerClass} = createABorderedCollisionContainer();
         makeSelectable(ContainerClass);
         container.setLocation(200, 0);
         Context.selection.selectOnly(container);
-        let element1 = new DraggableClass(20, 20);
-        element1.setLocation(0, 0);
-        container.add(element1);
+        createElement(DraggableClass, container, 0, 0);
         executeTimeouts();
         Context.copyPaste.copyModel(Context.selection.selection());
         Context.copyPaste.pasteModel();
@@ -263,9 +242,7 @@ describe("Physics", ()=> {
     it("It drops an element in a copied collision physic", ()=>{
         let {table, DraggableClass, containerCopy} = copyAContainerWithCollisionPhysic();
         assert(containerCopy).isDefined();
-        let movingElement = new DraggableClass(20, 20);
-        movingElement.setLocation(0, 100);
-        table.add(movingElement);
+        let movingElement = createElement(DraggableClass, table, 0, 100);
         drag(movingElement).from(0, 100).hover(containerCopy, -25, 25).on(containerCopy, -15, 0);
         assert(movingElement.parent).equalsTo(containerCopy);
         // New element does not overlap avec copied element
@@ -275,10 +252,278 @@ describe("Physics", ()=> {
     it("It cross the border of a copied collision physic", ()=>{
         let {table, DraggableClass, containerCopy} = copyAContainerWithCollisionPhysic();
         assert(containerCopy).isDefined();
-        let movingElement = new DraggableClass(20, 20);
-        movingElement.setLocation(-100, -100);
-        table.add(movingElement);
+        let movingElement = createElement(DraggableClass, table, -100, -100);
         crossBorder(table, containerCopy, movingElement);
+    });
+
+    it("Uses a gravitation physics", ()=>{
+        let table = putTable();
+        let DraggableClass = defineDraggableClass();
+        let ContainerClass = defineGravitationContainerClass(DraggableClass);
+        let container = createContainer(ContainerClass, table, 100, 0);
+        let movingElement = createElement(DraggableClass, table, 0, 100);
+        drag(movingElement).from(0, 100).hover(container, -25, 25).on(container, 0, 0);
+        executeTimeouts();
+        // Element on the bottom of the container
+        assert(movingElement.location).sameTo({x:0, y:40});
+    });
+
+    function defineStickingGravitationContainerClass(DraggableClass, specs) {
+        let BoardStickingGraviationContainer = defineContainerClass();
+        makeStickingGravitationContainer(BoardStickingGraviationContainer, element=>element instanceof DraggableClass, specs);
+        return BoardStickingGraviationContainer;
+    }
+
+    it("Uses a gravitation physics with several stacked items", ()=>{
+        let table = putTable();
+        let DraggableClass = defineDraggableClass();
+        let ContainerClass = defineGravitationContainerClass(DraggableClass);
+        let container = createContainer(ContainerClass, table, 100, 0);
+        let movingElement1 = createElement(DraggableClass, table, 0, 100);
+        let movingElement2 = createElement(DraggableClass, table, 0, 70);
+        Context.selection.selectOnly(movingElement1, movingElement2);
+        let dragSequence = drag(movingElement1).from(0, 100).hover(container, -25, 25).on(container, 0, 0);
+        executeTimeouts();
+        // The elements are stacked
+        assert(movingElement1.location).sameTo({x:0, y:40});
+        assert(movingElement2.location).sameTo({x:0, y:20});
+    });
+
+    it("Uses a gravitation physics with several uncorrelated items", ()=>{
+        let table = putTable();
+        let DraggableClass = defineDraggableClass();
+        let ContainerClass = defineGravitationContainerClass(DraggableClass);
+        let container = createContainer(ContainerClass, table, 100, 0);
+        let movingElement1 = createElement(DraggableClass, table, -25, 100);
+        let movingElement2 = createElement(DraggableClass, table, 25, 70);
+        Context.selection.selectOnly(movingElement1, movingElement2);
+        let dragSequence = drag(movingElement1).from(0, 100).hover(container, -25, 25).on(container, 0, 0);
+        executeTimeouts();
+        // The elements are bithat the bottom of the container
+        assert(movingElement1.location).sameTo({x:-25, y:40});
+        assert(movingElement2.location).sameTo({x:25, y:40});
+    });
+
+    it("Uses a sticking gravitation physics", ()=>{
+        let table = putTable();
+        let DraggableClass = defineDraggableClass();
+        let ContainerClass = defineStickingGravitationContainerClass(DraggableClass);
+        let container = createContainer(ContainerClass, table, 100, 0);
+        let movingElement = createElement(DraggableClass, table, 0, 100);
+        drag(movingElement).from(0, 100).hover(container, -25, 25).on(container, 0, 0);
+        executeTimeouts();
+        // Element on the bottom of the container
+        assert(movingElement.location).sameTo({x:0, y:40});
+    });
+
+    it("Uses a sticking gravitation physics with several stacked items", ()=>{
+        let table = putTable();
+        let DraggableClass = defineDraggableClass();
+        let ContainerClass = defineStickingGravitationContainerClass(DraggableClass);
+        let container = createContainer(ContainerClass, table, 100, 0);
+        let movingElement1 = createElement(DraggableClass, table, 0, 100);
+        let movingElement2 = createElement(DraggableClass, table, 0, 70);
+        Context.selection.selectOnly(movingElement1, movingElement2);
+        let dragSequence = drag(movingElement1).from(0, 100).hover(container, -25, 25).on(container, 0, 0);
+        executeTimeouts();
+        // The elements are stacked
+        assert(movingElement1.location).sameTo({x:0, y:40});
+        assert(movingElement2.location).sameTo({x:0, y:20});
+    });
+
+    it("Uses a sticking gravitation physics with several uncorrelated items", ()=>{
+        let table = putTable();
+        let DraggableClass = defineDraggableClass();
+        let ContainerClass = defineStickingGravitationContainerClass(DraggableClass);
+        let container = createContainer(ContainerClass, table, 100, 0);
+        let movingElement1 = createElement(DraggableClass, table, -25, 100);
+        let movingElement2 = createElement(DraggableClass, table, 25, 70);
+        Context.selection.selectOnly(movingElement1, movingElement2);
+        let dragSequence = drag(movingElement1).from(0, 100).hover(container, -25, 25).on(container, 0, 0);
+        executeTimeouts();
+        // The elements are bithat the bottom of the container
+        assert(movingElement1.location).sameTo({x:-25, y:40});
+        assert(movingElement2.location).sameTo({x:25, y:40});
+    });
+
+    /**
+     * Creates 3 falling 20x20 elements, one at x=0, the two others at x=-10 and x=10. The y position is given as
+     * parameters to this function. The function creates also the container and the table, put elements on container and
+     * let them fall.
+     * @param ye1 y of movingElement1 before falling
+     * @param ye2 y of movingElement2 before falling
+     * @param ye3 y of movingElement3 before falling
+     * @returns {{table, container, movingElement1, movingElement2, movingElement3}}
+     */
+    function moveAndFallElementsOnContainer(ye1, ye2, ye3) {
+        let table = putTable();
+        let DraggableClass = defineDraggableClass();
+        makeCarrier(DraggableClass);
+        makeCarriable(DraggableClass);
+        let ContainerClass = defineGravitationContainerClass(DraggableClass);
+        let container = createContainer(ContainerClass, table, 100, 0);
+        let movingElement1 = createElement(DraggableClass, table, 0, ye1);
+        let movingElement2 = createElement(DraggableClass, table, 10, ye2);
+        let movingElement3 = createElement(DraggableClass, table, -10, ye3);
+        Context.selection.selectOnly(movingElement1, movingElement2, movingElement3);
+        drag(movingElement1).from(0, 100).hover(container, -25, 25).on(container, 0, 0);
+        executeTimeouts();
+        return {table, container, movingElement1, movingElement2, movingElement3}
+    }
+
+    it("Links elements by a carried/carried By relationship (one carries many)", ()=>{
+        let {movingElement1, movingElement2, movingElement3} = moveAndFallElementsOnContainer(100, 75, 60);
+        // The elements are stacked
+        assert(movingElement1.location).sameTo({x:0, y:40});
+        assert(movingElement2.location).sameTo({x:10, y:20});
+        assert(movingElement3.location).sameTo({x:-10, y:20});
+        assert([...movingElement1.carried]).unorderedEqualsTo([movingElement2, movingElement3]);
+        assert([...movingElement2.carriers]).arrayEqualsTo([movingElement1]);
+        assert([...movingElement3.carriers]).arrayEqualsTo([movingElement1]);
+    });
+
+    it("Links elements by a carried/carried By relationship (one is carried by many)", ()=>{
+        let {movingElement1, movingElement2, movingElement3} = moveAndFallElementsOnContainer(100, 115, 120);
+        // The elements are stacked
+        assert(movingElement1.location).sameTo({x:0, y:20});
+        assert(movingElement2.location).sameTo({x:10, y:40});
+        assert(movingElement3.location).sameTo({x:-10, y:40});
+        assert([...movingElement1.carriers]).unorderedEqualsTo([movingElement2, movingElement3]);
+        assert([...movingElement2.carried]).arrayEqualsTo([movingElement1]);
+        assert([...movingElement3.carried]).arrayEqualsTo([movingElement1]);
+    });
+
+    it("Links elements by a carried/carried By relationship for a sticking gravitation container", ()=>{
+        let table = putTable();
+        let DraggableClass = defineDraggableClass();
+        makeCarrier(DraggableClass);
+        makeCarriable(DraggableClass);
+        let ContainerClass = defineStickingGravitationContainerClass(DraggableClass);
+        let container = createContainer(ContainerClass, table, 100, 0);
+        let movingElement1 = createElement(DraggableClass, table, 0, 100);
+        let movingElement2 = createElement(DraggableClass, table, 10, 70);
+        Context.selection.selectOnly(movingElement1, movingElement2);
+        drag(movingElement1).from(0, 100).hover(container, -25, 25).on(container, 0, 0);
+        executeTimeouts();
+        // The elements are stacked
+        assert(movingElement1.location).sameTo({x:0, y:40});
+        assert(movingElement2.location).sameTo({x:10, y:20});
+        assert([...movingElement1.carried]).arrayEqualsTo([movingElement2]);
+        assert([...movingElement2.carriers]).arrayEqualsTo([movingElement1]);
+    });
+
+    it("Drags an element that carries many", ()=>{
+        let {table, container, movingElement1, movingElement2, movingElement3} = moveAndFallElementsOnContainer(100, 75, 60);
+        // Element1 carries element2 and element3
+        Context.selection.selectOnly(movingElement1);
+        drag(movingElement1).at(movingElement1, 0, 0).to(0, 100);
+        // All elements on new position (relative position are unchanged)
+        assert(movingElement1.location).sameTo({x:0, y:100});
+        assert(movingElement2.location).sameTo({x:10, y:80});
+        assert(movingElement3.location).sameTo({x:-10, y:80});
+        // Everybody on table
+        assert(movingElement1.parent).equalsTo(table);
+        assert(movingElement2.parent).equalsTo(table);
+        assert(movingElement3.parent).equalsTo(table);
+        // So container is empty now
+        assert(container.children).arrayEqualsTo([]);
+        // But carried/carried by relationship is unchanged
+        assert([...movingElement1.carried]).arrayEqualsTo([movingElement2, movingElement3]);
+        assert([...movingElement2.carriers]).arrayEqualsTo([movingElement1]);
+        assert([...movingElement3.carriers]).arrayEqualsTo([movingElement1]);
+    });
+
+    it("Breaks a carried/carried by relationship", ()=>{
+        let {table, container, movingElement1, movingElement2, movingElement3} = moveAndFallElementsOnContainer(100, 115, 120);
+        // Element1 carries element2 and element3
+        Context.selection.selectOnly(movingElement1);
+        drag(movingElement2).at(movingElement2, 0, 0).to(0, 100);
+        // Carrier and carried are moved
+        assert(movingElement2.location).sameTo({x:0, y:100});
+        assert(movingElement1.location).sameTo({x:-10, y:80});
+        assert(movingElement1.parent).equalsTo(table);
+        assert(movingElement2.parent).equalsTo(table);
+        // But not carried is not !
+        assert(movingElement3.location).sameTo({x:-10, y:40});
+        assert(movingElement3.parent).equalsTo(container);
+        // So container still contain one element
+        assert(container.children).arrayEqualsTo([movingElement3]);
+        // But carried/carried by relationship is unchanged
+        assert([...movingElement1.carriers]).arrayEqualsTo([movingElement2]);
+        assert([...movingElement2.carried]).arrayEqualsTo([movingElement1]);
+        assert([...movingElement3.carried]).arrayEqualsTo([]);
+    });
+
+    it("Lets fall sticked elements", ()=>{
+        let table = putTable();
+        let DraggableClass = defineDraggableClass();
+        makeStickable(DraggableClass);
+        let ContainerClass = defineStickingGravitationContainerClass(DraggableClass);
+        let container = createContainer(ContainerClass, table, 100, 0);
+        let mainElement = createElement(DraggableClass, table, 0, 100, 20, 20);
+        let stickedElement = createElement(DraggableClass, table, 15, 100, 10, 10);
+        mainElement.stick(stickedElement);
+        drag(mainElement).from(0, 100).hover(container, -25, 25).on(container, 0, 0);
+        executeTimeouts();
+        assert(mainElement.location).sameTo({x:0, y:40});
+        assert(stickedElement.location).sameTo({x:15, y:40});
+    });
+
+    it("Lets fall sticked element on another element", ()=>{
+        let table = putTable();
+        let DraggableClass = defineDraggableClass();
+        makeStickable(DraggableClass);
+        let ContainerClass = defineStickingGravitationContainerClass(DraggableClass);
+        let container = createContainer(ContainerClass, table, 100, 0);
+        let mainElement = createElement(DraggableClass, table, 0, 100, 20, 20);
+        let stickedElement = createElement(DraggableClass, table, 15, 100, 10, 10);
+        createElement(DraggableClass, container, 15, 30, 20, 20);
+        mainElement.stick(stickedElement);
+        drag(mainElement).from(0, 100).hover(container, -25, 25).on(container, -10, -25);
+        executeTimeouts();
+        assert(mainElement.location).sameTo({x:-10, y:25});
+        assert(stickedElement.location).sameTo({x:5, y:25});
+    });
+
+    it("Lets fall a block on an element stopped by another block", ()=>{
+        let table = putTable();
+        let DraggableClass = defineDraggableClass();
+        makeStickable(DraggableClass);
+        let ContainerClass = defineStickingGravitationContainerClass(DraggableClass);
+        let container = createContainer(ContainerClass, table, 100, 0);
+        let mainElement = createElement(DraggableClass, table, 0, 100, 20, 20);
+        let stickedElement = createElement(DraggableClass, table, 15, 100, 10, 10);
+        let thirdBlockElement = createElement(DraggableClass, table, 0, 80, 10, 10);
+        Context.selection.selectOnly(mainElement, thirdBlockElement);
+        createElement(DraggableClass, container, 15, 30, 20, 20);
+        mainElement.stick(stickedElement);
+        drag(mainElement).from(0, 100).hover(container, -25, 25).on(container, -10, -25);
+        executeTimeouts();
+        assert(thirdBlockElement.location).sameTo({x:-10, y:10});
+        // Every thing ok, even when elements are not carriers/carriables
+        assert(thirdBlockElement.carriers).isNotDefined();
+        assert(mainElement.carried).isNotDefined();
+    });
+
+    it("Lets fall carrier/carriable and stickable elements", ()=>{
+        let table = putTable();
+        let DraggableClass = defineDraggableClass();
+        makeStickable(DraggableClass);
+        makeCarrier(DraggableClass);
+        makeCarriable(DraggableClass);
+        let ContainerClass = defineStickingGravitationContainerClass(DraggableClass);
+        let container = createContainer(ContainerClass, table, 100, 0);
+        let mainElement = createElement(DraggableClass, table, 0, 100, 20, 20);
+        let stickedElement = createElement(DraggableClass, table, 15, 100, 10, 10);
+        let thirdBlockElement = createElement(DraggableClass, table, 0, 80, 10, 10);
+        Context.selection.selectOnly(mainElement, thirdBlockElement);
+        createElement(DraggableClass, container, 15, 30, 20, 20);
+        mainElement.stick(stickedElement);
+        drag(mainElement).from(0, 100).hover(container, -25, 25).on(container, -10, -25);
+        executeTimeouts();
+        assert(thirdBlockElement.location).sameTo({x:-10, y:10});
+        assert([...thirdBlockElement.carriers]).arrayEqualsTo([mainElement]);
+        assert([...mainElement.carried]).arrayEqualsTo([thirdBlockElement]);
     });
 
 });

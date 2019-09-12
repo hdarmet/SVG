@@ -77,6 +77,74 @@ export class List extends Array {
     }
 }
 
+export class ESet extends Set {
+
+    constructor(...iterables) {
+        super();
+        this.merge(...iterables);
+    }
+
+    merge(...iterables) {
+        for (let iterable of iterables) {
+            for (let item of iterable) {
+                this.add(item);
+            }
+        }
+        return this;
+    }
+
+    union(...iterables) {
+        let newSet = new this.constructor(this);
+        for (let iterable of iterables) {
+            for (let item of iterable) {
+                newSet.add(item);
+            }
+        }
+        return set;
+    }
+
+    intersect(target) {
+        let newSet = new this.constructor();
+        for (let item of this) {
+            if (target.has(item)) {
+                newSet.add(item);
+            }
+        }
+        return newSet;
+    }
+
+    diff(target) {
+        let newSet = new this.constructor();
+        for (let item of this) {
+            if (!target.has(item)) {
+                newSet.add(item);
+            }
+        }
+        return newSet;
+    }
+
+    same(target) {
+        let tsize;
+        if ("size" in target) {
+            tsize = target.size;
+        } else if ("length" in target) {
+            tsize = target.length;
+        } else {
+            throw new TypeError("target must be an iterable like a Set with .size or .length");
+        }
+        if (tsize !== this.size) {
+            return false;
+        }
+        for (let item of target) {
+            if (!this.has(item)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+}
+
 class AVLNode {
 
     constructor(tree, data) {
@@ -86,6 +154,15 @@ class AVLNode {
         this._right = null;
         this._parent = null;
         this._height = 0;
+    }
+
+    duplicate(tree, parent) {
+        let node = new AVLNode(tree, this._data);
+        node._parent = parent;
+        node._left = this._left ? this._left.duplicate(tree, node) : null;
+        node._right = this._right ? this._right.duplicate(tree, node) : null;
+        node._height = this._height;
+        return node;
     }
 
     get height() {
@@ -342,9 +419,20 @@ class AVLIterator {
 
 export class AVLTree {
 
-    constructor(comparator) {
+    constructor(comparatorOrTree, iterable) {
         this._root = null;
-        this._comparator = comparator;
+        if (comparatorOrTree instanceof AVLTree) {
+            this._comparator = comparatorOrTree._comparator;
+            this._root = comparatorOrTree._root ? comparatorOrTree._root.duplicate(this, null) : null;
+        }
+        else {
+            this._comparator = comparatorOrTree;
+            if (iterable) {
+                for (let data of iterable) {
+                    this.insert(data);
+                }
+            }
+        }
     }
 
     insert(data) {
@@ -404,6 +492,15 @@ export class AVLTree {
             if (!startNode) startNode = this._root._minValueNode();
             let endNode = endData ? this._root.findAfter(endData) : null;
             return new AVLIterator(startNode, endNode);
+        }
+        else {
+            return new AVLIterator();
+        }
+    }
+
+    [Symbol.iterator]() {
+        if (this._root) {
+            return new AVLIterator(this._root._minValueNode(), null);
         }
         else {
             return new AVLIterator();

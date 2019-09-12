@@ -166,5 +166,17 @@ describe("AVL Tree implementation", ()=> {
             assert(it.next().done).equalsTo(true);
         });
 
+        it("Creates an AVL from an iterable (an array) and check tree as an iterator", () => {
+            let tree = new AVLTree((a, b) => a - b, [0, 8, 1, 9, 6, 4, 2, 5, 3, 7]);
+            let values = [...tree];
+            assert(values).arrayEqualsTo([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        });
+
+        it("Copies an AVL", () => {
+            let tree = new AVLTree((a, b) => a - b, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+            let values = [...new AVLTree(tree)];
+            assert(values).arrayEqualsTo([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        });
+
     }
 );

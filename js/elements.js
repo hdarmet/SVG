@@ -19,7 +19,7 @@ import {
     TextMenuOption, TextToggleMenuOption, makeMenuOwner
 } from "./tools.js";
 import {
-    makePositionningContainer
+    makePositioningContainer
 } from "./physics.js";
 
 Context.itemDrag = new DragSwitchOperation()
@@ -341,7 +341,7 @@ makeDraggable(AbstractBoardCounter);
 makeClickable(AbstractBoardCounter);
 makeMenuOwner(AbstractBoardCounter);
 makeSupport(AbstractBoardCounter);
-makePositionningContainer(AbstractBoardCounter, element=>element instanceof BoardCounter, function() {return [{x:0, y:0}]});
+makePositioningContainer(AbstractBoardCounter, element=>element instanceof BoardCounter, function() {return [{x:0, y:0}]});
 
 export class BoardCounter extends AbstractBoardCounter {
 
@@ -742,7 +742,7 @@ BoardFrame.COLOR = Colors.RED;
 
 export function makeConfigurableMap(superClass, predicate, positionsFct) {
 
-    let ContentLayer = makePositionningContainer(class ContentLayer extends BoardZindexLayer {},
+    let ContentLayer = makePositioningContainer(class ContentLayer extends BoardZindexLayer {},
         predicate,
         function(element) {
             return positionsFct.call(this.parent, element);

@@ -4,7 +4,7 @@ import {
     evaluate
 } from "./misc.js";
 import {
-    List
+    List, ESet
 } from "./collections.js";
 import {
     Matrix, deg
@@ -115,7 +115,7 @@ export function makeObservable(superClass) {
 
     superClass.prototype._addObserver = function(observer) {
         if (!this._observers) {
-            this._observers = new Set();
+            this._observers = new ESet();
         }
         this._observers.add(observer);
     };
@@ -142,7 +142,7 @@ export function makeObservable(superClass) {
         superClass.prototype._memento = function () {
             let memento = superMemento.call(this);
             if (this._observers) {
-                memento._observers = new Set(this._observers);
+                memento._observers = new ESet(this._observers);
             }
             return memento;
         };
@@ -151,7 +151,7 @@ export function makeObservable(superClass) {
         superClass.prototype._revert = function (memento) {
             superRevert.call(this, memento);
             if (memento._observers) {
-                this._observers = new Set(memento._observers);
+                this._observers = new ESet(memento._observers);
             }
             else {
                 delete this._observers;
@@ -315,7 +315,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
      * @returns {Set} extended set of selected element
      */
     extendsSelection(selection) {
-        let extendedSelection = new Set(selection);
+        let extendedSelection = new ESet(selection);
         for (let element of selection) {
             if (element.getExtension) {
                 for (let associatedElement of element.getExtension()) {
@@ -398,7 +398,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             lastX : x,
             lastY : y
         };
-        this._fire(Events.DRAG_START, new Set(this._dragSet));
+        this._fire(Events.DRAG_START, new ESet(this._dragSet));
     }
 
     /**
@@ -625,7 +625,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
         }
         // Starting from here, drop decision is done : accepted or cancelled
         // Execute drop (or execute drop cancellation).
-        let dropped = new Set();
+        let dropped = new ESet();
         for (let selectedElement of [...this._dragSet]) {
             Context.canvas.removeElementFromGlass(selectedElement);
             if (!this.dropCancelled(selectedElement)) {
@@ -664,7 +664,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                     selectedElement._fire(Events.REVERT_DROPPED, parent);
                 }
             }
-            this._fire(Events.DRAG_DROP, new Set(dropped.keys()));
+            this._fire(Events.DRAG_DROP, new ESet(dropped.keys()));
         }
         else {
             Context.memento.cancel();
@@ -743,7 +743,7 @@ class DragRotateSelectionOperation extends DragElementOperation {
                 }
             }
         }
-        let dropped = new Set();
+        let dropped = new ESet();
         for (let selectedElement of Context.selection.selection()) {
             if (selectedElement.rotatable) {
                 if (!this.dropCancelled(selectedElement)) {
@@ -776,7 +776,7 @@ class DragRotateSelectionOperation extends DragElementOperation {
                     }
                 }
             }
-            this._fire(Events.DRAG_ROTATED, new Set(dropped.keys()));
+            this._fire(Events.DRAG_ROTATED, new ESet(dropped.keys()));
         }
         else {
             Context.memento.cancel();
@@ -1823,7 +1823,7 @@ export class CopyPaste {
             return { cx, cy };
         }
 
-        let result = new Set();
+        let result = new ESet();
         let duplicata = new Map();
         if (elements.size > 0) {
             let { cx, cy } = center();
@@ -1846,7 +1846,7 @@ export class CopyPaste {
     }
 
     duplicateForPaste(elements) {
-        let pasted = new Set();
+        let pasted = new ESet();
         let duplicata = new Map();
         for (let element of elements) {
             let copy = element.clone(duplicata, true);
@@ -1934,18 +1934,18 @@ CopyPaste.clone = function(source, duplicata) {
 
         function cloneSet(source) {
             if (!source.cloning) {
-                copy = new Set();
+                copy = new ESet();
                 duplicata.set(source, copy);
                 for (let record of source) {
                     copy.add(cloneRecord(record, duplicata));
                 }
             }
             else if (source.cloning===Cloning.SHALLOW) {
-                copy = new Set(source);
+                copy = new ESet(source);
                 duplicata.set(source, copy);
             }
             else {
-                copy = new Set();
+                copy = new ESet();
                 duplicata.set(source, copy);
             }
             if (source.cloning!==undefined) copy.cloning=source.cloning;
@@ -2199,7 +2199,7 @@ Memento.register = function(element) {
 
 export class ElementGroup {
     constructor(elements) {
-        this._content = new Set();
+        this._content = new ESet();
         for (let element of elements.values()) {
             this._content.add(element);
         }
@@ -2230,7 +2230,7 @@ Context.selectPredicate = function(element) {
 export class Selection {
 
     constructor() {
-        this._selection = new Set();
+        this._selection = new ESet();
     }
 
     get selectFilter() {
@@ -2301,7 +2301,7 @@ export class Selection {
     }
 
     selection(predicate=Context.selectPredicate) {
-        return new Set([...this._selection].filter(predicate));
+        return new ESet([...this._selection].filter(predicate));
     }
 
     adjustSelection(element, event, unselectAllowed = false) {
@@ -2347,7 +2347,7 @@ export class Groups extends Selection {
 
     regroup(element) {
         Memento.register(this);
-        let content = new Set();
+        let content = new ESet();
         let elements = this.selection(element);
         for (let element of elements) {
             let group = this.getGroup(element);
@@ -2365,7 +2365,7 @@ export class Groups extends Selection {
     ungroup(element) {
         Memento.register(this);
         let group = element instanceof ElementGroup ? element : this.getGroup(element);
-        let done = new Set();
+        let done = new ESet();
         if (group) {
             for (let part of group.content()) {
                 this._elements.delete(part);
@@ -2410,7 +2410,7 @@ export class Groups extends Selection {
     }
 
     groupSelection(predicate=Context.selectPredicate()) {
-        let result = new Set();
+        let result = new ESet();
         for (let element of this.selection(predicate)) {
             let group = this._elements.get(element);
             if (!group) {

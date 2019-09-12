@@ -10,6 +10,9 @@ import {
     same
 } from "../js/misc.js";
 
+let itCount = 0;
+let itFailed = 0;
+
 export class AssertionFailed {
     constructor(message) {
         this.message = message;
@@ -57,7 +60,7 @@ export class Assertor {
         if (!model || !(model instanceof Array)) {
             throw new AssertionError(`${model} is not an array.`);
         }
-        if (!value || !(this.value instanceof Array)) {
+        if (!value || !(value instanceof Array)) {
             throw new AssertionError(`${value} is not an array.`);
         }
         if (value.length!=model.length) {
@@ -73,11 +76,28 @@ export class Assertor {
         }
     }
 
+    _setEquals(model, value) {
+        if (!model || !(model instanceof Set)) {
+            throw new AssertionError(`${model} is not a set.`);
+        }
+        if (!value || !(value instanceof Set)) {
+            throw new AssertionError(`${value} is not a set.`);
+        }
+        if (value.size!=model.size) {
+            throw new AssertionFailed(`${value} is not equal to ${model}`);
+        }
+        for (let modelElement of model) {
+            if (!value.has(modelElement)) {
+                throw new AssertionFailed(`${model} does not contain ${value}`);
+            }
+        }
+    }
+
     _arraySame(model, value) {
         if (!model || !(model instanceof Array)) {
             throw new AssertionError(`${model} is not an array.`);
         }
-        if (!value || !(this.value instanceof Array)) {
+        if (!value || !(value instanceof Array)) {
             throw new AssertionError(`${value} is not an array.`);
         }
         if (value.length!=model.length) {
@@ -168,6 +188,22 @@ export class Assertor {
         return this;
     }
 
+    setEqualsTo(model) {
+        this._setEquals(model, this.value);
+        return this;
+    }
+
+    unorderedEqualsTo(model) {
+        if (!model || !(model instanceof Array)) {
+            throw new AssertionError(`${model} is not an array.`);
+        }
+        if (!this.value || !(this.value instanceof Array)) {
+            throw new AssertionError(`${this.value} is not an array.`);
+        }
+        this._setEquals(new Set(model), new Set(this.value));
+        return this;
+    }
+
     hasContent(...elements) {
         if (this.value.length!==elements.length) {
             throw new AssertionFailed(`${this.value} has not same length than ${elements}`);
@@ -215,6 +251,7 @@ export class TestSuite {
 
             if (index<this.its.length) {
                 try {
+                    itCount++;
                     this.timeouts = [];
                     win.setTimeout = (action, delay)=> {
                         this.timeouts.push({delay, action});
@@ -239,6 +276,7 @@ export class TestSuite {
                     else {
                         console.log(`- ${this.its[index].caseTitle} -> ERROR (${time}): ${exception}`);
                     }
+                    itFailed ++;
                 }
                 if (this.its[index].testCase.length===0) {
                     _done.call(this);
@@ -270,6 +308,10 @@ export function before(before) {
 
 export function it(caseTitle, testCase) {
     testSuite.it(caseTitle, testCase);
+}
+
+export function result() {
+    console.log(`${itCount} tests executed. ${itCount-itFailed} passed. ${itFailed} failed.`);
 }
 
 export function executeTimeouts() {
@@ -320,6 +362,14 @@ class Drag {
         let eventSpecs = {bubbles:true, clientX:x+this.bx, clientY:y+this.by};
         specs && Object.assign(eventSpecs, specs);
         let event = new MouseEvent('mouseup', eventSpecs);
+        this._item._shape._node.dispatchEvent(event);
+        return this;
+    }
+
+    at(target, x=0, y=0, specs) {
+        let eventSpecs = {bubbles:true, clientX:target.gx+x, clientY:target.gy+y};
+        specs && Object.assign(eventSpecs, specs);
+        let event = new MouseEvent('mousedown', eventSpecs);
         this._item._shape._node.dispatchEvent(event);
         return this;
     }

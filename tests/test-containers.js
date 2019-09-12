@@ -132,6 +132,27 @@ describe("Containers", ()=> {
         assert(copy._root.innerHTML).equalsTo(container._root.innerHTML);
     });
 
+    it("Undoes/Redoes a simple container", ()=>{
+        let table = putTable();
+        let BoardSimpleContainer = defineSimpleContainerClass();
+        makeSelectable(BoardSimpleContainer);
+        let container = new BoardSimpleContainer(100, 150);
+        container.setLocation(100, 100);
+        table.add(container);
+        let {tiny1, tiny2} = createTinyElements();
+        container.add(tiny1);
+        let htmlBeforeAdd = container._root.innerHTML;
+        Context.memento.opened = true;
+        Context.memento.open();
+        container.add(tiny2);
+        let htmlAfterAdd = container._root.innerHTML;
+        assert(htmlBeforeAdd === htmlAfterAdd).isFalse();
+        Context.memento.undo();
+        assert(container._root.innerHTML).equalsTo(htmlBeforeAdd);
+        Context.memento.redo();
+        assert(container._root.innerHTML).equalsTo(htmlAfterAdd);
+    });
+
     function defineMultiLayeredContainerClass() {
         class BoardMultiLayeredContainer extends BoardElement {
             constructor(width, height) {

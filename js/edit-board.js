@@ -235,7 +235,6 @@ Vue.component('edit-target', {
 
 var editTargetWidget;
 function editTarget(data, onValidate, onCancel) {
-    console.log(data)
     editTargetWidget.x = data.x;
     editTargetWidget.y = data.y;
     editTargetWidget.strokeColor = data.strokeColor,

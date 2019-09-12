@@ -8,7 +8,7 @@ import {
     Polygon, Polyline, RasterImage, ClippedRasterImage, SvgImage, SvgRasterImage,
     MouseEvents, Colors, Visibility, FeGaussianBlur, Filter, P100,
     FilterUnits, FeEdgeMode, FeIn
-} from "./graphics.js";
+} from "../js/graphics.js";
 
 function mouse(evType, target) {
     let event = new MouseEvent(evType);
