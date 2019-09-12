@@ -310,7 +310,7 @@ export function it(caseTitle, testCase) {
     testSuite.it(caseTitle, testCase);
 }
 
-export function result() {
+export function result( ) {
     console.log(`${itCount} tests executed. ${itCount-itFailed} passed. ${itFailed} failed.`);
 }
 
