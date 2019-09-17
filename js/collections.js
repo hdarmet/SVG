@@ -68,7 +68,7 @@ export class List extends Array {
         return (this.length = 0);
     }
 
-    empty() {
+    get empty() {
         return this.length === 0;
     }
 

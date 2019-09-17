@@ -50,6 +50,16 @@ export class Assertor {
         }
     }
 
+    _notEquals(model, value) {
+        if (typeof(model)==="number" && typeof(value)==="number") {
+            if (value>model-NUMBER_MARGIN && value<model+NUMBER_MARGIN) {
+                throw new AssertionFailed(`${value} is equal to ${model}`);
+            }
+        } else if (model===value) {
+            throw new AssertionFailed(`${value} is equal to ${model}`);
+        }
+    }
+
     _contains(model, value) {
         if (!value || value.indexOf(model)===-1) {
             throw new AssertionFailed(`${value} does not contain ${model}`);
@@ -147,6 +157,11 @@ export class Assertor {
 
     equalsTo(model) {
         this._equals(model, this.value);
+        return this;
+    }
+
+    notEqualsTo(model) {
+        this._notEquals(model, this.value);
         return this;
     }
 
@@ -310,7 +325,7 @@ export function it(caseTitle, testCase) {
     testSuite.it(caseTitle, testCase);
 }
 
-export function result( ) {
+export function result() {
     console.log(`${itCount} tests executed. ${itCount-itFailed} passed. ${itFailed} failed.`);
 }
 
@@ -437,9 +452,11 @@ class Keyboard {
 export let keyboard = new Keyboard();
 
 export function findChild(element, x, y) {
-    for (let child of element.children) {
-        if (same(child.lx, x) && same(child.ly, y)) {
-            return child;
+    if (element.children) {
+        for (let child of element.children) {
+            if (same(child.lx, x) && same(child.ly, y)) {
+                return child;
+            }
         }
     }
     return null;

@@ -278,7 +278,7 @@ export class DragElementOperation extends DragOperation {
     }
 
     dropCancelled(element) {
-        return element._drag.cancelled;
+        return element._drag.cancelled || element._drag.invalid;
     }
 
     cancelDrop(element) {
@@ -511,6 +511,9 @@ export class DragMoveSelectionOperation extends DragElementOperation {
          */
         function getTarget(element, target) {
             console.assert(target != null);
+            if (target && target._dropTarget) {
+                target = target._dropTarget();
+            }
             if (element.getDropTarget) {
                 return element.getDropTarget(target);
             }
@@ -595,65 +598,76 @@ export class DragMoveSelectionOperation extends DragElementOperation {
      * @param element the element to be dropped
      */
     doDrop(element, x, y, event) {
-        let dx = x - this._drag.lastX;
-        let dy = y - this._drag.lastY;
-        let targets = this.getTargets(this._dragSet);
-        // Check for drop acceptation and execute requested drop cancellation.
-        for (let selectedElement of [...this._dragSet]) {
-            let target = targets.get(selectedElement);
-            // Can be cancelled before processed due to another element action
-            if (!this.dropCancelled(selectedElement)) {
-                if (target && target._dropTarget) {
-                    target = target._dropTarget();
-                }
-                if (target && target.content && getCanvasLayer(target._root) instanceof BaseLayer) {
-                    let { x, y } = computePosition(selectedElement._root, target.content);
-                    selectedElement.setLocation(x, y);
-                    // Ask target if it "accepts" the drop
-                    if ((target._acceptDrop && !target._acceptDrop(selectedElement)) ||
-                        // Ask dropped element if it "accepts" the drop.
-                        selectedElement._acceptDropped && !selectedElement._acceptDropped(target)) {
+
+        // Place element on targeted locations (but not on target for the moment).
+        function placeDroppedElements(dragSet, targets) {
+            for (let selectedElement of dragSet) {
+                let target = targets.get(selectedElement);
+                // Can be cancelled before processed due to another element action
+                if (!this.dropCancelled(selectedElement)) {
+                    if (target && target.content && getCanvasLayer(target._root) instanceof BaseLayer) {
+                        let { x, y } = computePosition(selectedElement._root, target.content);
+                        selectedElement.setLocation(x, y);
+                        selectedElement._drag.target = target;
+                    } else {
                         this.cancelDrop(selectedElement);
                     }
-                    else {
-                        selectedElement._drag.target = target;
+                }
+            }
+        }
+
+        // Check for drop acceptation and execute requested drop cancellation.
+        function checkDropAcceptance(dragSet, targets) {
+            for (let selectedElement of dragSet) {
+                let target = targets.get(selectedElement);
+                // Can be cancelled before processed due to another element action
+                if (!this.dropCancelled(selectedElement)) {
+                    if (target && target.content && getCanvasLayer(target._root) instanceof BaseLayer) {
+                        // Ask target if it "accepts" the drop
+                        if ((target._acceptDrop && !target._acceptDrop(selectedElement, this._dragSet)) ||
+                            // Ask dropped element if it "accepts" the drop.
+                            selectedElement._acceptDropped && !selectedElement._acceptDropped(target, this._dragSet)) {
+                            this.cancelDrop(selectedElement);
+                        }
                     }
-                } else {
-                    this.cancelDrop(selectedElement);
                 }
             }
         }
-        // Starting from here, drop decision is done : accepted or cancelled
+
         // Execute drop (or execute drop cancellation).
-        let dropped = new ESet();
-        for (let selectedElement of [...this._dragSet]) {
-            Context.canvas.removeElementFromGlass(selectedElement);
-            if (!this.dropCancelled(selectedElement)) {
-                // ... when drop succeeded
-                dropped.add(selectedElement);
-                // if dropped element can rotate, adjust angle to cancel "target" orientation
-                if (selectedElement.rotate) {
-                    let angle = computeAngle(selectedElement._hinge, selectedElement._drag.target.content);
-                    selectedElement.rotate(angle);
+        function executeDrop(dragSet) {
+            let dropped = new ESet();
+            for (let selectedElement of dragSet) {
+                Context.canvas.removeElementFromGlass(selectedElement);
+                if (!this.dropCancelled(selectedElement)) {
+                    // ... when drop succeeded
+                    dropped.add(selectedElement);
+                    // if dropped element can rotate, adjust angle to cancel "target" orientation
+                    if (selectedElement.rotate) {
+                        let angle = computeAngle(selectedElement._hinge, selectedElement._drag.target.content);
+                        selectedElement.rotate(angle);
+                    }
+                    selectedElement.attach(selectedElement._drag.target);
                 }
-                selectedElement.attach(selectedElement._drag.target);
+                else {
+                    // ... when drop failed
+                    selectedElement._revert(selectedElement._drag.origin);
+                    selectedElement._recover && selectedElement._recover(selectedElement._drag.origin);
+                    selectedElement._drag.origin._parent._add(selectedElement);
+                }
+                delete selectedElement._drag;
             }
-            else {
-                // ... when drop failed
-                selectedElement._revert(selectedElement._drag.origin);
-                selectedElement._recover && selectedElement._recover(selectedElement._drag.origin);
-                selectedElement._drag.origin._parent._add(selectedElement);
-            }
-            delete selectedElement._drag;
+            return dropped;
         }
+
         // Call final elements callbacks and emit drop events
-        if (dropped.size!==0) {
-            for (let selectedElement of [...this._dragSet]) {
+        function finalizeAndFireEvents(dragSet, dropped) {
+            for (let selectedElement of dragSet) {
                 if (dropped.has(selectedElement)) {
                     let target = selectedElement.parent;
-                    target._receiveDrop && target._receiveDrop(selectedElement);
+                    target._receiveDrop && target._receiveDrop(selectedElement, this._dragSet);
                     target._fire(Events.RECEIVE_DROP, selectedElement);
-                    selectedElement._droppedIn && !selectedElement._droppedIn(target);
+                    selectedElement._droppedIn && !selectedElement._droppedIn(target, this._dragSet);
                     selectedElement._fire(Events.DROPPED, target);
                 }
                 else {
@@ -666,6 +680,18 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             }
             this._fire(Events.DRAG_DROP, new ESet(dropped.keys()));
         }
+
+        let dx = x - this._drag.lastX;
+        let dy = y - this._drag.lastY;
+        let targets = this.getTargets(this._dragSet);
+        let dragSet = [...this._dragSet];
+        placeDroppedElements.call(this, dragSet, targets);
+        checkDropAcceptance.call(this, dragSet, targets);
+        // Starting from here, drop decision is done : accepted or cancelled
+        let dropped = executeDrop.call(this, dragSet);
+        if (dropped.size!==0) {
+            finalizeAndFireEvents.call(this, dragSet, dropped);
+        }
         else {
             Context.memento.cancel();
         }
@@ -674,7 +700,6 @@ export class DragMoveSelectionOperation extends DragElementOperation {
 }
 makeNotCloneable(DragMoveSelectionOperation);
 Context.moveSelectionDrag = new DragMoveSelectionOperation();
-
 
 class DragRotateSelectionOperation extends DragElementOperation {
 

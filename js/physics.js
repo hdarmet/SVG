@@ -92,6 +92,8 @@ export class Physic {
     _add() {}
     _remove() {}
     _resize() {}
+    _acceptDrop(element, dragSet) { return true; }
+    _receiveDrop(element, dragSet) {}
 }
 
 export function makePositioningPhysic(superClass) {
@@ -155,18 +157,21 @@ export function makePositioningPhysic(superClass) {
     return superClass;
 }
 
-export class PositioningPhysic extends Physic {
-    constructor(host, predicate, ...args) {
-        super(host, predicate, ...args);
-    }
+export function createPositioningPhysic() {
+    class PositioningPhysic extends Physic {
+        constructor(host, predicate, ...args) {
+            super(host, predicate, ...args);
+        }
 
-    clone(duplicata) {
-        let _copy = new this.constructor(duplicata.get(this._host), this._predicate, this._positionsFct);
-        _copy._trigger();
-        return _copy;
+        clone(duplicata) {
+            let copy = new this.constructor(duplicata.get(this._host), this._predicate, this._positionsFct);
+            copy._trigger();
+            return copy;
+        }
     }
+    makePositioningPhysic(PositioningPhysic);
+    return PositioningPhysic;
 }
-makePositioningPhysic(PositioningPhysic);
 
 export function addPhysicToContainer(superClass, physicCreator) {
 
@@ -207,12 +212,6 @@ export function addPhysicToContainer(superClass, physicCreator) {
         this._physic.remove(element);
     };
 
-    let acceptDrop = superClass.prototype._acceptDrop;
-    superClass.prototype._acceptDrop = function(element) {
-        if (element._drag.invalid) return false;
-        return acceptDrop ? acceptDrop.call(this, element) : true;
-    };
-
     let hover = superClass.prototype.hover;
     superClass.prototype.hover = function(elements) {
         hover && hover.call(this, elements);
@@ -233,12 +232,25 @@ export function addPhysicToContainer(superClass, physicCreator) {
             this._physic.reset();
         }
     }
+
+    let acceptDrop = superClass.prototype._acceptDrop;
+    superClass.prototype._acceptDrop = function(element, dragSet) {
+        if (acceptDrop && !acceptDrop.call(this, element, dragSet)) return false;
+        return this._physic._acceptDrop(element, dragSet);
+    };
+
+    let receiveDrop = superClass.prototype._receiveDrop;
+    superClass.prototype._receiveDrop = function(element, dragSet) {
+        receiveDrop && receiveDrop.call(this, element, dragSet);
+        this._physic._receiveDrop(element, dragSet);
+    };
+
 }
 
 export function makePositioningContainer(superClass, predicate, positionsFct) {
-
+    let ContainerPhysic = createPositioningPhysic();
     addPhysicToContainer(superClass, function() {
-        return new PositioningPhysic(this, predicate, positionsFct);
+        return new ContainerPhysic(this, predicate, positionsFct);
     });
 
     return superClass;
@@ -1000,54 +1012,33 @@ export function addBordersToCollisionPhysic(superClass, specs) {
         this._bottomBorder && this._supportSAP.add(this._bottomBorder);
     };
 
-    /*
-    let clone = superClass.prototype.clone;
-    superClass.prototype.clone = function(duplicata) {
-        let copy = clone.call(this, duplicata);
-        if (this._leftBorder) {
-            copy._addLeftBorder();
-        }
-        if (this._rightBorder) {
-            copy._addRightBorder();
-        }
-        if (this._topBorder) {
-            copy._addTopBorder();
-        }
-        if (this._bottomBorder) {
-            copy._addBottomBorder();
-        }
-        return copy;
-    };
-*/
-
 }
 
-export class CollisionPhysic extends Physic {
+export function createCollisionPhysic() {
+    class CollisionPhysic extends Physic {
+        constructor(host, predicate, ...args) {
+            super(host, predicate, ...args);
+        }
 
-    constructor(host, predicate, ...args) {
-        super(host, predicate, ...args);
+        clone(duplicata) {
+            let copy = new this.constructor(duplicata.get(this._host), this._predicate);
+            copy._trigger();
+            return copy;
+        }
+
     }
-
-    clone(duplicata) {
-        let _copy = new this.constructor(duplicata.get(this._host), this._predicate);
-        _copy._trigger();
-        return _copy;
-    }
-
+    makeCollisionPhysic(CollisionPhysic);
+    return CollisionPhysic;
 }
-makeCollisionPhysic(CollisionPhysic);
 
 export function makeCollisionContainer(superClass, predicate, specs = null) {
-
-    class ContainerPhysic extends CollisionPhysic {}
+    let ContainerPhysic = createCollisionPhysic();
     if (specs) {
         addBordersToCollisionPhysic(ContainerPhysic, specs);
     }
-
     addPhysicToContainer(superClass, function() {
         return new ContainerPhysic(this, predicate);
     });
-
     return superClass;
 }
 
@@ -1069,10 +1060,14 @@ class Ground {
 
     process(element, update=true) {
 
-        function setCarriedBy(element, supports) {
-            element._fall.carriers = [...supports];
+        function setCarriedBy(element, under, supports) {
+            element._fall.carriers = new ESet(supports);
+            for (let support of under) {
+                if (!support._fall.under) support._fall.under = new ESet();
+                support._fall.under.add(element);
+            }
             for (let support of supports) {
-                if (!support._fall.carried) support._fall.carried = new List();
+                if (!support._fall.carried) support._fall.carried = new ESet();
                 support._fall.carried.add(element);
             }
         }
@@ -1086,7 +1081,9 @@ class Ground {
         let ground = this._physic._host.bottom;
         let segment = it.next().value;
         let supports = new ESet();
+        let under = new ESet();
         while (segment && segment.left+COLLISION_MARGIN < right) {
+            under.add(segment.element);
             if (same(segment.top, ground)) {
                 supports.add(segment.element);
             }
@@ -1107,19 +1104,21 @@ class Ground {
                 top = record.top(element);
             }
         }
-        setCarriedBy(element, supports);
+        setCarriedBy(element, under, supports);
         this._segments.insert({left, right, id:id++, top, element});
     }
 
 }
 
-export function addGravitationToCollisionPhysic(superClass) {
+export function addGravitationToCollisionPhysic(superClass, acceptCarried = (carrier, carried, dx, dy)=>true) {
 
     superClass.prototype._setCarried = function(elements) {
         for (let element of elements) {
-            if (element.isCarriable && element._fall && element._fall.carriers) {
+            if (element.isCarriable && /*element._fall &&*/ element._fall.carriers) {
                 for (let support of element._fall.carriers) {
-                    if (support.isCarrier) {
+                    let dx = element.lx-support.lx;
+                    let dy = element.ly-support.ly;
+                    if (support.isCarrier && acceptCarried(support, element, dx, dy)) {
                         support.addCarried(element);
                     }
                 }
@@ -1145,6 +1144,8 @@ export function addGravitationToCollisionPhysic(superClass) {
     superClass.prototype._processElements = function() {
         let elements = new List(...this._elements);
         for (let element of elements) {
+            element._clearCarried && element._clearCarried();
+            element._clearCarriedBy && element._clearCarriedBy();
             element._fall = {};
         }
         this._letFall(elements, new Ground(this));
@@ -1160,24 +1161,26 @@ export function addGravitationToCollisionPhysic(superClass) {
     return superClass;
 }
 
-export class GravitationPhysic extends CollisionPhysic {
+export function createGravitationPhysic(acceptCarried = (carrier, carried)=>true) {
+    class GravitationPhysic extends createCollisionPhysic() {
 
-    constructor(host, predicate, ...args) {
-        super(host, predicate, ...args);
+        constructor(host, predicate, ...args) {
+            super(host, predicate, ...args);
+        }
+
+        clone(duplicata) {
+            let copy = new this.constructor(duplicata.get(this._host), this._predicate);
+            copy._trigger();
+            return copy;
+        }
+
     }
-
-    clone(duplicata) {
-        let _copy = this.constructor(duplicata.get(this._host), this._predicate);
-        _copy._trigger();
-        return _copy;
-    }
-
+    addGravitationToCollisionPhysic(GravitationPhysic, acceptCarried);
+    return GravitationPhysic;
 }
-addGravitationToCollisionPhysic(GravitationPhysic);
 
-export function makeGravitationContainer(superClass, predicate, specs = null) {
-
-    class ContainerPhysic extends GravitationPhysic {};
+export function makeGravitationContainer(superClass, predicate, acceptCarried = (carrier, carried)=>true, specs = null) {
+    let ContainerPhysic = createGravitationPhysic(acceptCarried);
     if (specs) {
         addBordersToCollisionPhysic(ContainerPhysic, specs);
     }
@@ -1251,7 +1254,7 @@ export function makeCarrier(superClass) {
     };
 
     superClass.prototype._clearCarried = function() {
-        delete this._carriedBy;
+        delete this._carried;
     };
 
     let getExtension = superClass.prototype.getExtension;
@@ -1362,9 +1365,13 @@ export function makeCarriable(superClass) {
     Object.defineProperty(superClass.prototype, "carriers", {
         configurable:true,
         get() {
-            return this._carriedBy ? this._carriedBy.keys() : null;
+            return this._carriedBy ? this._carriedBy.keys() : [];
         }
     });
+
+    superClass.prototype._clearCarriedBy = function() {
+        delete this._carriedBy;
+    };
 
     superClass.prototype.__addCarriedBy = function(element, record) {
         if (!this._carriedBy) {
@@ -1460,26 +1467,32 @@ export function makeCarriable(superClass) {
     return superClass;
 }
 
-export function addStickingToCollisionPhysic(superClass) {
+export const Glue = {
+    NONE:0,         // Elements should not be glued
+    EXTEND:1,       // Elements should be glued. This element must add glued element to its extension
+    BREAK:2         // Elements should be glued. This element must not add glued element to its extension
+};
 
-    let refresh = superClass.prototype._refresh;
-    superClass.prototype._refresh = function() {
-        refresh.call(this);
-        for (let element of this._elements) {
-            if (element.isStickable) {
-                let alreadySticked = element.getSticked(false, true, true, false);
-                let stickedElements = this._supportSAP.near(element, 1, 1, 0, 0);
-                for (let neighbour of stickedElements) {
-                    if (!alreadySticked.has(neighbour)) {
-                        element.stick(neighbour);
-                    }
-                    else {
-                        alreadySticked.delete(neighbour);
+export function makeDroppedElementsToGlue(superClass, howToGlue=(element1, element2)=>Glue.EXTEND) {
+
+    let receiveDrop = superClass.prototype._receiveDrop;
+    superClass.prototype._receiveDrop = function(element, dragSet) {
+        receiveDrop.call(this);
+        if (element.isGlueable) {
+            let alreadyGlued = element.getGlued(true, true, true, true);
+            let gluedElements = this._supportSAP.near(element, 1, 1, 1, 1);
+            for (let neighbour of gluedElements) {
+                if (!alreadyGlued.has(neighbour)) {
+                    if (howToGlue(element, neighbour)!==Glue.NONE) {
+                        element.glue(neighbour, howToGlue);
                     }
                 }
-                for (let neighbour of alreadySticked) {
-                    element.unstick(neighbour);
+                else {
+                    alreadyGlued.delete(neighbour);
                 }
+            }
+            for (let neighbour of alreadyGlued) {
+                element.unglue(neighbour);
             }
         }
     };
@@ -1487,101 +1500,104 @@ export function addStickingToCollisionPhysic(superClass) {
     return superClass;
 }
 
-export function makeStickable(superClass) {
+export function makeGlueable(superClass) {
 
-    Object.defineProperty(superClass.prototype, "isStickable", {
+    Object.defineProperty(superClass.prototype, "isGlueable", {
         configurable:true,
         get() {
             return true;
         }
     });
 
-    superClass.prototype.__stick = function(element, record) {
-        if (!this._stickedWith) {
-            this._stickedWith = new Map();
+    superClass.prototype.__glue = function(element, record) {
+        if (!this._gluedWith) {
+            this._gluedWith = new Map();
         }
-        this._stickedWith.set(element, record);
+        this._gluedWith.set(element, record);
     };
 
-    superClass.prototype.__unstick = function(element) {
-        if (this._stickedWith) {
-            this._stickedWith.delete(element);
-            if (!this._stickedWith.size) {
-                delete this._stickedWith;
+    superClass.prototype.__unglue = function(element) {
+        if (this._gluedWith) {
+            this._gluedWith.delete(element);
+            if (!this._gluedWith.size) {
+                delete this._gluedWith;
             }
         }
     };
 
-    superClass.prototype._stick = function(element) {
-        this.__stick(element, this._createRecord(element));
-        element.__stick(this, element._createRecord(this));
+    superClass.prototype._glue = function(element, strategy) {
+        this.__glue(element, this._createRecord(element, strategy));
+        element.__glue(this, element._createRecord(this, strategy));
     };
 
-    superClass.prototype._unstick = function(element) {
-        this.__unstick(element);
-        element.__unstick(this);
+    superClass.prototype._unglue = function(element) {
+        this.__unglue(element);
+        element.__unglue(this);
     };
 
-    superClass.prototype.stick = function(element) {
-        if (element.isStickable && (!this._stickedWith || !this._stickedWith.has(element))) {
+    superClass.prototype.glue = function(element, strategy=(element1, element2)=>Glue.EXTEND) {
+        if (element.isGlueable && (!this._gluedWith || !this._gluedWith.has(element))) {
             Memento.register(this);
             Memento.register(element);
-            this._stick(element);
+            this._glue(element, strategy);
         }
     };
 
-    superClass.prototype.unstick = function(element) {
-        if (element.isStickable && this._stickedWith && this._stickedWith.has(element)) {
+    superClass.prototype.unglue = function(element) {
+        if (element.isGlueable && this._gluedWith && this._gluedWith.has(element)) {
             Memento.register(this);
             Memento.register(element);
-            this._unstick(element);
+            this._unglue(element);
         }
     };
 
-    superClass.prototype._createRecord = function(element) {
+    superClass.prototype._createRecord = function(element, strategy) {
         return new CloneableObject({
             dx: element.lx - this.lx,
-            dy: element.ly - this.ly
+            dy: element.ly - this.ly,
+            strategy
         })
     };
 
-    superClass.prototype.clearSticked = function() {
-        if (this._stickedWith) {
-            for (let element of [...this._stickedWith.keys()]) {
-                this.unstick(element);
+    superClass.prototype.clearGlued = function() {
+        if (this._gluedWith) {
+            for (let element of [...this._gluedWith.keys()]) {
+                this.unglue(element);
             }
         }
     };
 
-    Object.defineProperty(superClass.prototype, "stickedWith", {
+    Object.defineProperty(superClass.prototype, "gluedWith", {
         configurable:true,
         get() {
-            return this._stickedWith ? this._stickedWith.keys() : [];
+            return this._gluedWith ? this._gluedWith.keys() : [];
         }
     });
 
-    superClass.prototype.getSticked = function(left = true, top = true, right = true, bottom = true) {
-        let stickedWidth = new ESet();
-        if (this._stickedWith) {
+    superClass.prototype.getGlued = function(left = true, top = true, right = true, bottom = true) {
+        let gluedWidth = new ESet();
+        if (this._gluedWith) {
             let tlx = this.lx, tly = this.ly, tw = this.width/2-COLLISION_MARGIN, th = this.height/2-COLLISION_MARGIN;
-            for (let neighbour of this._stickedWith) {
+            for (let neighbour of this._gluedWith) {
                 let nlx = neighbour.lx, nly = neighbour.ly,
                     nw = neighbour.width / 2 - COLLISION_MARGIN, nh = neighbour.height / 2 - COLLISION_MARGIN;
-                if (left && nlx + nw <= tlx - tw) stickedWidth.add(neighbour);
-                else if (top && nly + nh <= tly - th) stickedWidth.add(neighbour);
-                else if (right && nlx - nw >= tlx + tw) stickedWidth.add(neighbour);
-                else if (bottom && nly - nh >= tly + th) stickedWidth.add(neighbour);
+                if (left && nlx + nw <= tlx - tw) gluedWidth.add(neighbour);
+                else if (top && nly + nh <= tly - th) gluedWidth.add(neighbour);
+                else if (right && nlx - nw >= tlx + tw) gluedWidth.add(neighbour);
+                else if (bottom && nly - nh >= tly + th) gluedWidth.add(neighbour);
             }
         }
+        return gluedWidth;
     };
 
     let getExtension = superClass.prototype.getExtension;
     superClass.prototype.getExtension = function(extension) {
         let elemExtension = getExtension ? getExtension.call(this, extension) : new ESet();
         extension = extension ? extension.merge(elemExtension) : elemExtension;
-        if (this._stickedWith) {
-            for (let element of this._stickedWith.keys()) {
-                if (!extension.has(element) && (!this._unstickOnDrag || !this._unstickOnDrag(element))) {
+        if (this._gluedWith) {
+            for (let element of this._gluedWith.keys()) {
+                let record = this._gluedWith.get(element);
+                if (!extension.has(element) && record.strategy(this, element, record.dx, record.dy)===Glue.EXTEND) {
                     extension.add(element);
                     if (element.getExtension) {
                         for (let child of element.getExtension(extension)) {
@@ -1597,10 +1613,11 @@ export function makeStickable(superClass) {
     let draggedFrom = superClass.prototype._draggedFrom;
     superClass.prototype._draggedFrom = function(support, dragSet) {
         draggedFrom && draggedFrom.call(this, support, dragSet);
-        if (this._stickedWith) {
-            for (let element of [...this._stickedWith.keys()]) {
-                if (this._unstickOnDrag && this._unstickOnDrag(element) && !dragSet.has(element)) {
-                    this.unstick(element);
+        if (this._gluedWith) {
+            for (let element of [...this._gluedWith.keys()]) {
+                let record = this._gluedWith.get(element);
+                if (record.strategy(this, element, record.dx, record.dy)!==Glue.EXTEND && !dragSet.has(element)) {
+                    this.unglue(element);
                 }
             }
         }
@@ -1609,9 +1626,9 @@ export function makeStickable(superClass) {
     let revertDroppedIn = superClass.prototype._revertDroppedIn;
     superClass.prototype._revertDroppedIn = function () {
         revertDroppedIn && revertDroppedIn.call(this);
-        if (this._stickedWith) {
-            for (let element of this._stickedWith.keys()) {
-                element.__stick(this, element._createRecord(this));
+        if (this._gluedWith) {
+            for (let element of this._gluedWith.keys()) {
+                element.__glue(this, element._createRecord(this));
             }
         }
     };
@@ -1619,11 +1636,11 @@ export function makeStickable(superClass) {
     let cloned = superClass.prototype._cloned;
     superClass.prototype._cloned = function (copy, duplicata) {
         cloned && cloned.call(this, copy, duplicata);
-        if (this._stickedWith) {
-            for (let element of this._stickedWith.keys()) {
+        if (this._gluedWith) {
+            for (let element of this._gluedWith.keys()) {
                 let childCopy = duplicata.get(element);
-                let record = this._stickedWith.get(element);
-                copy.__stick(childCopy, record);
+                let record = this._gluedWith.get(element);
+                copy.__glue(childCopy, record);
             }
         }
     };
@@ -1631,8 +1648,8 @@ export function makeStickable(superClass) {
     let superDelete = superClass.prototype.delete;
     superClass.prototype.delete = function() {
         let result = superDelete.call(this);
-        if (this._stickedWith) {
-            for (let element of this._stickedWith.keys()) {
+        if (this._gluedWith) {
+            for (let element of this._gluedWith.keys()) {
                 element.removeCarried(this);
             }
         }
@@ -1642,8 +1659,8 @@ export function makeStickable(superClass) {
     let superMemento = superClass.prototype._memento;
     superClass.prototype._memento = function () {
         let memento = superMemento.call(this);
-        if (this._stickedWith) {
-            memento._stickedWith = new Map(this._stickedWith);
+        if (this._gluedWith) {
+            memento._gluedWith = new Map(this._gluedWith);
         }
         return memento;
     };
@@ -1651,11 +1668,11 @@ export function makeStickable(superClass) {
     let superRevert = superClass.prototype._revert;
     superClass.prototype._revert = function (memento) {
         superRevert.call(this, memento);
-        if (memento._stickedWith) {
-            this._stickedWith = new Map(memento._stickedWith);
+        if (memento._gluedWith) {
+            this._gluedWith = new Map(memento._gluedWith);
         }
         else {
-            delete this._stickedWith;
+            delete this._gluedWith;
         }
         return this;
     };
@@ -1663,92 +1680,10 @@ export function makeStickable(superClass) {
     return superClass;
 }
 
-export function addGravitationToStickingPhysic(superClass) {
+export function addGlueToGravitationPhysic(
+    superClass) {
 
     addGravitationToCollisionPhysic(superClass);
-
-    function unsetCarriedBy(element) {
-        if (element._fall.carriers) {
-            for (let support of element._fall.carriers) {
-                if (support._fall.carried) {
-                    support._fall.carried.remove(element);
-                    if (!support._fall.carried.length) {
-                        delete support._fall.carried;
-                    }
-                }
-            }
-            delete element._fall.carriers;
-        }
-    }
-
-    superClass.prototype.placeBlock = function(block, ground) {
-
-        function compromise(block, element) {
-            if (element._fall.block !== block && !element._fall.block.compromised) {
-                element._fall.block.compromised = true;
-                compromiseChildren(block, element);
-            }
-        }
-
-        function compromiseChildren(block, element) {
-            if (element._fall.carried) {
-                for (let carried of element._fall.carried) {
-                    if (carried._fall.block !== block) {
-                        compromise(block, carried);
-                    }
-                }
-            }
-        }
-
-        for (let element of block.elements) {
-            if (!same(element.ly, element._fall.ly + block.dy)) {
-                element.setLocation(element.lx, element._fall.ly + block.dy);
-                unsetCarriedBy(element);
-                this._supportSAP.update(element);
-                ground.process(element, false);
-                compromiseChildren(block, element);
-            }
-        }
-
-    };
-
-    superClass.prototype.replayBlock = function(block, elements) {
-        for (let element of block.elements) {
-            element.setLocation(element.lx, element._fall.ly);
-            unsetCarriedBy(element);
-            elements.add(element);
-        }
-    };
-
-    superClass.prototype._fallPass = function(result, ground) {
-
-        function computeBlockFall(block) {
-            delete block.compromised;
-            block.dy = Infinity;
-            for (let element of block.elements) {
-                let dy = element.ly - element._fall.ly;
-                if (dy<block.dy) block.dy = dy;
-            }
-        }
-
-        this._letFall(result.elements, ground.duplicate());
-        for (let block of result.blocks) {
-            computeBlockFall(block);
-        }
-        result.blocks.sort((b1, b2)=>b1.dy - b2.dy);
-        let elements = new List();
-        let nblocks = new List();
-        for (let block of result.blocks) {
-            if (!block.compromised) {
-                this.placeBlock(block, ground);
-            }
-            else {
-                this.replayBlock(block, elements);
-                nblocks.add(block);
-            }
-        }
-        return {elements, blocks:nblocks};
-    };
 
     superClass.prototype._getBlocks = function (elements) {
 
@@ -1768,8 +1703,8 @@ export function addGravitationToStickingPhysic(superClass) {
                 };
                 setToBlock(blocks, element, block);
             }
-            if (element.isStickable) {
-                for (let neighbour of element.stickedWith) {
+            if (element.isGlueable) {
+                for (let neighbour of element.gluedWith) {
                     let nblock = neighbour._fall.block;
                     if (nblock) {
                         for (let friend of nblock.elements) {
@@ -1785,50 +1720,105 @@ export function addGravitationToStickingPhysic(superClass) {
         return [...new ESet(blocks.values())];
     };
 
+    superClass.prototype._processBlock = function(block) {
+
+        function ascend(element, dy, carrier) {
+            if (same(dy, 0)) {
+                if (carrier) {
+                    element._fall.carriers ? element._fall.carriers.add(carrier) : element._fall.carriers = new ESet([carrier]);
+                    carrier._fall.carried ? carrier._fall.carried.add(element) : carrier._fall.carried = new ESet([element]);
+                }
+            }
+            else if (dy > 0) {
+                let ly = element.ly - dy;
+                let ely = ly - element._fall.ly;
+                if (element._fall.block.dy>ely) {
+                    element._fall.block.dy = ely;
+                }
+                element.setLocation(element.lx, ly);
+                this._supportSAP.update(element);
+                if (element._fall.under) {
+                    for (let carried of element._fall.under) {
+                        let mdy = this._supportSAP.top(element)-this._supportSAP.bottom(carried);
+                        ascend.call(this, carried, -mdy, element);
+                    }
+                }
+                if (carrier) {
+                    element._fall.carriers = new ESet([carrier]);
+                    carrier._fall.carried = new ESet([element]);
+                }
+            }
+        }
+
+        for (let element of block.elements) {
+            let dy = element.ly-element._fall.ly-block.dy;
+            ascend.call(this, element, dy, null);
+        }
+    };
+
     superClass.prototype._processElements = function() {
-        let ground = new Ground(this);
+        function computeBlockFall(block) {
+            block.dy = Infinity;
+            for (let element of block.elements) {
+                let dy = element.ly - element._fall.ly;
+                if (dy<block.dy) block.dy = dy;
+            }
+        }
+
         let elements = new List(...this._elements);
         for (let element of elements) {
+            element._clearCarried && element._clearCarried();
+            element._clearCarriedBy && element._clearCarriedBy();
             element._fall = {ly: element.ly};
         }
-        let result = {
-            blocks: this._getBlocks(elements),
-            elements: elements
-        };
-        do {
-            result = this._fallPass(result, ground);
-        } while (result.blocks.length!==0);
+        let blocks = this._getBlocks(elements);
+        this._letFall(elements, new Ground(this));
+        for (let block of blocks) {
+            computeBlockFall(block);
+        }
+        blocks.sort((b1, b2)=>b1.dy - b2.dy);
+        for (let block of blocks) {
+            this._processBlock(block);
+        }
         this._setCarried(this._elements);
     };
 
     return superClass;
 }
 
-export class StickingGravitationPhysic extends CollisionPhysic {
+export function createStickyGravitationPhysic(
+    acceptCarried=(carrier, carried, dx, dy)=>true,
+    strategy) {
 
-    constructor(host, predicate, ...args) {
-        super(host, predicate, ...args);
+    class StickyGravitationPhysic extends createGravitationPhysic(acceptCarried) {
+        constructor(host, predicate, ...args) {
+            super(host, predicate, ...args);
+        }
+        clone(duplicata) {
+            let copy = new this.constructor(duplicata.get(this._host), this._predicate);
+            copy._trigger();
+            return copy;
+        }
     }
-
-    clone(duplicata) {
-        let copy = this.constructor(duplicata.get(this._host), this._predicate);
-        copy._trigger();
-        return copy;
+    addGlueToGravitationPhysic(StickyGravitationPhysic);
+    if (strategy) {
+        makeDroppedElementsToGlue(StickyGravitationPhysic, strategy);
     }
-
+    return StickyGravitationPhysic;
 }
-addGravitationToStickingPhysic(StickingGravitationPhysic);
 
-export function makeStickingGravitationContainer(superClass, predicate, specs = null) {
-
-    class ContainerPhysic extends StickingGravitationPhysic {}
+export function makeStickyGravitationContainer(
+    superClass, predicate,
+    acceptCarried=(carrier, carried)=>true,
+    strategy = null,
+    specs = null)
+{
+    class ContainerPhysic extends createStickyGravitationPhysic(acceptCarried, strategy) {}
     if (specs) {
         addBordersToCollisionPhysic(ContainerPhysic, specs);
     }
-
     addPhysicToContainer(superClass, function() {
         return new ContainerPhysic(this, predicate);
     });
-
     return superClass;
 }
