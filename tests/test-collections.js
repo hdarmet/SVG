@@ -1,9 +1,9 @@
 
 import {
-    describe, it, before, assert
+    describe, it, assert
 } from "./test-toolkit.js";
 import {
-    AVLTree, List
+    AVLTree, List, ESet, EMap
 } from "../js/collections.js";
 
 describe("AVL Tree implementation", ()=> {
@@ -215,4 +215,42 @@ describe("AVL Tree implementation", ()=> {
         assert(values).arrayEqualsTo([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
     });
 
+    it("Manipulates an extended Set (ESet)", () => {
+        let set1 = new ESet([1, 2, 3, 4]);
+        let set2 = new ESet([3, 4, 5, 6]);
+        // Union
+        let union = set1.union(set2);
+        assert([...union]).unorderedEqualsTo([1, 2, 3, 4, 5, 6]);
+        // Intersect
+        let intersect = set1.intersect(set2);
+        assert([...intersect]).unorderedEqualsTo([3, 4]);
+        // Difference
+        let diff = set1.diff(set2);
+        assert([...diff]).unorderedEqualsTo([1, 2]);
+        // Same
+        assert(set1.same(set2)).isFalse();
+        assert(set1.same(new ESet([1, 2, 3, 4]))).isTrue();
+    });
+
+    it("Manipulates an extended Map (EMap)", () => {
+        let map1 = new EMap([[1, "one"], [2, "two"], [3, "three"]]);
+        let map2 = new EMap([[3, "three"], [4, "four"], [5, "five"]]);
+        assert(map1);
+        assert([...map1.entries()]).arrayEqualsTo([[1, "one"], [2, "two"], [3, "three"]]);
+        // Union
+        let union = map1.union(map2);
+        assert([...union.entries()]).arrayEqualsTo([
+            [1, "one"], [2, "two"], [3, "three"], [4, "four"], [5, "five"]
+        ]);
+        // Intersect
+        let intersect = map1.intersect(map2);
+        assert([...intersect.entries()]).arrayEqualsTo([[3, "three"]]);
+        // Difference
+        let diff = map1.diff(map2);
+        assert([...diff.entries()]).arrayEqualsTo([[1, "one"], [2, "two"]]);
+        // Same
+        assert(map1.same(map2)).isFalse();
+        assert(map1.same(new EMap([[1, "one"], [2, "two"], [3, "three"]]))).isTrue();
+        assert(map1.same([[1, "one"], [2, "two"], [3, "three"]])).isTrue();
+    });
 });

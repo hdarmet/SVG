@@ -243,7 +243,7 @@ describe("Physics", ()=> {
         assert(elementCopy instanceof DraggableClass).isTrue();
     });
 
-    it("It drops an element in a copied collision physic", ()=>{
+    it("Drops an element in a copied collision physic", ()=>{
         let {table, DraggableClass, containerCopy} = copyAContainerWithCollisionPhysic();
         assert(containerCopy).isDefined();
         let movingElement = createElement(DraggableClass, table, 0, 100);
@@ -253,7 +253,7 @@ describe("Physics", ()=> {
         assert(movingElement.location).sameTo({x:-20, y:0})
     });
 
-    it("It cross the border of a copied collision physic", ()=>{
+    it("Crosses the border of a copied collision physic", ()=>{
         let {table, DraggableClass, containerCopy} = copyAContainerWithCollisionPhysic();
         assert(containerCopy).isDefined();
         let movingElement = createElement(DraggableClass, table, -100, -100);

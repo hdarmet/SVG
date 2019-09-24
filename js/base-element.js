@@ -771,7 +771,7 @@ export class Pedestal {
         this._element = element;
         this._support = support;
         this._zIndex = zIndex;
-        this.level.add(this._root);
+        this._support._level(this._zIndex).add(this._root);
         support._pedestals.set(element, this);
         if (parent) {
             support._pedestals.get(parent)._register(this);
@@ -781,11 +781,11 @@ export class Pedestal {
     _memento() {
         for (let eroot of this._root.children) {
             let child = eroot._owner;
-            Memento.register(child);
+            child._registerPedestal();
         }
         return {
             _rootChildren : [...this._root.children],
-            _matrix : this._root.matrix
+            _matrix : this._root._matrix
         }
     }
 
@@ -794,7 +794,9 @@ export class Pedestal {
         for (let svgChild of memento._rootChildren) {
             this._root.add(svgChild);
         }
-        this._root.matrix = memento._matrix;
+        if (memento._matrix) {
+            this._root._matrix = memento._matrix;
+        }
     }
 
     get level() {
@@ -816,27 +818,22 @@ export class Pedestal {
         let pedestal = that._support._pedestal(container, that._element, that._zIndex);
         container.__proto__ = {
             add(element) {
-                Memento.register(pedestal);
                 that._support._memorizeElementContent(element);
                 proto.add.call(this, element);
             },
             insert(previous, element) {
-                Memento.register(pedestal);
                 that._support._memorizeElementContent(element);
                 proto.insert.call(this, previous, element);
             },
             replace(previous, element) {
-                Memento.register(pedestal);
                 that._support._memorizeElementContent(element);
                 proto.replace.call(this, previous, element);
             },
             remove(element) {
-                Memento.register(pedestal);
                 that._support._memorizeElementContent(element);
                 proto.remove.call(this, element);
             },
             clear() {
-                Memento.register(pedestal);
                 proto.clear.call(this);
             },
             _add(element) {
@@ -848,16 +845,17 @@ export class Pedestal {
                 that._support._takeInElementContent(element, this, that._zIndex + 1);
             },
             _replace(previous, element) {
-                that._support._takeOutElementContent(element);
+                that._support._takeOutElementContent(previous);
+                that._support._removeEmptyLevels();
                 proto._replace.call(this, previous, element);
                 that._support._takeInElementContent(element, this, that._zIndex + 1);
             },
             _remove(element) {
                 that._support._takeOutElementContent(element);
+                that._support._removeEmptyLevels();
                 proto._remove.call(this, element);
             },
             _clear() {
-//                proto.__clear.call(this);
                 proto._clear.call(this);
             },
             __add(element) {
@@ -872,12 +870,21 @@ export class Pedestal {
             __remove(element) {
                 pedestal.remove(element);
             },
+            _setLocation(x, y) {
+                super._setLocation(x, y);
+                pedestal.refresh();
+                return this;
+            },
             __clear() {
                 pedestal.clear()
             },
             _memento() {
-                Memento.register(pedestal);
+                this._registerPedestal();
+                Memento.register(pedestal._support);
                 return super._memento();
+            },
+            _registerPedestal() {
+                Memento.register(pedestal);
             },
             pedestal,
             __pass__:true,
@@ -949,8 +956,7 @@ export class Pedestal {
     }
 
     refresh() {
-        let parent = this._parent;
-        this.matrix =  computeMatrix(parent.level, this._element.content);
+        this.matrix = computeMatrix(this._parent.level, this._element.content);
     }
 }
 makeCloneable(Pedestal);
@@ -969,6 +975,7 @@ class ZIndexSupport {
         this._pedestals = new Map();
         this._rootPedestal = new Pedestal(this._host, null, 0, this);
         let config = {attributes: true, childList: true, subtree: true};
+
         let action = mutations=> {
             let updates = new ESet();
             for (let mutation of mutations) {
@@ -982,6 +989,7 @@ class ZIndexSupport {
             }
             let processed = new ESet();
             let roots = new ESet();
+
             function process(pedestal, isRoot) {
                 if (!processed.has(pedestal)) {
                     processed.add(pedestal);
@@ -998,6 +1006,7 @@ class ZIndexSupport {
                     roots.delete(pedestal);
                 }
             }
+
             for (let element of updates) {
                 let pedestal = this._pedestals.get(element);
                 pedestal && process(pedestal, true);
@@ -1097,6 +1106,18 @@ class ZIndexSupport {
         }
     };
 
+    _removeEmptyLevels() {
+        for (let index = this._levels.length-1; index>0; index--) {
+            if (this._levels[index].empty) {
+                this._host._content.remove(this._levels[index]);
+                this._levels.length -=1;
+            }
+            else {
+                break;
+            }
+        }
+    }
+
     _clear() {
         this._levels.clear();
         this._pedestals.clear();
@@ -1117,12 +1138,14 @@ class ZIndexSupport {
 
     _replace(replace, previous, element) {
         this._takeOutElementContent(previous);
+        this._removeEmptyLevels();
         replace.call(this._host, previous, element);
         this._takeInElementContent(element, this._host, 0);
     };
 
     _remove(remove, element) {
         this._takeOutElementContent(element);
+        this._removeEmptyLevels();
         remove.call(this._host, element);
     };
 
@@ -1152,13 +1175,13 @@ class ZIndexSupport {
             return pedestals;
         }
 
+        Memento.register(this._rootPedestal);
         let memento = {};
         memento._pedestals = new Map([...this._pedestals.entries()]);
         memento._levels = new List();
         for (let level of this._levels) {
             memento._levels.push(justLevel(level));
         }
-        Memento.register(this._rootPedestal);
         return memento;
     };
 
@@ -1183,6 +1206,7 @@ export function makeContainerZindex(superClass) {
 
     superClass.prototype._initContent = function () {
         this._content = new Group();
+        this._content.cloning = Cloning.NONE;
         this._zIndexSupport = new ZIndexSupport(this);
         return this._content;
     };
@@ -1731,7 +1755,6 @@ export class BoardElement {
 
     _createStructure() {
         this._root = new Translation();
-        //this._root.that = this;
         this._root._id = "root";
         this._root._owner = this;
         this._tray = new Group();

@@ -77,6 +77,9 @@ export class List extends Array {
     }
 }
 
+/**
+ * Class of set that contains some set methods like union, diff, intersect and do on.
+ */
 export class ESet extends Set {
 
     constructor(...iterables) {
@@ -100,7 +103,7 @@ export class ESet extends Set {
                 newSet.add(item);
             }
         }
-        return set;
+        return newSet;
     }
 
     intersect(target) {
@@ -137,6 +140,93 @@ export class ESet extends Set {
         }
         for (let item of target) {
             if (!this.has(item)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+}
+
+/**
+ * Class of map that contains some set methods like union, diff, intersect and do on.
+ */
+export class EMap extends Map {
+
+    constructor(...maps) {
+        super();
+        this.merge(...maps);
+    }
+
+    merge(...maps) {
+        for (let map of maps) {
+            let entries;
+            if (map instanceof Map) {
+                entries = map.entries();
+            }
+            else if (map instanceof Array) {
+                entries = map;
+            }
+            else {
+                throw new TypeError(`Cannot interpret ${map} as a map`);
+            }
+            for (let entry of entries) {
+                if (entry instanceof Array) {
+                    this.set(entry[0], entry[1]);
+                }
+                else {
+                    throw new TypeError(`Key/value pair is not implemented as an array.`);
+                }
+            }
+        }
+        return this;
+    }
+
+    union(...maps) {
+        let newMap = new this.constructor(this);
+        for (let map of maps) {
+            for (let entry of map.entries()) {
+                newMap.set(entry[0], entry[1]);
+            }
+        }
+        return newMap;
+    }
+
+    intersect(target) {
+        let newMap = new this.constructor();
+        for (let entry of this.entries()) {
+            if (target.has(entry[0])) {
+                newMap.set(entry[0], entry[1]);
+            }
+        }
+        return newMap;
+    }
+
+    diff(target) {
+        let newMap = new this.constructor();
+        for (let entry of this.entries()) {
+            if (!target.has(entry[0])) {
+                newMap.set(entry[0], entry[1]);
+            }
+        }
+        return newMap;
+    }
+
+    same(target) {
+        let tsize;
+        if ("size" in target) {
+            tsize = target.size;
+        } else if ("length" in target) {
+            tsize = target.length;
+        } else {
+            throw new TypeError("target must be an iterable like a Map with .size or .length");
+        }
+        if (tsize !== this.size) {
+            return false;
+        }
+        let entries = target instanceof Map ? target.entries() : target
+        for (let entry of entries) {
+            if (!this.has(entry[0])) {
                 return false;
             }
         }

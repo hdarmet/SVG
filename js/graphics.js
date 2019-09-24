@@ -713,7 +713,6 @@ export class SVGElement {
         return this._parent ? ""+this._ref+"-"+this._parent.ref : ""+this._ref;
     }
 
-    // Testé
     clone(duplicata = new Map()) {
         let copy = duplicata.get(this);
         if (copy) return copy;
@@ -722,6 +721,9 @@ export class SVGElement {
         // IMPORTANT: cloning == false (default) means deep cloning !
         if (!this.cloning) {
             this._cloneContent(copy, duplicata);
+        }
+        if (this.cloning!==undefined) {
+            copy.cloning = this.cloning;
         }
         if (this.eventCloning) {
             this._cloneEvent(copy, duplicata);
@@ -765,7 +767,6 @@ export class SVGElement {
         return copy;
     }
 
-    // Partiel
     attr(name, nodeValue, value=nodeValue) {
         if (value!==undefined) {
             if (value===null) {
@@ -780,7 +781,6 @@ export class SVGElement {
         }
         else {
             let attr = this._attrs[name];
-            // Non testé
             if (attr===undefined) {
                 attr = this._node.getAttribute(name);
                 this._attrs[name] = attr;
@@ -812,7 +812,6 @@ export class SVGElement {
         return this._parent && this._parent.inDOM;
     }
 
-    // Testé
     add(element) {
         element.detach();
         if (!this._children) {
@@ -1005,10 +1004,11 @@ export class SVGElement {
         }
     }
 
-    // Testé
     get parent() {return this._parent;}
-    // Testé
+
     get children() {return this._children ? new List(...this._children) : new List();}
+
+    get empty() {return !this._children || !this._children.length;}
 
     get child() {return this._children && this._children.length>0 ? this._children[0] : null }
 
@@ -1096,7 +1096,6 @@ export class SVGElement {
         }
         return null;
     };
-
 
 }
 
@@ -1268,27 +1267,38 @@ export const Cursor = {
 
 export class SVGCoreElement extends SVGElement {
 
-    // Testé
     constructor(type) {
         super(type);
     }
 
+    get _matrix() {
+        return this._attrs.matrix;
+    }
+
     get matrix() {
-        let matrix = this._attrs.matrix;
+        let matrix = this._matrix;
         if (matrix===undefined) {
             matrix = new Matrix();
         }
         return matrix;
     }
 
-    // Testé
-    set matrix(matrix) {
+    set _matrix(matrix) {
         matrixOp++;
-        this._attrs.matrix = matrix;
-        this.attr(Attrs.TRANSFORM, matrix.toString());
+        if (matrix) {
+            this._attrs.matrix = matrix;
+            this.attr(Attrs.TRANSFORM, matrix.toString());
+        }
+        else {
+            delete this._attrs.matrix;
+            this.attr(Attrs.TRANSFORM, null);
+        }
     }
 
-    // Testé
+    set matrix(matrix) {
+        this._matrix = matrix;
+    }
+
     get globalMatrix() {
         if (!this._globalMatrix || this._globalMatrix.op!==matrixOp) {
             let globalMatrix = this._node.getCTM();
