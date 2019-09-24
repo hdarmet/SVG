@@ -153,7 +153,7 @@ class BoardCollisionContent extends BoardContent {
     }
 }
 //makeCollisionContainer(BoardCollisionContent, element=>element instanceof BoardCounter, {all:true});
-makeGravitationContainer(BoardCollisionContent, element=>element instanceof BoardCounter, {all:true});
+makeGravitationContainer(BoardCollisionContent, element=>element instanceof BoardCounter, undefined, {all:true});
 
 
 class BoardCollisionBox extends BoardBox {

@@ -105,6 +105,10 @@ describe("Containers", ()=> {
         container.insert(tiny4, tiny2);
         assert(container.children).arrayEqualsTo([tiny1, tiny2, tiny4]);
         assert(html(container)).equalsTo(containerStartHtml+tiny1Html+tiny2Html+tiny4Html+containerEndHtml);
+        // Clear op.
+        container.clear();
+        assert(container.children).arrayEqualsTo([]);
+        assert(html(container)).equalsTo(containerStartHtml+containerEndHtml);
     });
 
     function copyContainer(table, container) {
@@ -209,6 +213,13 @@ describe("Containers", ()=> {
             containerStartHtml+tiny1Html+
             newLayer+tiny2Html+
             newLayer+tiny4Html+containerEndHtml);
+        // Clear op.
+        container.clear();
+        assert(container.children).arrayEqualsTo([]);
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            newLayer+
+            newLayer+containerEndHtml);
     });
 
     it("Inserts in a multi layered container (check all cases)", ()=>{
@@ -330,6 +341,9 @@ describe("Containers", ()=> {
             startLayer+startPedestal+tiny3Html+endPedestal+endLayer+
             startLayer+startPedestal+endPedestal+endLayer+
             containerEndHtml);
+        assert(tiny1.__pass__).isDefined(); // All tinies are instrumented
+        assert(tiny2.__pass__).isDefined();
+        assert(tiny3.__pass__).isDefined();
         // Add an element at the top of the stack => a new layer is created on the ZIndex container.
         tiny3.add(tiny4);
         assert(html(container)).equalsTo(
@@ -340,6 +354,7 @@ describe("Containers", ()=> {
             startLayer+startPedestal+tiny4Html+endPedestal+endLayer+
             startLayer+startPedestal+endPedestal+endLayer+
             containerEndHtml);
+        assert(tiny4.__pass__).isDefined();
     });
 
     it("Removes elements from a z-index container", ()=> {
@@ -370,10 +385,13 @@ describe("Containers", ()=> {
         // Remove an item from another item => removed elements are recombined.
         tiny2.remove(tiny3);
         assert(html(tiny3)).equalsTo(stack2Html);
+        assert(tiny2.__pass__).isDefined(); // Tiny2 still instrumented
+        assert(tiny3.__pass__).isNotDefined(); // Tiny3 is not instrumented anymore
         assert(html(container)).equalsTo(containerHtml);
         // Remove an item from the container => removed elements must be recombined too
         container.remove(tiny1);
         assert(html(tiny1)).equalsTo(stack1Html);
+        assert(tiny1.__pass__).isNotDefined(); // Tiny1 is not instrumented anymore
         assert(html(container)).equalsTo(containerEmptyHtml);
     });
 
@@ -418,11 +436,10 @@ describe("Containers", ()=> {
     it("Inserts elements in a z-index container", ()=> {
         let {containerStartHtml, startLayer, endLayer, startPedestal, startRootPedestal, endPedestal, containerEndHtml} =
             getHtmlForZIndexContainer();
-        let {container, tiny1, tiny2, tiny3, tiny1Html, tiny2Html, tiny3Html} =
+        let {container, tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} =
             createZIndexContainerAndElementsToPutInto();
         tiny2.add(tiny3);
         container.add(tiny1);
-        // Add an element at the top of the stack => a new layer is created on the ZIndex container.
         container.insert(tiny1, tiny2);
         assert(html(container)).equalsTo(
             containerStartHtml+
@@ -430,6 +447,53 @@ describe("Containers", ()=> {
             startLayer+startPedestal+endPedestal+startPedestal+tiny3Html+endPedestal+endLayer+
             startLayer+startPedestal+endPedestal+endLayer+
             containerEndHtml);
+        tiny2.insert(tiny3, tiny4);
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            startLayer+startRootPedestal+tiny2Html+tiny1Html+endPedestal+endLayer+
+            startLayer+startPedestal+endPedestal+startPedestal+tiny4Html+tiny3Html+endPedestal+endLayer+
+            startLayer+startPedestal+endPedestal+startPedestal+endPedestal+endLayer+
+            containerEndHtml);
+    });
+
+    it("Clears a z-index container", ()=> {
+        let {container, tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} =
+            createZIndexContainerAndElementsToPutInto();
+        let {containerStartHtml, startLayer, endLayer, startPedestal, startRootPedestal, endPedestal, containerEndHtml} =
+            getHtmlForZIndexContainer();
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            startLayer+startRootPedestal+endPedestal+endLayer+
+            containerEndHtml);
+        // Stacks are created outside container
+        tiny1.add(tiny2);
+        tiny3.add(tiny4);
+        let tiny3StackHtml = html(tiny3);
+        container.add(tiny1).add(tiny3);
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            startLayer+startRootPedestal+tiny1Html+tiny3Html+endPedestal+endLayer+
+            startLayer+startPedestal+tiny2Html+endPedestal+startPedestal+tiny4Html+endPedestal+endLayer+
+            startLayer+startPedestal+endPedestal+startPedestal+endPedestal+endLayer+
+            containerEndHtml);
+        // Clear a tiny => ZIndex trump the call.
+        tiny1.clear();
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            startLayer+startRootPedestal+tiny1Html+tiny3Html+endPedestal+endLayer+
+            startLayer+startPedestal+endPedestal+startPedestal+tiny4Html+endPedestal+endLayer+
+            startLayer+startPedestal+endPedestal+endLayer+
+            containerEndHtml);
+        assert(tiny2.__pass__).isNotDefined(); // Tiny2 is not instrumented anymore
+        container.clear();
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            startLayer+startRootPedestal+endPedestal+endLayer+
+            containerEndHtml);
+        assert(html(tiny3)).equalsTo(tiny3StackHtml);
+        assert(tiny1.__pass__).isNotDefined();
+        assert(tiny3.__pass__).isNotDefined();
+        assert(tiny4.__pass__).isNotDefined();
     });
 
     it("Puts several elements on same levels in a z-index container", ()=> {
@@ -524,7 +588,7 @@ describe("Containers", ()=> {
     it("Undoes/Redoes a z-index container", ()=> {
         let {containerStartHtml, startLayer, endLayer, startPedestal, startRootPedestal, endPedestal, containerEndHtml} =
             getHtmlForZIndexContainer();
-        let {BoardZIndexContainer, table, container, tiny1, tiny2, tiny3, tiny4} =
+        let {BoardZIndexContainer, container, tiny1, tiny2, tiny3, tiny4} =
             createZIndexContainerAndElementsToPutInto();
         makeSelectable(BoardZIndexContainer);
         container.setLocation(100, 100);
@@ -542,10 +606,13 @@ describe("Containers", ()=> {
         let htmlAfter = html(container);
         // Ensure something has changed...
         assert(htmlBefore===htmlAfter).isFalse();
+        assert(tiny4.__pass__).isDefined(); // Tiny4 is instrumented in order to belongs on ZIndex container
         Context.memento.undo();
         assert(html(container)).equalsTo(htmlBefore);
+        assert(tiny4.__pass__).isNotDefined();
         Context.memento.redo();
         assert(html(container)).equalsTo(htmlAfter);
+        assert(tiny4.__pass__).isDefined();
     });
 
 });

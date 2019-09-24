@@ -386,6 +386,33 @@ export function makeContainer(superClass) {
         return this;
     };
 
+    superClass.prototype._clear = function(element) {
+        if (this._children) {
+            // IMPORTANT : DOM update before this._children update !
+            this.__clear();
+            for (let element of this._children) {
+                element._parent = null;
+            }
+            delete this._children;
+        }
+    };
+
+    superClass.prototype.clear = function() {
+        if (this._children) {
+            Memento.register(this);
+            let children = this._children;
+            for (let element of children) {
+                Memento.register(element);
+            }
+            this._clear();
+            for (let element of children) {
+                this._fire(Events.REMOVE, element);
+                element._fire(Events.DETACH, this);
+            }
+        }
+        return this;
+    };
+
     superClass.prototype.contains = function(element) {
         return this._children && this._children.contains(element);
     };
@@ -778,10 +805,16 @@ export class Pedestal {
         }
     }
 
-    _memento() {
+    get elements() {
+        let elements = new List();
         for (let eroot of this._root.children) {
-            let child = eroot._owner;
-            child._registerPedestal();
+            elements.add(eroot._owner);
+        }
+    }
+
+    _memento() {
+        for (let element of this.elements) {
+            element._registerPedestal();
         }
         return {
             _rootChildren : [...this._root.children],
@@ -834,6 +867,9 @@ export class Pedestal {
                 proto.remove.call(this, element);
             },
             clear() {
+                for (let element of that.elements) {
+                    that._support._memorizeElementContent(element);
+                }
                 proto.clear.call(this);
             },
             _add(element) {
@@ -856,13 +892,17 @@ export class Pedestal {
                 proto._remove.call(this, element);
             },
             _clear() {
+                for (let element of pedestal.elements) {
+                    that._support._takeOutElementContent(element);
+                }
+                that._support._removeEmptyLevels();
                 proto._clear.call(this);
             },
             __add(element) {
                 pedestal.add(element);
             },
             __insert(previous, element) {
-                pedestal.insert(element);
+                pedestal.insert(previous, element);
             },
             __replace(previous, element) {
                 pedestal.replace(previous, element);
@@ -870,13 +910,13 @@ export class Pedestal {
             __remove(element) {
                 pedestal.remove(element);
             },
+            __clear() {
+                pedestal.clear();
+            },
             _setLocation(x, y) {
                 super._setLocation(x, y);
                 pedestal.refresh();
                 return this;
-            },
-            __clear() {
-                pedestal.clear()
             },
             _memento() {
                 this._registerPedestal();
@@ -1118,14 +1158,6 @@ class ZIndexSupport {
         }
     }
 
-    _clear() {
-        this._levels.clear();
-        this._pedestals.clear();
-        this._rootPedestal.clear();
-        this._pedestals.set(this._host, this._rootPedestal);
-        this.level(0).add(this._rootPedestal._root);
-    };
-
     _add(add, element) {
         add.call(this._host, element);
         this._takeInElementContent(element, this._host, 0);
@@ -1149,6 +1181,18 @@ class ZIndexSupport {
         remove.call(this._host, element);
     };
 
+    _clear(clear) {
+        for (let element of this._host.children) {
+            this._takeOutElementContent(element);
+        }
+        clear.call(this._host);
+        this._levels.clear();
+        this._pedestals.clear();
+        this._rootPedestal.clear();
+        this._pedestals.set(this._host, this._rootPedestal);
+        this.level(0).add(this._rootPedestal._root);
+    };
+
     __add = function (element) {
         this._rootPedestal.add(element);
     };
@@ -1163,6 +1207,10 @@ class ZIndexSupport {
 
     __remove(element) {
         this._rootPedestal.remove(element);
+    };
+
+    __clear(element) {
+        this._rootPedestal.clear();
     };
 
     _memento() {
@@ -1211,11 +1259,6 @@ export function makeContainerZindex(superClass) {
         return this._content;
     };
 
-    superClass.prototype.__clear = function () {
-        this._content.clear();
-        this._zIndexSupport._clear();
-    };
-
     let add = superClass.prototype.add;
     superClass.prototype.add = function (element) {
         Memento.register(this._zIndexSupport);
@@ -1244,6 +1287,15 @@ export function makeContainerZindex(superClass) {
         return remove.call(this, element);
     };
 
+    let clear = superClass.prototype.clear;
+    superClass.prototype.clear = function () {
+        Memento.register(this._zIndexSupport);
+        for (let element of this._children) {
+            this._zIndexSupport._memorizeElementContent(element);
+        }
+        return clear.call(this);
+    };
+
     let _add = superClass.prototype._add;
     superClass.prototype._add = function (element) {
         this._zIndexSupport._add(_add, element);
@@ -1264,6 +1316,11 @@ export function makeContainerZindex(superClass) {
         this._zIndexSupport._remove(_remove, element);
     };
 
+    let _clear = superClass.prototype._clear;
+    superClass.prototype._clear = function () {
+        this._zIndexSupport._clear(_clear);
+    };
+
     superClass.prototype.__add = function (element) {
         this._zIndexSupport.__add(element);
     };
@@ -1278,6 +1335,11 @@ export function makeContainerZindex(superClass) {
 
     superClass.prototype.__remove = function (element) {
         this._zIndexSupport.__remove(element);
+    };
+
+    superClass.prototype.__clear = function () {
+        this._content.clear();
+        this._zIndexSupport.__clear();
     };
 
     superClass.prototype._memorizeContent = function(memento) {
