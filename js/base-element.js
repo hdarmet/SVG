@@ -676,29 +676,47 @@ export function makeLayersWithContainers(superClass, layersFct) {
     };
 
     superClass.prototype.clear = function () {
-        for (let layer of layers) {
+        for (let layer in layers) {
             this._layers[layer].clear();
         }
+        return this;
     };
 
     superClass.prototype.add = function (element) {
         let layer = this._getLayer(element);
         this._layers[layer].add(element);
+        return this;
     };
 
     superClass.prototype.insert = function (previous, element) {
+        let previousLayer = this._getLayer(previous);
         let layer = this._getLayer(element);
-        this._layers[layer].insert(previous, element);
+        if (layer===previousLayer) {
+            this._layers[layer].insert(previous, element);
+        }
+        else {
+            this._layers[layer].add(element);
+        }
+        return this;
     };
 
     superClass.prototype.replace = function (previous, element) {
+        let previousLayer = this._getLayer(previous);
         let layer = this._getLayer(element);
-        this._layers[layer].replace(previous, element);
+        if (layer===previousLayer) {
+            this._layers[layer].replace(previous, element);
+        }
+        else {
+            this._layers[previousLayer].remove(previous);
+            this._layers[layer].add(element);
+        }
+        return this;
     };
 
     superClass.prototype.remove = function (element) {
         let layer = this._getLayer(element);
         this._layers[layer].remove(element);
+        return this;
     };
 
     superClass.prototype.contains = function (element) {
@@ -810,6 +828,7 @@ export class Pedestal {
         for (let eroot of this._root.children) {
             elements.add(eroot._owner);
         }
+        return elements;
     }
 
     _memento() {
@@ -1101,8 +1120,8 @@ class ZIndexSupport {
     };
 
     _takeInElementContent(element, parent, zIndex) {
-        let children = element.children || [];
         if (!element.isSandBox) {
+            let children = element.children || [];
             if (element.isSupport) {
                 for (let child of children) {
                     element._remove(child);
@@ -1361,6 +1380,30 @@ export function makeZindexSupport(superClass) {
     makeContainerZindex(superClass);
 }
 
+/**
+ * Allows an element to be draggable : this means that a drag and drop operation may be assigned to this element.
+ * Not more : this does NOT mean that the element may be moved ! All depends on the drop operation itself.
+ * <p> Only one DnD handler may be set on an element. If one try to set again the DnD handler, the
+ * last one replaces the former. If no handler is set, no DnD operation is invoked in case of mouse down/move/up events.
+ * <p> IMPORTANT : The handler is a function that produces the event handler, not the event handler itself. So, you can
+ * use arrow methods to define it :) !
+ * <pre><code>
+ *     elem.dragOperation = function() {
+ *          return function() { return MyDragOperation.instance; }
+ *     };
+ * </code></pre>
+ * <p> Setting an handler is undoable. To avoid the actions of undo/redo facility, one must use the "internal" method:
+ * _dragOperation. This is METHOD, not property !!
+ * <pre><code>
+ *     elem._dragOperation(function() {
+ *          return function() { return MyDragOperation.instance; }
+ *     });
+ * </code></pre>
+ * To remove an already set handler, give <code>null</code> or <code>undefined</code> as new handler builder (not a
+ * function that returns null).
+ * @param superClass element class to enhance.
+ * @returns {*}
+ */
 export function makeDraggable(superClass) {
 
     Object.defineProperty(superClass.prototype, "dragOperation", {
@@ -1428,6 +1471,35 @@ export function makeDraggable(superClass) {
     return superClass;
 }
 
+/**
+ * Allows an element to be clickable or double-clickable.
+ * <p> Only one handler for each event may be set on an element. If one try to set again one of these two handlers, the
+ * last one replaces the former. If no handler is set (for each of these two events), the relevant event has no effect.
+ * <p> IMPORTANT : The handler is a function that produces the event handler, not the event handler itself. So, you can
+ * use arrow methods to define both :) !
+ * <pre><code>
+ *     elem.clickHandler = function() {
+ *          return function(event) { \/* Do event stuff here. *\/ }
+ *     };
+ *     elem.doubleClickHandler = function() {
+ *          return function(event) { \/* Do event stuff here. *\/ }
+ *     };
+ * </code></pre>
+ * <p> Setting an handler is undoable. To avoid the actions of undo/redo facility, one must use the "internal" methods:
+ * _clickHandler and _doubleClickHandler. These are METHODS, not properties !!
+ * <pre><code>
+ *     elem._clickHandler(function() {
+ *          return function(event) { \/* Do event stuff here. *\/ }
+ *     });
+ *     elem._doubleClickHandler(function() {
+ *          return function(event) { \/* Do event stuff here. *\/ }
+ *     });
+ * </code></pre>
+ * To remove an already set handler, give <code>null</code> or <code>undefined</code> as new handler builder (not a
+ * function that returns null).
+ * @param superClass element class to enhance.
+ * @returns {*}
+ */
 export function makeClickable(superClass) {
 
     Object.defineProperty(superClass.prototype, "clickHandler", {
@@ -1507,6 +1579,16 @@ export function makeClickable(superClass) {
     return superClass;
 }
 
+/**
+ * Give a SVG rect as a shape to an element. Note that this mixing invoke the (mandatory and more abstract) makeShaped
+ * mixin.
+ * <p> This mixing gives the opportunity to define (as constructor parameters):
+ * <ul>
+ *     <li> width and height of the shape,
+ *     <li> stroke and fill colors.
+ * </ul>
+ * @param superClass element class to enhance.
+ */
 export function makeFramed(superClass) {
 
     makeShaped(superClass);
@@ -1518,12 +1600,6 @@ export function makeFramed(superClass) {
         return this._initShape(background);
     };
 
-    Object.defineProperty(superClass.prototype, "fill", {
-        configurable:true,
-        get: function () {
-            return this.shape.fill;
-        }
-    });
 }
 
 export function makeImaged(superClass) {
@@ -1722,6 +1798,47 @@ export function makePart(superClass) {
             }
         }
     })
+
+}
+
+export function makeFillUpdatable(superClass) {
+
+    superClass.prototype._initFill = function(data) {
+        this._setFillColor(data.fillColor || Colors.NONE);
+    };
+
+    Object.defineProperty(superClass.prototype, "fillColor", {
+        configurable: true,
+        get: function() {
+            return this._fillColor;
+        },
+        set: function(fillColor) {
+            Memento.register(this);
+            this._setFillColor(fillColor);
+        }
+    });
+
+    superClass.prototype._setFillColor = function(fillColor) {
+        this._fillColor = fillColor;
+        this._shape.child.attrs({fill: fillColor});
+    };
+
+    let superMemento = superClass.prototype._memento;
+    if (superMemento) {
+        superClass.prototype._memento = function () {
+            let memento = superMemento.call(this);
+            memento._fillColor = this._fillColor;
+            return memento;
+        };
+
+        let superRevert = superClass.prototype._revert;
+        superClass.prototype._revert = function (memento) {
+            superRevert.call(this, memento);
+            this._fillColor = memento._fillColor;
+            this._shape.child.attrs({fill: this._fillColor});
+            return this;
+        };
+    }
 
 }
 

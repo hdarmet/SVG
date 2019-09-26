@@ -228,8 +228,19 @@ export class Assertor {
                 throw new AssertionFailed(`${this.value[index]} is not equal to ${elements[index]}`);
             }
         }
+        return this;
     }
 
+    hasNodeEqualsTo(node) {
+        if (!this.value._root._node.isEqualNode(node)) {
+            throw new AssertionFailed(`${this.value._root._node.outerHTML} is not equals to ${node.outerHTML}`);
+        }
+        return this;
+    }
+}
+
+export function cloneNode(element) {
+    return element._root._node.cloneNode(true);
 }
 
 export function assert(value) {

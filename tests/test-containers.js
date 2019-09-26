@@ -10,9 +10,9 @@ import {
     setRef, html, Context, Selection, Canvas, DragMoveSelectionOperation
 } from "../js/toolkit.js";
 import {
-    BoardElement, BoardTable, makeShaped, makeClickable, makeMoveable, makeSelectable,
-    makeDraggable, makeContainer, makeSupport, makeDeletable, makeContainerASupport, makeContainerMultiLayered,
-    makeContainerZindex
+    BoardElement, BoardTable, BoardLayer, makeShaped, makeMoveable, makeSelectable,
+    makeDraggable, makeContainer, makeSupport, makeContainerASupport, makeContainerMultiLayered,
+    makeContainerZindex, makeLayersWithContainers, makePart, makeSandBox
 } from "../js/base-element.js";
 
 describe("Containers", ()=> {
@@ -174,107 +174,344 @@ describe("Containers", ()=> {
     }
 
     function getHtmlForMultiLayeredContainer() {
-        let containerStartHtml = '<g transform="matrix(1 0 0 1 0 0)"><g><g><rect x="-50" y="-75" width="100" height="150" fill="#0A0A0A"></rect></g><g><g>';
-        let containerEndHtml = '</g></g></g></g>';
-        let newLayer = '</g><g>';
-        return {containerStartHtml, newLayer, containerEndHtml}
+        let containerStartHtml = '<g transform="matrix(1 0 0 1 0 0)"><g><g><rect x="-50" y="-75" width="100" height="150" fill="#0A0A0A"></rect></g><g>';
+        let containerEndHtml = '</g></g></g>';
+        let newLayer = '<g>';
+        let endLayer = '</g>';
+        return {containerStartHtml, newLayer, endLayer, containerEndHtml}
     }
 
     it("Uses a multi layered container", ()=>{
         let BoardMultiLayeredContainer = defineMultiLayeredContainerClass();
         let container = new BoardMultiLayeredContainer(100, 150);
         let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} = createTinyElements();
-        let {containerStartHtml, newLayer, containerEndHtml} = getHtmlForMultiLayeredContainer();
+        let {containerStartHtml, newLayer, endLayer, containerEndHtml} = getHtmlForMultiLayeredContainer();
         // Add operation
         container.add(tiny1).add(tiny2).add(tiny3);
         assert(container.children).arrayEqualsTo([tiny1, tiny2, tiny3]);
         assert(html(container)).equalsTo(
-            containerStartHtml+tiny1Html+
-            newLayer+tiny2Html+tiny3Html+
-            newLayer+containerEndHtml);
+            containerStartHtml+
+            newLayer+tiny1Html+endLayer+
+            newLayer+tiny2Html+tiny3Html+endLayer+
+            newLayer+endLayer+
+            containerEndHtml);
         // Replace op.
         container.replace(tiny2, tiny4);
         assert(container.children).arrayEqualsTo([tiny1, tiny4, tiny3]);
         assert(html(container)).equalsTo(
-            containerStartHtml+tiny1Html+
-            newLayer+tiny3Html+
-            newLayer+tiny4Html+containerEndHtml);
+            containerStartHtml+
+            newLayer+tiny1Html+endLayer+
+            newLayer+tiny3Html+endLayer+
+            newLayer+tiny4Html+endLayer+
+            containerEndHtml);
         // Remove op.
         container.remove(tiny3);
         assert(container.children).arrayEqualsTo([tiny1, tiny4]);
         assert(html(container)).equalsTo(
-            containerStartHtml+tiny1Html+
-            newLayer+
-            newLayer+tiny4Html+containerEndHtml);
+            containerStartHtml+
+            newLayer+tiny1Html+endLayer+
+            newLayer+endLayer+
+            newLayer+tiny4Html+endLayer+
+            containerEndHtml);
         // Insert op.
         container.insert(tiny4, tiny2);
         assert(container.children).arrayEqualsTo([tiny1, tiny2, tiny4]);
         assert(html(container)).equalsTo(
-            containerStartHtml+tiny1Html+
-            newLayer+tiny2Html+
-            newLayer+tiny4Html+containerEndHtml);
+            containerStartHtml+
+            newLayer+tiny1Html+endLayer+
+            newLayer+tiny2Html+endLayer+
+            newLayer+tiny4Html+endLayer+
+            containerEndHtml);
         // Clear op.
         container.clear();
         assert(container.children).arrayEqualsTo([]);
         assert(html(container)).equalsTo(
             containerStartHtml+
-            newLayer+
-            newLayer+containerEndHtml);
+            newLayer+endLayer+
+            newLayer+endLayer+
+            newLayer+endLayer+
+            containerEndHtml);
     });
 
     it("Inserts in a multi layered container (check all cases)", ()=>{
         let BoardMultiLayeredContainer = defineMultiLayeredContainerClass();
         let container = new BoardMultiLayeredContainer(100, 150);
         let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} = createTinyElements();
-        let {containerStartHtml, newLayer, containerEndHtml} = getHtmlForMultiLayeredContainer();
+        let {containerStartHtml, newLayer, endLayer, containerEndHtml} = getHtmlForMultiLayeredContainer();
         container.add(tiny1).add(tiny3);
         // First case : same layer
         container.insert(tiny3, tiny2);
         assert(html(container)).equalsTo(
-            containerStartHtml+tiny1Html+
-            newLayer+tiny2Html+tiny3Html+
-            newLayer+containerEndHtml);
+            containerStartHtml+
+            newLayer+tiny1Html+endLayer+
+            newLayer+tiny2Html+tiny3Html+endLayer+
+            newLayer+endLayer+
+            containerEndHtml);
         // Second case : not same layer but there is a next one on the layer
         container.remove(tiny3);
         container.insert(tiny1, tiny3);
         assert(html(container)).equalsTo(
-            containerStartHtml+tiny1Html+
-            newLayer+tiny3Html+tiny2Html+
-            newLayer+containerEndHtml);
+            containerStartHtml+
+            newLayer+tiny1Html+endLayer+
+            newLayer+tiny3Html+tiny2Html+endLayer+
+            newLayer+endLayer+
+            containerEndHtml);
         // Third case : not same layer and no next element on the given layer: insertion is a simple add
         container.insert(tiny3, tiny4);
         assert(html(container)).equalsTo(
-            containerStartHtml+tiny1Html+
-            newLayer+tiny3Html+tiny2Html+
-            newLayer+tiny4Html+containerEndHtml);
+            containerStartHtml+
+            newLayer+tiny1Html+endLayer+
+            newLayer+tiny3Html+tiny2Html+endLayer+
+            newLayer+tiny4Html+endLayer+
+            containerEndHtml);
     });
 
     it("Replace in a multi layered container (check all cases)", ()=>{
         let BoardMultiLayeredContainer = defineMultiLayeredContainerClass();
         let container = new BoardMultiLayeredContainer(100, 150);
         let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} = createTinyElements();
-        let {containerStartHtml, newLayer, containerEndHtml} = getHtmlForMultiLayeredContainer();
+        let {containerStartHtml, newLayer, endLayer, containerEndHtml} = getHtmlForMultiLayeredContainer();
         container.add(tiny1).add(tiny3);
         // First case : same layer
         container.replace(tiny3, tiny2);
         assert(container.children).arrayEqualsTo([tiny1, tiny2]);
         assert(html(container)).equalsTo(
-            containerStartHtml+tiny1Html+
-            newLayer+tiny2Html+
-            newLayer+containerEndHtml);
+            containerStartHtml+
+            newLayer+tiny1Html+endLayer+
+            newLayer+tiny2Html+endLayer+
+            newLayer+endLayer+
+            containerEndHtml);
         // Second case : not same layer but there is a next one on the layer
         container.replace(tiny1, tiny3);
         assert(container.children).arrayEqualsTo([tiny3, tiny2]);
         assert(html(container)).equalsTo(
             containerStartHtml+
-            newLayer+tiny3Html+tiny2Html+
-            newLayer+containerEndHtml);
+            newLayer+endLayer+
+            newLayer+tiny3Html+tiny2Html+endLayer+
+            newLayer+endLayer+
+            containerEndHtml);
         // Third case : not same layer and no next element on the given layer: insertion is a simple add
         container.replace(tiny3, tiny4);
         assert(html(container)).equalsTo(
             containerStartHtml+
-            newLayer+tiny2Html+
-            newLayer+tiny4Html+containerEndHtml);
+            newLayer+endLayer+
+            newLayer+tiny2Html+endLayer+
+            newLayer+tiny4Html+endLayer+
+            containerEndHtml);
+    });
+
+    it("Copies a multilayered container", ()=>{
+        let table = putTable();
+        let BoardMultiLayeredContainer = defineMultiLayeredContainerClass();
+        makeSelectable(BoardMultiLayeredContainer);
+        let container = new BoardMultiLayeredContainer(100, 150);
+        let {tiny1, tiny2, tiny3} = createTinyElements();
+        table.add(container);
+        container.add(tiny1).add(tiny2).add(tiny3);
+        let copy = copyContainer(table, container);
+        assert(copy).isDefined();
+        assert(copy===container).isFalse();
+        assert(copy.children.length).equalsTo(3);
+        assert(copy._root.innerHTML).equalsTo(container._root.innerHTML);
+    });
+
+    it("Undoes/Redoes a multilayered container", ()=>{
+        let table = putTable();
+        let BoardMultiLayeredContainer = defineMultiLayeredContainerClass();
+        let container = new BoardMultiLayeredContainer(100, 150);
+        let {tiny1, tiny2, tiny3, tiny4} = createTinyElements();
+        table.add(container);
+        container.add(tiny1).add(tiny2);
+        let beforeHtml = html(container);
+        Context.memento.opened=true;
+        Context.memento.open();
+        container.add(tiny3).add(tiny4);
+        let afterHtml = html(container);
+        Context.memento.undo();
+        assert(html(container)).equalsTo(beforeHtml);
+        Context.memento.redo();
+        assert(html(container)).equalsTo(afterHtml);
+    });
+
+    function defineContainersAsLayersContainerClass() {
+        class BoardContainersAsLayersContainer extends BoardElement {
+            constructor(width, height) {
+                super(width, height);
+                let background = new Rect(-width / 2, -height / 2, width, height)
+                    .attrs({fill:"#0A0A0A"});
+                this._initShape(background);
+            }
+        }
+        makeShaped(BoardContainersAsLayersContainer);
+        makeLayersWithContainers(BoardContainersAsLayersContainer, ()=>{
+            return {
+                up:new BoardLayer(),
+                middle:new BoardLayer(),
+                down:new BoardLayer()
+            };
+        });
+        makeContainerASupport(BoardContainersAsLayersContainer);
+        return BoardContainersAsLayersContainer;
+    }
+
+    function getHtmlForContainersAsLayersContainer() {
+        let containerStartHtml = '<g transform="matrix(1 0 0 1 0 0)"><g><g><rect x="-50" y="-75" width="100" height="150" fill="#0A0A0A"></rect></g><g>';
+        let containerEndHtml = '</g></g></g>';
+        let newLayer = '<g><g transform="matrix(1 0 0 1 0 0)"><g><g></g></g><g>';
+        let endLayer = '</g></g></g>';
+        return {containerStartHtml, newLayer, endLayer, containerEndHtml}
+    }
+
+    it("Uses a container of containers", ()=>{
+        let BoardContainersAsLayersContainer = defineContainersAsLayersContainerClass();
+        let container = new BoardContainersAsLayersContainer(100, 150);
+        let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} = createTinyElements();
+        let {containerStartHtml, newLayer, endLayer, containerEndHtml} = getHtmlForContainersAsLayersContainer();
+        // Add operation
+        container.add(tiny1).add(tiny2).add(tiny3);
+        assert(container.children).unorderedEqualsTo([tiny1, tiny2, tiny3]);
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            newLayer+tiny1Html+endLayer+
+            newLayer+tiny2Html+tiny3Html+endLayer+
+            newLayer+endLayer+
+            containerEndHtml);
+        // Replace op.
+        container.replace(tiny2, tiny4);
+        assert(container.children).unorderedEqualsTo([tiny1, tiny4, tiny3]);
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            newLayer+tiny1Html+endLayer+
+            newLayer+tiny3Html+endLayer+
+            newLayer+tiny4Html+endLayer+
+            containerEndHtml);
+        // Remove op.
+        container.remove(tiny3);
+        assert(container.children).unorderedEqualsTo([tiny1, tiny4]);
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            newLayer+tiny1Html+endLayer+
+            newLayer+endLayer+
+            newLayer+tiny4Html+endLayer+
+            containerEndHtml);
+        // Insert op.
+        container.insert(tiny4, tiny2);
+        assert(container.children).unorderedEqualsTo([tiny1, tiny2, tiny4]);
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            newLayer+tiny1Html+endLayer+
+            newLayer+tiny2Html+endLayer+
+            newLayer+tiny4Html+endLayer+
+            containerEndHtml);
+        // Clear op.
+        container.clear();
+        assert(container.children).unorderedEqualsTo([]);
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            newLayer+endLayer+
+            newLayer+endLayer+
+            newLayer+endLayer+
+            containerEndHtml);
+    });
+
+    it("Inserts in a container of containers (check all cases)", ()=>{
+        let BoardContainersAsLayersContainer = defineContainersAsLayersContainerClass();
+        let container = new BoardContainersAsLayersContainer(100, 150);
+        let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} = createTinyElements();
+        let {containerStartHtml, newLayer, endLayer, containerEndHtml} = getHtmlForContainersAsLayersContainer();
+        container.add(tiny1).add(tiny3);
+        // First case : same layer
+        container.insert(tiny3, tiny2);
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            newLayer+tiny1Html+endLayer+
+            newLayer+tiny2Html+tiny3Html+endLayer+
+            newLayer+endLayer+
+            containerEndHtml);
+        // Second case : not same layer but there is a next one on the layer
+        container.remove(tiny3);
+        container.insert(tiny1, tiny3);
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            newLayer+tiny1Html+endLayer+
+            newLayer+tiny2Html+tiny3Html+endLayer+
+            newLayer+endLayer+
+            containerEndHtml);
+        // Third case : not same layer and no next element on the given layer: insertion is a simple add
+        container.insert(tiny3, tiny4);
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            newLayer+tiny1Html+endLayer+
+            newLayer+tiny2Html+tiny3Html+endLayer+
+            newLayer+tiny4Html+endLayer+
+            containerEndHtml);
+    });
+
+    it("Replace in a container of containers (check all cases)", ()=>{
+        let BoardContainersAsLayersContainer = defineContainersAsLayersContainerClass();
+        let container = new BoardContainersAsLayersContainer(100, 150);
+        let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} = createTinyElements();
+        let {containerStartHtml, newLayer, endLayer, containerEndHtml} = getHtmlForContainersAsLayersContainer();
+        container.add(tiny1).add(tiny3);
+        // First case : same layer
+        container.replace(tiny3, tiny2);
+        assert(container.children).unorderedEqualsTo([tiny1, tiny2]);
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            newLayer+tiny1Html+endLayer+
+            newLayer+tiny2Html+endLayer+
+            newLayer+endLayer+
+            containerEndHtml);
+        // Second case : not same layer but there is a next one on the layer
+        container.replace(tiny1, tiny3);
+        assert(container.children).unorderedEqualsTo([tiny3, tiny2]);
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            newLayer+endLayer+
+            newLayer+tiny2Html+tiny3Html+endLayer+
+            newLayer+endLayer+
+            containerEndHtml);
+        // Third case : not same layer and no next element on the given layer: insertion is a simple add
+        container.replace(tiny3, tiny4);
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            newLayer+endLayer+
+            newLayer+tiny2Html+endLayer+
+            newLayer+tiny4Html+endLayer+
+            containerEndHtml);
+    });
+
+    it("Copies a container of containers", ()=>{
+        let table = putTable();
+        let BoardContainersAsLayersContainer = defineContainersAsLayersContainerClass();
+        makeSelectable(BoardContainersAsLayersContainer);
+        let container = new BoardContainersAsLayersContainer(100, 150);
+        let {tiny1, tiny2, tiny3} = createTinyElements();
+        table.add(container);
+        container.add(tiny1).add(tiny2).add(tiny3);
+        let copy = copyContainer(table, container);
+        assert(copy).isDefined();
+        assert(copy===container).isFalse();
+        assert(copy.children.length).equalsTo(3);
+        assert(copy._root.innerHTML).equalsTo(container._root.innerHTML);
+    });
+
+    it("Undoes/Redoes a container of containers", ()=>{
+        let table = putTable();
+        let BoardContainersAsLayersContainer = defineContainersAsLayersContainerClass();
+        let container = new BoardContainersAsLayersContainer(100, 150);
+        let {tiny1, tiny2, tiny3, tiny4} = createTinyElements();
+        table.add(container);
+        container.add(tiny1).add(tiny2);
+        let beforeHtml = html(container);
+        Context.memento.opened=true;
+        Context.memento.open();
+        container.add(tiny3).add(tiny4);
+        let afterHtml = html(container);
+        Context.memento.undo();
+        assert(html(container)).equalsTo(beforeHtml);
+        Context.memento.redo();
+        assert(html(container)).equalsTo(afterHtml);
     });
 
     function defineZIndexContainerClass() {
@@ -313,23 +550,20 @@ describe("Containers", ()=> {
         return {containerStartHtml, startLayer, endLayer, startRootPedestal, startPedestal, endPedestal, containerEndHtml}
     }
 
-    function createZIndexContainerAndElementsToPutInto() {
+    function createZIndexContainer() {
         let table = putTable();
         let BoardZIndexContainer = defineZIndexContainerClass();
         let container = new BoardZIndexContainer(150, 150);
         table.add(container);
-        let {tiny1, tiny2, tiny3, tiny4, tiny5, tiny1Html, tiny2Html, tiny3Html, tiny4Html, tiny5Html} =
-            createTinyContainerElements();
         return {
-            table, container, BoardZIndexContainer,
-            tiny1, tiny2, tiny3, tiny4, tiny5,
-            tiny1Html, tiny2Html, tiny3Html, tiny4Html, tiny5Html
+            table, container, BoardZIndexContainer
         };
     }
 
     it("Puts elements in a z-index container", ()=> {
-        let {container, tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} =
-            createZIndexContainerAndElementsToPutInto();
+        let {container} = createZIndexContainer();
+        let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} =
+            createTinyContainerElements();
         let {containerStartHtml, startLayer, endLayer, startPedestal, startRootPedestal, endPedestal, containerEndHtml} =
             getHtmlForZIndexContainer();
         tiny1.add(tiny2.add(tiny3));
@@ -358,8 +592,9 @@ describe("Containers", ()=> {
     });
 
     it("Removes elements from a z-index container", ()=> {
-        let {container, tiny1, tiny2, tiny3, tiny4, tiny5, tiny1Html, tiny2Html, tiny3Html, tiny4Html, tiny5Html} =
-            createZIndexContainerAndElementsToPutInto();
+        let {container} = createZIndexContainer();
+        let {tiny1, tiny2, tiny3, tiny4, tiny5, tiny1Html, tiny2Html, tiny3Html, tiny4Html, tiny5Html} =
+            createTinyContainerElements();
         let {containerStartHtml, startLayer, endLayer, startPedestal, startRootPedestal, endPedestal, containerEndHtml} =
             getHtmlForZIndexContainer();
         // Stacks are created outside container
@@ -398,8 +633,9 @@ describe("Containers", ()=> {
     it("Replaces an element in a z-index container", ()=> {
         let {containerStartHtml, startLayer, endLayer, startPedestal, startRootPedestal, endPedestal, containerEndHtml} =
             getHtmlForZIndexContainer();
-        let {container, tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} =
-            createZIndexContainerAndElementsToPutInto();
+        let {container} = createZIndexContainer();
+        let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} =
+            createTinyContainerElements();
         // Stack is created outside container
         tiny1.add(tiny2);
         let stackHtml = html(tiny1);
@@ -436,8 +672,9 @@ describe("Containers", ()=> {
     it("Inserts elements in a z-index container", ()=> {
         let {containerStartHtml, startLayer, endLayer, startPedestal, startRootPedestal, endPedestal, containerEndHtml} =
             getHtmlForZIndexContainer();
-        let {container, tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} =
-            createZIndexContainerAndElementsToPutInto();
+        let {container} = createZIndexContainer();
+        let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} =
+            createTinyContainerElements();
         tiny2.add(tiny3);
         container.add(tiny1);
         container.insert(tiny1, tiny2);
@@ -457,8 +694,9 @@ describe("Containers", ()=> {
     });
 
     it("Clears a z-index container", ()=> {
-        let {container, tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} =
-            createZIndexContainerAndElementsToPutInto();
+        let {container} = createZIndexContainer();
+        let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} =
+            createTinyContainerElements();
         let {containerStartHtml, startLayer, endLayer, startPedestal, startRootPedestal, endPedestal, containerEndHtml} =
             getHtmlForZIndexContainer();
         assert(html(container)).equalsTo(
@@ -499,8 +737,9 @@ describe("Containers", ()=> {
     it("Puts several elements on same levels in a z-index container", ()=> {
         let {containerStartHtml, startLayer, endLayer, startPedestal, startRootPedestal, endPedestal, containerEndHtml} =
             getHtmlForZIndexContainer();
-        let {container, tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} =
-            createZIndexContainerAndElementsToPutInto();
+        let {container} = createZIndexContainer();
+        let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} =
+            createTinyContainerElements();
         tiny1.add(tiny2);
         tiny3.add(tiny4);
         // Add two stacks
@@ -526,8 +765,8 @@ describe("Containers", ()=> {
     it("Add elements with random location in a z-index container", ()=> {
         let {containerStartHtml, startLayer, endLayer, startRootPedestal, endPedestal, containerEndHtml} =
             getHtmlForZIndexContainer();
-        let {container, tiny1, tiny2} =
-            createZIndexContainerAndElementsToPutInto();
+        let {container} = createZIndexContainer();
+        let {tiny1, tiny2} = createTinyContainerElements();
         tiny1.setLocation(10, 20);
         tiny2.setLocation(10, 30);
         tiny1.add(tiny2);
@@ -545,8 +784,8 @@ describe("Containers", ()=> {
     it("Moves elements in a z-index container", ()=> {
         let {containerStartHtml, startLayer, endLayer, startPedestal, startRootPedestal, endPedestal, containerEndHtml} =
             getHtmlForZIndexContainer();
-        let {container, tiny1, tiny2, tiny1Html, tiny2Html} =
-            createZIndexContainerAndElementsToPutInto();
+        let {container} = createZIndexContainer();
+        let {tiny1, tiny2, tiny1Html, tiny2Html} = createTinyContainerElements();
         tiny1.add(tiny2);
         container.add(tiny1);
         assert(html(container)).equalsTo(
@@ -569,10 +808,8 @@ describe("Containers", ()=> {
     });
 
     it("Copies a z-index container", ()=> {
-        let {containerStartHtml, startLayer, endLayer, startPedestal, startRootPedestal, endPedestal, containerEndHtml} =
-            getHtmlForZIndexContainer();
-        let {BoardZIndexContainer, table, container, tiny1, tiny2} =
-            createZIndexContainerAndElementsToPutInto();
+        let {table, BoardZIndexContainer, container} = createZIndexContainer();
+        let {tiny1, tiny2} = createTinyContainerElements();
         makeSelectable(BoardZIndexContainer);
         container.setLocation(100, 100);
         tiny1.setLocation(10, 20);
@@ -586,10 +823,8 @@ describe("Containers", ()=> {
     });
 
     it("Undoes/Redoes a z-index container", ()=> {
-        let {containerStartHtml, startLayer, endLayer, startPedestal, startRootPedestal, endPedestal, containerEndHtml} =
-            getHtmlForZIndexContainer();
-        let {BoardZIndexContainer, container, tiny1, tiny2, tiny3, tiny4} =
-            createZIndexContainerAndElementsToPutInto();
+        let {BoardZIndexContainer, container} = createZIndexContainer();
+        let {tiny1, tiny2, tiny3, tiny4} = createTinyContainerElements();
         makeSelectable(BoardZIndexContainer);
         container.setLocation(100, 100);
         tiny1.setLocation(10, 20);
@@ -613,6 +848,113 @@ describe("Containers", ()=> {
         Context.memento.redo();
         assert(html(container)).equalsTo(htmlAfter);
         assert(tiny4.__pass__).isDefined();
+    });
+
+    function createComposedContainerClass() {
+        class Content extends BoardElement {
+            constructor(width, height) {
+                super(width, height);
+                let background = new Rect(-width / 2, -height / 2, width, height)
+                    .attrs({fill:"#A0A0A0"});
+                this._initShape(background);
+            }
+        }
+        makeShaped(Content);
+        makeContainer(Content);
+        makeContainerASupport(Content);
+        makePart(Content);
+        class BoardComposedContainer extends BoardElement {
+            constructor(width, height) {
+                super(width, height);
+                let background = new Rect(-width / 2, -height / 2, width, height)
+                    .attrs({fill:"#0A0A0A"});
+                this._initShape(background);
+                this._contentPane = new Content(width-10, height-10);
+                this._add(this._contentPane)
+            }
+        }
+        makeShaped(BoardComposedContainer);
+        makeContainer(BoardComposedContainer);
+        BoardComposedContainer.prototype.add = function(element) {
+            this._contentPane.add(element);
+            return this;
+        };
+        BoardComposedContainer.prototype.remove = function(element) {
+            this._contentPane.remove(element);
+            return this;
+        };
+        return BoardComposedContainer;
+    }
+
+    it("Puts a composed element in a zIndex container : parts are not handled by zIndex container", ()=> {
+        let {containerStartHtml, startLayer, endLayer, startPedestal, startRootPedestal, endPedestal, containerEndHtml} =
+            getHtmlForZIndexContainer();
+        let {container} = createZIndexContainer();
+        let BoardComposedContainer = createComposedContainerClass();
+        let composed = new BoardComposedContainer(50, 50);
+        let composedHtml = html(composed);
+        let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} = createTinyContainerElements();
+        tiny1.add(tiny2);
+        composed.add(tiny1);
+        // Insert a container containing some elements
+        container.add(composed);
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            startLayer+startRootPedestal+composedHtml+endPedestal+endLayer+
+            startLayer+startPedestal+tiny1Html+endPedestal+endLayer+
+            startLayer+startPedestal+tiny2Html+endPedestal+endLayer+
+            startLayer+startPedestal+endPedestal+endLayer+
+            containerEndHtml);
+        assert(composed.__pass__).isNotDefined();
+        assert(composed._contentPane.__pass__).isDefined(); // Part is handled by zIndex container
+        assert(tiny1.__pass__).isDefined(); // But its elements, are.
+        assert(tiny2.__pass__).isDefined();
+        tiny3.add(tiny4);
+        // Add elements in a composed container already on the zIndex container
+        composed.add(tiny3);
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            startLayer+startRootPedestal+composedHtml+endPedestal+endLayer+
+            startLayer+startPedestal+tiny1Html+tiny3Html+endPedestal+endLayer+
+            startLayer+startPedestal+tiny2Html+endPedestal+startPedestal+tiny4Html+endPedestal+endLayer+
+            startLayer+startPedestal+endPedestal+startPedestal+endPedestal+endLayer+
+            containerEndHtml);
+        assert(tiny3.__pass__).isDefined(); // But its elements, are.
+        assert(tiny4.__pass__).isDefined();
+        // Remove composed container
+        container.remove(composed);
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            startLayer+startRootPedestal+endPedestal+endLayer+
+            containerEndHtml);
+        assert(composed._contentPane.__pass__).isNotDefined();
+        assert(tiny1.__pass__).isNotDefined();
+        assert(tiny2.__pass__).isNotDefined();
+        assert(tiny3.__pass__).isNotDefined();
+        assert(tiny4.__pass__).isNotDefined();
+    });
+
+    it("Puts a sandbox in a zIndex container : nothing, inside sandbox is handled by zIndex container", ()=> {
+        let {containerStartHtml, startLayer, endLayer, startPedestal, startRootPedestal, endPedestal, containerEndHtml} =
+            getHtmlForZIndexContainer();
+        let {container} = createZIndexContainer();
+        let BoardComposedContainer = createComposedContainerClass();
+        makeSandBox(BoardComposedContainer);
+        let composed = new BoardComposedContainer(50, 50);
+        let {tiny1, tiny2, tiny1Html, tiny2Html} = createTinyContainerElements();
+        tiny1.add(tiny2);
+        composed.add(tiny1);
+        let composedHtml = html(composed);
+        // Test begins here...
+        container.add(composed);
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            startLayer+startRootPedestal+composedHtml+endPedestal+endLayer+
+            containerEndHtml);
+        assert(composed.__pass__).isNotDefined();
+        assert(composed._contentPane.__pass__).isNotDefined();
+        assert(tiny1.__pass__).isNotDefined();
+        assert(tiny2.__pass__).isNotDefined();
     });
 
 });

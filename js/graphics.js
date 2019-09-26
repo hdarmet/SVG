@@ -309,8 +309,7 @@ export function loadRasterImage(url, callback) {
     }
 }
 
-// Testé
-export function httpRequest(url, postData, callback) {
+win.httpRequest = function(url, postData, callback) {
     var req = new XMLHttpRequest();
     if (req) {
         if (typeof(postData)==="object") {
@@ -331,10 +330,10 @@ export function httpRequest(url, postData, callback) {
             );
         }
         req.onreadystatechange = function() {
-            if (req.readyState != 4) return;
+            if (req.readyState !== 4) return;
             callback(req);
         };
-        if (req.readyState == 4) {
+        if (req.readyState === 4) {
             return req;
         }
         req.send(postData);
@@ -367,12 +366,13 @@ export function svgParse(text) {
     return doc.createDocumentFragment();
 }
 
-// Testé
 export function loadSvgImage(url, callback) {
     function load(url, callback) {
-        httpRequest(url, null, function(req) {
-            var fragment = svgParse(req.responseText);
-            callback(fragment);
+        win.httpRequest(url, null, function(req) {
+            if (req.status === 200) {
+                var fragment = svgParse(req.responseText);
+                callback(fragment);
+            }
         });
     }
 

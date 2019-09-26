@@ -319,20 +319,6 @@ export class AbstractBoardCounter extends BoardElement {
             return ()=>this.imageIndex = this.imageIndex+1;
         });
     }
-
-    /*
-    _memento() {
-        let memento = super._memento();
-        console.log("memento !!")
-        return memento;
-    }
-
-
-    _revert(memento) {
-        super._revert(memento);
-        console.log("revert !!")
-    }
-*/
 }
 makeSelectable(AbstractBoardCounter);
 makeMoveable(AbstractBoardCounter);
