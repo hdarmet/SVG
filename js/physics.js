@@ -1,10 +1,10 @@
 'use strict';
 
 import {
-    evaluate, same
+    evaluate, same, always
 } from "./misc.js";
 import {
-    List, AVLTree, ESet
+    List, AVLTree, ESet, SpatialLocator
 } from "./collections.js";
 import {
     Box
@@ -13,7 +13,7 @@ import {
     win
 } from "./graphics.js";
 import {
-    Memento, CloneableObject
+    Memento, CloneableObject, Events
 } from "./toolkit.js";
 
 export class Physic {
@@ -43,17 +43,19 @@ export class Physic {
     resize(width, height) {
         this._trigger();
         this._resize(width, height);
+        return this;
     }
 
     reset() {
         this._trigger();
         this._reset();
+        return this;
     }
 
     _managedElements(elements) {
         let managedElements = new List();
         for (let element of elements) {
-            if (this._predicate(element)) {
+            if (this.accept(element)) {
                 managedElements.add(element);
             }
         }
@@ -63,6 +65,7 @@ export class Physic {
     hover(elements) {
         this._hover(this._managedElements(elements));
         this._refresh();
+        return this;
     }
 
     refresh() {
@@ -72,18 +75,43 @@ export class Physic {
         finally {
             this._triggered = false;
         }
+        return this;
     }
 
     add(element) {
-        if (this._predicate(element)) {
+        if (this.accept(element)) {
             this._trigger();
             this._add(element);
         }
+        return this;
     }
 
     remove(element) {
-        this._trigger();
-        this._remove(element);
+        if (this.accept(element)) {
+            this._trigger();
+            this._remove(element);
+        }
+        return this;
+    }
+
+    accept(element) {
+        return this._predicate(element);
+    }
+
+    _acceptedElements(elements) {
+        let accepted = new ESet();
+        for (let element of elements) {
+            if (this.accept(element)) {
+                accepted.add(element);
+            }
+        }
+        return accepted;
+    };
+
+    clone(duplicata) {
+        let copy = new this.constructor(duplicata.get(this._host));
+        copy._trigger();
+        return copy;
     }
 
     _reset() {}
@@ -93,13 +121,141 @@ export class Physic {
     _remove() {}
     _resize() {}
     _acceptDrop(element, dragSet) { return true; }
-    _receiveDrop(element, dragSet) {}
+    _receiveDrop(element, dragSet) { return this; }
 }
 
-export function makePositioningPhysic(superClass) {
+export class PhysicSelector extends Physic {
 
-    superClass.prototype._init = function(positionsFct, ...args) {
-        this._positionsFct = positionsFct;
+    constructor(host, predicate) {
+        super(host, predicate);
+        this._physics = new List();
+    }
+
+    get host() {
+        return this._host;
+    }
+
+    _trigger() {
+        throw new Error("Should not be inovoked.");
+    }
+
+    resize(width, height) {
+        for (let physic of this._physics) {
+            physic.resize(width, height);
+        }
+        return this;
+    }
+
+    register(physic) {
+        this._physics.add(physic);
+        return this;
+    }
+
+    reset() {
+        for (let physic of this._physics) {
+            physic.reset();
+        }
+        return this;
+    }
+
+    hover(elements) {
+        elements = this._managedElements(elements);
+        for (let physic of this._physics) {
+            physic.hover(elements);
+        }
+        return this;
+    }
+
+    refresh() {
+        throw new Error("Should not be inovoked.");
+    }
+
+    add(element) {
+        if (this.accept(element)) {
+            for (let physic of this._physics) {
+                physic.add(element);
+            }
+        }
+        return this;
+    }
+
+    remove(element) {
+        if (this._predicate(element)) {
+            for (let physic of this._physics) {
+                physic.remove(element);
+            }
+        }
+        return this;
+    }
+
+    _reset() {
+        throw new Error("Should not be inovoked.");
+    }
+    _refresh() {
+        throw new Error("Should not be inovoked.");
+    }
+    _hover(elements) {
+        throw new Error("Should not be inovoked.");
+    }
+    _add() {
+        throw new Error("Should not be inovoked.");
+    }
+    _remove() {
+        throw new Error("Should not be inovoked.");
+    }
+    _resize() {
+        throw new Error("Should not be inovoked.");
+    }
+
+    _acceptDrop(element, dragSet) {
+        for (let physic of this._physics) {
+            if (physic.accept(element)) {
+                if (!physic._acceptDrop(element)) return false;
+            }
+        }
+        return true;
+    }
+
+    _receiveDrop(element, dragSet) {
+        for (let physic of this._physics) {
+            if (physic.accept(element)) {
+                physic._receiveDrop(element);
+                return this;
+            }
+        }
+        return this;
+    }
+
+    clone(duplicata) {
+        let copy = new this.constructor(duplicata.get(this._host), this._predicate);
+        for (let physic of this._physics) {
+            copy.register(physic.clone(duplicata));
+        }
+        return copy;
+    }
+
+}
+
+export function makePhysicExclusive(superClass) {
+
+    let acceptDrop = superClass.prototype._acceptDrop;
+    superClass.prototype._acceptDrop = function(element, dragSet) {
+        if (!this.accept(element)) {
+            return false;
+        }
+        return acceptDrop.call(this, element, dragSet);
+    }
+
+}
+
+export function makePositioningPhysic(superClass, {
+    positionsBuilder,
+    clipBuilder = element => {
+        return {x: element.lx, y: element.ly};
+    }
+}) {
+
+    superClass.prototype._init = function(...args) {
         this._elements = new ESet();
     };
 
@@ -117,7 +273,7 @@ export function makePositioningPhysic(superClass) {
     };
 
     superClass.prototype._reset = function() {
-        this._elements = new ESet(this._host.children);
+        this._elements = this._acceptedElements(this._host.children);
     };
 
     superClass.prototype._hover = function(elements) {
@@ -129,51 +285,66 @@ export function makePositioningPhysic(superClass) {
     };
 
     superClass.prototype._elementPosition = function(element) {
-        let lx = element.lx;
-        let ly = element.ly;
+        let {x, y} = clipBuilder(element);
         let distance = Infinity;
-        let position = {x:lx, y:ly};
-        let positions = this._positionsFct.call(this._host, element);
+        let position = null;
+        let positions = positionsBuilder.call(this, element);
         for (let _position of positions) {
-            let _distance = (_position.x-lx)*(_position.x-lx)+(_position.y-ly)*(_position.y-ly);
+            let _distance = (_position.x-x)*(_position.x-x)+(_position.y-y)*(_position.y-y);
             if (_distance<distance) {
                 distance = _distance;
                 position = _position;
             }
         }
-        return position;
+        return position ? {
+            x:position.x-x+element.lx,
+            y:position.y-y+element.ly,
+            attachment:position.attachment
+        } : null;
     };
 
     superClass.prototype._refreshHoverElement = function(element) {
         let position = this._elementPosition(element);
-        element.setLocation(position.x, position.y);
+        if (position && this._acceptPosition(element, position)) {
+            //element.setLocation(position.x, position.y);
+            element.move(position.x, position.y);
+        }
     };
 
     superClass.prototype._refreshElement = function(element) {
         let position = this._elementPosition(element);
-        element.move(position.x, position.y);
+        if (position && this._acceptPosition(element, position)) {
+            element.move(position.x, position.y);
+            element._positioned && element._positioned(this, position);
+        }
+    };
+
+    superClass.prototype._acceptPosition = function(element, position) {
+        return !element._acceptPosition || element._acceptPosition(this, position)
+    };
+
+    superClass.prototype._acceptDrop = function(element, dragSet) {
+        let position = this._elementPosition(element);
+        return position && this._acceptPosition(element,  position);
     };
 
     return superClass;
 }
 
-export function createPositioningPhysic() {
+export function createPositioningPhysic({
+    predicate = always,
+    positionsBuilder, clipBuilder})
+{
     class PositioningPhysic extends Physic {
-        constructor(host, predicate, ...args) {
+        constructor(host, ...args) {
             super(host, predicate, ...args);
         }
-
-        clone(duplicata) {
-            let copy = new this.constructor(duplicata.get(this._host), this._predicate, this._positionsFct);
-            copy._trigger();
-            return copy;
-        }
     }
-    makePositioningPhysic(PositioningPhysic);
+    makePositioningPhysic(PositioningPhysic, {positionsBuilder, clipBuilder});
     return PositioningPhysic;
 }
 
-export function addPhysicToContainer(superClass, physicCreator) {
+export function addPhysicToContainer(superClass, {physicBuilder}) {
 
     let initContent = superClass.prototype._initContent;
     superClass.prototype._initContent = function(...args) {
@@ -183,7 +354,7 @@ export function addPhysicToContainer(superClass, physicCreator) {
     };
 
     superClass.prototype._initPhysic = function() {
-        this._physic = physicCreator.call(this);
+        this._physic = physicBuilder.call(this);
         return this;
     };
 
@@ -216,6 +387,7 @@ export function addPhysicToContainer(superClass, physicCreator) {
     superClass.prototype.hover = function(elements) {
         hover && hover.call(this, elements);
         this._physic.hover(elements);
+        return this;
     };
 
     let setsize = superClass.prototype._setSize;
@@ -247,10 +419,447 @@ export function addPhysicToContainer(superClass, physicCreator) {
 
 }
 
-export function makePositioningContainer(superClass, predicate, positionsFct) {
-    let ContainerPhysic = createPositioningPhysic();
-    addPhysicToContainer(superClass, function() {
-        return new ContainerPhysic(this, predicate, positionsFct);
+export function makePositioningContainer(superClass, {predicate, positionsBuilder, clipBuilder}) {
+    let ContainerPhysic = createPositioningPhysic({predicate, positionsBuilder, clipBuilder});
+    addPhysicToContainer(superClass, {
+        physicBuilder: function() {
+            return new ContainerPhysic(this);
+        }
+    });
+
+    return superClass;
+}
+
+export const Attachments = {
+    SECTOR_THRESHOLD : 10,
+    SECTOR_MIN_SIZE : 10,
+    RANGE : 20,
+    MARGIN: 0.0001
+};
+
+export function makeAttachmentPhysic(superClass, {slotProviderPredicate = element=>true, clipBuilder}) {
+
+    makePositioningPhysic(superClass, {
+        positionsBuilder:function(element) {
+            return this.findPosition(element);
+        },
+        clipBuilder
+    });
+
+    let add = superClass.prototype.add;
+    superClass.prototype.add = function(element) {
+        if (this._addAttachments(element)) {
+            delete this._attachments;
+        }
+        add.call(this, element);
+    };
+
+    superClass.prototype._addAttachments = function(element) {
+        if (slotProviderPredicate.call(this, element)) {
+            if (element.attachments) {
+                if (!this._attachmentsProviders) {
+                    this._attachmentsProviders = new List(element);
+                }
+                else {
+                    this._attachmentsProviders.add(element);
+                }
+                return true;
+            }
+        }
+        return false;
+    };
+
+    let reset = superClass.prototype._reset;
+    superClass.prototype._reset = function() {
+        delete this._attachmentsProviders;
+        for (let element of this._host.children) {
+            this._addAttachments(element);
+        }
+        this._attachments = null;
+        reset.call(this);
+    };
+
+    let remove = superClass.prototype.remove;
+    superClass.prototype.remove = function(element) {
+        if (slotProviderPredicate.call(this, element)) {
+            if (element.attachments) {
+                if (this._attachmentsProviders) {
+                    this._attachmentsProviders.remove(element);
+                    delete this._attachments;
+                }
+            }
+        }
+        remove.call(this, element);
+    };
+
+    let resize = superClass.prototype._resize;
+    superClass.prototype._resize = function(width, height) {
+        this._attachments = null;
+        resize.call(this, width, height);
+    };
+
+    superClass.prototype.getAttachment = function(x, y) {
+        let attachments = this._attachments.find(x, y, Attachments.MARGIN);
+        return attachments.length>0 ? attachments[0] : null;
+    };
+
+    superClass.prototype.findPosition = function(element) {
+        if (!this._attachments) {
+            this._attachments = this._collectAttachments();
+        }
+        let positions = new List();
+        let {x, y} = clipBuilder(element);
+        for (let attachment of this._attachments.find(x, y, Attachments.RANGE)) {
+            positions.add({
+                x:attachment.lx,
+                y:attachment.ly,
+                attachment: attachment
+            });
+        }
+        return positions;
+    };
+
+    superClass.prototype._collectAttachments = function() {
+        let attachments = new SpatialLocator(
+            this._host.width, this._host.height,
+            Attachments.SECTOR_THRESHOLD, Attachments.SECTOR_MIN_SIZE,
+            function(attachment) {
+                return {
+                    x:attachment.lx,
+                    y:attachment.ly
+                };
+            });
+        if (this._attachmentsProviders) {
+            for (let element of this._attachmentsProviders) {
+                for (let attachment of element.attachments) {
+                    attachments.add(attachment);
+                }
+            }
+        }
+        return attachments;
+    }
+}
+
+export function createAttachmentPhysic({predicate, slotProviderPredicate, clipBuilder}) {
+    class AttachmentPhysic extends Physic {
+        constructor(host, ...args) {
+            super(host, predicate, ...args);
+        }
+    }
+    makeAttachmentPhysic(AttachmentPhysic, {slotProviderPredicate, clipBuilder});
+    return AttachmentPhysic;
+}
+
+export function makeAttachmentContainer(superClass, {predicate, slotProviderPredicate, clipBuilder}) {
+    let ContainerPhysic = createAttachmentPhysic({predicate, slotProviderPredicate, clipBuilder});
+    addPhysicToContainer(superClass, {
+        physicBuilder:function() {
+            return new ContainerPhysic(this);
+        }
+    });
+
+    return superClass;
+}
+
+export class Clip extends CloneableObject {
+
+    constructor(owner, x, y) {
+        super();
+        this._x = x;
+        this._y = y;
+        this._owner = owner;
+    }
+
+    get x() {
+        return this._x;
+    }
+
+    get y() {
+        return this._y;
+    }
+
+    get lx() {
+        return this._owner.lx + this._x;
+    }
+
+    get ly() {
+        return this._owner.ly + this._y;
+    }
+
+    _memento() {
+        return {
+            _x : this._x,
+            _y : this._y,
+            _owner : this._owner,
+            _slot : this._slot
+        }
+    }
+
+    _revert(memento) {
+        this._x = memento._x;
+        this._y = memento._y;
+        this._owner = memento._owner;
+        if (memento._slot) {
+            this._slot = memento._slot;
+        }
+        else {
+            delete this._slot;
+        }
+    }
+
+}
+
+export class Slot extends CloneableObject {
+
+    constructor(owner, x, y) {
+        super();
+        this._x = x;
+        this._y = y;
+        this._owner = owner;
+    }
+
+    get x() {
+        return this._x;
+    }
+
+    get y() {
+        return this._y;
+    }
+
+    get lx() {
+        return this._owner.lx + this._x;
+    }
+
+    get ly() {
+        return this._owner.ly + this._y;
+    }
+
+    plug(clip) {
+        if (clip && clip !== this._clip) {
+            Memento.register(this);
+            Memento.register(clip);
+            this._clip = clip;
+            clip._slot = this;
+            clip._owner.addObserver(this);
+        }
+        return this;
+    }
+
+    unplug() {
+        if (this._clip) {
+            Memento.register(this);
+            Memento.register(this._clip);
+            this._clip._owner.removeObserver(this);
+            delete this._clip._slot;
+            delete this._clip;
+        }
+    }
+
+    get available() {
+        return !this._clip;
+    }
+
+    _notified(source, type, value) {
+        if (type === Events.DETACH && this._clip && source === this._clip._owner) {
+            this.unplug();
+        }
+    }
+
+    _memento() {
+        return {
+            _x : this.x,
+            _y : this.y,
+            _owner : this._owner,
+            _clip : this._clip
+        }
+    }
+
+    _revert(memento) {
+        this._x = memento._x;
+        this._y = memento._y;
+        this._owner = memento._owner;
+        if (memento._slot) {
+            this._slot = memento._slot;
+        }
+        else {
+            delete this._slot;
+        }
+    }
+
+}
+
+export function makeClipsOwner(superClass) {
+
+    superClass.prototype._addClips = function(...clips) {
+        if (!this._clips) {
+            this._clips = new List(...clips);
+        }
+        else {
+            this._clips.push(...clips);
+        }
+    };
+
+    superClass.prototype._clearClips = function() {
+        delete this._clips;
+    };
+
+    superClass.prototype.addClips = function(...clips) {
+        if (clips.length) {
+            Memento.register(this);
+            this._addClips(...clips);
+        }
+    };
+
+    superClass.prototype.clearClips = function() {
+        if (this._clips) {
+            Memento.register(this);
+            this._clearClips();
+        }
+    };
+
+    let superMemento = superClass.prototype._memento;
+    superClass.prototype._memento = function() {
+        let memento = superMemento.call(this);
+        if (this._clips) {
+            memento._clips = new List(...this._clips);
+        }
+        return memento;
+    };
+
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function(memento) {
+        superRevert.call(this, memento);
+        if (memento._clips) {
+            this._clips = new List(...memento._clips);
+        }
+        else if (this._clips) {
+            delete this._clips;
+        }
+    };
+
+    Object.defineProperty(superClass.prototype, "clips", {
+        configurable: true,
+        get: function () {
+            return new List(...this._clips);
+        }
+    });
+
+    superClass.prototype._acceptPosition = function(physic, position) {
+        let dx = position.x-this.lx;
+        let dy = position.y-this.ly;
+        for (let index=0; index<this._clips.length; index++) {
+            let clip = this._clips[index];
+            if (!physic.getAttachment(clip.lx+dx, clip.ly+dy)) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    superClass.prototype._positioned = function(physic, position) {
+        let dx = position.x-this.lx;
+        let dy = position.y-this.ly;
+        for (let index=0; index<this._clips.length; index++) {
+            let clip = this._clips[index];
+            let slot = physic.getAttachment(clip.lx+dx, clip.ly+dy);
+            slot.plug(clip);
+        }
+    }
+
+}
+
+export function makeSlotsOwner(superClass) {
+
+    superClass.prototype._addSlots = function(...slots) {
+        if (!this._slots) {
+            this._slots = new List(...slots);
+        }
+        else {
+            this._slots.push(...slots);
+        }
+    };
+
+    superClass.prototype._clearSlots = function() {
+        delete this._slots;
+    };
+
+    superClass.prototype.addSlots = function(...slots) {
+        if (slots.length) {
+            Memento.register(this);
+            this._addSlots(...slots);
+        }
+    };
+
+    superClass.prototype.clearSlots = function() {
+        if (this._slots) {
+            Memento.register(this);
+            this._clearSlots();
+        }
+    };
+
+    let superMemento = superClass.prototype._memento;
+    superClass.prototype._memento = function() {
+        let memento = superMemento.call(this);
+        if (this._slots) {
+            memento._slots = new List(...this._slots);
+        }
+        return memento;
+    };
+
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function(memento) {
+        superRevert.call(this, memento);
+        if (memento._slots) {
+            this._slots = new List(...memento._slots);
+        }
+        else if (this._slots) {
+            delete this._slots;
+        }
+    };
+
+    Object.defineProperty(superClass.prototype, "slots", {
+        configurable: true,
+        get: function () {
+            return new List(...this._slots);
+        }
+    });
+
+    /**
+     * Only one attachment on hook, on its center.
+     * @returns an array containing one point object.
+     */
+    Object.defineProperty(superClass.prototype, "attachments", {
+        configurable: true,
+        get: function () {
+            return this.slots;
+        }
+    });
+
+    /**
+     * Hooks can't have elements. Drops must be directed on owning pane.
+     * @returns {*}
+     * @private
+     */
+    superClass.prototype._dropTarget = function() {
+        return this.parent;
+    }
+
+}
+
+export function createSlotsAndClipsPhysic({predicate, slotProviderPredicate}) {
+    return createAttachmentPhysic({
+        predicate, slotProviderPredicate,
+        clipBuilder:function(element) {
+            return {x: element.clips[0].lx, y: element.clips[0].ly};
+        }});
+}
+
+export function makeSlotsAndClipsContainer(superClass, {predicate, slotProviderPredicate}) {
+    let ContainerPhysic = createSlotsAndClipsPhysic({predicate, slotProviderPredicate});
+    addPhysicToContainer(superClass, {
+        physicBuilder:function() {
+            return new ContainerPhysic(this);
+        }
     });
 
     return superClass;
@@ -705,7 +1314,7 @@ export function makeCollisionPhysic(superClass) {
     };
 
     superClass.prototype._reset = function() {
-        this._elements = new ESet(this._host.children);
+        this._elements = this._acceptedElements(this._host.children);
         this._supportSAP.clear();
         for (let element of this._elements) {
             this._supportSAP.add(element);
@@ -718,7 +1327,7 @@ export function makeCollisionPhysic(superClass) {
 
     superClass.prototype._hover = function(elements) {
         this._hoveredElements = new List(...elements);
-        let inSAP = new ESet(this._dragAndDropSAP.elements);
+        let inSAP = this._acceptedElements(this._dragAndDropSAP.elements);
         for (let element of this._hoveredElements) {
             if (inSAP.has(element)) {
                 inSAP.delete(element);
@@ -865,15 +1474,15 @@ export function makeCollisionPhysic(superClass) {
                 if (fx/* !== null*/ && fy /*!== null*/) {
                     let dx = hx > fx ? hx - fx : fx - hx;
                     let dy = hy > fy ? hy - fy : fy - hy;
-                    if (/*dy &&*/ dx > dy) {
+                    if (dx > dy) {
                         hy = fy;
                     } else {
                         hx = fx;
                     }
                 // 2nd case : only one dimension is available
-                } else if (fx/* !== null*/) {
+                } else if (fx) {
                     hx = fx;
-                } else if (fy/* !== null*/) {
+                } else if (fy) {
                     hy = fy;
                 } else {
                     // Last case : no proposition is available. We revert to last valid position
@@ -935,21 +1544,21 @@ export class PhysicBorder {
     }
 }
 
-export function addBordersToCollisionPhysic(superClass, specs) {
+export function addBordersToCollisionPhysic(superClass, {bordersCollide}) {
 
     let init = superClass.prototype._init;
     superClass.prototype._init = function(...args) {
         init.call(this, ...args);
-        if (specs.left || specs.all) {
+        if (bordersCollide.left || bordersCollide.all) {
             this._addLeftBorder();
         }
-        if (specs.right || specs.all) {
+        if (bordersCollide.right || bordersCollide.all) {
             this._addRightBorder();
         }
-        if (specs.top || specs.all) {
+        if (bordersCollide.top || bordersCollide.all) {
             this._addTopBorder();
         }
-        if (specs.bottom || specs.all) {
+        if (bordersCollide.bottom || bordersCollide.all) {
             this._addBottomBorder();
         }
         this._trigger();
@@ -1014,30 +1623,25 @@ export function addBordersToCollisionPhysic(superClass, specs) {
 
 }
 
-export function createCollisionPhysic() {
+export function createCollisionPhysic({predicate}) {
     class CollisionPhysic extends Physic {
-        constructor(host, predicate, ...args) {
+        constructor(host, ...args) {
             super(host, predicate, ...args);
         }
-
-        clone(duplicata) {
-            let copy = new this.constructor(duplicata.get(this._host), this._predicate);
-            copy._trigger();
-            return copy;
-        }
-
     }
     makeCollisionPhysic(CollisionPhysic);
     return CollisionPhysic;
 }
 
-export function makeCollisionContainer(superClass, predicate, specs = null) {
-    let ContainerPhysic = createCollisionPhysic();
-    if (specs) {
-        addBordersToCollisionPhysic(ContainerPhysic, specs);
+export function makeCollisionContainer(superClass, {predicate, bordersCollide = null}) {
+    let ContainerPhysic = createCollisionPhysic({predicate});
+    if (bordersCollide) {
+        addBordersToCollisionPhysic(ContainerPhysic, {bordersCollide});
     }
-    addPhysicToContainer(superClass, function() {
-        return new ContainerPhysic(this, predicate);
+    addPhysicToContainer(superClass, {
+        physicBuilder: function() {
+            return new ContainerPhysic(this);
+        }
     });
     return superClass;
 }
@@ -1091,12 +1695,20 @@ class Ground {
                 ground = segment.top;
                 supports = new ESet([segment.element]);
             }
-            if (segment.left > left && segment.right < right) {
+            if (segment.left < left) {
+                this._segments.insert({
+                    left:segment.left, right:left, id:id++, top:segment.top, element:segment.element
+                });
+            }
+            if (segment.right > right) {
+                segment.left = right;
+            }
+            else {
                 this._segments.delete(segment);
             }
             segment = it.next().value;
         }
-        if (update) {
+        if (update && this._physic._canFall(element)) {
             let ly = ground - (record.bottom(element) - record.y(element));
             if (ly !== element.ly) {
                 element.setLocation(record.x(element), ly);
@@ -1110,21 +1722,28 @@ class Ground {
 
 }
 
-export function addGravitationToCollisionPhysic(superClass, acceptCarried = (carrier, carried, dx, dy)=>true) {
+export function addGravitationToCollisionPhysic(superClass, {
+    gravitationPredicate = element=>true,
+    carryingPredicate = (carrier, carried, dx, dy)=>true
+}={}) {
 
     superClass.prototype._setCarried = function(elements) {
         for (let element of elements) {
-            if (element.isCarriable && /*element._fall &&*/ element._fall.carriers) {
+            if (element.isCarriable && element._fall.carriers) {
                 for (let support of element._fall.carriers) {
                     let dx = element.lx-support.lx;
                     let dy = element.ly-support.ly;
-                    if (support.isCarrier && acceptCarried(support, element, dx, dy)) {
+                    if (support.isCarrier && carryingPredicate(support, element, dx, dy)) {
                         support.addCarried(element);
                     }
                 }
             }
             delete element._fall;
         }
+    };
+
+    superClass.prototype._canFall = function(element) {
+        return gravitationPredicate.call(this, element);
     };
 
     superClass.prototype._letFall = function(elements, ground) {
@@ -1161,32 +1780,29 @@ export function addGravitationToCollisionPhysic(superClass, acceptCarried = (car
     return superClass;
 }
 
-export function createGravitationPhysic(acceptCarried = (carrier, carried)=>true) {
-    class GravitationPhysic extends createCollisionPhysic() {
+export function createGravitationPhysic({predicate, gravitationPredicate, carryingPredicate}) {
+    class GravitationPhysic extends createCollisionPhysic({predicate}) {
 
-        constructor(host, predicate, ...args) {
-            super(host, predicate, ...args);
+        constructor(host, ...args) {
+            super(host, ...args);
         }
-
-        clone(duplicata) {
-            let copy = new this.constructor(duplicata.get(this._host), this._predicate);
-            copy._trigger();
-            return copy;
-        }
-
     }
-    addGravitationToCollisionPhysic(GravitationPhysic, acceptCarried);
+    addGravitationToCollisionPhysic(GravitationPhysic, {gravitationPredicate, carryingPredicate});
     return GravitationPhysic;
 }
 
-export function makeGravitationContainer(superClass, predicate, acceptCarried = (carrier, carried)=>true, specs = null) {
-    let ContainerPhysic = createGravitationPhysic(acceptCarried);
-    if (specs) {
-        addBordersToCollisionPhysic(ContainerPhysic, specs);
+export function makeGravitationContainer(superClass, {
+    predicate, gravitationPredicate, carryingPredicate, bordersCollide = null
+}) {
+    let ContainerPhysic = createGravitationPhysic({predicate, gravitationPredicate, carryingPredicate});
+    if (bordersCollide) {
+        addBordersToCollisionPhysic(ContainerPhysic, {bordersCollide});
     }
 
-    addPhysicToContainer(superClass, function() {
-        return new ContainerPhysic(this, predicate);
+    addPhysicToContainer(superClass, {
+        physicBuilder: function() {
+            return new ContainerPhysic(this);
+        }
     });
 
     return superClass;
@@ -1282,12 +1898,14 @@ export function makeCarrier(superClass) {
             if (this._carried) {
                 for (let element of this._carried.keys()) {
                     let record = this._carried.get(element);
-                    if (element.parent === this.parent) {
+                    if (element.support === this.support) {
                         element.move(this.lx + record.dx, this.ly + record.dy);
                     }
+                    /*
                     else {
+                        console.log("Remove carried !!");
                         this.removeCarried(element);
-                    }
+                    }*/
                 }
             }
             return true;
@@ -1473,7 +2091,7 @@ export const Glue = {
     BREAK:2         // Elements should be glued. This element must not add glued element to its extension
 };
 
-export function makeDroppedElementsToGlue(superClass, howToGlue=(element1, element2)=>Glue.EXTEND) {
+export function makeDroppedElementsToGlue(superClass, {gluingStrategy=(element1, element2)=>Glue.EXTEND}={}) {
 
     let receiveDrop = superClass.prototype._receiveDrop;
     superClass.prototype._receiveDrop = function(element, dragSet) {
@@ -1483,8 +2101,8 @@ export function makeDroppedElementsToGlue(superClass, howToGlue=(element1, eleme
             let gluedElements = this._supportSAP.near(element, 1, 1, 1, 1);
             for (let neighbour of gluedElements) {
                 if (!alreadyGlued.has(neighbour)) {
-                    if (howToGlue(element, neighbour)!==Glue.NONE) {
-                        element.glue(neighbour, howToGlue);
+                    if (gluingStrategy(element, neighbour)!==Glue.NONE) {
+                        element.glue(neighbour, gluingStrategy);
                     }
                 }
                 else {
@@ -1786,39 +2404,40 @@ export function addGlueToGravitationPhysic(
     return superClass;
 }
 
-export function createStickyGravitationPhysic(
-    acceptCarried=(carrier, carried, dx, dy)=>true,
-    strategy) {
+export function createStickyGravitationPhysic({
+    predicate, gravitationPredicate, carryingPredicate, gluingStrategy
+}) {
 
-    class StickyGravitationPhysic extends createGravitationPhysic(acceptCarried) {
-        constructor(host, predicate, ...args) {
+    class StickyGravitationPhysic extends createGravitationPhysic({
+        predicate, gravitationPredicate, carryingPredicate
+    }) {
+        constructor(host, ...args) {
             super(host, predicate, ...args);
-        }
-        clone(duplicata) {
-            let copy = new this.constructor(duplicata.get(this._host), this._predicate);
-            copy._trigger();
-            return copy;
         }
     }
     addGlueToGravitationPhysic(StickyGravitationPhysic);
-    if (strategy) {
-        makeDroppedElementsToGlue(StickyGravitationPhysic, strategy);
+    if (gluingStrategy) {
+        makeDroppedElementsToGlue(StickyGravitationPhysic, {gluingStrategy});
     }
     return StickyGravitationPhysic;
 }
 
-export function makeStickyGravitationContainer(
-    superClass, predicate,
-    acceptCarried=(carrier, carried)=>true,
-    strategy = null,
-    specs = null)
-{
-    class ContainerPhysic extends createStickyGravitationPhysic(acceptCarried, strategy) {}
-    if (specs) {
-        addBordersToCollisionPhysic(ContainerPhysic, specs);
+export function makeStickyGravitationContainer(superClass, {
+    predicate, gravitationPredicate, carryingPredicate,
+    gluingStrategy = null,
+    bordersCollide
+}) {
+    class ContainerPhysic extends createStickyGravitationPhysic({
+        predicate, gravitationPredicate, carryingPredicate, gluingStrategy
+    }) {}
+
+    if (bordersCollide) {
+        addBordersToCollisionPhysic(ContainerPhysic, bordersCollide);
     }
-    addPhysicToContainer(superClass, function() {
-        return new ContainerPhysic(this, predicate);
+    addPhysicToContainer(superClass, {
+        physicBuilder: function() {
+            return new ContainerPhysic(this);
+        }
     });
     return superClass;
 }

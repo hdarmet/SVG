@@ -363,7 +363,6 @@ export class DragMoveSelectionOperation extends DragElementOperation {
 
     doDragStart(element, x, y, event) {
         Context.memento.open();
-        this._dragSorted = new List();
         if (!Context.selection.selected(element.selectable)) {
             Context.selection.adjustSelection(element, event);
         }
@@ -653,7 +652,13 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                     // ... when drop failed
                     selectedElement._revert(selectedElement._drag.origin);
                     selectedElement._recover && selectedElement._recover(selectedElement._drag.origin);
-                    selectedElement._drag.origin._parent._add(selectedElement);
+                    if (selectedElement._drag.origin._parent._add) {
+                        selectedElement._drag.origin._parent._add(selectedElement);
+                    }
+                    else {
+                        selectedElement._root.detach();
+                        selectedElement._parent = null;
+                    }
                 }
                 delete selectedElement._drag;
             }
@@ -822,17 +827,30 @@ export class DragSelectAreaOperation extends DragOperation {
     }
 
     doDragStart(element, x, y, event) {
+        Context.canvas.addObserver(this);
+        let zoom = Context.canvas.zoom;
         this._start = Context.canvas.getPointOnGlass(x, y);
         this._selectArea = new Rect(this._start.x, this._start.y, 1, 1)
             .attrs({
                 fill: Fill.NONE,
                 stroke: Colors.CRIMSON,
-                stroke_width: 2,
                 stroke_opacity: 0.9,
-                stroke_dasharray: [5,5]
             });
+        this._setStrokeParametersAccordingToZoom();
         Context.canvas.putArtifactOnGlass(this._selectArea);
         this.doDragMove(element, x, y, event);
+    }
+
+    _setStrokeParametersAccordingToZoom() {
+        let zoom = Context.canvas.zoom;
+        this._selectArea.stroke_width =2/zoom;
+        this._selectArea.stroke_dasharray=  [5/zoom, 5/zoom];
+    }
+
+    _notified(source, type, ...values) {
+        if (source === Context.canvas && type === Events.ZOOM) {
+            this._setStrokeParametersAccordingToZoom();
+        }
     }
 
     doDragMove(element, x, y, event) {
@@ -855,6 +873,7 @@ export class DragSelectAreaOperation extends DragOperation {
     doDrop(element, x, y, event) {
         this._doSelection(event);
         Context.canvas.removeArtifactFromGlass(this._selectArea);
+        Context.canvas.removeObserver(this);
     }
 
     _doSelection(event) {
@@ -1310,7 +1329,7 @@ class GlassPedestal {
 
 }
 
-export function makeMultiLayeredGlass(superClass, ...layers) {
+export function makeMultiLayeredGlass(superClass, {layers}) {
 
     let defaultLayer = layers[0];
 
@@ -1380,6 +1399,11 @@ export class GlassLayer extends CanvasLayer {
         return pedestal;
     }
 
+    getSupport(element) {
+        let pedestal = this._elements.get(element);
+        return pedestal ? pedestal.support : null;
+    }
+
     putArtifact(artifact) {
         this._content.add(artifact);
     }
@@ -1440,7 +1464,7 @@ export class GlassLayer extends CanvasLayer {
 
 }
 
-export function setGlassStrategy(superClass, glassStrategy) {
+export function setGlassStrategy(superClass, {glassStrategy}) {
 
     Object.defineProperty(superClass.prototype, "glassStrategy", {
         configurable: true,
@@ -1452,7 +1476,7 @@ export function setGlassStrategy(superClass, glassStrategy) {
 
 }
 
-export function setLayeredGlassStrategy(superClass, ...layers) {
+export function setLayeredGlassStrategy(superClass, {layers}) {
 
     let glassStrategy = class extends GlassPedestal {
         constructor(glass, support, ...args) {super(glass, support, ...args);}
@@ -1754,6 +1778,7 @@ export class Canvas {
     hideGlass() {this._glassLayer.hide();}
     showGlass() {this._glassLayer.show();}
     get glassSupports() { return this._glassLayer.supports; }
+    getGlassSupport(element) { return this._glassLayer.getSupport(element); }
     getHoveredElements(support) { return this._glassLayer.getHoveredElements(support); }
 
     // Modal layer
@@ -1942,7 +1967,7 @@ CopyPaste.clone = function(source, duplicata) {
                 copy = [];
                 duplicata.set(source, copy);
                 for (let record of source) {
-                    copy.add(cloneRecord(record, duplicata));
+                    copy.push(cloneRecord(record, duplicata));
                 }
             }
             else if (source.cloning===Cloning.SHALLOW) {

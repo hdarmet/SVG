@@ -509,6 +509,9 @@ function defineAnyProperty(clazz, name) {
             return this.attr(name);
         },
         function (value) {
+            if (value === undefined) {
+                throw TypeError("Attribute value must be defined");
+            }
             value!==null ? this.attr(name, ""+value): this.attr(name, null);
         }
     );
@@ -524,6 +527,9 @@ function defineDimensionProperty(clazz, name) {
         },
         // Testé
         function (value) {
+            if (value === undefined) {
+                throw TypeError("Attribute value must be defined");
+            }
             value!==null ? this.attr(name, ""+value, value): this.attr(name, null);
         }
     );
@@ -536,6 +542,9 @@ function defineStringProperty(clazz, name) {
             return value === undefined ? "" : value;
         },
         function (value) {
+            if (value === undefined) {
+                throw TypeError("Attribute value must be defined");
+            }
             value!==null ? this.attr(name, value): this.attr(name, null);
         }
     );
@@ -548,6 +557,9 @@ function defineAttributeProperty(clazz, name) {
             return value===undefined ? "" : value;
         },
         function (value) {
+            if (value === undefined) {
+                throw TypeError("Attribute value must be defined");
+            }
             value!==null ? this.attr(name, value.replace("_", "-")): this.attr(name, null);
         }
     );
@@ -560,6 +572,9 @@ function defineFloatProperty(clazz, name) {
             return value===undefined ? 0 : parseFloat(value);
         },
         function (value) {
+            if (value === undefined) {
+                throw TypeError("Attribute value must be defined");
+            }
             value!==null ? this.attr(name, ""+value, value): this.attr(name, null);
         }
     );
@@ -572,6 +587,9 @@ function defineIntegerProperty(clazz, name) {
             return value===undefined ? 0 : parseInt(value);
         },
         function (value) {
+            if (value === undefined) {
+                throw TypeError("Attribute value must be defined");
+            }
             value!==null ? this.attr(name, ""+value): this.attr(name, null);
         }
     );
@@ -584,6 +602,9 @@ function defineBooleanProperty(clazz, name) {
             return value===undefined ? false : value==="true";
         },
         function (value) {
+            if (value === undefined) {
+                throw TypeError("Attribute value must be defined");
+            }
             value!==null ? this.attr(name, ""+value, value): this.attr(name, null);
         }
     );
@@ -595,8 +616,10 @@ function defineElementProperty(clazz, name, pattern="#ELEMENT") {
             let value = this.attr(name);
             return value===undefined ? null : value;
         },
-        // Testé
         function (element) {
+            if (element === undefined) {
+                throw TypeError("Attribute value must be defined");
+            }
             element!==null ? this.attr(name, pattern.replace("ELEMENT", element.id), element) : this.attr(name, null);
         }
     );
@@ -609,6 +632,9 @@ function defineFloatListProperty(clazz, name, separator=" ") {
             return value===undefined ? null : value;
         },
         function (numbers) {
+            if (numbers === undefined) {
+                throw TypeError("Attribute value must be defined");
+            }
             if (numbers!==null) {
                 let list = numbers.join(separator);
                 this.attr(name, list, numbers);
@@ -625,6 +651,9 @@ function defineDimensionListProperty(clazz, name) {
             return value===undefined ? 0 : value;
         },
         function (value) {
+            if (value === undefined) {
+                throw TypeError("Attribute value must be defined");
+            }
             if (value!==null) {
                 let list = numbers.join(separator);
                 this.attr(name, list, numbers);
@@ -641,6 +670,9 @@ function defineStringListProperty(clazz, name, separator=" ") {
             return value===undefined ? null : value;
         },
         function (numbers) {
+            if (numbers === undefined) {
+                throw TypeError("Attribute value must be defined");
+            }
             if (numbers!==null) {
                 let list = numbers.join(separator);
                 this.attr(name, list, numbers);
@@ -657,6 +689,9 @@ function defineListOfFloatListProperty(clazz, name, separator="; ", separator2="
             return value===undefined ? null : value;
         },
         function (numbersArray) {
+            if (numbersArray === undefined) {
+                throw TypeError("Attribute value must be defined");
+            }
             if (numbersArray!==null) {
                 let list = numbersArray.map(numbers => numbers.join(separator2)).join(separator);
                 this.attr(name, list, numbersArray);
@@ -672,6 +707,9 @@ function defineClockProperty(clazz, name) {
             return this.attr(name);
         },
         function (value) {
+            if (value === undefined) {
+                throw TypeError("Attribute value must be defined");
+            }
             if (value!==null) {
                 if (typeof(value) === "number") {
                     this.attr(name, "" + value + "ms", value);
@@ -726,7 +764,7 @@ export class SVGElement {
             copy.cloning = this.cloning;
         }
         if (this.eventCloning) {
-            this._cloneEvent(copy, duplicata);
+            this._cloneEvents(copy, duplicata);
         }
         return copy;
     }
@@ -768,6 +806,9 @@ export class SVGElement {
     }
 
     attr(name, nodeValue, value=nodeValue) {
+        if (value && value.isNaN) {
+            throw new TypeError("Attribute value cannot be NaN.");
+        }
         if (value!==undefined) {
             if (value===null) {
                 delete this._attrs[name];
@@ -1850,11 +1891,11 @@ export class QuadraticBezierDirective {
     }
 
     toString() {
-        return "Q "+this.x2+","+this.y2+" "+this.x+","+this.y;
+        return "Q "+this.x1+","+this.y1+" "+this.x+","+this.y;
     }
 }
 export function Q(x1, y1, x, y) {
-    return new RelativeQuadraticBezierDirective(x1, y1, x, y);
+    return new QuadraticBezierDirective(x1, y1, x, y);
 }
 
 export class RelativeQuadraticBezierDirective {
@@ -1921,7 +1962,7 @@ export function defineDirectiveProperty(clazz, name) {
             this._attrs.d = directives;
             let def = "";
             for (let directive of directives) {
-                if (def.length) def+=" ";
+                if (def.length) def+=", ";
                 def+=directive;
             }
             this._node.setAttribute(Attrs.D, def);
@@ -2950,10 +2991,12 @@ defineDimensionProperty(RadialGradient, Attrs.FX);
 defineDimensionProperty(RadialGradient, Attrs.FY);
 
 export const Colors = {
+    NONE: "none",
     CRIMSON: "#dc143c",
     GREY: "#808080",
-    MIDDLE_GREY: "#C0C0C0",
-    LIGHT_GREY: "#F0F0F0",
+    LIGHT_GREY: "#C0C0C0",
+    MIDDLE_GREY: "#A0A0A0",
+    LIGHTEST_GREY: "#ECECEC",
     BLACK: "#0F0F0F",
     RED: "#F00F0F",
     WHITE: "#FFFFFF"

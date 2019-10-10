@@ -137,9 +137,9 @@ export function makeSelectable(superClass) {
     superClass.prototype._init = function(...args) {
         superInit && superInit.call(this, ...args);
         if (!this._clickHdlImpl) {
-            this._clickHdlImpl = event => {
+            this._clickHdlImpl = function(event) {
                 Context.selection.adjustSelection(this, event, true);
-            };
+            }.bind(this);
             this._root.on(MouseEvents.CLICK, this._clickHdlImpl);
         }
     };
@@ -178,6 +178,17 @@ export function makeSelectable(superClass) {
             return this;
         };
     }
+
+    let superCloned = superClass.prototype._cloned;
+    superClass.prototype._cloned = function(copy, duplicata) {
+        superCloned && superCloned.call(this, copy, duplicata);
+        if (!copy._clickHdl) {
+            copy._clickHdlImpl = function(event) {
+                Context.selection.adjustSelection(this, event, true);
+            }.bind(copy);
+            copy._root.on(MouseEvents.CLICK, copy._clickHdlImpl);
+        }
+    };
 
 }
 
@@ -537,7 +548,7 @@ export function makeSandBox(superClass) {
 
 }
 
-export function makeContainerMultiLayered(superClass, ...layers) {
+export function makeContainerMultiLayered(superClass, {layers}) {
 
     let defaultLayer = layers[0];
 
@@ -637,15 +648,15 @@ export function makeContainerMultiLayered(superClass, ...layers) {
     };
 }
 
-export function makeMultiLayeredContainer(superClass, ...layers) {
+export function makeMultiLayeredContainer(superClass, {layers}) {
     makeContainer(superClass);
-    makeContainerMultiLayered(superClass, ...layers);
+    makeContainerMultiLayered(superClass, {layers});
 }
 
-export function makeLayersWithContainers(superClass, layersFct) {
+export function makeLayersWithContainers(superClass, {layersBuilder}) {
 
     let defaultLayer;
-    let layers = layersFct();
+    let layers = layersBuilder();
 
     let superInit = superClass.prototype._init;
     superClass.prototype._init = function(...args) {
@@ -795,7 +806,7 @@ export function makeLayersWithContainers(superClass, layersFct) {
     });
 }
 
-export function makeLayered(superClass, layer) {
+export function makeLayered(superClass, {layer}) {
 
     let getLayer = superClass.prototype.getLayer;
     superClass.prototype.getLayer = function(target) {
@@ -1546,7 +1557,7 @@ export function makeClickable(superClass) {
         if (this._clickHdlImpl) {
             this._root.off(MouseEvents.CLICK, this._clickHdlImpl);
         }
-        this._clickHdlImpl = event => {
+        this._clickHdlImpl = event=> {
             Context.selection.adjustSelection(this, event, true);
             handler && handler.call(this)(event);
         };
@@ -1558,7 +1569,7 @@ export function makeClickable(superClass) {
         if (this._doubleClickHdlImpl) {
             this._root.off(Events.DOUBLE_CLICK, this._doubleClickHdlImpl);
         }
-        this._doubleClickHdlImpl = event => {
+        this._doubleClickHdlImpl = event=> {
             Context.selection.adjustSelection(this, event, true);
             handler && handler.call(this)(event);
         };
@@ -1580,13 +1591,15 @@ export function makeClickable(superClass) {
 }
 
 /**
- * Give a SVG rect as a shape to an element. Note that this mixing invoke the (mandatory and more abstract) makeShaped
+ * Gives a SVG rect as a shape to an element. Note that this mixing invoke the (mandatory and more abstract) makeShaped
  * mixin.
  * <p> This mixing gives the opportunity to define (as constructor parameters):
  * <ul>
- *     <li> width and height of the shape,
- *     <li> stroke and fill colors.
+ *     <li> the width and height of the shape,
+ *     <li> the stroke and fill colors.
  * </ul>
+ * <p> To change fill/stroke colors (and other properties), please use makeFillUpdatable/makeStrokeUpdatable mixins in
+ * conjunction with this one.
  * @param superClass element class to enhance.
  */
 export function makeFramed(superClass) {
@@ -1664,6 +1677,19 @@ export function makeImaged(superClass) {
     });
 }
 
+/**
+ * Gives an image (and only one) as a shape to an element. Note that this mixing invoke the (mandatory and more
+ * abstract) makeImaged mixin.
+ * <p> This mixing gives the opportunity to define (as constructor parameters):
+ * <ul>
+ *     <li> the width and height of the shape,
+ *     <li> the stroke color,
+ *     <li> the image url
+ * </ul>
+ * <p> Note that image URL cannot be changed (maybe... in future versions...). Width and height can be.
+ * <p> To change stroke color (and other properties), please use makeStrokeUpdatable mixins in conjunction with this one.
+ * @param superClass element class to enhance.
+ */
 export function makeSingleImaged(superClass) {
 
     makeImaged(superClass);
@@ -2084,6 +2110,11 @@ export class BoardElement {
 
     get parent() {
         return this._parent;
+    }
+
+    get support() {
+        let parent = this.parent;
+        return parent ? parent : Context.canvas.getGlassSupport(this);
     }
 
     visible() {

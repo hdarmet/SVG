@@ -599,3 +599,197 @@ export class AVLTree {
 
 }
 
+class SpacialSector {
+
+    constructor(locator, parent, x, y, width, height, threshold, minSize) {
+        this._locator = locator;
+        this._parent = parent;
+        this._x = x;
+        this._y = y;
+        this._width = width;
+        this._height = height;
+        this._threshold = threshold;
+        this._minSize = minSize;
+    }
+
+    _addInSectors(element) {
+        let {x, y} = this._locator._coordFinder(element);
+        if (x<this._x) {
+            if (y<this._y) {
+                if (!this._sectors[0]) this._sectors[0] = new SpacialSector(
+                    this._locator, this,
+                    this._x-this._width/4, this._y-this._height/4, this._width/2, this._height/2,
+                    this._threshold, this._minSize);
+                this._sectors[0].add(element);
+            }
+            else {
+                if (!this._sectors[1]) this._sectors[1] = new SpacialSector(
+                    this._locator, this,
+                    this._x-this._width/4, this._y+this._height/4, this._width/2, this._height/2,
+                    this._threshold, this._minSize);
+                this._sectors[1].add(element);
+            }
+        }
+        else {
+            if (y<this._y) {
+                if (!this._sectors[2]) this._sectors[2] = new SpacialSector(
+                    this._locator, this,
+                    this._x+this._width/4, this._y-this._height/4, this._width/2, this._height/2,
+                    this._threshold, this._minSize);
+                this._sectors[2].add(element);
+            }
+            else {
+                if (!this._sectors[3]) this._sectors[3] = new SpacialSector(
+                    this._locator, this,
+                    this._x+this._width/4, this._y+this._height/4, this._width/2, this._height/2,
+                    this._threshold, this._minSize);
+                this._sectors[3].add(element);
+            }
+        }
+    }
+
+    _split() {
+        this._sectors = new List();
+        for (let element of this._elements) {
+            this.add(element);
+        }
+        delete this._elements;
+    }
+
+    add(element) {
+        if (this._sectors) {
+            this._addInSectors(element);
+        }
+        else {
+            this._locator._elements.set(element, this);
+            if (this._elements) {
+                this._elements.add(element);
+                if (this._elements.length===this._threshold &&
+                    (this._width>this._minSize || this._height>this._minSize)) {
+                    this._split();
+                }
+            }
+            else {
+                this._elements = new List(element);
+            }
+        }
+    }
+
+    _reunite() {
+        if (this._sectors) {
+            let length = 0;
+            for (let index in this._sectors) {
+                let sector = this._sectors[index];
+                let sectorLength = sector ? sector.length : -1;
+                if (!sectorLength) delete this._sectors[index];
+                if (sectorLength>0) length += sectorLength;
+            }
+            if (length<this._threshold) {
+                this._elements = new List();
+                for (let sector of this._sectors) {
+                    if (sector) this._elements.push(...sector.elements);
+                }
+                delete this._sectors;
+                for (let element of this._elements) {
+                    this._locator._elements.set(element, this);
+                }
+            }
+        }
+    }
+
+    remove(element) {
+        this._elements.remove(element);
+        if (!this._elements.length) {
+            delete this._elements;
+        }
+        this._locator._elements.delete(element);
+        this._parent && this._parent._reunite();
+    }
+
+    get elements() {
+        if (this._sectors) {
+            let elements = new List();
+            for (let sector of this._sectors) {
+                if (sector) elements.push(...sector.elements);
+            }
+            return elements;
+        }
+        else {
+            return this._elements ? this._elements : new List();
+        }
+    }
+
+    get length() {
+        if (this._sectors) {
+            let length = 0;
+            for (let sector of this._sectors) {
+                if (sector) length+=sector.length;
+            }
+            return length;
+        }
+        else {
+            return this._elements ? this._elements.length : 0;
+        }
+    }
+
+    gather(x, y, range, elements) {
+        let dx = x-this._x, dy = y-this._y;
+        let mx = range+this._width/2, my = range+this._height/2;
+        if (dx*dx+dy*dy<mx*mx+my*my) {
+            if (this._sectors) {
+                for (let sector of this._sectors) {
+                    if (sector) sector.gather(x, y, range, elements);
+                }
+            }
+            else if (this._elements) {
+                let range2 = range*range;
+                for (let element of this._elements) {
+                    let coords = this._locator._coordFinder(element);
+                    let dx = x-coords.x, dy = y-coords.y;
+                    if (dx*dx+dy*dy<=range2) {
+                        elements.add(element);
+                    }
+                }
+            }
+        }
+    }
+
+}
+
+export class SpatialLocator {
+
+    constructor(width, height, threshold, minSize, coordFinder) {
+        this._root = new SpacialSector(this, null, 0, 0, width, height, threshold, minSize);
+        this._elements = new Map();
+        this._coordFinder = coordFinder;
+    }
+
+    add(element) {
+        if (!this._elements.has(element)) {
+            this._root.add(element);
+        }
+        return this;
+    }
+
+    remove(element) {
+        let sector = this._elements.get(element);
+        if (sector) {
+            sector.remove(element);
+        }
+        return this;
+    }
+
+    find(x, y, range) {
+        let elements = new List();
+        this._root.gather(x, y, range, elements);
+        return elements;
+    }
+
+    get length() {
+        return this._root.length;
+    }
+
+    get elements() {
+        return this._root.elements;
+    }
+}

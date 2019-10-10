@@ -176,7 +176,7 @@ export function makeMenuOwner(superClass) {
 
     superClass.prototype.openMenu = function(x, y) {
         let menuOptions = this.menuOptions;
-        if (menuOptions.length > 0) {
+        if (menuOptions && menuOptions.length > 0) {
             Context.canvas.openMenu(this, x, y, menuOptions);
         }
     };
@@ -1115,13 +1115,15 @@ export class BoardItemBuilder extends ToolCell {
 
 }
 
-export function zoomInCommand(toolPopup) {
-
-    function isMaxZoom() {
+export const Tools = {
+    isMaxZoom() {
         return Context.canvas.maxZoom <= Context.canvas.zoom;
-    }
-    function zoomInSelect() {
-        if (!isMaxZoom()) {
+    },
+    isMinZoom() {
+        return Context.canvas.minZoom >= Context.canvas.zoom;
+    },
+    zoomInSelect() {
+        if (!this.isMaxZoom()) {
             let bbox = boundingBox(Context.selection.selection(), Context.canvas.globalMatrix);
             if (bbox !== null) {
                 let px = (bbox.left + bbox.right) / 2;
@@ -1136,22 +1138,9 @@ export function zoomInCommand(toolPopup) {
                 Context.canvas.zoomIn(px, py);
             }
         }
-    }
-
-    toolPopup.add(new ToolToggleCommand("./images/icons/zoom-in_on.svg", "./images/icons/zoom-in_off.svg",
-        () => {
-            zoomInSelect();
-        }, () => !isMaxZoom())
-    );
-}
-
-export function zoomOutCommand(toolPopup) {
-
-    function isMinZoom() {
-        return Context.canvas.minZoom >= Context.canvas.zoom;
-    }
-    function zoomOutSelect() {
-        if (!isMinZoom()) {
+    },
+    zoomOutSelect() {
+        if (!this.isMinZoom()) {
             let bbox = boundingBox(Context.selection.selection(), Context.canvas.globalMatrix);
             if (bbox !== null) {
                 let px = (bbox.left + bbox.right) / 2;
@@ -1166,148 +1155,67 @@ export function zoomOutCommand(toolPopup) {
                 Context.canvas.zoomOut(px, py);
             }
         }
-    }
-
-    toolPopup.add(new ToolToggleCommand("./images/icons/zoom-out_on.svg", "./images/icons/zoom-out_off.svg",
-        () => {
-            zoomOutSelect();
-        }, () => !isMinZoom())
-    );
-}
-
-function zoomFit(elements) {
-    let bbox = boundingBox(elements, Context.canvas.baseGlobalMatrix);
-    if (bbox !== null) {
-        let width = bbox.right - bbox.left;
-        let height = bbox.bottom - bbox.top;
-        let scale = Math.min(Context.canvas.clientWidth / width, Context.canvas.clientHeight / height) * 0.9;
-        Context.canvas.zoomSet(scale, 0, 0);
-        let px = (bbox.left + bbox.right) / 2;
-        let py = (bbox.top + bbox.bottom) / 2;
-        Context.canvas.scrollTo(px, py);
-    }
-}
-
-export function zoomExtentCommand(toolPopup) {
-
-    function isMinZoom() {
-        return Context.canvas.minZoom >= Context.canvas.zoom;
-    }
-    function zoomExtent() {
-        zoomFit(Context.canvas.baseChildren);
-    }
-
-    toolPopup.add(new ToolToggleCommand("./images/icons/zoom-extent_on.svg", "./images/icons/zoom-extent_off.svg",
-        () => {
-            zoomExtent();
-        }, () => !isMinZoom())
-    );
-}
-
-export function zoomSelectionCommand(toolPopup) {
-
-    function zoomSelection() {
-        zoomFit(Context.selection.selection());
-    }
-    function selectionEmpty() {
+    },
+    zoomFit(elements) {
+        let bbox = boundingBox(elements, Context.canvas.baseGlobalMatrix);
+        if (bbox !== null) {
+            let width = bbox.right - bbox.left;
+            let height = bbox.bottom - bbox.top;
+            let scale = Math.min(Context.canvas.clientWidth / width, Context.canvas.clientHeight / height) * 0.9;
+            Context.canvas.zoomSet(scale, 0, 0);
+            let px = (bbox.left + bbox.right) / 2;
+            let py = (bbox.top + bbox.bottom) / 2;
+            Context.canvas.scrollTo(px, py);
+        }
+    },
+    zoomExtent() {
+        this.zoomFit(Context.canvas.baseChildren);
+    },
+    zoomSelection() {
+        this.zoomFit(Context.selection.selection());
+    },
+    selectionEmpty() {
         return Context.selection.selection().size === 0;
-    }
-
-    toolPopup.add(new ToolToggleCommand("./images/icons/zoom-selection_on.svg", "./images/icons/zoom-selection_off.svg",
-        () => {
-            zoomSelection();
-        }, () => !selectionEmpty())
-    );
-}
-
-export function copyCommand(toolPopup) {
-
-    function selectionEmpty() {
-        return Context.selection.selection().size === 0;
-    }
-    function copy() {
+    },
+    copy() {
         Context.copyPaste.copyModel(Context.selection.selection());
-    }
-
-    toolPopup.add(new ToolToggleCommand("./images/icons/copy_on.svg", "./images/icons/copy_off.svg",
-        () => {
-            copy();
-        }, () => !selectionEmpty())
-    );
-}
-
-export function pasteCommand(toolPopup) {
-
-    function pastable() {
+    },
+    pastable() {
         return Context.copyPaste.pastable;
-    }
-    function paste() {
+    },
+    paste() {
         Context.copyPaste.pasteModel();
-    }
-
-    toolPopup.add(new ToolToggleCommand("./images/icons/paste_on.svg", "./images/icons/paste_off.svg",
-        () => {
-            paste();
-        }, () => pastable())
-    );
-}
-
-export function undoCommand(toolPopup) {
-
-    function undoable() {
+    },
+    undoable() {
         return Context.memento.undoable();
-    }
-    function undo() {
+    },
+    undo() {
         Context.memento.undo();
-    }
-
-    toolPopup.add(new ToolToggleCommand("./images/icons/undo_on.svg", "./images/icons/undo_off.svg",
-        () => {
-            undo();
-        }, () => undoable())
-    );
-}
-
-export function redoCommand(toolPopup) {
-
-    function redoable() {
+    },
+    redoable() {
         return Context.memento.redoable();
-    }
-    function redo() {
+    },
+    redo() {
         Context.memento.redo();
-    }
-
-    toolPopup.add(new ToolToggleCommand("./images/icons/redo_on.svg", "./images/icons/redo_off.svg",
-        () => {
-            redo();
-        }, () => redoable())
-    );
-}
-
-function deleteSelection() {
-    Context.memento.open();
-    for (let child of [...Context.selection.selection()]) {
-        if (child.deletable) {
-            child.delete();
-        }
-    }
-}
-
-export function allowElementDeletion() {
-    Context.anchor.addEventListener(KeyboardEvents.KEY_UP, event => {
-            if (!Context.freezed) {
-                if (event.key === "Delete" || event.key === "Backspace")
-                    deleteSelection();
+    },
+    deleteSelection() {
+        Context.memento.open();
+        for (let child of [...Context.selection.selection()]) {
+            if (child.deletable) {
+                child.delete();
             }
         }
-    );
-}
-
-export function deleteCommand(toolPopup) {
-
-    allowElementDeletion();
-
-    function selectionDeletable() {
+    },
+    allowElementDeletion() {
+        Context.anchor.addEventListener(KeyboardEvents.KEY_UP, event => {
+                if (!Context.freezed) {
+                    if (event.key === "Delete" || event.key === "Backspace")
+                        Tools.deleteSelection();
+                }
+            }
+        );
+    },
+    selectionDeletable() {
         let selection = [...Context.selection.selection()];
         if (!selection.length) return false;
         for (let child of selection) {
@@ -1315,10 +1223,76 @@ export function deleteCommand(toolPopup) {
         }
         return true;
     }
+};
 
+export function zoomInCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/zoom-in_on.svg", "./images/icons/zoom-in_off.svg",
+        () => {
+            Tools.zoomInSelect();
+        }, () => !Tools.isMaxZoom())
+    );
+}
+
+export function zoomOutCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/zoom-out_on.svg", "./images/icons/zoom-out_off.svg",
+        () => {
+            Tools.zoomOutSelect();
+        }, () => !Tools.isMinZoom())
+    );
+}
+
+export function zoomExtentCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/zoom-extent_on.svg", "./images/icons/zoom-extent_off.svg",
+        () => {
+            Tools.zoomExtent();
+        }, () => !Tools.isMinZoom())
+    );
+}
+
+export function zoomSelectionCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/zoom-selection_on.svg", "./images/icons/zoom-selection_off.svg",
+        () => {
+            Tools.zoomSelection();
+        }, () => !Tools.selectionEmpty())
+    );
+}
+
+export function copyCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/copy_on.svg", "./images/icons/copy_off.svg",
+        () => {
+            Tools.copy();
+        }, () => !Tools.selectionEmpty())
+    );
+}
+
+export function pasteCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/paste_on.svg", "./images/icons/paste_off.svg",
+        () => {
+            Tools.paste();
+        }, () => Tools.pastable())
+    );
+}
+
+export function undoCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/undo_on.svg", "./images/icons/undo_off.svg",
+        () => {
+            Tools.undo();
+        }, () => Tools.undoable())
+    );
+}
+
+export function redoCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/redo_on.svg", "./images/icons/redo_off.svg",
+        () => {
+            Tools.redo();
+        }, () => Tools.redoable())
+    );
+}
+
+export function deleteCommand(toolPopup) {
     toolPopup.add(new ToolToggleCommand("./images/icons/trash_on.svg", "./images/icons/trash_off.svg",
         () => {
-            deleteSelection();
-        }, () => selectionDeletable(), 66)
+            Tools.deleteSelection();
+        }, () => Tools.selectionDeletable(), 66)
     );
 }

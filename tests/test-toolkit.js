@@ -249,6 +249,17 @@ export function assert(value) {
 
 let testSuite;
 let startTime = new Date().getTime();
+let suites = [];
+
+function executeNextSuite(suite) {
+    let next = suite ? suites.indexOf(suite)+1 : 0;
+    if (next<suites.length) {
+        suites[next].execute();
+    }
+    else {
+        console.log(`${itCount} tests executed. ${itCount-itFailed} passed. ${itFailed} failed.`);
+    }
+}
 
 export class TestSuite {
     constructor(title) {
@@ -256,7 +267,7 @@ export class TestSuite {
         testSuite = this;
         this.befores = [];
         this.its = [];
-        console.log(title);
+        suites.push(this);
     }
 
     before(before) {
@@ -268,8 +279,7 @@ export class TestSuite {
         return this;
     }
 
-    _execute() {
-
+    execute() {
         function _executeIt(index) {
             function _done() {
                 _executeIt.call(this, index + 1);
@@ -308,8 +318,13 @@ export class TestSuite {
                     _done.call(this);
                 }
             }
+            else {
+                executeNextSuite(this);
+            }
         }
 
+        testSuite = this;
+        console.log(this.title);
         _executeIt.call(this, 0);
     }
 
@@ -323,9 +338,8 @@ export class TestSuite {
 }
 
 export function describe(title, procedure) {
-    let testSuite = new TestSuite(title);
+    testSuite = new TestSuite(title);
     procedure.call(testSuite);
-    testSuite._execute();
 }
 
 export function before(before) {
@@ -337,7 +351,7 @@ export function it(caseTitle, testCase) {
 }
 
 export function result() {
-    console.log(`${itCount} tests executed. ${itCount-itFailed} passed. ${itFailed} failed.`);
+    executeNextSuite();
 }
 
 export function executeTimeouts() {

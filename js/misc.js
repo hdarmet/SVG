@@ -32,3 +32,16 @@ export function same(v1, v2) {
     if (v1!==0 && v2!==0 && (!v1 || !v2)) return false;
     return v1-v2>-0.0001 && v1-v2<0.001;
 }
+
+export function is(...classes) {
+    return function(element) {
+        for (let oneClass of classes) {
+            if (element instanceof oneClass) return true;
+        }
+        return false;
+    }
+}
+
+export function always() {
+    return true;
+}

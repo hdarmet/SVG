@@ -49,8 +49,8 @@ describe("Basic elements", ()=> {
     });
 
     function getFramesElementHtml() {
-        let redElement = '<g transform="matrix(1 0 0 1 0 0)"><g><g><rect x="-10" y="-15" width="20" height="30" fill="#dc143c" stroke="#0F0F0F" stroke-width="3"></rect></g></g></g>';
-        let blackElement = '<g transform="matrix(1 0 0 1 0 0)"><g><g><rect x="-10" y="-15" width="20" height="30" fill="#0F0F0F" stroke="#dc143c" stroke-width="4"></rect></g></g></g>';
+        let redElement = '<g transform="matrix(1 0 0 1 0 0)"><g><g><rect x="-10" y="-15" width="20" height="30" stroke="#0F0F0F" fill="#dc143c" stroke-width="3"></rect></g></g></g>';
+        let blackElement = '<g transform="matrix(1 0 0 1 0 0)"><g><g><rect x="-10" y="-15" width="20" height="30" stroke="#dc143c" fill="#0F0F0F" stroke-width="4"></rect></g></g></g>';
         return {redElement, blackElement};
     }
 
@@ -58,7 +58,7 @@ describe("Basic elements", ()=> {
         let table = putTable();
         class ElementClass extends defineFramedElementClass() {
             constructor(width, height, strokeWidth, strokeColor, fillColor) {
-                super(width, height, Colors.NONE, Colors.NONE)
+                super(width, height, Colors.NONE, Colors.NONE);
                 this._initFill({fillColor});
                 this._initStroke({strokeWidth, strokeColor});
             }

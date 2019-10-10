@@ -5,13 +5,15 @@ import {
 } from "./test-toolkit.js";
 import {
     ClipPath, Mask, Rect, Circle, Ellipse, Line, Svg, Group, Translation, Rotation, Scaling,
+    Path, M, m, L, l, Q, q,
     Polygon, Polyline, RasterImage, ClippedRasterImage, SvgImage, SvgRasterImage,
     MouseEvents, Colors, Visibility, FeGaussianBlur, Filter, P100,
     FilterUnits, FeEdgeMode, FeIn
 } from "../js/graphics.js";
 
-function mouse(evType, target) {
-    let event = new MouseEvent(evType);
+function mouse(evType, target, x, y) {
+    let eventSpecs = {bubbles:true, clientX:x, clientY:y};
+    let event = new MouseEvent(evType, eventSpecs);
     target._node.dispatchEvent(event);
 }
 
@@ -91,7 +93,6 @@ describe("Basic SVG Objects", ()=> {
         assert(ellipse.cx).equalsTo(110);
         assert(ellipse.cy).equalsTo(120);
     });
-
 
     it ("Shows a line", ()=>{
         let line = new Line(10, 20, 110, 120);
@@ -293,10 +294,10 @@ describe("Basic SVG Objects", ()=> {
             clicked++;
         };
         rect.on(MouseEvents.CLICK, trigger);
-        mouse("click", rect);
+        mouse("click", rect, 0, 0);
         assert(clicked).equalsTo(1);
         rect.off(MouseEvents.CLICK, trigger);
-        mouse("click", rect);
+        mouse("click", rect, 0, 0);
         assert(clicked).equalsTo(1);
     });
 
@@ -315,25 +316,27 @@ describe("Basic SVG Objects", ()=> {
                 status = "dropped"
             }
         );
-        mouse("mousemove", rect);
+        mouse("mousemove", rect, 0, 0);
         assert(status).equalsTo("not dragged");
-        mouse("mouseup", rect);
+        mouse("mouseup", rect, 10, 10);
         assert(status).equalsTo("not dragged");
-        mouse("mousedown", rect);
+        mouse("mousedown", rect,0, 0);
         assert(status).equalsTo("dragged");
-        mouse("mousemove", rect);
+        mouse("mousemove", rect, 0, 0); // Same place => event is ignored
+        assert(status).equalsTo("dragged");
+        mouse("mousemove", rect, 10, 10); // Not same place
         assert(status).equalsTo("moved");
-        mouse("mousedown", rect);
+        mouse("mousedown", rect, 0, 0);
         assert(status).equalsTo("moved");
-        mouse("mouseup", rect);
+        mouse("mouseup", rect, 10, 10);
         assert(status).equalsTo("dropped");
         status = "not dragged";
-        mouse("mousemove", rect);
+        mouse("mousemove", rect, 0, 0);
         assert(status).equalsTo("not dragged");
-        mouse("mouseup", rect);
+        mouse("mouseup", rect, 10, 10);
         assert(status).equalsTo("not dragged");
         rect.offDrag();
-        mouse("mousedown", rect);
+        mouse("mousedown", rect, 0, 0);
         assert(status).equalsTo("not dragged");
     });
 
@@ -448,7 +451,13 @@ describe("Basic SVG Objects", ()=> {
         };
         let rect = new Rect(10, 20, 100, 200);
         rect.on(MouseEvents.CLICK, trigger);
+        //rect.eventCloning = false; // Default : events are not cloned
         let copy = rect.clone();
+        svg.add(copy);
+        mouse("click", copy);
+        assert(clicked).equalsTo(0);    // EventHandling not cloned : nothing happen
+        rect.eventCloning = true;
+        copy = rect.clone();
         svg.add(copy);
         mouse("click", copy);
         assert(clicked).equalsTo(1);
@@ -470,11 +479,11 @@ describe("Basic SVG Objects", ()=> {
         );
         let copy = rect.clone();
         svg.add(copy);
-        mouse("mousedown", copy);
+        mouse("mousedown", copy, 0, 0);
         assert(status).equalsTo("dragged");
-        mouse("mousemove", copy);
+        mouse("mousemove", copy, 10, 10);
         assert(status).equalsTo("moved");
-        mouse("mouseup", copy);
+        mouse("mouseup", copy, 0, 0);
         assert(status).equalsTo("dropped");
     });
 
@@ -516,7 +525,7 @@ describe("Basic SVG Objects", ()=> {
         assert(gmatrix.toString()).equalsTo("matrix(1 0 0 1 0 0)");
         svg.add(group.add(rect));
         gmatrix = rect.globalMatrix;
-        assert(gmatrix.toString()).equalsTo("matrix(1 0 0 1 100.00000149011612 50.00000074505806)");
+        assert(gmatrix.toString()).equalsTo("matrix(1 0 0 1 100 50)");
     });
 
     it ("Checks getElementFromPoint", ()=>{
@@ -641,4 +650,16 @@ describe("Basic SVG Objects", ()=> {
             });
         }, 50);
     });
+
+    it ("Shows a path", ()=>{
+        let path = new Path(M(20, 25), m(10, 15), L(50, 5), l(-10, -15), Q(10, 25, 20, 15), q(-10, -25, -20, -15));
+        svg.add(path);
+        assert(path.outerHTML).equalsTo('<path d="M 20 25, m 10 15, L 50 5, L -10 -15, Q 10,25 20,15, q -10,-25 -20,-15"></path>');
+        /*
+        poly.points = [[50, 50], [90, 10], [10, 10]];
+        assert(poly.outerHTML).equalsTo('<polyline points="50,50 90,10 10,10"></polyline>');
+        assert(poly.points).arrayEqualsTo([[50, 50], [90, 10], [10, 10]]);
+        */
+    });
+
 });

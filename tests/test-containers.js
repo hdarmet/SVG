@@ -168,7 +168,7 @@ describe("Containers", ()=> {
         }
         makeShaped(BoardMultiLayeredContainer);
         makeContainer(BoardMultiLayeredContainer);
-        makeContainerMultiLayered(BoardMultiLayeredContainer, "up", "middle", "down");
+        makeContainerMultiLayered(BoardMultiLayeredContainer, {layers:["up", "middle", "down"]});
         makeContainerASupport(BoardMultiLayeredContainer);
         return BoardMultiLayeredContainer;
     }
@@ -343,12 +343,14 @@ describe("Containers", ()=> {
             }
         }
         makeShaped(BoardContainersAsLayersContainer);
-        makeLayersWithContainers(BoardContainersAsLayersContainer, ()=>{
-            return {
-                up:new BoardLayer(),
-                middle:new BoardLayer(),
-                down:new BoardLayer()
-            };
+        makeLayersWithContainers(BoardContainersAsLayersContainer, {
+            layersBuilder:()=>{
+                return {
+                    up:new BoardLayer(),
+                    middle:new BoardLayer(),
+                    down:new BoardLayer()
+                };
+            }
         });
         makeContainerASupport(BoardContainersAsLayersContainer);
         return BoardContainersAsLayersContainer;

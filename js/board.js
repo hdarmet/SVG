@@ -66,13 +66,13 @@ makeShaped(BoardDummy);
 makeDraggable(BoardDummy);
 makeClickable(BoardDummy);
 makeMenuOwner(BoardDummy);
-makeLayered(BoardDummy, "_up");
+makeLayered(BoardDummy, {layer:"_up"});
 
-makeContainerMultiLayered(BoardTable, "_down",  "_middle", "_up");
-setLayeredGlassStrategy(BoardTable, "_down",  "_middle", "_up");
-makeContainerMultiLayered(BoardBox, "_down",  "_middle", "_up");
-setLayeredGlassStrategy(BoardBox, "_up", "_middle", "_down");
-makeLayered(BoardBox, "_down");
+makeContainerMultiLayered(BoardTable, {layers:["_down",  "_middle", "_up"]});
+setLayeredGlassStrategy(BoardTable, {layers:["_down",  "_middle", "_up"]});
+makeContainerMultiLayered(BoardBox, {layers:["_down",  "_middle", "_up"]});
+setLayeredGlassStrategy(BoardBox, {layers:["_up", "_middle", "_down"]});
+makeLayered(BoardBox, {layer:"_down"});
 makeDeletable(BoardCounter);
 makeCarrier(BoardCounter);
 makeCarriable(BoardCounter);
@@ -153,7 +153,10 @@ class BoardCollisionContent extends BoardContent {
     }
 }
 //makeCollisionContainer(BoardCollisionContent, element=>element instanceof BoardCounter, {all:true});
-makeGravitationContainer(BoardCollisionContent, element=>element instanceof BoardCounter, undefined, {all:true});
+makeGravitationContainer(BoardCollisionContent, {
+    predicate: element => element instanceof BoardCounter,
+    bordersCollide: {all: true}
+});
 
 
 class BoardCollisionBox extends BoardBox {
@@ -188,7 +191,7 @@ class BoardHexMap extends BoardMap {
     }
 
 }
-makeLayered(BoardHexMap, "_down");
+makeLayered(BoardHexMap, {layer:"_down"});
 
 //makeZindexSupport(BoardHexMap);
 

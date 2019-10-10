@@ -1,23 +1,25 @@
 'use strict';
 
 import {
-    describe, it, before, assert, clickOn, drag, Snapshot, keyboard, executeTimeouts, findChild
+    describe, it, before, assert, drag, executeTimeouts, findChild
 } from "./test-toolkit.js";
 import {
     Rect
 } from "../js/graphics.js";
 import {
-    setRef, html, Context, Selection, Canvas, DragMoveSelectionOperation
+    Context, Selection, Canvas, DragMoveSelectionOperation
 } from "../js/toolkit.js";
 import {
-    BoardElement, BoardTable, makeShaped, makeClickable, makeMoveable, makeSelectable,
-    makeDraggable, makeContainer, makeSupport, makeDeletable
+    BoardElement, BoardTable, makeShaped, makeMoveable, makeSelectable, makeDraggable, makeSupport
 } from "../js/base-element.js";
 import {
     makePositioningContainer, makeCollisionContainer, makeGravitationContainer, makeStickyGravitationContainer,
     makeCarrier, makeCarriable, makeGlueable, addPhysicToContainer, createStickyGravitationPhysic, makeDroppedElementsToGlue,
     Glue
 } from "../js/physics.js";
+import {
+    is, always
+} from "../js/misc.js";
 
 describe("Physics", ()=> {
 
@@ -62,9 +64,11 @@ describe("Physics", ()=> {
         return BoardContainer;
     }
 
-    function definePositioningContainerClass(DraggableClass, strategy) {
+    function definePositioningContainerClass(DraggableClass, positionsBuilder) {
         let BoardPositioningContainer = defineContainerClass();
-        makePositioningContainer(BoardPositioningContainer, element=>element instanceof DraggableClass, strategy);
+        makePositioningContainer(BoardPositioningContainer, {
+            predicate: is(DraggableClass),
+            positionsBuilder});
         return BoardPositioningContainer;
     }
 
@@ -98,9 +102,12 @@ describe("Physics", ()=> {
         assert(element.location).sameTo({x:-25, y:25});
     });
 
-    function defineCollisionContainerClass(DraggableClass, specs) {
+    function defineCollisionContainerClass(DraggableClass, bordersCollide) {
         let BoardCollisionContainer = defineContainerClass();
-        makeCollisionContainer(BoardCollisionContainer, element=>element instanceof DraggableClass, specs);
+        makeCollisionContainer(BoardCollisionContainer, {
+            predicate: is(DraggableClass),
+            bordersCollide
+        });
         return BoardCollisionContainer;
     }
 
@@ -212,9 +219,13 @@ describe("Physics", ()=> {
         executeTimeouts();
     });
 
-    function defineGravitationContainerClass(DraggableClass, acceptCarried, specs) {
+    function defineGravitationContainerClass(DraggableClass, carryingPredicate, bordersCollide) {
         let BoardGraviationContainer = defineContainerClass();
-        makeGravitationContainer(BoardGraviationContainer, element=>element instanceof DraggableClass, acceptCarried, specs);
+        makeGravitationContainer(BoardGraviationContainer, {
+            predicate: is(DraggableClass),
+            gravitationPredicate: always,
+            carryingPredicate, bordersCollide
+        });
         return BoardGraviationContainer;
     }
 
@@ -272,11 +283,12 @@ describe("Physics", ()=> {
         assert(movingElement.location).sameTo({x:0, y:40});
     });
 
-    function defineStickingGravitationContainerClass(DraggableClass, strategy, specs) {
-        let BoardStickingGraviationContainer = defineContainerClass(strategy);
-        makeStickyGravitationContainer(BoardStickingGraviationContainer,
-            element=>element instanceof DraggableClass,
-            undefined, strategy, specs);
+    function defineStickingGravitationContainerClass(DraggableClass, gluingStrategy, bordersCollide) {
+        let BoardStickingGraviationContainer = defineContainerClass(gluingStrategy);
+        makeStickyGravitationContainer(BoardStickingGraviationContainer, {
+            predicate: is(DraggableClass),
+            gravitationPredicate: always,
+            gluingStrategy, bordersCollide});
         return BoardStickingGraviationContainer;
     }
 
@@ -308,6 +320,22 @@ describe("Physics", ()=> {
         // The elements are bithat the bottom of the container
         assert(movingElement1.location).sameTo({x:-25, y:40});
         assert(movingElement2.location).sameTo({x:25, y:40});
+    });
+
+    it("Lets fall two elements on a bigger one in order to ensure that elements are rightly sorted in the Ground object", ()=>{
+        let table = putTable();
+        let DraggableClass = defineDraggableClass();
+        let ContainerClass = defineGravitationContainerClass(DraggableClass);
+        let container = createContainer(ContainerClass, table, 100, 0);
+        let bigElement = createElement(DraggableClass, table, 0, 130, 80, 20);
+        let movingElement1 = createElement(DraggableClass, table, -25, 70);
+        let movingElement2 = createElement(DraggableClass, table, 25, 100);
+        Context.selection.selectOnly(bigElement, movingElement1, movingElement2);
+        let dragSequence = drag(movingElement1).from(0, 100).hover(container, -25, 25).on(container, 0, 0);
+        executeTimeouts();
+        // The elements are bithat the bottom of the container
+        assert(movingElement1.location).sameTo({x:-25, y:20});
+        assert(movingElement2.location).sameTo({x:25, y:20});
     });
 
     it("Uses a sticking gravitation physics", ()=>{
@@ -681,11 +709,15 @@ describe("Physics", ()=> {
     });
 
     function defineStickingGravitationContainerClassWithStickingOnDrop(DraggableClass) {
-        let StickingPhysicClass = createStickyGravitationPhysic();
+        let StickingPhysicClass = createStickyGravitationPhysic({
+            predicate:is(DraggableClass)
+        });
         makeDroppedElementsToGlue(StickingPhysicClass);
         let ContainerClass = defineContainerClass(DraggableClass);
-        addPhysicToContainer(ContainerClass, function () {
-            return new StickingPhysicClass(this, element => element instanceof DraggableClass);
+        addPhysicToContainer(ContainerClass, {
+            physicBuilder: function () {
+                return new StickingPhysicClass(this);
+            }
         });
         return {ContainerClass};
     }

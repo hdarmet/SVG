@@ -327,7 +327,12 @@ makeDraggable(AbstractBoardCounter);
 makeClickable(AbstractBoardCounter);
 makeMenuOwner(AbstractBoardCounter);
 makeSupport(AbstractBoardCounter);
-makePositioningContainer(AbstractBoardCounter, element=>element instanceof BoardCounter, function() {return [{x:0, y:0}]});
+makePositioningContainer( AbstractBoardCounter, {
+    predicate: element => element instanceof BoardCounter,
+    positionsBuilder: function () {
+        return [{x: 0, y: 0}]
+    }
+});
 
 export class BoardCounter extends AbstractBoardCounter {
 
@@ -341,7 +346,7 @@ export class BoardCounter extends AbstractBoardCounter {
 
 }
 makeMultiImaged(BoardCounter);
-makeLayered(BoardCounter, "content");
+makeLayered(BoardCounter, {layer: "content"});
 
 export class AbstractBoardDie extends BoardElement {
 
@@ -657,7 +662,7 @@ export class BoardFrame extends BoardElement {
 }
 makeShaped(BoardFrame);
 makeResizeable(BoardFrame);
-makeLayered(BoardFrame, "configuration");
+makeLayered(BoardFrame, {layer: "configuration"});
 
 export class BoardTarget extends BoardElement {
 
@@ -721,7 +726,7 @@ makeSelectable(BoardTarget);
 makeMoveable(BoardTarget);
 makeDraggable(BoardTarget);
 makeMenuOwner(BoardTarget);
-makeLayered(BoardTarget, "configuration");
+makeLayered(BoardTarget, {layer:"configuration"});
 makeStrokeUpdatable(BoardTarget);
 
 BoardFrame.COLOR = Colors.RED;

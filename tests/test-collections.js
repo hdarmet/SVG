@@ -3,7 +3,7 @@ import {
     describe, it, assert
 } from "./test-toolkit.js";
 import {
-    AVLTree, List, ESet, EMap
+    AVLTree, List, ESet, EMap, SpatialLocator
 } from "../js/collections.js";
 
 describe("AVL Tree implementation", ()=> {
@@ -60,7 +60,26 @@ describe("AVL Tree implementation", ()=> {
 
     it("Creates and fill an AVL in the descending direction", () => {
         let tree = new AVLTree((a, b) => a - b);
-        for (let i = 9; i >= 0; i--) {
+        for (let i = 6; i < 10; i++) {
+            tree.insert(i);
+        }
+        for (let i = 0; i < 6; i++) {
+            tree.insert(i);
+        }
+        let it = tree.inside();
+        for (let i = 0; i < 10; i++) {
+            assert(it._node._height <= 3).equalsTo(true);
+            assert(it.next().value).equalsTo(i);
+        }
+        assert(it.next().done).equalsTo(true);
+    });
+
+    it("Creates and fill an AVL so a left/right rotate is done", () => {
+        let tree = new AVLTree((a, b) => a - b);
+        for (let i = 5; i >= 0; i--) {
+            tree.insert(i);
+        }
+        for (let i = 9; i >= 6; i--) {
             tree.insert(i);
         }
         let it = tree.inside();
@@ -121,6 +140,29 @@ describe("AVL Tree implementation", ()=> {
         tree.delete(1);
         tree.delete(4);
         assert(tree.inside().next().done).equalsTo(true);
+    });
+
+    it("Deletes values from an AVL so adjustement is necessary", () => {
+        let tree = new AVLTree((a, b) => a - b);
+        for (let i = 0; i <= 25; i++) {
+            tree.insert(i);
+        }
+        for (let i = 25; i >= 21; i--) {
+            tree.delete(i);
+        }
+        assert([...tree]).arrayEqualsTo([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
+        for (let i = 0; i < 4; i++) {
+            tree.delete(i);
+        }
+        assert([...tree]).arrayEqualsTo([4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
+        for (let i = 15; i <=20; i++) {
+            tree.delete(i);
+        }
+        assert([...tree]).arrayEqualsTo([4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+        for (let i = 12; i >=4; i--) {
+            tree.delete(i);
+        }
+        assert([...tree]).arrayEqualsTo([13, 14]);
     });
 
     it("Iterator over a portion of an ALV", () => {
@@ -253,4 +295,46 @@ describe("AVL Tree implementation", ()=> {
         assert(map1.same(new EMap([[1, "one"], [2, "two"], [3, "three"]]))).isTrue();
         assert(map1.same([[1, "one"], [2, "two"], [3, "three"]])).isTrue();
     });
+
+    it("Uses a spacial locator", ()=> {
+        let spacialLocator = new SpatialLocator(200, 200, 3, 20, element=>element);
+        let element1 = {x:-50, y:-50};
+        spacialLocator.add(element1);
+        assert(spacialLocator.find(0, 0, 20)).unorderedEqualsTo([]);
+        assert(spacialLocator.find(-40, -40, 20)).unorderedEqualsTo([element1]);
+    });
+
+    it("Splits a spacial sector when threshold is reached", ()=> {
+        let spacialLocator = new SpatialLocator(200, 200, 3, 20, element=>element);
+        let element1 = {x:-50, y:-50};
+        let element2 = {x:50, y:-50};
+        let element3 = {x:-50, y:50};
+        // Add more elements than threshold
+        spacialLocator.add(element1).add(element2).add(element3);
+        assert(spacialLocator._root._sectors[0]._elements).unorderedEqualsTo([element1]);
+        assert(spacialLocator._root._sectors[1]._elements).unorderedEqualsTo([element3]);
+        assert(spacialLocator._root._sectors[2]._elements).unorderedEqualsTo([element2]);
+        assert(spacialLocator._root._sectors[3]).isNotDefined();
+        // Verify that finding in sub sectors is functional
+        assert(spacialLocator.find(0, 0, 20)).unorderedEqualsTo([]);
+        assert(spacialLocator.find(-40, 40, 20)).unorderedEqualsTo([element3]);
+        // Check that everything works on fourth sector
+        let element4 = {x:50, y:50};
+        spacialLocator.add(element4);
+        assert(spacialLocator.find(40, 40, 20)).unorderedEqualsTo([element4]);
+        assert(spacialLocator.length).equalsTo(4);
+        assert(spacialLocator.elements).unorderedEqualsTo([element1, element2, element3, element4]);
+        // Remove elemente : sector should be reunited
+        spacialLocator.remove(element3).remove(element4);
+        assert(spacialLocator._root._sectors).isNotDefined();
+        assert(spacialLocator._root._elements).unorderedEqualsTo([element1, element2]);
+        assert(spacialLocator.length).equalsTo(2);
+        assert(spacialLocator.elements).unorderedEqualsTo([element1, element2]);
+    });
+
+    it("Uses an empty spacial locator", ()=> {
+        let spacialLocator = new SpatialLocator(200, 200, 3, 20, element=>element);
+        assert(spacialLocator.find(0, 0, 20)).unorderedEqualsTo([]);
+    });
+
 });

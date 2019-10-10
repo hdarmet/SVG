@@ -4,7 +4,7 @@ import {
     describe, it, before, assert, clickOn, drag, Snapshot, keyboard, findChild
 } from "./test-toolkit.js";
 import {
-    Rect
+    Rect, Group
 } from "../js/graphics.js";
 import {
     setRef, html, Context, Selection, Canvas, DragMoveSelectionOperation
@@ -14,7 +14,7 @@ import {
     makeDraggable, makeContainer, makeSupport, makeDeletable
 } from "../js/base-element.js";
 import {
-    allowElementDeletion
+    Tools
 } from "../js/tools.js";
 
 describe("App fundamentals", ()=> {
@@ -330,7 +330,7 @@ describe("App fundamentals", ()=> {
 
     it("Deletes a selection", ()=>{
         let {BoardTiny, table, tiny1, tiny2} = selectTwoElements();
-        allowElementDeletion();
+        Tools.allowElementDeletion();
         makeDeletable(BoardTiny);
         assert(table.contains(tiny1)).isTrue();
         assert(table.contains(tiny2)).isTrue();
@@ -349,6 +349,112 @@ describe("App fundamentals", ()=> {
         assert(children.size).equalsTo(4);
         assert(findChild(table, -5, 0)).isDefined();
         assert(findChild(table, 5, 0)).isDefined();
+    });
+
+    it("Select an element using the select area facility", ()=>{
+        let {table, tiny} = createATableWithOneElement();
+        tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
+        let dragOperation = drag(table).from(-10, -10).through(10, 10);
+        // Ensure that selection artifact is here
+        assert(html(Context.canvas.glassLayer)).equalsTo(
+            '<g id="app-glass-layer" transform="matrix(1 0 0 1 0 0)"><g><rect x="-18" y="-18" width="20" height="20" fill="none" stroke="#dc143c" stroke-opacity="0.9" stroke-width="2" stroke-dasharray="5 5"></rect></g></g>'
+        );
+        dragOperation.to(30, 30);
+        // Ensure that select area artifact has disappeared.
+        assert(html(Context.canvas.glassLayer)).equalsTo('<g id="app-glass-layer" transform="matrix(1 0 0 1 0 0)"><g></g></g>');
+        assert(Context.selection.selected(tiny)).isTrue();
+    });
+
+    it("Select an element event if the select area artifact covers partially the element", ()=>{
+        let {table, tiny} = createATableWithOneElement();
+        tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
+        let dragOperation = drag(table).from(-10, -10).to(0, 0);
+        assert(Context.selection.selected(tiny)).isTrue();
+    });
+
+    it("Ensure that the select area artifact takes into account the zoom factor", ()=>{
+        let table = putTable();
+        Context.canvas.zoomSet(0.5, 0, 0);
+        let dragOperation = drag(table).from(-10, -10).through(10, 10);
+        // Ensure that selection artifact stroke options are updated in accordance with zoom factor is here
+        assert(html(Context.canvas.glassLayer)).equalsTo(
+            '<g id="app-glass-layer" transform="matrix(0.5 0 0 0.5 0 0)"><g><rect x="-36" y="-36" width="40" height="40" fill="none" stroke="#dc143c" stroke-opacity="0.9" stroke-width="4" stroke-dasharray="10 10"></rect></g></g>'
+        );
+        dragOperation.through(20, 20);
+        // Even if zoom factor change during area selection !
+        Context.canvas.zoomSet(0.4, 0, 0);
+        assert(html(Context.canvas.glassLayer)).equalsTo(
+            '<g id="app-glass-layer" transform="matrix(0.4 0 0 0.4 0 0)"><g><rect x="-36" y="-36" width="60" height="60" fill="none" stroke="#dc143c" stroke-opacity="0.9" stroke-width="5" stroke-dasharray="12.5 12.5"></rect></g></g>'
+        );
+        dragOperation.to(30, 30);
+    });
+
+    function copyPasteElement(table, element) {
+        Context.selection.selectOnly(element);
+        Context.copyPaste.copyModel(Context.selection.selection());
+        Context.copyPaste.pasteModel();
+        return findChild(table, 0, 0);
+    }
+
+    it("Clicks on a (clickable) copy of a simple element of the board", ()=>{
+        let BoardTiny = defineTinyClass();
+        makeClickable(BoardTiny);
+        makeSelectable(BoardTiny);
+        let table = putTable();
+        let tiny = new BoardTiny(30, 20);
+        let clicked = false;
+        tiny.clickHandler = function() {return event=>clicked = true;};
+        tiny.setLocation(100, 100);
+        table.add(tiny);
+        let copy = copyPasteElement(table, tiny);
+        assert(copy).notEqualsTo(tiny);
+        Context.selection.unselectAll();
+        clickOn(copy);
+        assert(clicked).equalsTo(true);
+        assert(Context.selection.selected(copy)).isTrue();
+    });
+
+    it("Selects a (not clickable) copy of a simple element of the board", ()=>{
+        let BoardTiny = defineTinyClass();
+        makeSelectable(BoardTiny);
+        let table = putTable();
+        let tiny = new BoardTiny(30, 20);
+        tiny.setLocation(100, 100);
+        table.add(tiny);
+        let copy = copyPasteElement(table, tiny);
+        assert(copy).notEqualsTo(tiny);
+        Context.selection.unselectAll();
+        clickOn(copy);
+        assert(Context.selection.selected(copy)).isTrue();
+    });
+
+    function createNotAnElement() {
+        return {
+            _root: new Group(),
+            register(element) {
+                this._root.add(element._root);
+                element._parent = this;
+            },
+            remove(element) {
+                this._root.remove(element._root);
+                element._parent = null;
+            }
+        }
+    }
+
+    it("Destroy the element if drop is cancelled and 'original' parent does not have any 'add' method (it comes form a tool for example)", ()=>{
+        let {tiny, table} = createATableWithOneElement();
+        let BoardNotATarget = defineNotATargetClass();
+        let notATarget = new BoardNotATarget(60, 60);
+        let pedestal = createNotAnElement();
+        Context.canvas.putArtifactOnToolsLayer(pedestal._root);
+        pedestal.register(tiny);
+        tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
+        table.add(notATarget);
+        notATarget.setLocation(100, 50);
+        let dragSequence = drag(tiny).from(0, 0).through(10, 10).on(notATarget, 20, 20);
+        assert(tiny._root.parent).isNotDefined();
+        assert(tiny.parent).isNotDefined();
     });
 
 });
