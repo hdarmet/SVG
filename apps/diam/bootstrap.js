@@ -1,14 +1,15 @@
 'use strict';
 
 import {
-    Context, Canvas, Selection, CloneableObject, Events, Memento
+    Context, Canvas, Selection, DragOperation, makeNotCloneable
 } from "../../js/toolkit.js";
 import {
     BoardElement, BoardTable, BoardArea, makeDeletable, makeDraggable, makeFramed, makeSelectable, makeContainer,
-    makeMoveable, makeSupport, makePart, makeClickable, makeShaped, makeContainerMultiLayered, makeLayered
+    makeMoveable, makeSupport, makePart, makeClickable, makeShaped, makeContainerMultiLayered, makeLayered,
+    makeGentleDropTarget
 } from "../../js/base-element.js";
 import {
-    Colors, Group, Rect, Circle, Path, M, Q, L
+    Colors, Group, Rect, Circle, Path, M, Q, L, C
 } from "../../js/graphics.js";
 import {
     Tools, BoardItemBuilder, copyCommand, deleteCommand, pasteCommand, redoCommand, ToolCommandPopup, undoCommand,
@@ -49,6 +50,7 @@ class DIAMSupport extends BoardElement {
     }
 
     _createContextMenu() {}
+
 }
 DIAMSupport.DOWN = "d";
 DIAMSupport.MIDDLE = "m";
@@ -59,20 +61,193 @@ makePart(DIAMSupport);
 makeSupport(DIAMSupport);
 makeMenuOwner(DIAMSupport);
 
-class DIAMVisual extends DIAMItem {
+export class KnobDragOperation extends DragOperation {
+    constructor() {
+        super();
+    }
+
+    accept(element, x, y, event) {
+        if (!super.accept(element, x, y, event)) {
+            return false;
+        }
+        let selectable = element.selectable;
+        return selectable !== null && selectable.__dragOp
+            ? selectable.__dragOp.accept(selectable, x, y, event)
+            : false;
+    }
+
+    onDragStart(element, x, y, event) {
+        let selectable = element.selectable;
+        if (selectable.__dragOp) {
+            selectable.__dragOp.onDragStart(selectable, x, y, event);
+        }
+    }
+
+    onDragMove(element, x, y, event) {
+        let selectable = element.selectable;
+        if (selectable.__dragOp) {
+            selectable.__dragOp.onDragMove(selectable, x, y, event);
+        }
+    }
+
+    onDrop(element, x, y, event) {
+        let selectable = element.selectable;
+        if (selectable.__dragOp) {
+            selectable.__dragOp.onDrop(selectable, x, y, event);
+        }
+    }
+}
+makeNotCloneable(KnobDragOperation);
+KnobDragOperation.instance = new KnobDragOperation();
+
+class DIAMKnob extends BoardElement {
+
+    constructor({width, height, predicate}) {
+        super(width, height);
+        this._initShape(this._buildShape(width, height));
+        this._predicate = predicate;
+        this._dragOperation(function() {return KnobDragOperation.instance;});
+    }
+
+    _buildShape(width, height) {
+        return new Path(
+            M(-width/2, -height/2), L(-width/4, -height/2),
+            C(width/2, -height/3, width/2, height/3, -width/4, height/2),
+            L(-width/2, height/2), L(-width/2, -height/2))
+            .attrs({
+                fill: Colors.GREY,
+                class: DIAMKnob.CLASS,
+                stroke: Colors.NONE
+            });
+    }
+
+    get target() {
+        let parent = this.parent;
+        while(parent) {
+            if (this._predicate.call(this, parent)) {
+                return parent;
+            }
+            parent = parent.parent;
+        }
+        return this.parent;
+    }
+
+    get selectable() {
+        return this.target.selectable;
+    }
+
+}
+DIAMKnob.CLASS = "handle";
+makeShaped(DIAMKnob);
+makePart(DIAMKnob);
+makeDraggable(DIAMKnob);
+
+class DIAMFasciaSupport extends BoardElement {
+    constructor({width, height}) {
+        super(width, height);
+    }
+
+    _acceptDrop(element, dragSet) {
+        return element instanceof DIAMFascia &&
+            element.width === this.width &&
+            element.height === this.height;
+    }
+
+}
+makeContainer(DIAMFasciaSupport);
+makePart(DIAMFasciaSupport);
+makeSupport(DIAMFasciaSupport);
+makePositioningContainer(DIAMFasciaSupport, {
+    predicate: function(element) {return this.host._acceptDrop(element);},
+    positionsBuilder: element=>{return [{x:0, y:0}]}
+});
+
+class DIAMFascia extends DIAMItem {
     constructor({width, height, color}) {
         super({width, height});
         this._initFrame(width, height, Colors.BLACK, color);
     }
 }
-makeFramed(DIAMVisual);
+makeFramed(DIAMFascia);
+makeContainer(DIAMFascia);
+makeKnobOwner(DIAMFascia, {predicate:is(DIAMFasciaSupport)});
+
+function makeHeaderOwner(superClass) {
+
+    superClass.prototype._initHeader = function(headerHeight) {
+        if (headerHeight) {
+            this._header = this._createHeader(this.width, headerHeight);
+            this._header.setLocation(0, -this.height/2+headerHeight/2);
+            this._add(this._header);
+        }
+    };
+
+    superClass.prototype._createHeader = function(width, height) {
+        return new DIAMCover({width, height});
+    }
+
+}
+
+function makeFooterOwner(superClass) {
+
+    superClass.prototype._initFooter = function(footerHeight) {
+        if (footerHeight) {
+            this._footer = this._createFooter(this.width, footerHeight);
+            this._footer.setLocation(0, this.height/2-footerHeight/2);
+            this._add(this._footer);
+        }
+    };
+
+    superClass.prototype._createFooter = function(width, height) {
+        return new DIAMCover({width, height});
+    }
+
+}
+
+function makeFasciaSupport(superClass) {
+
+    superClass.prototype._initFasciaSupport = function(headerHeight=0, footerHeight=0) {
+        let height = this.height-headerHeight-footerHeight;
+        this._fasciaSupport = this._createFasciaSupport(this.width, height);
+        this._fasciaSupport.setLocation(0, -this.height/2+headerHeight+height/2);
+        this._add(this._fasciaSupport);
+    };
+
+    superClass.prototype._createFasciaSupport = function(width, height) {
+        return new DIAMFasciaSupport({width, height});
+    };
+
+    let getTarget = superClass.prototype._dropTarget;
+    superClass.prototype._dropTarget = function(element) {
+        if (element instanceof DIAMFascia) {
+            return this._fasciaSupport._dropTarget(element);
+        }
+        return getTarget ? getTarget.call(this, element) : this;
+    };
+
+}
+
+function makeKnobOwner(superClass, {predicate}) {
+
+    let superInit = superClass.prototype._init;
+    superClass.prototype._init = function(...args) {
+        superInit && superInit.call(this, ...args);
+        let knob = this._createKnob(this.height);
+        knob._setLocation(-this.width/2+this.height/2, 0);
+        this._add(knob);
+    };
+
+    superClass.prototype._createKnob = function(size) {
+        return new DIAMKnob({width:size, height:size, predicate});
+    };
+}
 
 class DIAMCover extends DIAMSupport {
     constructor({width, height}) {
         super({width, height, strokeColor:Colors.BLACK, backgroundColor:Colors.LIGHTEST_GREY});
     }
 
-    _acceptDrop(element) {
+    _acceptDrop(element, dragSet) {
         return element instanceof DIAMVisual &&
                element.width === this.width &&
                element.height === this.height;
@@ -82,6 +257,17 @@ makePositioningContainer(DIAMCover, {
     predicate: function(element) {return this.host._acceptDrop(element);},
     positionsBuilder: element=>{return [{x:0, y:0}]}
 });
+
+class DIAMVisual extends DIAMItem {
+    constructor({width, height, color}) {
+        super({width, height});
+        this._initFrame(width, height, Colors.BLACK, color);
+        //this._add(new DIAMKnob({width:height, height, predicate:is(DIAMCover)}));
+    }
+}
+makeFramed(DIAMVisual);
+makeContainer(DIAMVisual);
+makeKnobOwner(DIAMVisual, {predicate:is(DIAMCover)});
 
 class DIAMBlister extends DIAMItem {
 
@@ -168,7 +354,6 @@ class DIAMBox extends DIAMItem {
 
     constructor({width, height, clips, contentX, contentY, contentWidth, contentHeight, color, ...args}) {
         super({width, height, color});
-        console.log(args);
         for (let clip of clips) {
             this._addClips(new Clip(this, clip.x, clip.y));
         }
@@ -213,7 +398,7 @@ class DIAMSlottedBoxContent extends DIAMBoxContent {
         for (let index=0; index<this._cells.length-ceilCount+1; index++) {
             let cellOk = true;
             for (let inCell=0; inCell<ceilCount; inCell++) {
-                if (this._cells[index+inCell]) {
+                if (this._cells[index+inCell] && this._cells[index+inCell]!==element) {
                     cellOk = false; break;
                 }
             }
@@ -229,11 +414,64 @@ class DIAMSlottedBoxContent extends DIAMBoxContent {
 
     _createPhysic() {
         let PositioningPhysic = createPositioningPhysic({
-            positionsBuilder:element=>this._buildPositions(element)
+            positionsBuilder:function(element) {return this._host._buildPositions(element);}
         });
         return new PositioningPhysic(this,
             is(DIAMModule)
         );
+    }
+
+    _allocateCells(element) {
+        let MARGIN = 0.0001;
+        let ceilFirst = Math.floor((this.width/2+element.lx-element.width/2)/this._slotWidth+MARGIN);
+        let ceilCount = Math.ceil(element.width/this._slotWidth);
+        for (let index=0; index<ceilCount; index++) {
+            this._cells[index+ceilFirst] = element;
+        }
+    }
+
+    _freeCells(element) {
+      for (let index = 0; index<this._cells.length; index++) {
+          if (this._cells[index]===element) {
+              delete this._cells[index];
+          }
+      }
+    }
+
+    _add(element) {
+        let result = super._add(element);
+        this._allocateCells(element);
+        return result;
+    }
+
+    _remove(element) {
+        let result = super._remove(element);
+        this._freeCells(element);
+        return result;
+    }
+
+    _insert(previous, element) {
+        let result = super._insert(previous, element);
+        this._allocateCells(element);
+        return result;
+    }
+
+    _replace(previous, element) {
+        let result = super._replace(previous, element);
+        this._freeCells(previous);
+        this._allocateCells(element);
+        return result;
+    }
+
+    _memento() {
+        let memento = super._memento();
+        memento._cells = [...this._cells];
+        return memento;
+    }
+
+    _revert(memento) {
+        super._revert(memento);
+        this._cells = [...memento._cells];
     }
 
 }
@@ -254,6 +492,24 @@ class DIAMSlottedBox extends DIAMBox {
     }
 
 }
+
+class DIAMSlottedRichBox extends DIAMSlottedBox {
+
+    constructor({
+        width, height, clips,
+        contentX, contentY, contentWidth, contentHeight,
+        slotWidth, color,
+        headerHeight, footerHeight}) {
+        super({width, height, clips, contentX, contentY, contentWidth, contentHeight, color, slotWidth});
+        this._initHeader(headerHeight);
+        this._initFooter(footerHeight);
+        this._initFasciaSupport(headerHeight, footerHeight);
+    }
+
+}
+makeHeaderOwner(DIAMSlottedRichBox);
+makeFooterOwner(DIAMSlottedRichBox);
+makeFasciaSupport(DIAMSlottedRichBox);
 
 class DIAMFixing extends DIAMItem {
 
@@ -383,21 +639,12 @@ addPhysicToContainer(DIAMPaneContent, {
 });
 
 class DIAMPane extends DIAMItem {
-    constructor({width, height, contentX, contentY, contentWidth, contentHeight, headerHeight, footerHeight}) {
+
+    constructor({width, height, contentX, contentY, contentWidth, contentHeight}) {
         super({width, height});
         this._initFrame(width, height, Colors.BLACK, Colors.WHITE);
         this._paneContent = this._createPaneContent(contentX, contentY, contentWidth, contentHeight);
         this._add(this._paneContent);
-        if (headerHeight) {
-            this._paneHeader = this._createHeader(width, headerHeight);
-            this._paneHeader.setLocation(0, -height/2+headerHeight/2);
-            this._add(this._paneHeader);
-        }
-        if (footerHeight) {
-            this._paneFooter = this._createFooter(width, footerHeight);
-            this._paneFooter.setLocation(0, height/2-footerHeight/2);
-            this._add(this._paneFooter);
-        }
     }
 
     _createPaneContent(contentX, contentY, contentWidth, contentHeight) {
@@ -406,21 +653,23 @@ class DIAMPane extends DIAMItem {
         return content;
     }
 
-    _createHeader(width, height) {
-        let header = new DIAMCover({width, height});
-        return header;
-    }
-
-    _createFooter(width, height) {
-        let footer = new DIAMCover({width, height});
-        return footer;
-    }
-
 }
 makeFramed(DIAMPane);
 makeContainer(DIAMPane);
 makeCarrier(DIAMPane);
 makeCarriable(DIAMPane);
+
+class DIAMRichPane extends DIAMPane {
+
+    constructor({width, height, contentX, contentY, contentWidth, contentHeight, headerHeight, footerHeight}) {
+        super({width, height, contentX, contentY, contentWidth, contentHeight});
+        this._initHeader(headerHeight);
+        this._initFooter(footerHeight);
+    }
+
+}
+makeHeaderOwner(DIAMRichPane);
+makeFooterOwner(DIAMRichPane);
 
 class DIAMModule extends DIAMItem {
     constructor({width, height, color}) {
@@ -431,6 +680,7 @@ class DIAMModule extends DIAMItem {
 makeFramed(DIAMModule);
 makeCarrier(DIAMModule);
 makeCarriable(DIAMModule);
+makeGentleDropTarget(DIAMModule);
 
 class BoardPaper extends BoardArea {
     constructor(width, height, backgroundColor) {
@@ -495,12 +745,21 @@ function createCommandPopup() {
 function createPalettePopup() {
     let paletteContent = new ToolGridPanelContent(200, 80, 80);
     paletteContent.addCell(new BoardItemBuilder([new DIAMPane({
+        width:800, height:500, contentX:0, contentY:0, contentWidth:760, contentHeight:460
+    })]));
+    paletteContent.addCell(new BoardItemBuilder([new DIAMRichPane({
         width:800, height:500, contentX:0, contentY:0, contentWidth:760, contentHeight:460, headerHeight:40, footerHeight:40
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMHook()]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMFixing()]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMSlottedBox({
         width:120, height:70, clips:[{x:0, y:15}], contentX:0, contentY:0, contentWidth:100, contentHeight:60, slotWidth:20
+    })]));
+    paletteContent.addCell(new BoardItemBuilder([new DIAMSlottedRichBox({
+        width:120, height:70, clips:[{x:0, y:15}],
+        contentX:0, contentY:0, contentWidth:100, contentHeight:60,
+        slotWidth:20,
+        headerHeight:10, footerHeight:10
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMBox({
         width:120, height:140, clips:[{x:0, y:-20}, {x:0, y:50}], contentX:0, contentY:0, contentWidth:100, contentHeight:130
@@ -524,6 +783,9 @@ function createPalettePopup() {
         width:45, height:90, clip:{x:0, y:-30, radius:8}, color:"#0000FF"
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMVisual({
+        width:120, height:10, color:"#FFFF00"
+    })]));
+    paletteContent.addCell(new BoardItemBuilder([new DIAMVisual({
         width:800, height:40, color:"#FF0000"
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMVisual({
@@ -531,6 +793,12 @@ function createPalettePopup() {
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMVisual({
         width:600, height:60, color:"#0000FF"
+    })]));
+    paletteContent.addCell(new BoardItemBuilder([new DIAMFascia({
+        width:120, height:50, color:"#00FFFF"
+    })]));
+    paletteContent.addCell(new BoardItemBuilder([new DIAMFascia({
+        width:120, height:60, color:"#FF00FF"
     })]));
     let palettePopup = new ToolExpandablePopup(200, 350).display(-100, 175);
     palettePopup.addPanel(new ToolExpandablePanel("All", paletteContent));

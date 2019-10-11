@@ -218,7 +218,7 @@ describe("App fundamentals", ()=> {
         return BoardNotATarget;
     }
 
-    it("Cancel drop if target not accept any drop", ()=>{
+    it("Cancel drop if target does not accept any drop", ()=>{
         let {tiny, table} = createATableWithOneElement();
         let BoardNotATarget = defineNotATargetClass();
         let notATarget = new BoardNotATarget(60, 60);

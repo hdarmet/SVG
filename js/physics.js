@@ -210,7 +210,7 @@ export class PhysicSelector extends Physic {
     _acceptDrop(element, dragSet) {
         for (let physic of this._physics) {
             if (physic.accept(element)) {
-                if (!physic._acceptDrop(element)) return false;
+                if (!physic._acceptDrop(element, dragSet)) return false;
             }
         }
         return true;
@@ -561,13 +561,29 @@ export function makeAttachmentContainer(superClass, {predicate, slotProviderPred
     return superClass;
 }
 
-export class Clip extends CloneableObject {
+export class Clip {
 
     constructor(owner, x, y) {
-        super();
         this._x = x;
         this._y = y;
         this._owner = owner;
+    }
+
+    clone(duplicata) {
+        let copy = new Clip(duplicata.get(this._owner), this._x, this._y);
+        duplicata.set(this, copy);
+        return copy;
+    }
+
+    cloned(duplicata) {
+        let copy = duplicata.get(this);
+        if (this._slot) {
+            let slotCopy = duplicata.get(this._slot);
+            if (slotCopy) {
+                copy._slot = slotCopy;
+                copy._owner.addObserver(slotCopy._owner);
+            }
+        }
     }
 
     get x() {
@@ -609,13 +625,28 @@ export class Clip extends CloneableObject {
 
 }
 
-export class Slot extends CloneableObject {
+export class Slot {
 
     constructor(owner, x, y) {
-        super();
         this._x = x;
         this._y = y;
         this._owner = owner;
+    }
+
+    clone(duplicata) {
+        let copy = new Slot(duplicata.get(this._owner), this._x, this._y);
+        duplicata.set(this, copy);
+        return copy;
+    }
+
+    cloned(duplicata) {
+        let copy = duplicata.get(this);
+        if (this._clip) {
+            let clipCopy = duplicata.get(this._clip);
+            if (clipCopy) {
+                copy._clip = clipCopy;
+            }
+        }
     }
 
     get x() {
@@ -737,6 +768,14 @@ export function makeClipsOwner(superClass) {
         }
     };
 
+    let superCloned = superClass.prototype._cloned;
+    superClass.prototype._cloned = function(copy, duplicata) {
+        superCloned && superCloned.call(this, copy, duplicata);
+        for (let clip of copy._clips) {
+            clip.cloned(duplicata);
+        }
+    };
+
     Object.defineProperty(superClass.prototype, "clips", {
         configurable: true,
         get: function () {
@@ -817,6 +856,14 @@ export function makeSlotsOwner(superClass) {
         }
     };
 
+    let superCloned = superClass.prototype._cloned;
+    superClass.prototype._cloned = function(copy, duplicata) {
+        superCloned && superCloned.call(this, copy, duplicata);
+        for (let slot of copy._slots) {
+            slot.cloned(duplicata);
+        }
+    };
+
     Object.defineProperty(superClass.prototype, "slots", {
         configurable: true,
         get: function () {
@@ -824,10 +871,6 @@ export function makeSlotsOwner(superClass) {
         }
     });
 
-    /**
-     * Only one attachment on hook, on its center.
-     * @returns an array containing one point object.
-     */
     Object.defineProperty(superClass.prototype, "attachments", {
         configurable: true,
         get: function () {
@@ -835,11 +878,6 @@ export function makeSlotsOwner(superClass) {
         }
     });
 
-    /**
-     * Hooks can't have elements. Drops must be directed on owning pane.
-     * @returns {*}
-     * @private
-     */
     superClass.prototype._dropTarget = function() {
         return this.parent;
     }

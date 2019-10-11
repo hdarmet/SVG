@@ -511,7 +511,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
         function getTarget(element, target) {
             console.assert(target != null);
             if (target && target._dropTarget) {
-                target = target._dropTarget();
+                target = target._dropTarget(element);
             }
             if (element.getDropTarget) {
                 return element.getDropTarget(target);
@@ -623,7 +623,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 if (!this.dropCancelled(selectedElement)) {
                     if (target && target.content && getCanvasLayer(target._root) instanceof BaseLayer) {
                         // Ask target if it "accepts" the drop
-                        if ((target._acceptDrop && !target._acceptDrop(selectedElement, this._dragSet)) ||
+                        if ((!target._acceptDrop || !target._acceptDrop(selectedElement, this._dragSet)) ||
                             // Ask dropped element if it "accepts" the drop.
                             selectedElement._acceptDropped && !selectedElement._acceptDropped(target, this._dragSet)) {
                             this.cancelDrop(selectedElement);
@@ -1007,26 +1007,26 @@ export class ParentDragOperation extends DragOperation {
         if (!super.accept(element, x, y, event)) {
             return false;
         }
-        return element.parent != null && element.parent.dragOperation
-            ? element.parent.dragOperation.accept(element.parent, x, y, event)
+        return element.parent != null && element.parent.__dragOp
+            ? element.parent.__dragOp.accept(element.parent, x, y, event)
             : false;
     }
 
     onDragStart(element, x, y, event) {
-        if (element.parent.dragOperation) {
-            element.parent.dragOperation.onDragStart(element.parent, x, y, event);
+        if (element.parent.__dragOp) {
+            element.parent.__dragOp.onDragStart(element.parent, x, y, event);
         }
     }
 
     onDragMove(element, x, y, event) {
-        if (element.parent.dragOperation) {
-            element.parent.dragOperation.onDragMove(element.parent, x, y, event);
+        if (element.parent.__dragOp) {
+            element.parent.__dragOp.onDragMove(element.parent, x, y, event);
         }
     }
 
     onDrop(element, x, y, event) {
-        if (element.parent.dragOperation) {
-            element.parent.dragOperation.onDrop(element.parent, x, y, event);
+        if (element.parent.__dragOp) {
+            element.parent.__dragOp.onDrop(element.parent, x, y, event);
         }
     }
 }

@@ -504,8 +504,10 @@ export function makeContainerASupport(superClass) {
         }
     });
 
-    superClass.prototype._acceptDrop = function(element) {
-        return true;
+    if (!superClass.prototype._acceptDrop) {
+        superClass.prototype._acceptDrop = function (element) {
+            return true;
+        }
     }
 
 }
@@ -1447,26 +1449,27 @@ export function makeDraggable(superClass) {
         this._dragOp = operation;
         if (operation) {
             let accepted = false;
-            let op = operation.call(this);
+            this.__dragOp = operation.call(this);
             let dragStart = event=> {
-                accepted = op._accept(this, event.pageX, event.pageY, event);
+                accepted = this.__dragOp._accept(this, event.pageX, event.pageY, event);
                 if (accepted) {
-                    op._onDragStart(this, event.pageX, event.pageY, event);
+                    this.__dragOp._onDragStart(this, event.pageX, event.pageY, event);
                 }
             };
             let dragMove = event=> {
                 if (accepted) {
-                    op._onDragMove(this, event.pageX, event.pageY, event);
+                    this.__dragOp._onDragMove(this, event.pageX, event.pageY, event);
                 }
             };
             let dragDrop = event=> {
                 if (accepted) {
-                    op._onDrop(this, event.pageX, event.pageY, event);
+                    this.__dragOp._onDrop(this, event.pageX, event.pageY, event);
                 }
             };
             this._root.onDrag(dragStart, dragMove, dragDrop);
         }
         else {
+            delete this.__dragOp;
             this._root.offDrag();
         }
     };
@@ -1777,42 +1780,45 @@ export function makeClipImaged(superClass) {
     return superClass;
 }
 
-export function makePart(superClass) {
+export function makeGentleDropTarget(superClass) {
 
-    superClass.prototype._initPart = function(owner) {
-        this._owner = owner;
+    superClass.prototype._dropTarget = function(element) {
+        if (this.support && this.support._dropTarget && (!this._acceptDrop || !this._acceptDrop(element))) {
+            return this.support._dropTarget(element);
+        }
         return this;
     };
+
+    return superClass;
+}
+
+export function makePart(superClass) {
+
+    Object.defineProperty(superClass.prototype, "owner", {
+        configurable:true,
+        get() {
+            let parent = this.parent;
+            if (parent) {
+                let owner = parent.owner;
+                return owner ? owner : parent;
+            }
+            return null;
+        }
+    });
 
     if (!superClass.prototype.hasOwnProperty("selectable")) {
         Object.defineProperty(superClass.prototype, "selectable", {
             configurable:true,
             get() {
-                return this.parent.selectable;
+                return this.owner.selectable;
             }
         });
-    }
-
-    let superMemento = superClass.prototype._memento;
-    if (superMemento) {
-        superClass.prototype._memento = function () {
-            let memento = superMemento.call(this);
-            memento._owner = this._owner;
-            return memento;
-        };
-
-        let superRevert = superClass.prototype._revert;
-        superClass.prototype._revert = function (memento) {
-            superRevert.call(this, memento);
-            this._owner = memento._owner;
-            return this;
-        };
     }
 
     Object.defineProperty(superClass.prototype, "menuOptions", {
         configurable: true,
         get: function () {
-            let menuOptions = this._owner.menuOptions;
+            let menuOptions = this.owner.menuOptions;
             if (menuOptions) {
                 if (this._menuOptions) {
                     menuOptions.push(...this._menuOptions);
@@ -1823,8 +1829,13 @@ export function makePart(superClass) {
                 return this._menuOptions;
             }
         }
-    })
+    });
 
+    if (!superClass.prototype._acceptDrop) {
+        makeGentleDropTarget(superClass);
+    }
+
+    return superClass;
 }
 
 export function makeFillUpdatable(superClass) {
@@ -1940,6 +1951,10 @@ export class BoardElement {
     }
 
     _init(...args) {
+    }
+
+    _dropTarget(element) {
+        return this;
     }
 
     finalize() {
@@ -2150,9 +2165,11 @@ export class BoardElement {
         return getCanvasLayer(this._root);
     }
 
+    /*
     _acceptDrop(element) {
         return false;
     }
+*/
 
     clone(duplicata, root=false) {
         if (!duplicata) {
@@ -2180,6 +2197,12 @@ export class BoardElement {
         return copy;
     }
 
+    /**
+     * Eventual cloning of an element. Before effective cloning, this method checks if the element was already cloned.
+     * In this case, the clone is simply returned and no object is created nor changed.
+     * @param duplicata map of clones (referred by 'element cloned'->'clone')
+     * @private
+     */
     _cloning(duplicata) {
         let copy = duplicata.get(this);
         if (!copy) {
@@ -2188,6 +2211,11 @@ export class BoardElement {
         return copy;
     }
 
+    /**
+     * Effective implementation of element cloning.
+     * @param duplicata map of clones (referred by 'element cloned'->'clone')
+     * @private
+     */
     __cloning(duplicata) {
         let copy = CopyPaste.clone(this, duplicata);
         copy._root._owner = copy;
@@ -2212,10 +2240,6 @@ export class BoardArea extends BoardElement {
 
     get color() {
         return this.shape.fill;
-    }
-
-    _dropTarget() {
-        return this;
     }
 
     _setSize(width, height) {
