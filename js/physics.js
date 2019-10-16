@@ -1002,8 +1002,16 @@ export class SAPRecord {
         this._x = this._element.lx;
         this._y = this._element.ly;
         this._updateBound(this._bound);
-        !this._sweepAndPrune._xAxis.dirty && (this._sweepAndPrune._xAxis.dirty += 1);
-        !this._sweepAndPrune._yAxis.dirty && (this._sweepAndPrune._yAxis.dirty += 1);
+        if (!this._sweepAndPrune._xAxis.dirty) {
+            this._sweepAndPrune._xAxis.dirty=1;
+        } else {
+            this._sweepAndPrune._xAxis.dirty++;
+        }
+        if (!this._sweepAndPrune._yAxis.dirty) {
+            this._sweepAndPrune._yAxis.dirty=1;
+        } else {
+            this._sweepAndPrune._yAxis.dirty++;
+        }
     }
 
     left(element) {
@@ -1196,6 +1204,7 @@ export class SweepAndPrune {
     }
 
     elementsInPoint(x, y) {
+        this.updateInternals();
         let collectedOnX = new ESet();
         let index = dichotomousSearch(this._xAxis, x, (v, b) => v - b.value);
         if (index > 0) {
@@ -1220,6 +1229,7 @@ export class SweepAndPrune {
     }
 
     elementBox(element) {
+        this.updateInternals();
         let record = this._getRecord(element);
         let left = record.left(element)+COLLISION_MARGIN;
         let right = record.right(element)-COLLISION_MARGIN;
@@ -1229,6 +1239,7 @@ export class SweepAndPrune {
     }
 
     elementsInBox(left, top, right, bottom) {
+        this.updateInternals();
         let collectedOnX = new ESet();
         let index = dichotomousSearch(this._xAxis, left + COLLISION_MARGIN, (v, b) => v - b.value);
         if (index > 0 && index < this._xAxis.length && this._xAxis[index].value > left) index--;
@@ -1279,27 +1290,13 @@ export class SweepAndPrune {
     }
 
     updateInternals() {
-
-        let sortAxis = () => {
-            if (this._xAxis.dirty) {
-                insertionSort(this._xAxis, this._comparator);
-                for (let index = 0; index < this._xAxis.length; index++) {
-                    this._xAxis[index].index = index;
-                }
+        if (this._xAxis.dirty) {
+            insertionSort(this._xAxis, this._comparator);
+            for (let index = 0; index < this._xAxis.length; index++) {
+                this._xAxis[index].index = index;
             }
-            if (this._yAxis.dirty) {
-                insertionSort(this._yAxis, this._comparator);
-                for (let index = 0; index < this._yAxis.length; index++) {
-                    this._yAxis[index].index = index;
-                }
-            }
-            delete this._xAxis.dirty;
-            delete this._yAxis.dirty;
-        };
-
-        let axisCollision = axis => {
             let opened = new List();
-            for (let boundary of axis) {
+            for (let boundary of this._xAxis) {
                 if (boundary.first) {
                     opened.add(boundary.element);
                     boundary.opened = new ESet(opened);
@@ -1308,13 +1305,25 @@ export class SweepAndPrune {
                     boundary.opened = new ESet(opened);
                 }
             }
-        };
-
-        evaluate("SAP update internals", () => {
-            sortAxis();
-            axisCollision(this._xAxis);
-            axisCollision(this._yAxis);
-        });
+            delete this._xAxis.dirty;
+        }
+        if (this._yAxis.dirty) {
+            insertionSort(this._yAxis, this._comparator);
+            for (let index = 0; index < this._yAxis.length; index++) {
+                this._yAxis[index].index = index;
+            }
+            let opened = new List();
+            for (let boundary of this._yAxis) {
+                if (boundary.first) {
+                    opened.add(boundary.element);
+                    boundary.opened = new ESet(opened);
+                } else {
+                    opened.remove(boundary.element);
+                    boundary.opened = new ESet(opened);
+                }
+            }
+            delete this._yAxis.dirty;
+        }
     }
 
     collideWith(box) {
@@ -1330,12 +1339,14 @@ export class SweepAndPrune {
     near(element, left=1, top=1, right=1, bottom=1) {
         let record = this._getRecord(element);
         if (!record) return new List();
-        return this.elementsInBox(
+        let result = this.elementsInBox(
             record.left(element) -left,
             record.top(element) -top,
             record.right(element) +right,
             record.bottom(element) +bottom
         );
+        result.remove(element);
+        return result;
     }
 }
 
@@ -1348,7 +1359,7 @@ export function makeCollisionPhysic(superClass) {
     };
 
     superClass.prototype._refresh = function() {
-        this._supportSAP.updateInternals();
+        //this._supportSAP.updateInternals();
     };
 
     superClass.prototype._reset = function() {

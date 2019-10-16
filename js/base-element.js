@@ -199,8 +199,9 @@ export function makeShaped(superClass) {
         if (svgElement) {
             this._shape.add(svgElement);
         }
-        if (this._content) {
-            this._tray.insert(this._content, this._shape);
+        let content = this._content || this._partsSupport;
+        if (content) {
+            this._tray.insert(content, this._shape);
         }
         else {
             this._tray.add(this._shape);
@@ -235,6 +236,70 @@ export function makeShaped(superClass) {
         }
     });
 
+}
+
+export function makePartsOwner(superClass) {
+
+    if (!superClass.prototype._initParts) {
+        let superInit = superClass.prototype._init;
+        superClass.prototype._init = function (...args) {
+            superInit.call(this, ...args);
+            this._initParts();
+            let content = this._content;
+            if (content) {
+                this._tray.insert(content, this._partsSupport);
+            }
+            else {
+                this._tray.add(this._partsSupport);
+            }
+        };
+
+        superClass.prototype._initParts = function () {
+            this._partsSupport = new Group();
+            this._partsSupport.cloning = Cloning.NONE;
+            return this._partsSupport;
+        };
+
+        let finalize = superClass.prototype.finalize;
+        superClass.prototype.finalize = function () {
+            finalize.call(this);
+            if (this._parts) {
+                for (let child of this._parts) {
+                    child.finalize();
+                }
+            }
+        };
+
+        superClass.prototype._addPart = function (element) {
+            if (!this._parts) {
+                this._parts = new List();
+                this._parts.cloning = Cloning.NONE;
+            }
+            // IMPORTANT : DOM update before this._children update !
+            this._partsSupport.add(element._root);
+            this._parts.add(element);
+            element._parent = this;
+        };
+
+        Object.defineProperty(superClass.prototype, "parts", {
+            configurable: true,
+            get: function () {
+                return this._parts ? new List(...this._parts) : new List();
+            }
+        });
+
+        let cloning = superClass.prototype.__cloning;
+        superClass.prototype.__cloning = function (duplicata) {
+            let copy = cloning.call(this, duplicata);
+            for (let child of this.parts) {
+                let childCopy = child.clone(duplicata);
+                copy._addPart(childCopy);
+            }
+            return copy;
+        };
+    }
+
+    return superClass;
 }
 
 export function makeContainer(superClass) {
@@ -2165,28 +2230,16 @@ export class BoardElement {
         return getCanvasLayer(this._root);
     }
 
-    /*
-    _acceptDrop(element) {
-        return false;
-    }
-*/
-
     clone(duplicata, root=false) {
         if (!duplicata) {
             duplicata = new Map();
         }
         let copy = null;
         if (root) {
-            let parent = this._parent;
-            delete this._parent;
-            try {
-                copy = this._cloning(duplicata);
-            } finally {
-                this._parent = parent;
-            }
+            copy = this._cloning(duplicata);
             for (let entry of duplicata.entries()) {
                 let [that, thatCopy] = entry;
-                if (that._cloned) {
+                if (thatCopy && that._cloned) {
                     that._cloned(thatCopy, duplicata);
                 }
             }
@@ -2223,9 +2276,11 @@ export class BoardElement {
         return copy;
     }
 
-    _cloned(copy, duplicata) {}
+    _cloned(copy, duplicata) {
+        this._cloneObservers(duplicata);
+    }
 }
-makeObservable(BoardElement);
+makeObservable(BoardElement, Cloning.NONE);
 
 export class BoardArea extends BoardElement {
 

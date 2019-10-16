@@ -30,6 +30,13 @@ export const Context = {
     }
 };
 
+export const Cloning = {
+    // Default value, used even if not defined :)
+    DEEP:0,
+    SHALLOW:1,
+    NONE:2
+};
+
 export function setRef(item, reference) {
     item._root.id = reference;
 }
@@ -101,7 +108,26 @@ export function getCanvasLayer(artifact) {
     return null;
 }
 
-export function makeObservable(superClass) {
+
+/**
+ * Extend the current selection by adding any element "associated" to already selected elements (for exemple,
+ * element that are 'carried' or 'sticked' to the selected element.
+ * @param selection core selection of element
+ * @returns {Set} extended set of selected element
+ */
+export function getExtension(elements) {
+    let extension = new ESet(elements);
+    for (let element of elements) {
+        if (element.getExtension) {
+            for (let associatedElement of element.getExtension()) {
+                extension.add(associatedElement);
+            }
+        }
+    }
+    return extension;
+}
+
+export function makeObservable(superClass, cloning=Cloning.DEEP) {
 
     superClass.prototype.addObserver = function(observer) {
         Memento.register(this);
@@ -116,6 +142,7 @@ export function makeObservable(superClass) {
     superClass.prototype._addObserver = function(observer) {
         if (!this._observers) {
             this._observers = new ESet();
+            this._observers.cloning = cloning;
         }
         this._observers.add(observer);
     };
@@ -136,6 +163,20 @@ export function makeObservable(superClass) {
             }
         }
     };
+
+    if (cloning===Cloning.NONE) {
+        superClass.prototype._cloneObservers = function(duplicata) {
+            if (this._observers) {
+                let copy = duplicata.get(this);
+                for (let observer of this._observers) {
+                    let observerCopy = duplicata.get(observer);
+                    if (observerCopy) {
+                        copy._addObserver(observerCopy);
+                    }
+                }
+            }
+        }
+    }
 
     let superMemento = superClass.prototype._memento;
     if (superMemento) {
@@ -309,24 +350,6 @@ export class DragMoveSelectionOperation extends DragElementOperation {
     }
 
     /**
-     * Extend the current selection by adding any element "associated" to already selected elements (for exemple,
-     * element that are 'carried' or 'sticked' to the selected element.
-     * @param selection core selection of element
-     * @returns {Set} extended set of selected element
-     */
-    extendsSelection(selection) {
-        let extendedSelection = new ESet(selection);
-        for (let element of selection) {
-            if (element.getExtension) {
-                for (let associatedElement of element.getExtension()) {
-                    extendedSelection.add(associatedElement);
-                }
-            }
-        }
-        return extendedSelection;
-    }
-
-    /**
      * Defines the set of elements to be dragged. This set is made with relevant selected element (eventually extended :
      * including possible companion elements attached to selected element), but excluding the elements that are already
      * "naturally" dragged because they belong to another (ancestor) dragged element.
@@ -350,7 +373,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             }
             return false;
         }
-        let dragSet = this.extendsSelection(Context.selection.selection(element=>true));
+        let dragSet = getExtension(Context.selection.selection(element=>true));
         for (let element of [...dragSet]) {
             if (!element.moveable ||
                 element._acceptDrag && !element._acceptDrag() ||
@@ -1343,13 +1366,13 @@ export function makeMultiLayeredGlass(superClass, {layers}) {
     };
 
     superClass.prototype.putArtifact = function(artifact, element) {
-        let layer = element && element.layer ? element.layer : defaultLayer;
+        let layer = element && element.getLayer ? element.getLayer(this._support) : defaultLayer;
         if (!this[layer]) layer = defaultLayer;
         this[layer].add(artifact);
     };
 
     superClass.prototype.removeArtifact = function(artifact, element) {
-        let layer = element && element.layer ? element.layer : defaultLayer;
+        let layer = element && element.getLayer ? element.getLayer(this._support) : defaultLayer;
         if (!this[layer]) layer = defaultLayer;
         this[layer].remove(artifact);
     };
@@ -1481,8 +1504,8 @@ export function setLayeredGlassStrategy(superClass, {layers}) {
     let glassStrategy = class extends GlassPedestal {
         constructor(glass, support, ...args) {super(glass, support, ...args);}
     };
-    makeMultiLayeredGlass(glassStrategy, ...layers);
-    setGlassStrategy(superClass, glassStrategy);
+    makeMultiLayeredGlass(glassStrategy, {layers});
+    setGlassStrategy(superClass, {glassStrategy});
 
 }
 
@@ -1846,7 +1869,7 @@ export class CopyPaste {
             if (!Context.freezed) {
                 if (event.ctrlKey || event.metaKey) {
                     if (event.key === "c") {
-                        this.copyModel(Context.selection.selection());
+                        this.copyModel(getExtension(Context.selection.selection()));
                     } else if (event.key === "v") {
                         this.pasteModel();
                     }
@@ -1874,12 +1897,17 @@ export class CopyPaste {
         }
 
         let result = new ESet();
-        let duplicata = new Map();
         if (elements.size > 0) {
             let { cx, cy } = center();
+            let duplicata = new Map();
+            for (let element of elements) {
+                if (element._parent) {
+                    duplicata.set(element._parent, undefined);
+                }
+            }
             for (let element of elements) {
                 let copy = element.clone(duplicata, true);
-                copy._parent = null;
+                //copy._parent = null;
                 let { x, y } = computePosition(element._root, element.canvasLayer._root);
                 copy._setLocation(x - cx, y - cy);
                 result.add(copy);
@@ -1924,12 +1952,7 @@ export class CopyPaste {
         return this._models.size > 0;
     }
 }
-export const Cloning = {
-  // Default value, used even if not defined :)
-  DEEP:0,
-  SHALLOW:1,
-  NONE:2
-};
+
 CopyPaste.clone = function(source, duplicata) {
     function cloneObject(source, duplicata) {
 
@@ -1943,6 +1966,7 @@ CopyPaste.clone = function(source, duplicata) {
         }
 
         function cloneList(source) {
+            let copy;
             if (!source.cloning) {
                 copy = new List();
                 duplicata.set(source, copy);
@@ -1963,6 +1987,7 @@ CopyPaste.clone = function(source, duplicata) {
         }
 
         function cloneArray(source) {
+            let copy;
             if (!source.cloning) {
                 copy = [];
                 duplicata.set(source, copy);
@@ -1983,6 +2008,7 @@ CopyPaste.clone = function(source, duplicata) {
         }
 
         function cloneSet(source) {
+            let copy;
             if (!source.cloning) {
                 copy = new ESet();
                 duplicata.set(source, copy);
@@ -2003,6 +2029,7 @@ CopyPaste.clone = function(source, duplicata) {
         }
 
         function cloneMap(source) {
+            let copy;
             if (!source.cloning) {
                 copy = new Map();
                 duplicata.set(source, copy);
@@ -2022,8 +2049,7 @@ CopyPaste.clone = function(source, duplicata) {
             return copy;
         }
 
-        let copy = duplicata.get(source);
-        if (copy) return copy;
+        if (duplicata.has(source)) return duplicata.get(source);
         if (source.notCloneable) {
             return source;
         }
@@ -2051,9 +2077,8 @@ CopyPaste.clone = function(source, duplicata) {
     }
 
     if (source === null || source === undefined) return null;
-    let copy = duplicata.get(source);
-    if (copy) return copy;
-    copy = {};
+    if (duplicata.has(source)) return duplicata.get(source);
+    let copy = {};
     duplicata.set(source, copy);
     copy.__proto__ = source.__proto__;
     while(copy.__proto__.__pass__) {

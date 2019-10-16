@@ -1,12 +1,12 @@
 'use strict';
 
 import {
-    Context, Canvas, Selection, DragOperation, makeNotCloneable
+    Context, Canvas, Selection, DragOperation, makeNotCloneable, setLayeredGlassStrategy
 } from "../../js/toolkit.js";
 import {
     BoardElement, BoardTable, BoardArea, makeDeletable, makeDraggable, makeFramed, makeSelectable, makeContainer,
     makeMoveable, makeSupport, makePart, makeClickable, makeShaped, makeContainerMultiLayered, makeLayered,
-    makeGentleDropTarget
+    makeGentleDropTarget, makePartsOwner
 } from "../../js/base-element.js";
 import {
     Colors, Group, Rect, Circle, Path, M, Q, L, C
@@ -169,16 +169,17 @@ class DIAMFascia extends DIAMItem {
     }
 }
 makeFramed(DIAMFascia);
-makeContainer(DIAMFascia);
-makeKnobOwner(DIAMFascia, {predicate:is(DIAMFasciaSupport)});
+makeKnobOwner(DIAMFascia, {size:15, predicate:is(DIAMFasciaSupport)});
 
 function makeHeaderOwner(superClass) {
+
+    makePartsOwner(superClass);
 
     superClass.prototype._initHeader = function(headerHeight) {
         if (headerHeight) {
             this._header = this._createHeader(this.width, headerHeight);
             this._header.setLocation(0, -this.height/2+headerHeight/2);
-            this._add(this._header);
+            this._addPart(this._header);
         }
     };
 
@@ -190,11 +191,13 @@ function makeHeaderOwner(superClass) {
 
 function makeFooterOwner(superClass) {
 
+    makePartsOwner(superClass);
+
     superClass.prototype._initFooter = function(footerHeight) {
         if (footerHeight) {
             this._footer = this._createFooter(this.width, footerHeight);
             this._footer.setLocation(0, this.height/2-footerHeight/2);
-            this._add(this._footer);
+            this._addPart(this._footer);
         }
     };
 
@@ -206,11 +209,13 @@ function makeFooterOwner(superClass) {
 
 function makeFasciaSupport(superClass) {
 
+    makePartsOwner(superClass);
+
     superClass.prototype._initFasciaSupport = function(headerHeight=0, footerHeight=0) {
         let height = this.height-headerHeight-footerHeight;
         this._fasciaSupport = this._createFasciaSupport(this.width, height);
         this._fasciaSupport.setLocation(0, -this.height/2+headerHeight+height/2);
-        this._add(this._fasciaSupport);
+        this._addPart(this._fasciaSupport);
     };
 
     superClass.prototype._createFasciaSupport = function(width, height) {
@@ -227,18 +232,20 @@ function makeFasciaSupport(superClass) {
 
 }
 
-function makeKnobOwner(superClass, {predicate}) {
+function makeKnobOwner(superClass, {size, predicate}) {
+
+    makePartsOwner(superClass);
 
     let superInit = superClass.prototype._init;
     superClass.prototype._init = function(...args) {
         superInit && superInit.call(this, ...args);
-        let knob = this._createKnob(this.height);
-        knob._setLocation(-this.width/2+this.height/2, 0);
-        this._add(knob);
+        let knob = this._createKnob(size, this.height);
+        knob._setLocation(-this.width/2+size/2, 0);
+        this._addPart(knob);
     };
 
-    superClass.prototype._createKnob = function(size) {
-        return new DIAMKnob({width:size, height:size, predicate});
+    superClass.prototype._createKnob = function(width, height) {
+        return new DIAMKnob({width, height, predicate});
     };
 }
 
@@ -262,12 +269,10 @@ class DIAMVisual extends DIAMItem {
     constructor({width, height, color}) {
         super({width, height});
         this._initFrame(width, height, Colors.BLACK, color);
-        //this._add(new DIAMKnob({width:height, height, predicate:is(DIAMCover)}));
     }
 }
 makeFramed(DIAMVisual);
-makeContainer(DIAMVisual);
-makeKnobOwner(DIAMVisual, {predicate:is(DIAMCover)});
+makeKnobOwner(DIAMVisual, {size: 15, predicate:is(DIAMCover)});
 
 class DIAMBlister extends DIAMItem {
 
@@ -360,7 +365,7 @@ class DIAMBox extends DIAMItem {
         this._initShape(this.buildShape());
         this._boxContent = this._buildBoxContent(contentWidth, contentHeight, color, args);
         this._boxContent._setLocation(contentX, contentY);
-        this._add(this._boxContent);
+        this._addPart(this._boxContent);
     }
 
     buildShape() {
@@ -381,7 +386,7 @@ makeLayered(DIAMBox, {
 });
 makeClipsOwner(DIAMBox);
 makeCarrier(DIAMBox);
-makeContainer(DIAMBox);
+makePartsOwner(DIAMBox);
 
 class DIAMSlottedBoxContent extends DIAMBoxContent {
 
@@ -539,6 +544,110 @@ DIAMFixing.WIDTH = 16;
 DIAMFixing.HEIGHT = 6;
 DIAMFixing.DEVICE_RADIUS = 2;
 
+class DIAMAbstractLadder extends DIAMItem {
+
+    constructor({width, height, topSlot, bottomSlot, slotInterval}) {
+        super({width, height});
+        this._topSlot = topSlot;
+        this._bottomSlot = bottomSlot;
+        this._slotInterval = slotInterval;
+        this._generateSlots();
+        this._initShape(this.buildShape());
+    }
+
+    buildShape() {
+        let base = new Group();
+        base.add(new Rect(-this.width / 2, -this.height / 2, this.width, this.height)
+            .attrs({stroke:Colors.NONE, fill:Colors.LIGHT_GREY}));
+        let slotSize = Math.min(2, this._slotInterval / 6);
+        for (let slot of this.slots) {
+            base.add(new Circle(slot.x, slot.y, slotSize).attrs({ fill: Colors.BLACK }));
+        }
+        return base;
+    }
+
+    _memento() {
+        let memento = super._memento();
+        memento._topSlot = this._topSlot;
+        memento._bottomSlot = this._bottomSlot;
+        memento._slotInterval = this._slotInterval;
+        return memento;
+    }
+
+    _revert(memento) {
+        super.revert(memento);
+        this._topSlot = memento._topslot;
+        this._bottomSlot = memento._bottomSlot;
+        this._slotInterval = memento._slotInterval;
+        return this;
+    }
+}
+makeShaped(DIAMAbstractLadder);
+makeLayered(DIAMAbstractLadder, {
+    layer:DIAMSupport.DOWN
+});
+makeSlotsOwner(DIAMAbstractLadder);
+
+class DIAMLadder extends DIAMAbstractLadder {
+
+    constructor({width, height, topSlot, bottomSlot, slotInterval}) {
+        super({width, height, topSlot, bottomSlot, slotInterval});
+    }
+
+    _generateSlots() {
+        for (let y = this._topSlot; y <= this._bottomSlot; y += this._slotInterval) {
+            this._addSlots(new Slot(this, 0, y));
+        }
+    }
+
+}
+
+class DIAMDoubleLadder extends DIAMAbstractLadder {
+
+    constructor({width, height, topSlot, bottomSlot, slotInterval}) {
+        super({width, height, topSlot, bottomSlot, slotInterval});
+    }
+
+    _generateSlots() {
+        for (let y = this._topSlot; y <= this._bottomSlot; y += this._slotInterval) {
+            this._addSlots(new Slot(this, -this.width / 4, y), new Slot(this, this.width / 4, y));
+        }
+    }
+
+}
+
+class DIAMShelf extends DIAMItem {
+
+    constructor({width, height, leftClip, rightClip, coverY, coverHeight, ...args}) {
+        super({width, height, color:Colors.GREY});
+        this._addClips(new Clip(this, leftClip.x, leftClip.y));
+        this._addClips(new Clip(this, rightClip.x, rightClip.y));
+        this._initShape(this.buildShape());
+        this._boxContent = this._buildCover(width, coverHeight, args);
+        this._boxContent._setLocation(0, coverY);
+        this._addPart(this._boxContent);
+    }
+
+    buildShape() {
+        let base = new Group();
+        let item = new Rect(-this.width / 2, -this.height / 2, this.width, this.height)
+            .attrs({stroke: Colors.BLACK, fill:Colors.WHITE});
+        base.add(item);
+        return base;
+    }
+
+    _buildCover(coverWidth, coverHeight) {
+        return new DIAMCover({width:coverWidth, height:coverHeight});
+    }
+}
+makeShaped(DIAMShelf);
+makeLayered(DIAMShelf, {
+    layer:DIAMSupport.UP
+});
+makeClipsOwner(DIAMShelf);
+makeCarrier(DIAMShelf);
+makePartsOwner(DIAMShelf);
+
 class DIAMPaneContent extends DIAMSupport {
 
     constructor({width, height}) {
@@ -546,12 +655,64 @@ class DIAMPaneContent extends DIAMSupport {
     }
 
     _createContextMenu() {
+        this.addMenuOption(new TextMenuOption("generate ladders",
+            function () { this.callForGenerateLadders(); })
+        );
         this.addMenuOption(new TextMenuOption("generate fixings",
             function () { this.callForGenerateFixings(); })
         );
         this.addMenuOption(new TextMenuOption("generate hooks",
             function () { this.callForGenerateHooks(); })
         );
+    }
+
+    callForGenerateLadders() {
+        Context.canvas.openModal(
+            generateLadders,
+            {
+                width: this.width,
+                height: this.height
+            },
+            data => {
+                this.generateLadders(data);
+            });
+    };
+
+    generateLadders(data) {
+        if (!Context.isReadOnly()) {
+            Context.memento.open();
+            let leftLadder = new DIAMLadder({
+                width: data.ladderWidth,
+                height: data.ladderHeight,
+                topSlot: data.topSlot,
+                bottomSlot: data.bottomSlot,
+                slotInterval: data.slotInterval
+            });
+            leftLadder.setLocation( data.left + (data.ladderWidth) / 2, data.y);
+            this.add(leftLadder);
+            let rightLadder = new DIAMLadder({
+                width: data.ladderWidth,
+                height: data.ladderHeight,
+                topSlot: data.topSlot,
+                bottomSlot: data.bottomSlot,
+                slotInterval: data.slotInterval
+            });
+            rightLadder.setLocation( data.right - (data.ladderWidth) / 2, data.y);
+            this.add(rightLadder);
+            let width = data.right - data.left;
+            for (let index = 1; index <= data.intermediateLaddersCount; index++) {
+                let x = (width * index) / (data.intermediateLaddersCount + 1) + data.left;
+                let ladder = new DIAMDoubleLadder({
+                    width: data.ladderWidth * 2,
+                    height: data.ladderHeight,
+                    topSlot: data.topSlot,
+                    bottomSlot: data.bottomSlot,
+                    slotInterval: data.slotInterval
+                });
+                ladder.setLocation(x, data.y);
+                this.add(ladder);
+            }
+        }
     }
 
     callForGenerateFixings() {
@@ -606,11 +767,15 @@ class DIAMPaneContent extends DIAMSupport {
 
     _createPhysic() {
         let ModulePhysic = createGravitationPhysic({
-            predicate:is(DIAMModule, DIAMBox),
+            predicate:is(DIAMModule, DIAMShelf, DIAMBox, DIAMBlister),
             gravitationPredicate:is(DIAMModule),
             carryingPredicate:always});
         addBordersToCollisionPhysic(ModulePhysic, {
             bordersCollide: {all: true}
+        });
+        let LadderPhysic = createSlotsAndClipsPhysic({
+            predicate: is(DIAMShelf),
+            slotProviderPredicate: is(DIAMAbstractLadder)
         });
         let HookPhysic = createSlotsAndClipsPhysic({
             predicate: is(DIAMBlister),
@@ -621,8 +786,9 @@ class DIAMPaneContent extends DIAMSupport {
             slotProviderPredicate: is(DIAMFixing)
         });
         return new PhysicSelector(this,
-            is(DIAMModule, DIAMBlister, DIAMHook, DIAMBox, DIAMFixing)
+            is(DIAMModule, DIAMShelf, DIAMAbstractLadder, DIAMBlister, DIAMHook, DIAMBox, DIAMFixing)
         )
+        .register(new LadderPhysic(this))
         .register(new HookPhysic(this))
         .register(new FixingPhysic(this))
         .register(new ModulePhysic(this));
@@ -637,6 +803,7 @@ addPhysicToContainer(DIAMPaneContent, {
         return this._createPhysic();
     }
 });
+setLayeredGlassStrategy(DIAMPaneContent, {layers:[DIAMSupport.DOWN,  DIAMSupport.MIDDLE, DIAMSupport.UP]});
 
 class DIAMPane extends DIAMItem {
 
@@ -644,7 +811,7 @@ class DIAMPane extends DIAMItem {
         super({width, height});
         this._initFrame(width, height, Colors.BLACK, Colors.WHITE);
         this._paneContent = this._createPaneContent(contentX, contentY, contentWidth, contentHeight);
-        this._add(this._paneContent);
+        this._addPart(this._paneContent);
     }
 
     _createPaneContent(contentX, contentY, contentWidth, contentHeight) {
@@ -655,7 +822,7 @@ class DIAMPane extends DIAMItem {
 
 }
 makeFramed(DIAMPane);
-makeContainer(DIAMPane);
+makePartsOwner(DIAMPane);
 makeCarrier(DIAMPane);
 makeCarriable(DIAMPane);
 
@@ -720,6 +887,7 @@ function createCanvas() {
 }
 
 function createPaper() {
+    setLayeredGlassStrategy(BoardTable, {layers:[DIAMSupport.DOWN,  DIAMSupport.MIDDLE, DIAMSupport.UP]});
     Context.paper = new DIAMPaper({width:3000, height:1500});
     Context.table.add(Context.paper);
     Tools.zoomExtent();
@@ -745,13 +913,18 @@ function createCommandPopup() {
 function createPalettePopup() {
     let paletteContent = new ToolGridPanelContent(200, 80, 80);
     paletteContent.addCell(new BoardItemBuilder([new DIAMPane({
-        width:800, height:500, contentX:0, contentY:0, contentWidth:760, contentHeight:460
+        width:840, height:500, contentX:0, contentY:0, contentWidth:810, contentHeight:460
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMRichPane({
-        width:800, height:500, contentX:0, contentY:0, contentWidth:760, contentHeight:460, headerHeight:40, footerHeight:40
+        width:840, height:500, contentX:0, contentY:0, contentWidth:810, contentHeight:460, headerHeight:40, footerHeight:40
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMHook()]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMFixing()]));
+    paletteContent.addCell(new BoardItemBuilder([new DIAMLadder({width:10, height:100, topSlot:-45, bottomSlot:45, slotInterval:5})]));
+    paletteContent.addCell(new BoardItemBuilder([new DIAMDoubleLadder({width:20, height:100, topSlot:-45, bottomSlot:45, slotInterval:5})]));
+    paletteContent.addCell(new BoardItemBuilder([new DIAMShelf({
+        width:100, height:10, leftClip:{x:-45, y:0}, rightClip:{x:45, y:0}, coverY:0, coverHeight:20
+    })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMSlottedBox({
         width:120, height:70, clips:[{x:0, y:15}], contentX:0, contentY:0, contentWidth:100, contentHeight:60, slotWidth:20
     })]));
