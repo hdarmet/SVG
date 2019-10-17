@@ -56,7 +56,7 @@ DIAMSupport.DOWN = "d";
 DIAMSupport.MIDDLE = "m";
 DIAMSupport.UP = "u";
 makeFramed(DIAMSupport);
-makeContainer(DIAMSupport);
+//makeContainer(DIAMSupport);
 makePart(DIAMSupport);
 makeSupport(DIAMSupport);
 makeMenuOwner(DIAMSupport);
@@ -154,7 +154,7 @@ class DIAMFasciaSupport extends BoardElement {
     }
 
 }
-makeContainer(DIAMFasciaSupport);
+//makeContainer(DIAMFasciaSupport);
 makePart(DIAMFasciaSupport);
 makeSupport(DIAMFasciaSupport);
 makePositioningContainer(DIAMFasciaSupport, {
@@ -618,14 +618,11 @@ class DIAMDoubleLadder extends DIAMAbstractLadder {
 
 class DIAMShelf extends DIAMItem {
 
-    constructor({width, height, leftClip, rightClip, coverY, coverHeight, ...args}) {
+    constructor({width, height, leftClip, rightClip, ...args}) {
         super({width, height, color:Colors.GREY});
         this._addClips(new Clip(this, leftClip.x, leftClip.y));
         this._addClips(new Clip(this, rightClip.x, rightClip.y));
         this._initShape(this.buildShape());
-        this._boxContent = this._buildCover(width, coverHeight, args);
-        this._boxContent._setLocation(0, coverY);
-        this._addPart(this._boxContent);
     }
 
     buildShape() {
@@ -636,17 +633,210 @@ class DIAMShelf extends DIAMItem {
         return base;
     }
 
+}
+makeShaped(DIAMShelf);
+makeLayered(DIAMShelf, {
+    layer:DIAMSupport.MIDDLE
+});
+makeClipsOwner(DIAMShelf);
+makeCarrier(DIAMShelf);
+
+class DIAMRichShelf extends DIAMShelf {
+
+    constructor({width, height, leftClip, rightClip, coverY, coverHeight, ...args}) {
+        super({width, height, leftClip, rightClip, ...args});
+        this._boxContent = this._buildCover(width, coverHeight, args);
+        this._boxContent._setLocation(0, coverY);
+        this._addPart(this._boxContent);
+    }
+
     _buildCover(coverWidth, coverHeight) {
         return new DIAMCover({width:coverWidth, height:coverHeight});
     }
 }
-makeShaped(DIAMShelf);
-makeLayered(DIAMShelf, {
+makeLayered(DIAMRichShelf, {
     layer:DIAMSupport.UP
 });
-makeClipsOwner(DIAMShelf);
-makeCarrier(DIAMShelf);
-makePartsOwner(DIAMShelf);
+makePartsOwner(DIAMRichShelf);
+
+class DIAMCaddyContent extends DIAMBoxContent {
+
+    constructor({width, height, color}) {
+        super({width, height, color});
+    }
+
+    _createContextMenu() {
+        this.addMenuOption(new TextMenuOption("generate ladders",
+            function () { callForGenerateLadders(this); })
+        );
+    }
+
+    _createPhysic() {
+        let ModulePhysic = createGravitationPhysic({
+            predicate:is(DIAMModule, DIAMShelf),
+            gravitationPredicate:is(DIAMModule),
+            carryingPredicate:always});
+        addBordersToCollisionPhysic(ModulePhysic, {
+            bordersCollide: {all: true}
+        });
+        let LadderPhysic = createSlotsAndClipsPhysic({
+            predicate: is(DIAMShelf),
+            slotProviderPredicate: is(DIAMAbstractLadder)
+        });
+        return new PhysicSelector(this,
+            is(DIAMModule, DIAMShelf, DIAMAbstractLadder)
+        )
+        .register(new LadderPhysic(this))
+        .register(new ModulePhysic(this));
+    }
+}
+addPhysicToContainer(DIAMCaddyContent, {
+    physicBuilder: function() {
+        return this._createPhysic();
+    }
+});
+
+class DIAMCaddy extends DIAMBox {
+
+    constructor({width, height, clips, contentX, contentY, contentWidth, contentHeight, color}) {
+        super({width, height, clips, contentX, contentY, contentWidth, contentHeight, color});
+    }
+
+    _buildBoxContent(contentWidth, contentHeight, color) {
+        return new DIAMCaddyContent({width:contentWidth, height:contentHeight, color:Colors.LIGHTEST_GREY});
+    }
+
+}
+
+class DIAMRichCaddy extends DIAMCaddy {
+
+    constructor({
+                    width, height, clips,
+                    contentX, contentY, contentWidth, contentHeight,
+                    color,
+                    headerHeight, footerHeight}) {
+        super({width, height, clips, contentX, contentY, contentWidth, contentHeight, color});
+        this._initHeader(headerHeight);
+        this._initFooter(footerHeight);
+        this._initFasciaSupport(headerHeight, footerHeight);
+    }
+
+}
+makeHeaderOwner(DIAMRichCaddy);
+makeFooterOwner(DIAMRichCaddy);
+makeFasciaSupport(DIAMRichCaddy);
+
+class DIAMDivider extends DIAMItem {
+
+    constructor({width, height}) {
+        super({width, height});
+        this._initFrame(width, height, Colors.BLACK, Colors.WHITE);
+    }
+
+}
+makeFramed(DIAMDivider);
+makeLayered(DIAMDivider, {
+    layer:DIAMSupport.MIDDLE
+});
+
+function callForGenerateLadders(container) {
+    Context.canvas.openModal(
+        generateLadders,
+        {
+            width: container.width,
+            height: container.height
+        },
+        data => {
+            applyGenerateLadders(container, data);
+        });
+}
+
+function applyGenerateLadders(container, data) {
+    if (!Context.isReadOnly()) {
+        Context.memento.open();
+        let leftLadder = new DIAMLadder({
+            width: data.ladderWidth,
+            height: data.ladderHeight,
+            topSlot: data.topSlot,
+            bottomSlot: data.bottomSlot,
+            slotInterval: data.slotInterval
+        });
+        leftLadder.setLocation( data.left + (data.ladderWidth) / 2, data.y);
+        container.add(leftLadder);
+        let rightLadder = new DIAMLadder({
+            width: data.ladderWidth,
+            height: data.ladderHeight,
+            topSlot: data.topSlot,
+            bottomSlot: data.bottomSlot,
+            slotInterval: data.slotInterval
+        });
+        rightLadder.setLocation( data.right - (data.ladderWidth) / 2, data.y);
+        container.add(rightLadder);
+        let width = data.right - data.left;
+        for (let index = 1; index <= data.intermediateLaddersCount; index++) {
+            let x = (width * index) / (data.intermediateLaddersCount + 1) + data.left;
+            let ladder = new DIAMDoubleLadder({
+                width: data.ladderWidth * 2,
+                height: data.ladderHeight,
+                topSlot: data.topSlot,
+                bottomSlot: data.bottomSlot,
+                slotInterval: data.slotInterval
+            });
+            ladder.setLocation(x, data.y);
+            container.add(ladder);
+        }
+    }
+}
+
+function callForGenerateFixings(container) {
+    Context.canvas.openModal(
+        generateFixings,
+        {
+            width: container.width,
+            height: container.height
+        },
+        data => {
+            applyGenerateFixings(container, data);
+        });
+}
+
+function applyGenerateFixings(container, data) {
+    if (!Context.isReadOnly()) {
+        Context.memento.open();
+        for (let x = data.left; x <= data.right; x += data.boxWidth) {
+            for (let y = data.top; y <= data.bottom ; y += data.boxHeight) {
+                let fixing = new DIAMFixing();
+                fixing.setLocation(x, y);
+                container.add(fixing);
+            }
+        }
+    }
+}
+
+function callForGenerateHooks(container) {
+    Context.canvas.openModal(
+        generateHooks,
+        {
+            width: container.width,
+            height: container.height
+        },
+        data => {
+            applyGenerateHooks(container, data);
+        });
+}
+
+function applyGenerateHooks(container, data) {
+    if (!Context.isReadOnly()) {
+        Context.memento.open();
+        for (let x = data.left; x <= data.right; x += data.blisterWidth) {
+            for (let y = data.top; y <= data.bottom ; y += data.blisterHeight) {
+                let fixing = new DIAMHook();
+                fixing.setLocation(x, y);
+                container.add(fixing);
+            }
+        }
+    }
+}
 
 class DIAMPaneContent extends DIAMSupport {
 
@@ -656,113 +846,14 @@ class DIAMPaneContent extends DIAMSupport {
 
     _createContextMenu() {
         this.addMenuOption(new TextMenuOption("generate ladders",
-            function () { this.callForGenerateLadders(); })
+            function () { callForGenerateLadders(this); })
         );
         this.addMenuOption(new TextMenuOption("generate fixings",
-            function () { this.callForGenerateFixings(); })
+            function () { callForGenerateFixings(this); })
         );
         this.addMenuOption(new TextMenuOption("generate hooks",
-            function () { this.callForGenerateHooks(); })
+            function () { callForGenerateHooks(this); })
         );
-    }
-
-    callForGenerateLadders() {
-        Context.canvas.openModal(
-            generateLadders,
-            {
-                width: this.width,
-                height: this.height
-            },
-            data => {
-                this.generateLadders(data);
-            });
-    };
-
-    generateLadders(data) {
-        if (!Context.isReadOnly()) {
-            Context.memento.open();
-            let leftLadder = new DIAMLadder({
-                width: data.ladderWidth,
-                height: data.ladderHeight,
-                topSlot: data.topSlot,
-                bottomSlot: data.bottomSlot,
-                slotInterval: data.slotInterval
-            });
-            leftLadder.setLocation( data.left + (data.ladderWidth) / 2, data.y);
-            this.add(leftLadder);
-            let rightLadder = new DIAMLadder({
-                width: data.ladderWidth,
-                height: data.ladderHeight,
-                topSlot: data.topSlot,
-                bottomSlot: data.bottomSlot,
-                slotInterval: data.slotInterval
-            });
-            rightLadder.setLocation( data.right - (data.ladderWidth) / 2, data.y);
-            this.add(rightLadder);
-            let width = data.right - data.left;
-            for (let index = 1; index <= data.intermediateLaddersCount; index++) {
-                let x = (width * index) / (data.intermediateLaddersCount + 1) + data.left;
-                let ladder = new DIAMDoubleLadder({
-                    width: data.ladderWidth * 2,
-                    height: data.ladderHeight,
-                    topSlot: data.topSlot,
-                    bottomSlot: data.bottomSlot,
-                    slotInterval: data.slotInterval
-                });
-                ladder.setLocation(x, data.y);
-                this.add(ladder);
-            }
-        }
-    }
-
-    callForGenerateFixings() {
-        Context.canvas.openModal(
-            generateFixings,
-            {
-                width: this.width,
-                height: this.height
-            },
-            data => {
-                this.generateFixings(data);
-            });
-    };
-
-    generateFixings(data) {
-        if (!Context.isReadOnly()) {
-            Context.memento.open();
-            for (let x = data.left; x <= data.right; x += data.boxWidth) {
-                for (let y = data.top; y <= data.bottom ; y += data.boxHeight) {
-                    let fixing = new DIAMFixing();
-                    fixing.setLocation(x, y);
-                    this.add(fixing);
-                }
-            }
-        }
-    }
-
-    callForGenerateHooks() {
-        Context.canvas.openModal(
-            generateHooks,
-            {
-                width: this.width,
-                height: this.height
-            },
-            data => {
-                this.generateHooks(data);
-            });
-    };
-
-    generateHooks(data) {
-        if (!Context.isReadOnly()) {
-            Context.memento.open();
-            for (let x = data.left; x <= data.right; x += data.blisterWidth) {
-                for (let y = data.top; y <= data.bottom ; y += data.blisterHeight) {
-                    let fixing = new DIAMHook();
-                    fixing.setLocation(x, y);
-                    this.add(fixing);
-                }
-            }
-        }
     }
 
     _createPhysic() {
@@ -786,7 +877,7 @@ class DIAMPaneContent extends DIAMSupport {
             slotProviderPredicate: is(DIAMFixing)
         });
         return new PhysicSelector(this,
-            is(DIAMModule, DIAMShelf, DIAMAbstractLadder, DIAMBlister, DIAMHook, DIAMBox, DIAMFixing)
+            is(DIAMModule, DIAMShelf, DIAMAbstractLadder, DIAMBlister, DIAMHook, DIAMBox, DIAMFixing, DIAMDivider)
         )
         .register(new LadderPhysic(this))
         .register(new HookPhysic(this))
@@ -840,7 +931,7 @@ makeFooterOwner(DIAMRichPane);
 
 class DIAMModule extends DIAMItem {
     constructor({width, height, color}) {
-        super({width, height});
+        super({width:width, height});
         this._initFrame(width, height, Colors.BLACK, color);
     }
 }
@@ -861,7 +952,7 @@ class DIAMPaperContent extends DIAMSupport {
     }
 }
 makeGravitationContainer(DIAMPaperContent, {
-    predicate: is(DIAMPane, DIAMModule),
+    predicate: is(DIAMPane, DIAMModule, DIAMBox),
     carryingPredicate: always,
     bordersCollide:{all:true}
 });
@@ -910,6 +1001,10 @@ function createCommandPopup() {
     return cmdPopup;
 }
 
+function setShortcuts() {
+    Tools.allowElementDeletion();
+}
+
 function createPalettePopup() {
     let paletteContent = new ToolGridPanelContent(200, 80, 80);
     paletteContent.addCell(new BoardItemBuilder([new DIAMPane({
@@ -921,8 +1016,12 @@ function createPalettePopup() {
     paletteContent.addCell(new BoardItemBuilder([new DIAMHook()]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMFixing()]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMLadder({width:10, height:100, topSlot:-45, bottomSlot:45, slotInterval:5})]));
+    paletteContent.addCell(new BoardItemBuilder([new DIAMLadder({width:10, height:10, topSlot:0, bottomSlot:0, slotInterval:5})]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMDoubleLadder({width:20, height:100, topSlot:-45, bottomSlot:45, slotInterval:5})]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMShelf({
+        width:100, height:10, leftClip:{x:-45, y:0}, rightClip:{x:45, y:0}
+    })]));
+    paletteContent.addCell(new BoardItemBuilder([new DIAMRichShelf({
         width:100, height:10, leftClip:{x:-45, y:0}, rightClip:{x:45, y:0}, coverY:0, coverHeight:20
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMSlottedBox({
@@ -933,6 +1032,15 @@ function createPalettePopup() {
         contentX:0, contentY:0, contentWidth:100, contentHeight:60,
         slotWidth:20,
         headerHeight:10, footerHeight:10
+    })]));
+    paletteContent.addCell(new BoardItemBuilder([new DIAMRichCaddy({
+        width:120, height:70, clips:[{x:0, y:15}],
+        contentX:0, contentY:0, contentWidth:100, contentHeight:60,
+        slotWidth:20,
+        headerHeight:5, footerHeight:15
+    })]));
+    paletteContent.addCell(new BoardItemBuilder([new DIAMDivider({
+        width:10, height:460, contentX:0
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMBox({
         width:120, height:140, clips:[{x:0, y:-20}, {x:0, y:50}], contentX:0, contentY:0, contentWidth:100, contentHeight:130
@@ -959,7 +1067,7 @@ function createPalettePopup() {
         width:120, height:10, color:"#FFFF00"
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMVisual({
-        width:800, height:40, color:"#FF0000"
+        width:840, height:40, color:"#FF0000"
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMVisual({
         width:800, height:60, color:"#00FF00"
@@ -986,6 +1094,7 @@ function main() {
     createPaper();
     createCommandPopup();
     createPalettePopup();
+    setShortcuts();
     Context.memento.opened = true;
 }
 

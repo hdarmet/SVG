@@ -959,7 +959,7 @@ export class DragScrollOperation extends DragOperation {
         if (!super.accept(element, x, y, event)) {
             return false;
         }
-        return event.button === Buttons.RIGHT_BUTTON;
+        return event.button === Buttons.WHEEL_BUTTON;
     }
 
     doDragStart(element, x, y, event) {

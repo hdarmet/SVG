@@ -255,6 +255,20 @@ class AVLNode {
         return node;
     }
 
+    print(stringifier, parent) {
+        if (this._parent !== parent) {
+            console.log("BIG Problem !!");
+        }
+        if (this._left) {
+            this._left.print(stringifier, this);
+        }
+        console.log(stringifier(this));
+        if (this._right) {
+            this._right.print(stringifier, this);
+        }
+    }
+
+
     get height() {
         return this._height;
     }
@@ -585,6 +599,13 @@ export class AVLTree {
         }
         else {
             return new AVLIterator();
+        }
+    }
+
+    print(stringifier) {
+        console.log(this);
+        if (this._root) {
+            this._root.print(stringifier, null);
         }
     }
 

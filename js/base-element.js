@@ -139,6 +139,7 @@ export function makeSelectable(superClass) {
         if (!this._clickHdlImpl) {
             this._clickHdlImpl = function(event) {
                 Context.selection.adjustSelection(this, event, true);
+                event.stopPropagation();
             }.bind(this);
             this._root.on(MouseEvents.CLICK, this._clickHdlImpl);
         }
@@ -185,6 +186,7 @@ export function makeSelectable(superClass) {
         if (!copy._clickHdl) {
             copy._clickHdlImpl = function(event) {
                 Context.selection.adjustSelection(this, event, true);
+                event.stopPropagation();
             }.bind(copy);
             copy._root.on(MouseEvents.CLICK, copy._clickHdlImpl);
         }
@@ -303,6 +305,8 @@ export function makePartsOwner(superClass) {
 }
 
 export function makeContainer(superClass) {
+
+    console.assert(!superClass.prototype._initContent);
 
     let superInit = superClass.prototype._init;
     superClass.prototype._init = function(...args) {
@@ -1628,6 +1632,7 @@ export function makeClickable(superClass) {
         this._clickHdlImpl = event=> {
             Context.selection.adjustSelection(this, event, true);
             handler && handler.call(this)(event);
+            event.stopPropagation();
         };
         this._root.on(MouseEvents.CLICK, this._clickHdlImpl);
     };
@@ -1640,6 +1645,7 @@ export function makeClickable(superClass) {
         this._doubleClickHdlImpl = event=> {
             Context.selection.adjustSelection(this, event, true);
             handler && handler.call(this)(event);
+            event.stopPropagation();
         };
         this._root.on(MouseEvents.DOUBLE_CLICK, this._doubleClickHdlImpl);
     };

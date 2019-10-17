@@ -950,10 +950,10 @@ export class SAPRecord {
         let widthSlim = same(geometry.left, geometry.right);
         let heightSlim = same(geometry.top, geometry.bottom);
         let bound = {
-            left: {first: true, value: geometry.left, slim:widthSlim, element, index: -1, opened: new ESet([element])},
-            right: {first: false, value: geometry.right, slim:widthSlim, element, index: -1, opened: new ESet()},
-            top: {first: true, value: geometry.top, slim:heightSlim, element, index: -1, opened: new ESet([element])},
-            bottom: {first: false, value: geometry.bottom, slim:heightSlim, element, index: -1, opened: new ESet()}
+            left: {first: true, value: geometry.left+COLLISION_MARGIN, slim:widthSlim, element, index: -1, opened: new ESet([element])},
+            right: {first: false, value: geometry.right-COLLISION_MARGIN, slim:widthSlim, element, index: -1, opened: new ESet()},
+            top: {first: true, value: geometry.top+COLLISION_MARGIN, slim:heightSlim, element, index: -1, opened: new ESet([element])},
+            bottom: {first: false, value: geometry.bottom-COLLISION_MARGIN, slim:heightSlim, element, index: -1, opened: new ESet()}
         };
         bound.left.index = this._sweepAndPrune._xAxis.length;
         bound.right.index = this._sweepAndPrune._xAxis.length + 1;
@@ -992,10 +992,10 @@ export class SAPRecord {
 
     _updateBound(bound) {
         let geometry = this._element.localGeometry;
-        this._bound.left.value = geometry.left;
-        this._bound.right.value = geometry.right;
-        this._bound.top.value = geometry.top;
-        this._bound.bottom.value = geometry.bottom;
+        this._bound.left.value = geometry.left+COLLISION_MARGIN;
+        this._bound.right.value = geometry.right-COLLISION_MARGIN;
+        this._bound.top.value = geometry.top+COLLISION_MARGIN;
+        this._bound.bottom.value = geometry.bottom-COLLISION_MARGIN
     }
 
     update() {
@@ -1015,19 +1015,19 @@ export class SAPRecord {
     }
 
     left(element) {
-        return this._bound.left.value;
+        return this._bound.left.value-COLLISION_MARGIN;
     }
 
     right(element) {
-        return this._bound.right.value;
+        return this._bound.right.value+COLLISION_MARGIN;
     }
 
     top(element) {
-        return this._bound.top.value;
+        return this._bound.top.value-COLLISION_MARGIN;
     }
 
     bottom(element) {
-        return this._bound.bottom.value;
+        return this._bound.bottom.value+COLLISION_MARGIN;
     }
 
     x(element) {
@@ -1231,19 +1231,19 @@ export class SweepAndPrune {
     elementBox(element) {
         this.updateInternals();
         let record = this._getRecord(element);
-        let left = record.left(element)+COLLISION_MARGIN;
-        let right = record.right(element)-COLLISION_MARGIN;
-        let top = record.top(element)+COLLISION_MARGIN;
-        let bottom = record.bottom(element)-COLLISION_MARGIN;
+        let left = record.left(element);
+        let right = record.right(element);
+        let top = record.top(element);
+        let bottom = record.bottom(element);
         return new Box(left, top, right-left, bottom-top)
     }
 
     elementsInBox(left, top, right, bottom) {
         this.updateInternals();
         let collectedOnX = new ESet();
-        let index = dichotomousSearch(this._xAxis, left + COLLISION_MARGIN, (v, b) => v - b.value);
+        let index = dichotomousSearch(this._xAxis, left, (v, b) => v - b.value);
         if (index > 0 && index < this._xAxis.length && this._xAxis[index].value > left) index--;
-        while ( this._xAxis[index] && this._xAxis[index].value < right - COLLISION_MARGIN) {
+        while ( this._xAxis[index] && this._xAxis[index].value < right) {
             for (let element of this._xAxis[index].opened) {
                 // Verify that element may collide only on x axis because if element not selected here, it cannot be
                 // processed thereafter
@@ -1254,9 +1254,9 @@ export class SweepAndPrune {
             index++;
         }
         let result = new List();
-        index = dichotomousSearch(this._yAxis, top + COLLISION_MARGIN, (v, b) => v - b.value);
+        index = dichotomousSearch(this._yAxis, top, (v, b) => v - b.value);
         if (index > 0 && index < this._yAxis.length && this._yAxis[index].value > top) index--;
-        while (this._yAxis[index] && this._yAxis[index].value < bottom - COLLISION_MARGIN) {
+        while (this._yAxis[index] && this._yAxis[index].value < bottom) {
             for (let element of this._yAxis[index].opened) {
                 if (collectedOnX.delete(element)) {
                     result.add(element);
@@ -1520,7 +1520,7 @@ export function makeCollisionPhysic(superClass) {
                 // Get a proposition
                 let {fx, fy} = adjust(targets);
                 // First case : we have to choice between X and Y : we get the smallest
-                if (fx/* !== null*/ && fy /*!== null*/) {
+                if (fx !== null && fy !== null) {
                     let dx = hx > fx ? hx - fx : fx - hx;
                     let dy = hy > fy ? hy - fy : fy - hy;
                     if (dx > dy) {
@@ -1529,9 +1529,9 @@ export function makeCollisionPhysic(superClass) {
                         hx = fx;
                     }
                 // 2nd case : only one dimension is available
-                } else if (fx) {
+                } else if (fx !== null) {
                     hx = fx;
-                } else if (fy) {
+                } else if (fy !== null) {
                     hy = fy;
                 } else {
                     // Last case : no proposition is available. We revert to last valid position
@@ -1725,17 +1725,26 @@ class Ground {
             }
         }
 
+        function filterInside(segments, left) {
+            let it = segments.inside({right:left+COLLISION_MARGIN, id:0}, null);
+            let insideSegments = [];
+            let segment = it.next().value;
+            while (segment && segment.left+COLLISION_MARGIN < right) {
+                insideSegments.push(segment);
+                segment = it.next().value;
+            }
+            return insideSegments;
+        }
+
         let id = 1;
         let record = this._physic._supportSAP._getRecord(element);
         let left = record.left(element);
         let right = record.right(element);
         let top = record.top(element);
-        let it = this._segments.inside({right:left+COLLISION_MARGIN, id:0}, null);
         let ground = this._physic._host.bottom;
-        let segment = it.next().value;
         let supports = new ESet();
         let under = new ESet();
-        while (segment && segment.left+COLLISION_MARGIN < right) {
+        for (let segment of filterInside(this._segments, left)) {
             under.add(segment.element);
             if (same(segment.top, ground)) {
                 supports.add(segment.element);
@@ -1755,10 +1764,10 @@ class Ground {
             else {
                 this._segments.delete(segment);
             }
-            segment = it.next().value;
         }
         if (update && this._physic._canFall(element)) {
             let ly = ground - (record.bottom(element) - record.y(element));
+            console.log(record.left(element)+" "+record.right(element), element)
             if (ly !== element.ly) {
                 element.setLocation(record.x(element), ly);
                 this._physic._supportSAP.update(element);
