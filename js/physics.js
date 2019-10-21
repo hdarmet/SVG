@@ -7,14 +7,17 @@ import {
     List, AVLTree, ESet, SpatialLocator
 } from "./collections.js";
 import {
-    Box
+    Box, Matrix
 } from "./geometry.js";
 import {
-    win
+    win, Colors, Line, computePosition
 } from "./graphics.js";
 import {
-    Memento, CloneableObject, Events
+    Memento, CloneableObject, Events, makeObservable
 } from "./toolkit.js";
+import {
+    Decoration, TextDecoration
+} from "./base-element.js";
 
 export class Physic {
 
@@ -305,27 +308,26 @@ export function makePositioningPhysic(superClass, {
 
     superClass.prototype._refreshHoverElement = function(element) {
         let position = this._elementPosition(element);
-        if (position && this._acceptPosition(element, position)) {
-            //element.setLocation(position.x, position.y);
+        if (this._acceptPosition(element, position)) {
             element.move(position.x, position.y);
         }
     };
 
     superClass.prototype._refreshElement = function(element) {
         let position = this._elementPosition(element);
-        if (position && this._acceptPosition(element, position)) {
+        if (this._acceptPosition(element, position)) {
             element.move(position.x, position.y);
             element._positioned && element._positioned(this, position);
         }
     };
 
     superClass.prototype._acceptPosition = function(element, position) {
-        return !element._acceptPosition || element._acceptPosition(this, position)
+        return element._acceptPosition ? element._acceptPosition(this, position) : !!position;
     };
 
     superClass.prototype._acceptDrop = function(element, dragSet) {
         let position = this._elementPosition(element);
-        return position && this._acceptPosition(element,  position);
+        return this._acceptPosition(element,  position);
     };
 
     return superClass;
@@ -561,6 +563,9 @@ export function makeAttachmentContainer(superClass, {predicate, slotProviderPred
     return superClass;
 }
 
+Events.PLUG = "plug";
+Events.UNPLUG = "unplug";
+
 export class Clip {
 
     constructor(owner, x, y) {
@@ -573,6 +578,24 @@ export class Clip {
         let copy = new Clip(duplicata.get(this._owner), this._x, this._y);
         duplicata.set(this, copy);
         return copy;
+    }
+
+    get position() {
+        return this._position;
+    }
+
+    set position(position) {
+        if (position !== this._position) {
+            Memento.register(this);
+            if (position) {
+                this._position = position;
+            }
+            else {
+                delete this._position;
+            }
+            this._fire(Events.MOVE, position);
+        }
+        return this;
     }
 
     cloned(duplicata) {
@@ -624,6 +647,66 @@ export class Clip {
     }
 
 }
+makeObservable(Clip);
+
+export class ClipDecoration extends Decoration {
+
+    constructor(box, clip) {
+        super();
+        this._box = box;
+        this._clip = clip;
+    }
+
+    _init() {
+        this._root.add(new Line(0, -ClipDecoration.SIZE/2, 0, ClipDecoration.SIZE/2));
+        this._root.add(new Line(-ClipDecoration.SIZE/2, 0, ClipDecoration.SIZE/2, 0));
+        this._root.stroke = Colors.LIGHT_GREY;
+        this._root.stroke_width = ClipDecoration.STROKE_WIDTH;
+        let {x, y} = computePosition(this._element._root, this._box._root, this._clip.x, this._clip.y);
+        this._root.matrix = Matrix.translate(x, y);
+    }
+
+    _clone(duplicata) {
+        //let element = duplicata.get(this._element);
+        let boxCopy = duplicata.get(this._box);
+        let clipCopy = duplicata.get(this._clip);
+        let copy = new ClipDecoration(boxCopy, clipCopy);
+        //copy._element = element;
+        return copy;
+    }
+}
+ClipDecoration.STROKE_WIDTH = 0.25;
+ClipDecoration.SIZE = 6;
+
+export class ClipPositionDecoration extends TextDecoration {
+
+    constructor(clip, specs, fontProperties) {
+        super(clip, function() {
+            let slot = this.position;
+            let index = slot ? slot.index : undefined;
+            return index===undefined ? "" : ""+index;
+        }, specs, fontProperties);
+        clip._addObserver(this);
+    }
+
+    _notified(source, event) {
+        if (source===this.clip) {
+            this.refresh();
+        }
+    }
+
+    get clip() {
+        return this._labelOwner;
+    }
+
+    _clone(duplicata) {
+        let element = duplicata.get(this._element);
+        let clipCopy = duplicata.get(this.clip);
+        let copy = new ClipPositionDecoration(clipCopy, this._specs, this._fontProperties);
+        copy._element = element;
+        return copy;
+    }
+}
 
 export class Slot {
 
@@ -671,6 +754,8 @@ export class Slot {
             Memento.register(clip);
             this._clip = clip;
             clip._slot = this;
+            this._fire(Events.PLUG, clip);
+            clip._fire(Events.PLUG, this);
             clip._owner.addObserver(this);
         }
         return this;
@@ -682,7 +767,10 @@ export class Slot {
             Memento.register(this._clip);
             this._clip._owner.removeObserver(this);
             delete this._clip._slot;
+            let clip = this._clip;
             delete this._clip;
+            this._fire(Events.UNPLUG, clip);
+            clip._fire(Events.UNPLUG, this);
         }
     }
 
@@ -718,6 +806,7 @@ export class Slot {
     }
 
 }
+makeObservable(Slot);
 
 export function makeClipsOwner(superClass) {
 
@@ -768,9 +857,18 @@ export function makeClipsOwner(superClass) {
         }
     };
 
-    let superCloned = superClass.prototype._cloned;
+    let cloning = superClass.prototype.__cloning;
+    superClass.prototype.__cloning = function(duplicata) {
+        let copy = cloning.call(this, duplicata);
+        for (let index=0; index<this._clips.length; index++) {
+            duplicata.set(this._clips[index], copy._clips[index]);
+        }
+        return copy;
+    };
+
+    let cloned = superClass.prototype._cloned;
     superClass.prototype._cloned = function(copy, duplicata) {
-        superCloned && superCloned.call(this, copy, duplicata);
+        cloned && cloned.call(this, copy, duplicata);
         for (let clip of copy._clips) {
             clip.cloned(duplicata);
         }
@@ -784,15 +882,34 @@ export function makeClipsOwner(superClass) {
     });
 
     superClass.prototype._acceptPosition = function(physic, position) {
-        let dx = position.x-this.lx;
-        let dy = position.y-this.ly;
-        for (let index=0; index<this._clips.length; index++) {
-            let clip = this._clips[index];
-            if (!physic.getAttachment(clip.lx+dx, clip.ly+dy)) {
-                return false;
+
+        function refusePosition() {
+            for (let index = 0; index < this._clips.length; index++) {
+                this._clips[index].position = null;
             }
+            return false;
         }
-        return true;
+
+        if (position) {
+            let dx = position.x - this.lx;
+            let dy = position.y - this.ly;
+            let attachments = new List();
+            for (let index = 0; index < this._clips.length; index++) {
+                let clip = this._clips[index];
+                let attachment = physic.getAttachment(clip.lx + dx, clip.ly + dy);
+                attachments[index] = attachment;
+                if (!attachment) {
+                    return refusePosition.call(this);
+                }
+            }
+            for (let index = 0; index < this._clips.length; index++) {
+                this._clips[index].position = attachments[index];
+            }
+            return true;
+        }
+        else {
+            return refusePosition.call(this);
+        }
     };
 
     superClass.prototype._positioned = function(physic, position) {
@@ -950,10 +1067,10 @@ export class SAPRecord {
         let widthSlim = same(geometry.left, geometry.right);
         let heightSlim = same(geometry.top, geometry.bottom);
         let bound = {
-            left: {first: true, value: geometry.left+COLLISION_MARGIN, slim:widthSlim, element, index: -1, opened: new ESet([element])},
-            right: {first: false, value: geometry.right-COLLISION_MARGIN, slim:widthSlim, element, index: -1, opened: new ESet()},
-            top: {first: true, value: geometry.top+COLLISION_MARGIN, slim:heightSlim, element, index: -1, opened: new ESet([element])},
-            bottom: {first: false, value: geometry.bottom-COLLISION_MARGIN, slim:heightSlim, element, index: -1, opened: new ESet()}
+            left: {first: true, value: geometry.left, slim:widthSlim, element, index: -1, opened: new ESet([element])},
+            right: {first: false, value: geometry.right, slim:widthSlim, element, index: -1, opened: new ESet()},
+            top: {first: true, value: geometry.top, slim:heightSlim, element, index: -1, opened: new ESet([element])},
+            bottom: {first: false, value: geometry.bottom, slim:heightSlim, element, index: -1, opened: new ESet()}
         };
         bound.left.index = this._sweepAndPrune._xAxis.length;
         bound.right.index = this._sweepAndPrune._xAxis.length + 1;
@@ -992,10 +1109,10 @@ export class SAPRecord {
 
     _updateBound(bound) {
         let geometry = this._element.localGeometry;
-        this._bound.left.value = geometry.left+COLLISION_MARGIN;
-        this._bound.right.value = geometry.right-COLLISION_MARGIN;
-        this._bound.top.value = geometry.top+COLLISION_MARGIN;
-        this._bound.bottom.value = geometry.bottom-COLLISION_MARGIN
+        this._bound.left.value = geometry.left;
+        this._bound.right.value = geometry.right;
+        this._bound.top.value = geometry.top;
+        this._bound.bottom.value = geometry.bottom
     }
 
     update() {
@@ -1015,19 +1132,19 @@ export class SAPRecord {
     }
 
     left(element) {
-        return this._bound.left.value-COLLISION_MARGIN;
+        return this._bound.left.value+COLLISION_MARGIN;
     }
 
     right(element) {
-        return this._bound.right.value+COLLISION_MARGIN;
+        return this._bound.right.value-COLLISION_MARGIN;
     }
 
     top(element) {
-        return this._bound.top.value-COLLISION_MARGIN;
+        return this._bound.top.value+COLLISION_MARGIN;
     }
 
     bottom(element) {
-        return this._bound.bottom.value+COLLISION_MARGIN;
+        return this._bound.bottom.value-COLLISION_MARGIN;
     }
 
     x(element) {
@@ -1738,13 +1855,13 @@ class Ground {
 
         let id = 1;
         let record = this._physic._supportSAP._getRecord(element);
-        let left = record.left(element);
-        let right = record.right(element);
+        let left = record.left(element)-COLLISION_MARGIN;
+        let right = record.right(element)+COLLISION_MARGIN;
         let top = record.top(element);
         let ground = this._physic._host.bottom;
         let supports = new ESet();
         let under = new ESet();
-        for (let segment of filterInside(this._segments, left)) {
+        for (let segment of filterInside(this._segments, left+COLLISION_MARGIN)) {
             under.add(segment.element);
             if (same(segment.top, ground)) {
                 supports.add(segment.element);
@@ -1767,7 +1884,6 @@ class Ground {
         }
         if (update && this._physic._canFall(element)) {
             let ly = ground - (record.bottom(element) - record.y(element));
-            console.log(record.left(element)+" "+record.right(element), element)
             if (ly !== element.ly) {
                 element.setLocation(record.x(element), ly);
                 this._physic._supportSAP.update(element);

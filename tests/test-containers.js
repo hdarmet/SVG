@@ -12,7 +12,7 @@ import {
 import {
     BoardElement, BoardTable, BoardLayer, makeShaped, makeMoveable, makeSelectable,
     makeDraggable, makeContainer, makeSupport, makeContainerASupport, makeContainerMultiLayered,
-    makeContainerZindex, makeLayersWithContainers, makePart, makeSandBox
+    makeContainerZindex, makeLayersWithContainers, makePart, makeContainerASandBox
 } from "../js/base-element.js";
 
 describe("Containers", ()=> {
@@ -359,17 +359,24 @@ describe("Containers", ()=> {
     function getHtmlForContainersAsLayersContainer() {
         let containerStartHtml = '<g transform="matrix(1 0 0 1 0 0)"><g><g><rect x="-50" y="-75" width="100" height="150" fill="#0A0A0A"></rect></g><g>';
         let containerEndHtml = '</g></g></g>';
-        let newLayer = '<g><g transform="matrix(1 0 0 1 0 0)"><g><g></g></g><g>';
-        let endLayer = '</g></g></g>';
+        let newLayer = '<g><g transform="matrix(1 0 0 1 0 0)"><g><g>';
+        let endLayer = '</g></g></g></g>';
         return {containerStartHtml, newLayer, endLayer, containerEndHtml}
     }
 
     it("Uses a container of containers", ()=>{
         let BoardContainersAsLayersContainer = defineContainersAsLayersContainerClass();
-        let container = new BoardContainersAsLayersContainer(100, 150);
-        let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} = createTinyElements();
         let {containerStartHtml, newLayer, endLayer, containerEndHtml} = getHtmlForContainersAsLayersContainer();
+        let container = new BoardContainersAsLayersContainer(100, 150);
+        // Empty container
+        assert(html(container)).equalsTo(
+            containerStartHtml+
+            newLayer+endLayer+
+            newLayer+endLayer+
+            newLayer+endLayer+
+            containerEndHtml);
         // Add operation
+        let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} = createTinyElements();
         container.add(tiny1).add(tiny2).add(tiny3);
         assert(container.children).unorderedEqualsTo([tiny1, tiny2, tiny3]);
         assert(html(container)).equalsTo(
@@ -941,7 +948,7 @@ describe("Containers", ()=> {
             getHtmlForZIndexContainer();
         let {container} = createZIndexContainer();
         let BoardComposedContainer = createComposedContainerClass();
-        makeSandBox(BoardComposedContainer);
+        makeContainerASandBox(BoardComposedContainer);
         let composed = new BoardComposedContainer(50, 50);
         let {tiny1, tiny2, tiny1Html, tiny2Html} = createTinyContainerElements();
         tiny1.add(tiny2);
@@ -957,6 +964,18 @@ describe("Containers", ()=> {
         assert(composed._contentPane.__pass__).isNotDefined();
         assert(tiny1.__pass__).isNotDefined();
         assert(tiny2.__pass__).isNotDefined();
+    });
+
+    it("Check a simple board layer", ()=> {
+        let startContainerHtml= '<g transform="matrix(1 0 0 1 0 0)"><g><g>';
+        let endContainerHtml = '</g></g></g>';
+        let container = new BoardLayer();
+        assert(html(container)).equalsTo(startContainerHtml+endContainerHtml);
+        let BoardTiny = defineTinyClass();
+        let tiny1 = new BoardTiny(10, 10);
+        let tiny2 = new BoardTiny(10, 10);
+        container.add(tiny1).add(tiny2);
+        assert(html(container)).equalsTo(startContainerHtml+html(tiny1)+html(tiny2)+endContainerHtml);
     });
 
 });

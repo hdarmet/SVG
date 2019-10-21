@@ -190,9 +190,15 @@ export const Attrs = {
     STROKE_OPACITY : "stroke-opacity",
     STROKE_WIDTH : "stroke-width",
     TEXT_ANCHOR : "text-anchor",
+    ALIGNMENT_BASELINE : "alignment-baseline",
     TEXT : "text",
     FONT_FAMILY : "font-family",
     FONT_SIZE : "font-size",
+    FONT_STYLE : "font-style",
+    FONT_VARIANT : "font-variant",
+    FONT_WEIGHT : "font-weight",
+    FONT_SIZE_ADJUST : "font-size-adjust",
+    FONT_STRETCH : "font-stretch",
     FILL : "fill",
     FILL_OPACITY : "fill-opacity",
     CLIP_PATH : "clip-path",
@@ -274,6 +280,24 @@ export const Attrs = {
     PRESERVEASPECTRATIO : "preserveAspectRatio",
     CROSSORIGIN : "crossOrigin",
     OPERATOR : "operator"
+};
+Attrs.STROKE_PROPERTIES = {
+    stroke:Attrs.STROKE,
+    stroke_dasharray:Attrs.STROKE_DASHARRAY,
+    stroke_dashoffset:Attrs.STROKE_DASHOFFSET,
+    stroke_linecap:Attrs.STROKE_LINECAP,
+    stroke_miterlimit:Attrs.STROKE_MITERLIMIT,
+    stroke_width:Attrs.STROKE_MITERLIMIT
+};
+Attrs.FONT_PROPERTIES = {
+    fill:Attrs.FILL,
+    font_family:Attrs.FONT_FAMILY,
+    font_size:Attrs.FONT_SIZE,
+    font_style:Attrs.FONT_STYLE,
+    font_variant:Attrs.FONT_VARIANT,
+    font_weight:Attrs.FONT_WEIGHT,
+    font_size_adjust:Attrs.FONT_SIZE_ADJUST,
+    font_stretch:Attrs.FONT_STRETCH
 };
 
 export const Fill = {
@@ -728,6 +752,36 @@ function defineXYWidthHeightProperties(clazz) {
     defineDimensionProperty(clazz, Attrs.HEIGHT);
     defineDimensionProperty(clazz, Attrs.X);
     defineDimensionProperty(clazz, Attrs.Y);
+}
+
+export function definePropertiesSet(prefix, properties) {
+    let result = {};
+    for (let property in properties) {
+        result[prefix+"_"+property] = properties[property];
+    }
+    return result;
+}
+
+export function collectProperties(specs, properties) {
+    let attrs = {};
+    for (let property in properties) {
+        let value = specs[property];
+        if (value !== undefined) {
+            attrs[properties[property]] = value;
+        }
+    }
+    return attrs;
+}
+
+export function filterProperties(specs, properties) {
+    let attrs = {};
+    for (let property in properties) {
+        let value = specs[property];
+        if (value !== undefined) {
+            attrs[property] = value;
+        }
+    }
+    return attrs;
 }
 
 export const Visibility = {
@@ -1636,6 +1690,7 @@ export class Line extends Shape {
     // Testé
     constructor(x1, y1, x2, y2) {
         super("line");
+        console.log("line");
         this.x1 = x1;
         this.y1 = y1;
         this.x2 = x2;
@@ -1981,7 +2036,80 @@ defineDirectiveProperty(Path, "d");
 export const TextAnchor = {
     START : "start",
     MIDDLE : "middle",
-    END : "end"
+    END : "end",
+    INHERIT : "inherit"
+};
+
+export const AlignmentBaseline = {
+    AUTO : "auto",
+    BASELINE : "baseline",
+    BEFORE_EDGE : "before-edge",
+    TEXT_BEFORE_EDGE : "text-before-edge",
+    MIDDLE : "middle",
+    CENTRAL : "central",
+    AFTER_EDGE : "after-edge",
+    TEXT_AFTER_EDGE : "text-after-edge",
+    IDEOGRAPHIC : "ideographic",
+    ALPHABETIC : "alphabetic",
+    HANGING : "hanging",
+    MATHEMATICAL : "mathematical",
+    TOP : "top",
+    CENTER : "center",
+    BOTTOM : "bottom"
+};
+
+export const FontStyle = {
+    NORMAL : "normal",
+    ITALIC : "italic",
+    OBLIQUE : "oblique",
+    INHERIT : "inherit"
+};
+
+export const FontStretch = {
+    NORMAL : "normal",
+    WIDER : "wider",
+    NARROWER : "narrower",
+    ULTRA_CONDENSED : "ultra-condensed",
+    EXTRA_CONDENSED : "extra-condensed",
+    CONDENSED : "condensed",
+    SEMI_CONDENSED : "semi-condensed",
+    SEMI_EXPANDED : "semi-expanded",
+    EXPANDED : "expanded",
+    EXTRA_EXPANDED : "extra-expanded",
+    ULTRA_EXPANDED : "ultra-expanded",
+    INHERIT : "inherit"
+};
+
+export const FontSize = {
+    INHERIT : "inherit"
+};
+
+export const FontSizeAdjust = {
+    NONE: "none",
+    INHERIT : "inherit"
+};
+
+export const FontVariant = {
+    NORMAL : "normal",
+    SMALL_CAPS : "small-caps",
+    INHERIT : "inherit"
+};
+
+export const FontWeight = {
+    NORMAL : "normal",
+    BOLD : "bold",
+    BOLDER : "bolder",
+    LIGHTER : "lighter",
+    W100 : 100,
+    W200 : 200,
+    W300 : 300,
+    W400 : 400,
+    W500 : 500,
+    W600 : 600,
+    W700 : 700,
+    W800 : 800,
+    W900 : 900,
+    INHERIT : "inherit"
 };
 
 export class TextItem extends Shape {
@@ -2020,6 +2148,7 @@ export class TextItem extends Shape {
     }
 }
 defineStringProperty(TextItem, Attrs.TEXT_ANCHOR);
+defineStringProperty(TextItem, Attrs.ALIGNMENT_BASELINE);
 defineDimensionProperty(TextItem, Attrs.X);
 defineDimensionProperty(TextItem, Attrs.Y);
 defineFloatProperty(TextItem, Attrs.ROTATE);
@@ -2038,7 +2167,12 @@ export class Text extends TextItem {
     }
 }
 defineStringProperty(Text, Attrs.FONT_FAMILY);
-defineIntegerProperty(Text, Attrs.FONT_SIZE);
+defineAnyProperty(Text, Attrs.FONT_SIZE);
+defineStringProperty(Text, Attrs.FONT_STYLE);
+defineStringProperty(Text, Attrs.FONT_VARIANT);
+defineAnyProperty(Text, Attrs.FONT_WEIGHT);
+defineAnyProperty(Text, Attrs.FONT_SIZE_ADJUST);
+defineStringProperty(Text, Attrs.FONT_STRETCH);
 
 export const AspectRatio = {
     NONE: "none"

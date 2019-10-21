@@ -45,3 +45,15 @@ export function is(...classes) {
 export function always() {
     return true;
 }
+
+export function isNumber(value) {
+    return value===0 || value && typeof(value)==='string';
+}
+
+export function isString(value) {
+    return value==="" || value && typeof(value)==='string';
+}
+
+export function isBoolean(value) {
+    return value===true || value===false;
+}

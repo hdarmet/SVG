@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    createUUID, same
+    createUUID, same, isNumber
 } from "./misc.js";
 import {
     List, ESet
@@ -11,7 +11,9 @@ import {
 } from "./geometry.js";
 import {
     SVGElement, Translation, Rotation, Group, Rect, MouseEvents, l2l, RasterImage, Fill,
-    ClippedRasterImage, Mutation, Colors, computeMatrix
+    ClippedRasterImage, Mutation, Colors, computeMatrix, TextAnchor, AlignmentBaseline, Text,
+    collectProperties, Attrs
+
 } from "./graphics.js";
 import {
     Memento, makeObservable, CopyPaste, Events, Context, getCanvasLayer, makeNotCloneable, makeCloneable,
@@ -39,7 +41,9 @@ export function makeDeletable(superClass) {
 export function makeMoveable(superClass) {
 
     superClass.prototype.move = function(x, y) {
-        return this.setLocation(x, y);
+        let result = this.setLocation(x, y);
+        this._fire(Events.MOVE, {x, y});
+        return result;
     };
 
     if (!superClass.prototype.hasOwnProperty("moveable")) {
@@ -196,18 +200,21 @@ export function makeSelectable(superClass) {
 
 export function makeShaped(superClass) {
 
-    superClass.prototype._initShape = function(svgElement) {
+    let init = superClass.prototype._init;
+    superClass.prototype._init = function(...args) {
+        init && init.call(this, ...args);
         this._shape = new Group();
-        if (svgElement) {
-            this._shape.add(svgElement);
-        }
-        let content = this._content || this._partsSupport;
-        if (content) {
-            this._tray.insert(content, this._shape);
-        }
-        else {
-            this._tray.add(this._shape);
-        }
+        this._addShapeToTray();
+    };
+
+    superClass.prototype._addShapeToTray = function() {
+        let next = this._partsSupport || this._decorationsSupport || this._content;
+        next ? this._tray.insert(next, this._shape) : this._tray.add(this._shape);
+    };
+
+    superClass.prototype._initShape = function(svgElement) {
+        console.assert(svgElement);
+        this._shape.add(svgElement);
         return this._shape;
     };
 
@@ -243,23 +250,22 @@ export function makeShaped(superClass) {
 export function makePartsOwner(superClass) {
 
     if (!superClass.prototype._initParts) {
-        let superInit = superClass.prototype._init;
+        let init = superClass.prototype._init;
         superClass.prototype._init = function (...args) {
-            superInit.call(this, ...args);
-            this._initParts();
-            let content = this._content;
-            if (content) {
-                this._tray.insert(content, this._partsSupport);
-            }
-            else {
-                this._tray.add(this._partsSupport);
-            }
+            init.call(this, ...args);
+            this._partsSupport = this._initParts();
+            this._addPartsToTray();
+        };
+
+        superClass.prototype._addPartsToTray = function () {
+            let next = this._decorationsSupport;
+            next ? this._tray.insert(next, this._partsSupport) : this._tray.add(this._partsSupport);
         };
 
         superClass.prototype._initParts = function () {
-            this._partsSupport = new Group();
-            this._partsSupport.cloning = Cloning.NONE;
-            return this._partsSupport;
+            let partsSupport = new Group();
+            partsSupport.cloning = Cloning.NONE;
+            return partsSupport;
         };
 
         let finalize = superClass.prototype.finalize;
@@ -308,17 +314,22 @@ export function makeContainer(superClass) {
 
     console.assert(!superClass.prototype._initContent);
 
-    let superInit = superClass.prototype._init;
+    let init = superClass.prototype._init;
     superClass.prototype._init = function(...args) {
-        superInit.call(this, ...args);
-        this._initContent();
+        console.assert(!this._decorationsSupport);
+        init.call(this, ...args);
+        this._content = this._initContent();
+        this._addContentToTray();
+    };
+
+    superClass.prototype._addContentToTray = function() {
         this._tray.add(this._content);
     };
 
     superClass.prototype._initContent = function() {
-        this._content = new Group();
-        this._content.cloning = Cloning.NONE;
-        return this._content;
+        let content = new Group();
+        content.cloning = Cloning.NONE;
+        return content;
     };
 
     let finalize = superClass.prototype.finalize;
@@ -559,6 +570,178 @@ export function makeContainer(superClass) {
     return superClass;
 }
 
+export class Decoration {
+
+    constructor() {
+        this._root = new Group();
+    }
+
+    get element() {
+        return this._element;
+    }
+
+    _setElement(element) {
+        this._element = element;
+        if (element) {
+            this._init();
+        }
+        else {
+            this._root.clear();
+            this._finalize && this._finalize();
+        }
+    }
+
+    clone(duplicata) {
+        let copy = duplicata.get(this);
+        if (!copy) {
+            copy = this._clone(duplicata);
+            duplicata.set(this, copy);
+        }
+        return copy;
+    }
+}
+
+export function makeDecorationsOwner(superClass) {
+
+    console.assert(!superClass.prototype._initDecorations);
+
+    let init = superClass.prototype._init;
+    superClass.prototype._init = function(...args) {
+        init.call(this, ...args);
+        this._initDecorations();
+        this._addDecorationsToTray()
+    };
+
+    superClass.prototype._addDecorationsToTray = function() {
+        let next = this._content;
+        next ? this._tray.insert(next, this._decorationsSupport) : this._tray.add(this._decorationsSupport);
+    };
+
+    superClass.prototype._initDecorations = function() {
+        this._decorationsSupport = new Group();
+        this._decorationsSupport.cloning = Cloning.NONE;
+        return this._decorationsSupport;
+    };
+
+    superClass.prototype._addDecoration = function(decoration) {
+        if (!this._decorations) {
+            this._decorations = new List();
+            this._decorations.cloning = Cloning.NONE;
+        }
+        this._decorationsSupport.add(decoration._root);
+        this._decorations.add(decoration);
+        decoration._setElement(this);
+    };
+
+    superClass.prototype.addDecoration = function(decoration) {
+        console.assert(!decoration.element);
+        Memento.register(this);
+        Memento.register(decoration);
+        this._addDecoration(decoration);
+//        this._fire(Events.ADD_DECORATION, decoration);
+        return this;
+    };
+
+    superClass.prototype._removeDecoration = function(decoration) {
+        if (this._decorations) {
+            // IMPORTANT : DOM update before this._children update !
+            this._decorationsSupport.remove(decoration._root);
+            this._decorations.remove(decoration);
+            decoration._setElement(null);
+            if (this._decorations.size===0) {
+                delete this._decorations;
+            }
+        }
+    };
+
+    superClass.prototype.removeDecoration = function(decoration) {
+        console.assert(decoration.element===this);
+        Memento.register(this);
+        Memento.register(decoration);
+        this._removeDecoration(decoration);
+//        this._fire(Events.REMOVE_DECORATION, decoration);
+        return this;
+    };
+
+    superClass.prototype._clearDecorations = function() {
+        if (this._decorations) {
+            this._decorationsSupport.clear();
+            for (let decoration of this._decorations) {
+                decoration._setElement(null);
+            }
+            delete this._decorations;
+        }
+    };
+
+    superClass.prototype.clearDecorations = function() {
+        if (this._decorations) {
+            Memento.register(this);
+            let decorations = this._decorations;
+            for (let decoration of decorations) {
+                Memento.register(decoration);
+            }
+            this._clearDecorations();
+            /*
+            for (let decoration of decorations) {
+                this._fire(Events.REMOVE_DECORATION, decoration);
+            }
+            */
+        }
+        return this;
+    };
+
+    superClass.prototype.containsDecoration = function(decoration) {
+        return this._decorations && this._decorations.contains(decoration);
+    };
+
+    Object.defineProperty(superClass.prototype, "decorations", {
+        configurable:true,
+        get: function () {
+            return this._decorations ? new List(...this._decorations) : new List();
+        }
+    });
+
+    let superMemento = superClass.prototype._memento;
+    if (superMemento) {
+        superClass.prototype._memento = function () {
+            let memento = superMemento.call(this);
+            if (this._decorations) {
+                memento._decorations = new List(...this._decorations);
+            }
+            return memento;
+        };
+
+        let superRevert = superClass.prototype._revert;
+        superClass.prototype._revert = function (memento) {
+            superRevert.call(this, memento);
+            this._decorationsSupport.clear();
+            if (memento._decorations) {
+                this._decorations = new List(...memento._decorations);
+                this._decorations.cloning = Cloning.NONE;
+                for (let decoration of this._decorations) {
+                    this._decorationsSupport.add(decoration._root);
+                }
+            }
+            else {
+                delete this._decorations;
+            }
+            return this;
+        };
+    }
+
+    let cloned = superClass.prototype._cloned;
+    superClass.prototype._cloned = function (copy, duplicata) {
+        cloned.call(this, copy, duplicata);
+        for (let decoration of this.decorations) {
+            let decorationCopy = decoration.clone(duplicata);
+            copy._addDecoration(decorationCopy);
+        }
+        return copy;
+    };
+
+    return superClass;
+}
+
 /**
  * Make a container class a support : (already) container instances then accept other elements to be dropped on.
  * <p> Note that the element must be a container (of any type) to give value to this trait.
@@ -624,14 +807,14 @@ export function makeContainerMultiLayered(superClass, {layers}) {
     let defaultLayer = layers[0];
 
     superClass.prototype._initContent = function () {
-        this._content = new Group();
-        this._content.cloning = Cloning.NONE;
+        let content = new Group();
+        content.cloning = Cloning.NONE;
         this._layers = new CloneableObject();
         for (let layer of layers) {
             this._layers[layer] = new Group();
-            this._content.add(this._layers[layer]);
+            content.add(this._layers[layer]);
         }
-        return this._content;
+        return content;
     };
 
     superClass.prototype.__clear = function () {
@@ -732,21 +915,26 @@ export function makeLayersWithContainers(superClass, {layersBuilder}) {
     let superInit = superClass.prototype._init;
     superClass.prototype._init = function(...args) {
         superInit.call(this, ...args);
-        this._initContent();
-        this._tray.add(this._content);
+        this._content = this._initContent();
+        this._addContentToTray();
+    };
+
+    superClass.prototype._addContentToTray = function() {
+        let next = this._decorationsSupport;
+        next ? this._tray.insert(next, this._content) : this._tray.add(this._content);
     };
 
     superClass.prototype._initContent = function () {
-        this._content = new Group();
+        let content = new Group();
         this._layers = new CloneableObject();
         for (let layer in layers) {
             if (!defaultLayer) defaultLayer = layer;
             this._layers[layer] = layers[layer];
             this._layers[layer].pedestal = new Group();
-            this._content.add(this._layers[layer].pedestal.add(layers[layer]._root));
+            content.add(this._layers[layer].pedestal.add(layers[layer]._root));
             layers[layer]._parent = this;
         }
-        return this._content;
+        return content;
     };
 
     let finalize = superClass.prototype.finalize;
@@ -2236,24 +2424,8 @@ export class BoardElement {
         return getCanvasLayer(this._root);
     }
 
-    clone(duplicata, root=false) {
-        if (!duplicata) {
-            duplicata = new Map();
-        }
-        let copy = null;
-        if (root) {
-            copy = this._cloning(duplicata);
-            for (let entry of duplicata.entries()) {
-                let [that, thatCopy] = entry;
-                if (thatCopy && that._cloned) {
-                    that._cloned(thatCopy, duplicata);
-                }
-            }
-        }
-        else {
-            copy = this._cloning(duplicata);
-        }
-        return copy;
+    clone(duplicata) {
+        return this._cloning(duplicata);
     }
 
     /**
@@ -2393,7 +2565,6 @@ export class BoardLayer extends BoardBaseLayer {
 
     constructor() {
         super();
-        this._root.add(this._initContent());
     }
 
 }
@@ -2406,8 +2577,86 @@ export class BoardZindexLayer extends BoardBaseLayer {
 
     constructor() {
         super();
-        this._root.add(this._initContent());
     }
 
 }
 makeZindexContainer(BoardZindexLayer);
+
+export class TextDecoration extends Decoration {
+
+    constructor(labelOwner, labelGetter, specs, fontProperties = Attrs.FONT_PROPERTIES) {
+        super();
+        this._labelOwner = labelOwner;
+        this._labelGetter = labelGetter;
+        this._specs = specs;
+        this._fontProperties = fontProperties;
+    }
+
+    _init() {
+
+        function getX(specs) {
+            let {x} = specs;
+            let textAnchor = TextAnchor.MIDDLE;
+            if (x === TextDecoration.LEFT) {
+                x = -this._element.width/2+TextDecoration.MARGIN;
+                textAnchor = TextAnchor.START;
+            } else if (x === TextDecoration.RIGHT) {
+                x = this._element.width/2-TextDecoration.MARGIN;
+                textAnchor = TextAnchor.END;
+            } else if (x === TextDecoration.MIDDLE) {
+                x = 0;
+                textAnchor = TextAnchor.MIDDLE;
+            } else {
+                console.assert(isNumber(x));
+            }
+            return {x, textAnchor};
+        }
+
+        function getY(specs) {
+            let {y} = specs;
+            let alignmentBaseline = AlignmentBaseline.MIDDLE;
+            if (y === TextDecoration.TOP) {
+                y = -this._element.height/2+TextDecoration.MARGIN;
+                alignmentBaseline = AlignmentBaseline.BEFORE_EDGE;
+            } else if (y === TextDecoration.TOP) {
+                y = this._element.height/2-TextDecoration.MARGIN;
+                alignmentBaseline = AlignmentBaseline.AFTER_EDGE;
+            } else if (y === TextDecoration.MIDDLE) {
+                y = 0;
+                alignmentBaseline = AlignmentBaseline.MIDDLE;
+            } else {
+                console.assert(isNumber(y));
+            }
+            return {y, alignmentBaseline};
+        }
+
+        let {x, textAnchor} = getX.call(this, this._specs);
+        let {y, alignmentBaseline} = getY.call(this, this._specs);
+        let attrs = collectProperties(this._specs, this._fontProperties);
+        let text = new Text(0, 0, this._labelGetter.call(this._labelOwner)).attrs({
+            text_anchor:textAnchor, alignment_baseline:alignmentBaseline, ...attrs}
+        );
+        this._root.add(text);
+        this._root.matrix = Matrix.translate(x, y);
+    }
+
+    refresh() {
+        this._root.clear();
+        this._init();
+    }
+
+    _clone(duplicata) {
+        //let element = duplicata.get(this._element);
+        let labelOwner = duplicata.get(this._labelOwner);
+        let copy = new TextDecoration(labelOwner, this._labelGetter, {...this._specs}, {...this._fontProperties});
+        //copy._element = element;
+        return copy;
+    }
+
+}
+TextDecoration.MARGIN = 2;
+TextDecoration.LEFT = "left";
+TextDecoration.RIGHT = "right";
+TextDecoration.MIDDLE = "middle";
+TextDecoration.TOP = "top";
+TextDecoration.BOTTOM = "bottom";

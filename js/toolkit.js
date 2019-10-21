@@ -59,6 +59,7 @@ export const Events = {
     SCROLL : "scroll",
     RESIZE : "resize",
     GEOMETRY : "geometry",
+    MOVE : "move",
     DRAG_START : "drag-start",
     DRAG_MOVE : "drag-move",
     DRAG_DROP : "drag-drop",
@@ -1905,15 +1906,27 @@ export class CopyPaste {
                     duplicata.set(element._parent, undefined);
                 }
             }
+            this._duplicate(elements, duplicata);
             for (let element of elements) {
-                let copy = element.clone(duplicata, true);
-                //copy._parent = null;
+                let copy = duplicata.get(element);
                 let { x, y } = computePosition(element._root, element.canvasLayer._root);
                 copy._setLocation(x - cx, y - cy);
                 result.add(copy);
             }
         }
         return result;
+    }
+
+    _duplicate(elements, duplicata) {
+        for (let element of elements) {
+            let copy = element.clone(duplicata);
+        }
+        for (let entry of duplicata.entries()) {
+            let [that, thatCopy] = entry;
+            if (thatCopy && that._cloned) {
+                that._cloned(thatCopy, duplicata);
+            }
+        }
     }
 
     copyModel(elements) {
@@ -1926,8 +1939,9 @@ export class CopyPaste {
     duplicateForPaste(elements) {
         let pasted = new ESet();
         let duplicata = new Map();
+        this._duplicate(elements, duplicata);
         for (let element of elements) {
-            let copy = element.clone(duplicata, true);
+            let copy = duplicata.get(element);
             copy._setLocation(element.lx, element.ly);
             pasted.add(copy);
         }

@@ -1,15 +1,16 @@
 'use strict';
 
 import {
-    Context, Canvas, Selection, DragOperation, makeNotCloneable, setLayeredGlassStrategy
+    Context, Canvas, Selection, DragOperation, Memento, makeNotCloneable, setLayeredGlassStrategy
 } from "../../js/toolkit.js";
 import {
     BoardElement, BoardTable, BoardArea, makeDeletable, makeDraggable, makeFramed, makeSelectable, makeContainer,
     makeMoveable, makeSupport, makePart, makeClickable, makeShaped, makeContainerMultiLayered, makeLayered,
-    makeGentleDropTarget, makePartsOwner
+    makeGentleDropTarget, makePartsOwner, makeDecorationsOwner,
+    TextDecoration
 } from "../../js/base-element.js";
 import {
-    Colors, Group, Rect, Circle, Path, M, Q, L, C
+    Colors, Group, Rect, Circle, Path, M, Q, L, C, Attrs, collectProperties, definePropertiesSet, filterProperties
 } from "../../js/graphics.js";
 import {
     Tools, BoardItemBuilder, copyCommand, deleteCommand, pasteCommand, redoCommand, ToolCommandPopup, undoCommand,
@@ -20,15 +21,26 @@ import {
     makeGravitationContainer, makeCarriable, makeCarrier, makePositioningContainer, addBordersToCollisionPhysic,
     addPhysicToContainer, createSlotsAndClipsPhysic, createGravitationPhysic, makeClipsOwner, makeSlotsOwner,
     createPositioningPhysic,
-    Slot, Clip, PhysicSelector
+    Slot, Clip, PhysicSelector, ClipDecoration, ClipPositionDecoration
 } from "../../js/physics.js";
 import {
     always, is
 } from "../../js/misc.js";
 
+function callForRename(element) {
+    Context.canvas.openModal(
+        rename,
+        {
+            label: element.label
+        },
+        data => {
+            element.label = data.label;
+        });
+}
+
 class DIAMItem extends BoardElement {
-    constructor({width, height}) {
-        super(width, height);
+    constructor({width, height, ...args}) {
+        super(width, height, args);
         this._dragOperation(()=>Context.moveSelectionDrag);
         this._createContextMenu();
     }
@@ -260,6 +272,7 @@ class DIAMCover extends DIAMSupport {
                element.height === this.height;
     }
 }
+makeDecorationsOwner(DIAMCover);
 makePositioningContainer(DIAMCover, {
     predicate: function(element) {return this.host._acceptDrop(element);},
     positionsBuilder: element=>{return [{x:0, y:0}]}
@@ -354,18 +367,21 @@ class DIAMBoxContent extends DIAMSupport {
     }
 }
 makePart(DIAMBoxContent);
+makeDecorationsOwner(DIAMBoxContent);
 
 class DIAMBox extends DIAMItem {
 
     constructor({width, height, clips, contentX, contentY, contentWidth, contentHeight, color, ...args}) {
         super({width, height, color});
-        for (let clip of clips) {
-            this._addClips(new Clip(this, clip.x, clip.y));
-        }
         this._initShape(this.buildShape());
         this._boxContent = this._buildBoxContent(contentWidth, contentHeight, color, args);
         this._boxContent._setLocation(contentX, contentY);
         this._addPart(this._boxContent);
+        for (let clipSpec of clips) {
+            let clip = new Clip(this, clipSpec.x, clipSpec.y);
+            this._addClips(clip);
+            this._boxContent._addDecoration(new ClipDecoration(this, clip));
+        }
     }
 
     buildShape() {
@@ -566,6 +582,14 @@ class DIAMAbstractLadder extends DIAMItem {
         return base;
     }
 
+    get slotCount() {
+        return  Math.ceil((this._bottomSlot-this._topSlot)/this._slotInterval);
+    }
+
+    slotLabel(slotIndex) {
+        return (slotIndex+1)+"/"+(this.slotCount-slotIndex+1);
+    }
+
     _memento() {
         let memento = super._memento();
         memento._topSlot = this._topSlot;
@@ -595,8 +619,12 @@ class DIAMLadder extends DIAMAbstractLadder {
     }
 
     _generateSlots() {
+        let slotIndex = 0;
         for (let y = this._topSlot; y <= this._bottomSlot; y += this._slotInterval) {
-            this._addSlots(new Slot(this, 0, y));
+            let slot = new Slot(this, 0, y);
+            slot.index = this.slotLabel(slotIndex);
+            slotIndex++;
+            this._addSlots(slot);
         }
     }
 
@@ -609,8 +637,14 @@ class DIAMDoubleLadder extends DIAMAbstractLadder {
     }
 
     _generateSlots() {
+        let slotIndex = 0;
         for (let y = this._topSlot; y <= this._bottomSlot; y += this._slotInterval) {
-            this._addSlots(new Slot(this, -this.width / 4, y), new Slot(this, this.width / 4, y));
+            let leftSlot = new Slot(this, -this.width / 4, y);
+            leftSlot.index = this.slotLabel(slotIndex);
+            let rightSlot = new Slot(this, this.width / 4, y);
+            rightSlot.index = this.slotLabel(slotIndex);
+            this._addSlots(leftSlot, rightSlot);
+            slotIndex++;
         }
     }
 
@@ -618,11 +652,56 @@ class DIAMDoubleLadder extends DIAMAbstractLadder {
 
 class DIAMShelf extends DIAMItem {
 
-    constructor({width, height, leftClip, rightClip, ...args}) {
-        super({width, height, color:Colors.GREY});
-        this._addClips(new Clip(this, leftClip.x, leftClip.y));
-        this._addClips(new Clip(this, rightClip.x, rightClip.y));
+    constructor({width, height, leftClip:leftClipSpec, rightClip:rightClipSpec, label, ...args}) {
+        super({width, height, color:Colors.GREY, label, ...args});
+        this._label = label;
+        this._leftClip = new Clip(this, leftClipSpec.x, leftClipSpec.y);
+        this._addClips(this._leftClip);
+        this._rightClip = new Clip(this, rightClipSpec.x, rightClipSpec.y);
+        this._addClips(this._rightClip);
         this._initShape(this.buildShape());
+        this._addDecorations(args);
+    }
+
+    get decorationTarget() {
+        return this;
+    }
+
+    _addDecorations(args) {
+        let labelProperties = filterProperties(args, Attrs.FONT_PROPERTIES);
+        let positionProperties = filterProperties(args, DIAMShelf.POSITION_FONT_PROPERTIES);
+        this.decorationTarget._addDecoration(new ClipDecoration(this, this._leftClip));
+        this.decorationTarget._addDecoration(new ClipPositionDecoration(this._leftClip, {
+            x:TextDecoration.LEFT, y:TextDecoration.TOP, ...positionProperties}, DIAMShelf.POSITION_FONT_PROPERTIES));
+        this.decorationTarget._addDecoration(new ClipDecoration(this, this._rightClip));
+        this.decorationTarget._addDecoration(new ClipPositionDecoration(this._rightClip, {
+            x:TextDecoration.RIGHT, y:TextDecoration.TOP, ...positionProperties}, DIAMShelf.POSITION_FONT_PROPERTIES));
+        this._labelDecoration = new TextDecoration(this,
+            function() {return this.label;},
+            {x:TextDecoration.MIDDLE, y:TextDecoration.MIDDLE, ...labelProperties}
+        );
+        this.decorationTarget._addDecoration(this._labelDecoration);
+    }
+
+    _createContextMenu() {
+        this.addMenuOption(new TextMenuOption("rename",
+            function () { callForRename(this); })
+        );
+    }
+
+    get label() {
+        return this._label;
+    }
+
+    set label(label) {
+        Memento.register(this);
+        this._setLabel(label);
+        return this;
+    }
+
+    _setLabel(label) {
+        this._label = label;
+        this._labelDecoration.refresh();
     }
 
     buildShape() {
@@ -633,21 +712,42 @@ class DIAMShelf extends DIAMItem {
         return base;
     }
 
+    _memento() {
+        let memento = super._memento();
+        memento._label = this._label;
+        return memento;
+    }
+
+    _revert(memento) {
+        super._revert(memento);
+        this._label = memento._label;
+        return this;
+    }
 }
+DIAMShelf.POSITION_FONT_PROPERTIES = definePropertiesSet("position", Attrs.FONT_PROPERTIES);
 makeShaped(DIAMShelf);
 makeLayered(DIAMShelf, {
     layer:DIAMSupport.MIDDLE
 });
 makeClipsOwner(DIAMShelf);
 makeCarrier(DIAMShelf);
+makeDecorationsOwner(DIAMShelf);
 
 class DIAMRichShelf extends DIAMShelf {
 
     constructor({width, height, leftClip, rightClip, coverY, coverHeight, ...args}) {
-        super({width, height, leftClip, rightClip, ...args});
-        this._boxContent = this._buildCover(width, coverHeight, args);
-        this._boxContent._setLocation(0, coverY);
-        this._addPart(this._boxContent);
+        super({width, height, leftClip, rightClip, coverY, coverHeight, ...args});
+        this._addPart(this._cover);
+    }
+
+    _init({leftClip, rightClip, coverY, coverHeight, ...args}) {
+        super._init({leftClip, rightClip, coverY, coverHeight, ...args});
+        this._cover = this._buildCover(this.width, coverHeight, args);
+        this._cover._setLocation(0, coverY);
+    }
+
+    get decorationTarget() {
+        return this._cover;
     }
 
     _buildCover(coverWidth, coverHeight) {
@@ -1019,10 +1119,14 @@ function createPalettePopup() {
     paletteContent.addCell(new BoardItemBuilder([new DIAMLadder({width:10, height:10, topSlot:0, bottomSlot:0, slotInterval:5})]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMDoubleLadder({width:20, height:100, topSlot:-45, bottomSlot:45, slotInterval:5})]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMShelf({
-        width:100, height:10, leftClip:{x:-45, y:0}, rightClip:{x:45, y:0}
+        width:100, height:10, leftClip:{x:-45, y:0}, rightClip:{x:45, y:0}, label:'shelf',
+        font_family:"arial", font_size:6, fill:Colors.GREY,
+        position_font_family:"arial", position_font_size:4, position_fill:Colors.GREY
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMRichShelf({
-        width:100, height:10, leftClip:{x:-45, y:0}, rightClip:{x:45, y:0}, coverY:0, coverHeight:20
+        width:100, height:10, leftClip:{x:-45, y:0}, rightClip:{x:45, y:0}, label:'shelf', coverY:0, coverHeight:20,
+        font_family:"arial", font_size:8, fill:Colors.GREY,
+        position_font_family:"arial", position_font_size:4, position_fill:Colors.GREY
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMSlottedBox({
         width:120, height:70, clips:[{x:0, y:15}], contentX:0, contentY:0, contentWidth:100, contentHeight:60, slotWidth:20
