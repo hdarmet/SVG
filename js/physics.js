@@ -1132,19 +1132,19 @@ export class SAPRecord {
     }
 
     left(element) {
-        return this._bound.left.value+COLLISION_MARGIN;
+        return this._bound.left.value;
     }
 
     right(element) {
-        return this._bound.right.value-COLLISION_MARGIN;
+        return this._bound.right.value;
     }
 
     top(element) {
-        return this._bound.top.value+COLLISION_MARGIN;
+        return this._bound.top.value;
     }
 
     bottom(element) {
-        return this._bound.bottom.value-COLLISION_MARGIN;
+        return this._bound.bottom.value;
     }
 
     x(element) {
@@ -1582,10 +1582,10 @@ export function makeCollisionPhysic(superClass) {
             let sweepAndPrune = this.sweepAndPrune(target);
             if (ox > hx) {
                 let rx = sweepAndPrune.right(target) + element.width / 2;
-                return ox < rx || same(rx, hx) ? null : rx;
+                return ox+COLLISION_MARGIN < rx || same(rx, hx) ? null : rx;
             } else if (ox < hx) {
                 let rx = sweepAndPrune.left(target) - element.width / 2;
-                return ox > rx || same(rx, hx) ? null : rx;
+                return ox-COLLISION_MARGIN > rx || same(rx, hx) ? null : rx;
             } else return null;
         };
 
@@ -1602,9 +1602,9 @@ export function makeCollisionPhysic(superClass) {
             if (oy > hy) {
                 let ry = sweepAndPrune.bottom(target) + element.height / 2;
                 return oy < ry || same(ry, hy) ? null : ry;
-            } else if (oy < hy) {
+            } else if (oy+COLLISION_MARGIN < hy) {
                 let ry = sweepAndPrune.top(target) - element.height / 2;
-                return oy > ry || same(ry, hy) ? null : ry;
+                return oy-COLLISION_MARGIN > ry || same(ry, hy) ? null : ry;
             } else return null;
         };
 
@@ -1842,7 +1842,7 @@ class Ground {
             }
         }
 
-        function filterInside(segments, left) {
+        function filterInside(segments, left, right) {
             let it = segments.inside({right:left+COLLISION_MARGIN, id:0}, null);
             let insideSegments = [];
             let segment = it.next().value;
@@ -1855,13 +1855,13 @@ class Ground {
 
         let id = 1;
         let record = this._physic._supportSAP._getRecord(element);
-        let left = record.left(element)-COLLISION_MARGIN;
-        let right = record.right(element)+COLLISION_MARGIN;
+        let left = record.left(element);
+        let right = record.right(element);
         let top = record.top(element);
         let ground = this._physic._host.bottom;
         let supports = new ESet();
         let under = new ESet();
-        for (let segment of filterInside(this._segments, left+COLLISION_MARGIN)) {
+        for (let segment of filterInside(this._segments, left, right)) {
             under.add(segment.element);
             if (same(segment.top, ground)) {
                 supports.add(segment.element);
