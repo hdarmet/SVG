@@ -348,6 +348,8 @@ export function createPositioningPhysic({
 
 export function addPhysicToContainer(superClass, {physicBuilder}) {
 
+    console.assert(superClass.prototype._initContent);
+
     let initContent = superClass.prototype._initContent;
     superClass.prototype._initContent = function(...args) {
         let result = initContent.call(this, ...args);

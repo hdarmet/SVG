@@ -19,23 +19,22 @@ import {
 
 export class Menu {
 
-    constructor(that, x, y, menuOptions, closeOnSelect = true) {
-        this._that = that;
+    constructor(x, y, menuOptions, closeOnSelect = true) {
         this._root = new Group();
         this._x = x;
         this._y = y;
         this._menuOptions = menuOptions;
-        this._buildContent(this._that);
+        this._buildContent();
         this.closeOnSelect = closeOnSelect;
         Context.canvas.putArtifactOnToolsLayer(this._root);
     }
 
     refresh() {
         this._root.clear();
-        this._buildContent(this._that);
+        this._buildContent();
     }
 
-    _buildContent(that) {
+    _buildContent() {
         let rect = new Rect(0, 0, 10, 10).attrs({
             stroke: Colors.BLACK,
             fill: Colors.WHITE,
@@ -48,8 +47,8 @@ export class Menu {
         };
         for (let option of this._menuOptions) {
             if (!Context.isReadOnly()) {
-                option.prepare(that, menuGeometry);
-                this._root.add(option._root);
+                option.line.prepare(option.that, menuGeometry);
+                this._root.add(option.line._root);
             }
         }
         rect.attrs({
@@ -57,7 +56,7 @@ export class Menu {
             height: menuGeometry.height
         });
         for (let option of this._menuOptions) {
-            option.width = menuGeometry.width + Menu.XMARGIN * 2 - 2;
+            option.line.width = menuGeometry.width + Menu.XMARGIN * 2 - 2;
         }
         let x = this._x;
         let y = this._y;
@@ -105,10 +104,10 @@ Canvas.prototype.manageMenus = function() {
         this._closeMenu();
     });
 
-    Canvas.prototype.openMenu = function(that, x, y, menuOptions, closeOnSelect = true) {
+    Canvas.prototype.openMenu = function(x, y, menuOptions, closeOnSelect = true) {
         this._closeMenu();
         let {x:mx, y:my} = this._toolsLayer.global2local(x, y);
-        this._menu = new Menu(that, mx, my, menuOptions, closeOnSelect);
+        this._menu = new Menu(mx, my, menuOptions, closeOnSelect);
         this.putArtifactOnToolsLayer(this._menu._root);
     };
 
@@ -168,16 +167,22 @@ export function makeMenuOwner(superClass) {
         this._menuOptions.add(menuOption);
     };
 
-    Object.defineProperty(superClass.prototype, "menuOptions", {
-        get: function () {
-            return this._menuOptions;
-        }
-    });
+    superClass.prototype._getOwnMenuOptions = function() {
+        return this._menuOptions.map(option=>{return {line:option, that:this}});
+    }
+
+    if (!superClass.prototype.hasOwnProperty("menuOptions")) {
+        Object.defineProperty(superClass.prototype, "menuOptions", {
+            get: function () {
+                return this._getOwnMenuOptions();
+            }
+        });
+    }
 
     superClass.prototype.openMenu = function(x, y) {
         let menuOptions = this.menuOptions;
         if (menuOptions && menuOptions.length > 0) {
-            Context.canvas.openMenu(this, x, y, menuOptions);
+            Context.canvas.openMenu(x, y, menuOptions);
         }
     };
 
@@ -1080,8 +1085,6 @@ export class BoardItemBuilder extends ToolCell {
         for (let item of this._currentItems) {
             item._parent = this;
             this._support.add(item._root);
-            //item._root.opacity = 0;
-            //item._root.animate({ opacity: 1 }, 1000);
         }
         this._adjustSize();
         return this._currentItems;
@@ -1099,9 +1102,12 @@ export class BoardItemBuilder extends ToolCell {
 
     _adjustSize() {
         let bbox = boundingBox(this._currentItems, this._support.globalMatrix);
+
+        console.log(this.width+" "+bbox.width)
+
         let sizeWidthFactor = this.width / bbox.width;
         let sizeHeightFactor = this.height / bbox.height;
-        let sizeFactor = Math.min(sizeWidthFactor, sizeHeightFactor, 2);
+        let sizeFactor = Math.min(sizeWidthFactor, sizeHeightFactor, 10);
         this._support.matrix = Matrix.scale(sizeFactor, sizeFactor, 0, 0).translate(-bbox.cx, -bbox.cy)
     }
 

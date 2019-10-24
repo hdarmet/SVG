@@ -316,7 +316,6 @@ export function makeContainer(superClass) {
 
     let init = superClass.prototype._init;
     superClass.prototype._init = function(...args) {
-        console.assert(!this._decorationsSupport);
         init.call(this, ...args);
         this._content = this._initContent();
         this._addContentToTray();
@@ -2077,10 +2076,10 @@ export function makePart(superClass) {
     Object.defineProperty(superClass.prototype, "menuOptions", {
         configurable: true,
         get: function () {
-            let menuOptions = this.owner.menuOptions;
+            let menuOptions = new List(...this.owner.menuOptions);
             if (menuOptions) {
                 if (this._menuOptions) {
-                    menuOptions.push(...this._menuOptions);
+                    menuOptions.push(...this._getOwnMenuOptions());
                 }
                 return menuOptions;
             }
@@ -2265,6 +2264,9 @@ export class BoardElement {
         }
         this._root.matrix = memento.rootMatrix;
         return this;
+    }
+
+    _recover(memento) {
     }
 
     _observe(observable) {

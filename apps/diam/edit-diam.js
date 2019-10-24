@@ -31,7 +31,7 @@ Vue.component('rename', {
                 <b-row>
                   <b-col sm="4"> <label>Name:</label> </b-col>
                   <b-col sm="4">
-                    <b-form-input type="string" v-model="label"></b-form-input>
+                    <b-form-input v-model="label"></b-form-input>
                   </b-col>
                 </b-row>
               </b-container>
