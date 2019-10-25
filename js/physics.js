@@ -2077,11 +2077,6 @@ export function makeCarrier(superClass) {
                     if (element.support === this.support) {
                         element.move(this.lx + record.dx, this.ly + record.dy);
                     }
-                    /*
-                    else {
-                        console.log("Remove carried !!");
-                        this.removeCarried(element);
-                    }*/
                 }
             }
             return true;

@@ -1102,9 +1102,6 @@ export class BoardItemBuilder extends ToolCell {
 
     _adjustSize() {
         let bbox = boundingBox(this._currentItems, this._support.globalMatrix);
-
-        console.log(this.width+" "+bbox.width)
-
         let sizeWidthFactor = this.width / bbox.width;
         let sizeHeightFactor = this.height / bbox.height;
         let sizeFactor = Math.min(sizeWidthFactor, sizeHeightFactor, 10);

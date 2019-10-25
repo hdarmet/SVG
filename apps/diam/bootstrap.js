@@ -31,6 +31,14 @@ import {
     Slot, Clip, PhysicSelector, ClipDecoration, ClipPositionDecoration
 } from "../../js/physics.js";
 
+const DIAMLayers = {
+    DOWN: "d",
+    MIDDLE : "m",
+    UP : "u"
+};
+const LAYERS_DEFINITION = {layers:[DIAMLayers.DOWN,  DIAMLayers.MIDDLE, DIAMLayers.UP]};
+
+
 function makeLabelOwner(superClass) {
 
     function callForRename(element) {
@@ -120,9 +128,6 @@ class DIAMSupport extends BoardElement {
     _createContextMenu() {}
 
 }
-DIAMSupport.DOWN = "d";
-DIAMSupport.MIDDLE = "m";
-DIAMSupport.UP = "u";
 makeFramed(DIAMSupport);
 makePart(DIAMSupport);
 makeSupport(DIAMSupport);
@@ -366,7 +371,7 @@ class DIAMBlister extends DIAMItem {
 }
 makeShaped(DIAMBlister);
 makeLayered(DIAMBlister, {
-    layer:DIAMSupport.MIDDLE
+    layer:DIAMLayers.MIDDLE
 });
 makeClipsOwner(DIAMBlister);
 
@@ -408,7 +413,7 @@ class DIAMHook extends DIAMItem {
 }
 makeShaped(DIAMHook);
 makeLayered(DIAMHook, {
-    layer:DIAMSupport.UP
+    layer:DIAMLayers.UP
 });
 makeSlotsOwner(DIAMHook);
 DIAMHook.WIDTH = 10;
@@ -453,7 +458,7 @@ class DIAMBox extends DIAMItem {
 }
 makeShaped(DIAMBox);
 makeLayered(DIAMBox, {
-    layer:DIAMSupport.MIDDLE
+    layer:DIAMLayers.MIDDLE
 });
 makeClipsOwner(DIAMBox);
 makeCarrier(DIAMBox);
@@ -608,7 +613,7 @@ class DIAMFixing extends DIAMItem {
 }
 makeShaped(DIAMFixing);
 makeLayered(DIAMFixing, {
-    layer:DIAMSupport.DOWN
+    layer:DIAMLayers.DOWN
 });
 makeSlotsOwner(DIAMFixing);
 DIAMFixing.WIDTH = 16;
@@ -663,7 +668,7 @@ class DIAMAbstractLadder extends DIAMItem {
 }
 makeShaped(DIAMAbstractLadder);
 makeLayered(DIAMAbstractLadder, {
-    layer:DIAMSupport.DOWN
+    layer:DIAMLayers.DOWN
 });
 makeSlotsOwner(DIAMAbstractLadder);
 
@@ -753,7 +758,7 @@ DIAMShelf.POSITION_FONT_PROPERTIES = definePropertiesSet("position", Attrs.FONT_
 makeShaped(DIAMShelf);
 makeLabelOwner(DIAMShelf);
 makeLayered(DIAMShelf, {
-    layer:DIAMSupport.MIDDLE
+    layer:DIAMLayers.MIDDLE
 });
 makeClipsOwner(DIAMShelf);
 makeCarrier(DIAMShelf);
@@ -781,7 +786,7 @@ class DIAMRichShelf extends DIAMShelf {
     }
 }
 makeLayered(DIAMRichShelf, {
-    layer:DIAMSupport.UP
+    layer:DIAMLayers.UP
 });
 makePartsOwner(DIAMRichShelf);
 
@@ -862,7 +867,7 @@ class DIAMDivider extends DIAMItem {
 }
 makeFramed(DIAMDivider);
 makeLayered(DIAMDivider, {
-    layer:DIAMSupport.MIDDLE
+    layer:DIAMLayers.MIDDLE
 });
 
 function callForGenerateLadders(container) {
@@ -1126,15 +1131,12 @@ class DIAMPaneContent extends DIAMSupport {
         return this;
     }
 }
-makeContainerMultiLayered(DIAMPaneContent, {
-    layers:[DIAMSupport.DOWN, DIAMSupport.MIDDLE, DIAMSupport.UP]
-});
+makeContainerMultiLayered(DIAMPaneContent, LAYERS_DEFINITION);
 addPhysicToContainer(DIAMPaneContent, {
     physicBuilder: function () {
         return this._createPhysic();
     }
 });
-setLayeredGlassStrategy(DIAMPaneContent, {layers:[DIAMSupport.DOWN,  DIAMSupport.MIDDLE, DIAMSupport.UP]});
 makeDecorationsOwner(DIAMPaneContent);
 
 class DIAMPane extends DIAMItem {
@@ -1247,6 +1249,7 @@ class BoardPaper extends BoardArea {
         super(width, height, backgroundColor);
     }
 }
+makePart(BoardPaper);
 
 class DIAMPaperContent extends DIAMSupport {
     constructor({width, height}) {
@@ -1258,6 +1261,7 @@ makeGravitationContainer(DIAMPaperContent, {
     carryingPredicate: always,
     bordersCollide:{all:true}
 });
+makeContainerMultiLayered(DIAMPaperContent, LAYERS_DEFINITION);
 
 class DIAMPaper extends BoardPaper {
     constructor({width, height}) {
@@ -1268,8 +1272,17 @@ class DIAMPaper extends BoardPaper {
 }
 DIAMPaper.MARGIN = 10;
 
+class DIAMTable extends BoardTable {
+
+    constructor({width, height, backgroundColor}) {
+        super(width, height, backgroundColor);
+    }
+}
+makeContainerMultiLayered(DIAMTable, LAYERS_DEFINITION);
+
 function createTable() {
-    Context.table = new BoardTable(4000, 3000, "#A0A0A0");
+    setLayeredGlassStrategy(BoardTable, LAYERS_DEFINITION);
+    Context.table = new DIAMTable({width:4000, height:3000, backgroundColor:"#A0A0A0"});
     Context.canvas.putOnBase(Context.table);
 }
 
@@ -1280,9 +1293,8 @@ function createCanvas() {
 }
 
 function createPaper() {
-    setLayeredGlassStrategy(BoardTable, {layers:[DIAMSupport.DOWN,  DIAMSupport.MIDDLE, DIAMSupport.UP]});
     Context.paper = new DIAMPaper({width:3000, height:1500});
-    Context.table.add(Context.paper);
+    Context.table._addPart(Context.paper);
     Tools.zoomExtent();
 }
 

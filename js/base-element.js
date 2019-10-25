@@ -258,7 +258,7 @@ export function makePartsOwner(superClass) {
         };
 
         superClass.prototype._addPartsToTray = function () {
-            let next = this._decorationsSupport;
+            let next = this._decorationsSupport || this._content;
             next ? this._tray.insert(next, this._partsSupport) : this._tray.add(this._partsSupport);
         };
 
@@ -761,6 +761,9 @@ export function makeContainerASupport(superClass) {
         }
     }
 
+    superClass.prototype._dropTarget = function (element) {
+        return this;
+    }
 }
 
 /**
@@ -805,6 +808,7 @@ export function makeContainerMultiLayered(superClass, {layers}) {
 
     let defaultLayer = layers[0];
 
+    let initContent = superClass.prototype._initContent;
     superClass.prototype._initContent = function () {
         let content = new Group();
         content.cloning = Cloning.NONE;
@@ -813,6 +817,7 @@ export function makeContainerMultiLayered(superClass, {layers}) {
             this._layers[layer] = new Group();
             content.add(this._layers[layer]);
         }
+        initContent && initContent.call(this);
         return content;
     };
 
@@ -2518,6 +2523,7 @@ export class BoardTable extends BoardArea {
     }
 
 }
+makePartsOwner(BoardTable);
 
 /**
  * Abstract class for element that (generally) are part of another element and define the "content" of this element:

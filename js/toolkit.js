@@ -1409,12 +1409,21 @@ export class GlassLayer extends CanvasLayer {
     }
 
     _getPedestal(support) {
+        function getGlassStrategy(support) {
+            while(support) {
+                let strategy = support.glassStrategy;
+                if (strategy) return strategy;
+                support = support.parent;
+            }
+            return null;
+        }
+
         if (!support.canvasLayer || !(support.canvasLayer instanceof BaseLayer)) {
             support = this._canvas._baseLayer;
         }
         let pedestal = this._pedestals.get(support);
         if (!pedestal) {
-            let pedestalClass = support.glassStrategy;
+            let pedestalClass = getGlassStrategy(support);
             if (!pedestalClass) pedestalClass = GlassPedestal;
             pedestal = new pedestalClass(this, support);
             this._pedestals.set(support, pedestal);
