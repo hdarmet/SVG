@@ -418,7 +418,7 @@ export class ToolPopup {
             .attrs({
                 stroke: Colors.BLACK,
                 fill: Colors.LIGHT_GREY,
-                rx: 5, ry: 5, filter: Context.canvas.shadowFilter
+                rx: ToolPopup.CORNER_SIZE, ry: ToolPopup.CORNER_SIZE, filter: Context.canvas.shadowFilter
             });
         this._root.add(this._background);
         this._root._owner = this;
@@ -428,10 +428,10 @@ export class ToolPopup {
         this._contentSupport.add(this._content);
         this._maxClip = new ClipPath(toolId()).add(
             new Rect(-width / 2, -ToolPopup.HEADER_HEIGHT / 2, width, ToolPopup.HEADER_HEIGHT+5)
-            .attrs({ rx: 5, ry: 5 }));
+            .attrs({ rx: ToolPopup.CORNER_SIZE, ry: ToolPopup.CORNER_SIZE }));
         this._minClip = new ClipPath(toolId()).add(
             new Rect(-width / 2, -ToolPopup.HEADER_HEIGHT / 2, width, ToolPopup.HEADER_HEIGHT)
-            .attrs({ rx: 5, ry: 5 }));
+            .attrs({ rx: ToolPopup.CORNER_SIZE, ry: ToolPopup.CORNER_SIZE }));
         this._title = new Group(Matrix.translate(0, -height / 2 + ToolPopup.HEADER_HEIGHT / 2));
         this._titleBackground = new Rect(-width / 2, -ToolPopup.HEADER_HEIGHT / 2, width, ToolPopup.HEADER_HEIGHT)
             .attrs({fill: Colors.BLACK, clip_path: this._maxClip});
@@ -553,8 +553,13 @@ export class ToolPopup {
     }
 }
 makeDraggable(ToolPopup);
+// Distance between edge of viewport and popup's edge.
 ToolPopup.BORDER_MARGIN = 5;
+// Size of rounded corners
+ToolPopup.CORNER_SIZE = 5;
+// Height of the title bar
 ToolPopup.HEADER_HEIGHT = 15;
+// Distance between the right edge of the popup and the minimize/restore icon
 ToolPopup.HEADER_MARGIN = 10;
 ToolPopup.MINIMIZE_URL = "./images/icons/minimize.png";
 ToolPopup.RESTORE_URL = "./images/icons/restore.png";
@@ -738,6 +743,7 @@ export class ToolPanelContent {
     }
 
     set height(height) {
+        console.log("h:"+height);
         this._height = height;
     }
 
@@ -750,12 +756,15 @@ export class ToolExpandablePanel {
         this._content = content;
         this._root = new Group();
         this._root._owner = this;
+        this._backgroundPedestal = new Group();
+        this._root.add(this._backgroundPedestal);
+        this._background = new Rect(0, 0, 1, 1).attrs({fill:Colors.WHITE});
         this._title = new Group();
         this._title.cursor = Cursor.DEFAULT;
-        this._background = new Rect(
+        this._titleBackground = new Rect(
             0, -ToolExpandablePanel.PANEL_TITLE_HEIGHT / 2,
             10, ToolExpandablePanel.PANEL_TITLE_HEIGHT);
-        this._root.add(this._title.add(this._background));
+        this._root.add(this._title.add(this._titleBackground));
         this.title = title;
         this._opened = false;
     }
@@ -778,10 +787,14 @@ export class ToolExpandablePanel {
     open() {
         this._opened = true;
         this._root.add(this._content._root);
+        this._backgroundPedestal.add(this._background);
     }
 
     close() {
-        this._opened = false;
+        if (this._opened) {
+            this._opened = false;
+            this._backgroundPedestal.remove(this._background);
+        }
     }
 
     get opened() {
@@ -804,14 +817,18 @@ export class ToolExpandablePanel {
 
     set contentHeight(height) {
         this._content.height = height;
+        this._background.height = this.height;
+        this._background.y = -this.height/2;
     }
 
     get width() {
-        return this._background.width;
+        return this._titleBackground.width;
     }
 
     set width(width) {
-        this._background.attrs({ width: width, x: -width / 2 });
+        this._titleBackground.attrs({ width: width, x: -width / 2 });
+        this._background.width = width;
+        this._background.x = -width/2;
     }
 
     get height() {
@@ -822,6 +839,7 @@ export class ToolExpandablePanel {
 }
 ToolExpandablePanel.PANEL_TITLE_HEIGHT = 15;
 ToolExpandablePanel.PANEL_MIN_HEIGHT = 16;
+ToolExpandablePanel.PANEL_TITLE_MARGIN = ToolExpandablePanel.PANEL_MIN_HEIGHT-ToolExpandablePanel.PANEL_TITLE_HEIGHT;
 ToolExpandablePanel.PANEL_TITLE_TEXT_MARGIN = 8;
 ToolExpandablePanel.FONT_SIZE = 12;
 
@@ -849,7 +867,7 @@ export class ToolExpandablePanelSet {
         let contentHeight = this._height -
             this._panels.children.length * ToolExpandablePanel.PANEL_TITLE_HEIGHT;
         if (this.currentPanel) {
-            this.currentPanel.contentHeight = contentHeight;//this._content.height = contentHeight;
+            this.currentPanel.contentHeight = contentHeight;
         }
         let height = -this._height / 2;
         for (let proot of this._panels.children) {
@@ -891,9 +909,12 @@ export class ToolExpandablePanelSet {
 
 export class ToolExpandablePopup extends ToolPopup {
 
-    constructor(width, height, panelWidth=width, panelHeight=height-ToolPopup.HEADER_HEIGHT) {
+    constructor(width, height,
+                panelWidth=width,
+                panelHeight=height-ToolPopup.HEADER_HEIGHT-ToolPopup.CORNER_SIZE-ToolExpandablePanel.PANEL_TITLE_MARGIN) {
         super(width, height);
-        this._panelSet = new ToolExpandablePanelSet(0, ToolPopup.HEADER_HEIGHT/2, panelWidth, panelHeight);
+        let y = (height-panelHeight)/2-ToolPopup.HEADER_HEIGHT/2+ToolExpandablePanel.PANEL_TITLE_MARGIN;
+        this._panelSet = new ToolExpandablePanelSet(0, y, panelWidth, panelHeight);
         this.add(this._panelSet);
         this._refresh();
     }
@@ -907,22 +928,6 @@ export class ToolExpandablePopup extends ToolPopup {
         this._refresh();
         return this;
     }
-
-    /*
-    addBuilder(builder) {
-        this.paneSet.content.addBuilder(builder);
-        return this;
-    }
-
-    removeBuilder(builder) {
-        this.paneSet.content.removeBuilder(builder);
-        return this;
-    }
-
-    get builders() {
-        return this.paneSet.content.builders;
-    }
-*/
 
     _refresh() {
         this._panelSet._refresh();
@@ -953,11 +958,16 @@ export class ToolCell {
     }
 }
 
+export function all() {
+    return true;
+}
+
 export class ToolGridPanelContent extends ToolPanelContent {
 
     constructor(width, cellWidth, cellHeight) {
         super(width, cellHeight);
         this._dirty = false;
+        this._predicate = all;
         this._maxHeight = cellHeight;
         this._cellWidth = cellWidth;
         this._cellHeight = cellHeight;
@@ -972,7 +982,7 @@ export class ToolGridPanelContent extends ToolPanelContent {
         this._content = new Group();
         this._root.add(this._content);
         this._background = new Rect(-width / 2, -this.height / 2, width, this.height)
-            .attrs({ stroke: Colors.BLACK, fill: Colors.WHITE });
+            .attrs({ stroke: Colors.NONE, fill: Colors.WHITE });
         this._content.add(this._background);
         this._content.clip_path = this._clipPath;
         this._cells = new List();
@@ -987,6 +997,15 @@ export class ToolGridPanelContent extends ToolPanelContent {
         });
     }
 
+    get predicate() {
+        return this._predicate;
+    }
+
+    set predicate(predicate) {
+        this._predicate = predicate;
+        this._askForRefresh();
+    }
+
     scroll(step) {
         let y = this._content.matrix.dy + step;
         if (y + this._maxHeight < this.height) {
@@ -998,7 +1017,7 @@ export class ToolGridPanelContent extends ToolPanelContent {
     }
 
     _accept(cell) {
-        return true;
+        return this._predicate(cell);
     }
 
     _refresh() {
@@ -1057,6 +1076,19 @@ makeObservable(ToolGridPanelContent);
 ToolGridPanelContent.SCROLL_WHEEL_STEP = 50;
 ToolGridPanelContent.CELL_MARGIN = 20;
 
+export class ToolGridExpandablePanel extends ToolExpandablePanel {
+
+    constructor(title, content, predicate = all) {
+        super(title, content);
+        this._predicate = predicate;
+    }
+
+    open() {
+        super.open();
+        this._content.predicate = this._predicate;
+    }
+}
+
 export class BoardItemBuilder extends ToolCell {
 
     constructor(proto) {
@@ -1114,6 +1146,20 @@ export class BoardItemBuilder extends ToolCell {
                 this._adjustSize();
             }
         }
+    }
+
+    applyOr(predicate) {
+        for (let element of this._proto) {
+            if (predicate(element)) return true;
+        }
+        return false;
+    }
+
+    applyAnd(predicate) {
+        for (let element of this._proto) {
+            if (!predicate(element)) return false;
+        }
+        return true;
     }
 
 }

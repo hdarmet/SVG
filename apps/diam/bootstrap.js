@@ -4,7 +4,7 @@ import {
     always, is
 } from "../../js/misc.js";
 import {
-    ESet
+    ESet, List
 } from "../../js/collections.js";
 import {
     Context, Events, Canvas, Selection, DragOperation, Memento, makeNotCloneable, setLayeredGlassStrategy
@@ -17,11 +17,11 @@ import {
 } from "../../js/base-element.js";
 import {
     Colors, Group, Line, Rect, Circle, Path, Text, M, Q, L, C, Attrs, AlignmentBaseline,
-    collectProperties, definePropertiesSet, filterProperties
+    definePropertiesSet, filterProperties
 } from "../../js/graphics.js";
 import {
     Tools, BoardItemBuilder, copyCommand, deleteCommand, pasteCommand, redoCommand, ToolCommandPopup, undoCommand,
-    zoomExtentCommand, zoomInCommand, zoomOutCommand, zoomSelectionCommand, ToolExpandablePanel, ToolExpandablePopup,
+    zoomExtentCommand, zoomInCommand, zoomOutCommand, zoomSelectionCommand, ToolGridExpandablePanel, ToolExpandablePopup,
     ToolGridPanelContent, makeMenuOwner, TextMenuOption
 } from "../../js/tools.js";
 import {
@@ -1196,15 +1196,32 @@ makeCarriable(DIAMModule);
 makeGentleDropTarget(DIAMModule);
 
 class DIAMCell extends BoardElement {
-    constructor({width, height, x, y, shape}) {
+    constructor({width, height, x, y, shape, compatibilities}) {
         super(width, height);
         this._initShape(shape.clone());
         this._setLocation(x, y);
+        this._compatibilities = new ESet(compatibilities);
+    }
+
+    get compatibilities() {
+        return this._compatibilities;
     }
 
     _acceptDrop(element, dragSet) {
-        return is(DIAMOption, DIAMCell)(element);
+        if (!is(DIAMOption)(element) || !element.compatibilities) return false;
+        return element.isCompatible(this.compatibilities);
     }
+
+    allCompatibilities() {
+        let result = new ESet(this.compatibilities);
+        for (let option of this.children) {
+            for (let compatibility of option.cellCompatibilities()) {
+                result.add(compatibility);
+            }
+        }
+        return result;
+    }
+
 }
 makeShaped(DIAMCell);
 makeSupport(DIAMCell);
@@ -1215,32 +1232,92 @@ makePositioningContainer(DIAMCell, {
 makePart(DIAMCell);
 
 class DIAMOption extends DIAMItem {
-    constructor({width, height, shape}) {
+    constructor({width, height, shape, compatibilities}) {
         super({width, height});
+        console.assert(compatibilities);
         this._initShape(shape.clone());
+        this._compatibilities = new ESet(compatibilities);
+        this._addObserver(this);
     }
+
+    get compatibilities() {
+        return this._compatibilities;
+    }
+
+    isCompatible(compatibilities) {
+        for (let compatibility of compatibilities) {
+            if (this.compatibilities.has(compatibility)) return true;
+        }
+        return false;
+    }
+
+    _notified(source, event, value) {
+        if (source === this && event===Events.ATTACH) {
+            if (this.parent && this.parent instanceof DIAMCell) {
+                Context.selection.unselect(this);
+                Context.selection.select(this.parent);
+            }
+        }
+    }
+
+    cellCompatibilities() {
+        return new ESet();
+    }
+
 }
 makeShaped(DIAMOption);
 makeContainer(DIAMOption);
 makeDraggable(DIAMOption);
 
 class DIAMConfigurableOption extends DIAMOption {
-    constructor({width, height, shape, cells}) {
-        super({width, height, shape});
+    constructor({width, height, shape, compatibilities, cells}) {
+        super({width, height, compatibilities, shape});
+        this._cells = new List(...cells);
         for (let cell of cells) {
             this._addPart(cell);
         }
     }
+
+    get cells() {
+        return this._cells;
+    }
+
+    cellCompatibilities() {
+        let result = new ESet();
+        for (let cell of this.cells) {
+            for (let compatibility of cell.allCompatibilities()) {
+                result.add(compatibility);
+            }
+        }
+        return result;
+    }
+
 }
 makePartsOwner(DIAMConfigurableOption);
 
 class DIAMConfigurableModule extends DIAMModule {
     constructor({width, height, cells}) {
         super({width, height, color:Colors.WHITE});
+        this._cells = new List(...cells);
         for (let cell of cells) {
             this._addPart(cell);
         }
     }
+
+    get cells() {
+        return this._cells;
+    }
+
+    cellCompatibilities() {
+        let result = new ESet();
+        for (let cell of this.cells) {
+            for (let compatibility of cell.allCompatibilities()) {
+                result.add(compatibility);
+            }
+        }
+        return result;
+    }
+
 }
 makePartsOwner(DIAMConfigurableModule);
 
@@ -1287,9 +1364,9 @@ function createTable() {
 }
 
 function createCanvas() {
-    Context.selection = new Selection();
     Context.canvas = new Canvas("#app", 1200, 600);
     Context.canvas.manageMenus();
+    Context.selection = new Selection();
 }
 
 function createPaper() {
@@ -1317,6 +1394,55 @@ function createCommandPopup() {
 
 function setShortcuts() {
     Tools.allowElementDeletion();
+}
+
+class OptionsExpandablePanel extends ToolGridExpandablePanel {
+
+    constructor(title, content) {
+        super(title, content, cell=>cell.applyOr(this._compatibleOptions.bind(this)));
+    }
+
+    open() {
+        Context.selection.addObserver(this);
+        this._compatibilitySet = null;
+        super.open();
+    }
+
+    close() {
+        super.close();
+        Context.selection.removeObserver(this);
+    }
+
+    _notified(source, event, value) {
+        if (source === Context.selection) {
+            if (Context.selection.selection().size) {
+                this._compatibilitySet = null;
+                this._refresh();
+            }
+        }
+    }
+
+    _getCompatibilitySet(selection) {
+        if (!this._compatibilitySet) {
+            this._compatibilitySet = new ESet();
+            for (let selectedElement of selection) {
+                if (selectedElement.cellCompatibilities) {
+                    for (let compatibility of selectedElement.cellCompatibilities()) {
+                        this._compatibilitySet.add(compatibility);
+                    }
+                }
+            }
+        }
+        return this._compatibilitySet;
+    }
+
+    _compatibleOptions(element) {
+        if (!is(DIAMOption)(element)) return false;
+        let compatibilities = this._getCompatibilitySet(Context.selection.selection());
+        return element.isCompatible(compatibilities);
+    }
+
+
 }
 
 function createPalettePopup() {
@@ -1369,30 +1495,39 @@ function createPalettePopup() {
         width:20, height:40, cells:[
             new DIAMCell({width:4, height:4, x:-5, y:-15,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["C"]
             }),
             new DIAMCell({width:4, height:4, x:0, y:-15,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["C"]
             }),
             new DIAMCell({width:4, height:4, x:5, y:-15,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["C"]
             }),
             new DIAMCell({width:4, height:4, x:-5, y:-10,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["C"]
             }),
             new DIAMCell({width:4, height:4, x:0, y:-10,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["C"]
             }),
             new DIAMCell({width:4, height:4, x:5, y:-10,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["C"]
             }),
             new DIAMCell({width:4, height:4, x:-5, y:-5,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["C"]
             }),
             new DIAMCell({width:4, height:4, x:0, y:-5,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["C"]
             }),
             new DIAMCell({width:4, height:4, x:5, y:-5,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["C"]
             })
         ]
     })]));
@@ -1400,12 +1535,15 @@ function createPalettePopup() {
         width:20, height:40, cells:[
             new DIAMCell({width:4, height:10, x:-5, y:5,
                 shape:new Rect(-2, -10, 4, 20).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["O"]
             }),
             new DIAMCell({width:4, height:10, x:0, y:5,
                 shape:new Rect(-2, -10, 4, 20).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["O"]
             }),
             new DIAMCell({width:4, height:10, x:5, y:5,
                 shape:new Rect(-2, -10, 4, 20).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["O"]
             })
         ]
     })]));
@@ -1413,30 +1551,39 @@ function createPalettePopup() {
         width:20, height:40, cells:[
             new DIAMCell({width:4, height:4, x:-5, y:-15,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["C"]
             }),
             new DIAMCell({width:4, height:4, x:0, y:-15,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["C"]
             }),
             new DIAMCell({width:4, height:4, x:5, y:-15,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["C"]
             }),
             new DIAMCell({width:4, height:4, x:-5, y:-10,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["C"]
             }),
             new DIAMCell({width:4, height:4, x:0, y:-10,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["C"]
             }),
             new DIAMCell({width:4, height:4, x:5, y:-10,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["C"]
             }),
             new DIAMCell({width:4, height:10, x:-5, y:5,
                 shape:new Rect(-2, -10, 4, 20).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["O"]
             }),
             new DIAMCell({width:4, height:10, x:0, y:5,
                 shape:new Rect(-2, -10, 4, 20).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["O"]
             }),
             new DIAMCell({width:4, height:10, x:5, y:5,
                 shape:new Rect(-2, -10, 4, 20).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["O"]
             })
         ]
     })]));
@@ -1478,62 +1625,81 @@ function createPalettePopup() {
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#FF0000"}),
+        compatibilities:["C"]
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#F00000"}),
+        compatibilities:["C"]
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#FF0F0F"}),
+        compatibilities:["C"]
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#F00F0F"}),
+        compatibilities:["C"]
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#AA0000"}),
+        compatibilities:["C"]
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMConfigurableOption({width:4, height:20,
         shape:new Rect(-2, -10, 4, 20).attrs({stroke_width:0.25, stroke:Colors.GREY, fill:Colors.WHITE}),
+        compatibilities:["O"],
         cells:[
             new DIAMCell({width:4, height:4, x:0, y:-7,
                 shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["R"]
             })
         ]
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMConfigurableOption({width:4, height:20,
         shape:new Rect(-2, -6, 4, 16).attrs({stroke_width:0.25, stroke:Colors.GREY, fill:Colors.WHITE}),
+        compatibilities:["O"],
         cells:[
             new DIAMCell({width:4, height:4, x:0, y:-3,
                 shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["R"]
             })
         ]
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMConfigurableOption({width:4, height:20,
         shape:new Rect(-2, -2, 4, 12).attrs({stroke_width:0.25, stroke:Colors.GREY, fill:Colors.WHITE}),
+        compatibilities:["O"],
         cells:[
             new DIAMCell({width:4, height:4, x:0, y:1,
                 shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
+                compatibilities:["R"]
             })
         ]
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#FF0000"}),
+        compatibilities:["R"]
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#F00000"}),
+        compatibilities:["R"]
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#FF0F0F"}),
+        compatibilities:["R"]
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#F00F0F"}),
+        compatibilities:["R"]
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#AA0000"}),
+        compatibilities:["R"]
     })]));
     let palettePopup = new ToolExpandablePopup(200, 350).display(-100, 175);
-    palettePopup.addPanel(new ToolExpandablePanel("All", paletteContent));
-    palettePopup.addPanel(new ToolExpandablePanel("Furniture", paletteContent));
-    palettePopup.addPanel(new ToolExpandablePanel("Modules", paletteContent));
+    palettePopup.addPanel(new ToolGridExpandablePanel("All", paletteContent));
+    palettePopup.addPanel(new ToolGridExpandablePanel("Furniture", paletteContent,
+        cell=>cell.applyAnd(is(DIAMPane, DIAMAbstractLadder, DIAMShelf, DIAMBox, DIAMFixing, DIAMHook))));
+    palettePopup.addPanel(new ToolGridExpandablePanel("Modules", paletteContent,
+        cell=>cell.applyAnd(is(DIAMModule))));
+    palettePopup.addPanel(new OptionsExpandablePanel("Colors And Options", paletteContent));
     return palettePopup;
 }
 

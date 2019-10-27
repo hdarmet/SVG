@@ -2329,6 +2329,7 @@ export class Selection {
 
     constructor() {
         this._selection = new ESet();
+        Context.canvas.addObserver(this);
     }
 
     get selectFilter() {
@@ -2341,6 +2342,13 @@ export class Selection {
     set selectFilter(filter) {
         this._selectFilter = filter;
         Context.canvas.addFilter(filter);
+    }
+
+    _notified(source, event, value) {
+        if (event === Events.ZOOM) {
+            let zoom = Context.canvas.zoom;
+            this.selectFilter.feDropShadow.stdDeviation = [5/zoom, 5/zoom];
+        }
     }
 
     selected(element) {
