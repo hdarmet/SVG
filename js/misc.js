@@ -27,6 +27,10 @@ export function getPropertyDescriptor(prototype, property) {
     return descriptor ? descriptor : null;
 }
 
+export function hasProperty(instance, property) {
+    return !!getPropertyDescriptor(instance.__proto__, property);
+}
+
 export function same(v1, v2) {
     if (v1===v2) return true;
     if (v1!==0 && v2!==0 && (!v1 || !v2)) return false;

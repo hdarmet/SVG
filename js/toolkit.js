@@ -1066,7 +1066,6 @@ export class CanvasLayer {
     constructor(canvas) {
         this._canvas = canvas;
         this._root = new Group();
-        //this._root.that = this;
         this._root._owner = this;
         canvas.addObserver(this);
     }
@@ -1558,6 +1557,15 @@ export class ModalsLayer extends CanvasLayer {
         )
     }
 
+    _notified(source, event, ...values) {
+        if (source === this._canvas && event === Events.GEOMETRY) {
+            this._curtain.x = -this._canvas.width/2;
+            this._curtain.y = -this._canvas.height/2;
+            this._curtain.width = this._canvas.width;
+            this._curtain.height = this._canvas.height;
+        }
+    }
+
     get modalOpened() {
         return this._modalOpened;
     }
@@ -1624,7 +1632,8 @@ Context.anchor = new Anchor();
 export class Canvas {
 
     constructor(anchor, width, height) {
-        this._root = new Svg(width, height);
+        this._root = new Svg();
+        this._root.style="width:100%;height:100%;margin:0;padding:0;overflow:hidden;";
         Context.anchor.attach(this._root, anchor);
         this._content = new Translation(this.width/2, this.height/2);
         this._root.add(this._content);
@@ -1745,15 +1754,16 @@ export class Canvas {
     }
 
     _manageGeometryChanges() {
-        let clientWidth = this.clientWidth;
-        let clientHeight = this.clientHeight;
+        this.width = this.clientWidth;
+        this.height = this.clientHeight;
+        this._fire(Events.GEOMETRY, this.width, this.height, this.clientWidth, this.clientHeight);
         win.setInterval(() => {
             if (
-                clientWidth !== this.clientWidth ||
-                clientHeight !== this.clientHeight
+                this.width !== this.clientWidth ||
+                this.height !== this.clientHeight
             ) {
-                clientWidth = this.clientWidth;
-                clientHeight = this.clientHeight;
+                this.width = this.clientWidth;
+                this.height = this.clientHeight;
                 this._fire(Events.GEOMETRY, this.width, this.height, this.clientWidth, this.clientHeight);
             }
         }, 1000);

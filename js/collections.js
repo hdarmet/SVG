@@ -473,7 +473,6 @@ class AVLNode {
 
     inOrder() {
         this.left && this.left.inOrder();
-        console.log(this._data+" "+this.height);
         this.right && this.right.inOrder();
     }
 
@@ -603,7 +602,6 @@ export class AVLTree {
     }
 
     print(stringifier) {
-        console.log(this);
         if (this._root) {
             this._root.print(stringifier, null);
         }

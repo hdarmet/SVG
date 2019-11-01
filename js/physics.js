@@ -251,101 +251,6 @@ export function makePhysicExclusive(superClass) {
 
 }
 
-export function makePositioningPhysic(superClass, {
-    positionsBuilder,
-    clipBuilder = element => {
-        return {x: element.lx, y: element.ly};
-    }
-}) {
-
-    superClass.prototype._init = function(...args) {
-        this._elements = new ESet();
-    };
-
-    superClass.prototype._refresh = function() {
-        for (let element of this._elements) {
-            this._refreshElement(element);
-        }
-        if (this._hoveredElements) {
-            for (let element of this._hoveredElements) {
-                this._refreshHoverElement(element);
-            }
-            this._hoveredElements.clear();
-        }
-        this._elements.clear();
-    };
-
-    superClass.prototype._reset = function() {
-        this._elements = this._acceptedElements(this._host.children);
-    };
-
-    superClass.prototype._hover = function(elements) {
-        this._hoveredElements = new List(...elements);
-    };
-
-    superClass.prototype._add = function(element) {
-        this._elements.add(element);
-    };
-
-    superClass.prototype._elementPosition = function(element) {
-        let {x, y} = clipBuilder(element);
-        let distance = Infinity;
-        let position = null;
-        let positions = positionsBuilder.call(this, element);
-        for (let _position of positions) {
-            let _distance = (_position.x-x)*(_position.x-x)+(_position.y-y)*(_position.y-y);
-            if (_distance<distance) {
-                distance = _distance;
-                position = _position;
-            }
-        }
-        return position ? {
-            x:position.x-x+element.lx,
-            y:position.y-y+element.ly,
-            attachment:position.attachment
-        } : null;
-    };
-
-    superClass.prototype._refreshHoverElement = function(element) {
-        let position = this._elementPosition(element);
-        if (this._acceptPosition(element, position)) {
-            element.move(position.x, position.y);
-        }
-    };
-
-    superClass.prototype._refreshElement = function(element) {
-        let position = this._elementPosition(element);
-        if (this._acceptPosition(element, position)) {
-            element.move(position.x, position.y);
-            element._positioned && element._positioned(this, position);
-        }
-    };
-
-    superClass.prototype._acceptPosition = function(element, position) {
-        return element._acceptPosition ? element._acceptPosition(this, position) : !!position;
-    };
-
-    superClass.prototype._acceptDrop = function(element, dragSet) {
-        let position = this._elementPosition(element);
-        return this._acceptPosition(element,  position);
-    };
-
-    return superClass;
-}
-
-export function createPositioningPhysic({
-    predicate = always,
-    positionsBuilder, clipBuilder})
-{
-    class PositioningPhysic extends Physic {
-        constructor(host, ...args) {
-            super(host, predicate, ...args);
-        }
-    }
-    makePositioningPhysic(PositioningPhysic, {positionsBuilder, clipBuilder});
-    return PositioningPhysic;
-}
-
 export function addPhysicToContainer(superClass, {physicBuilder}) {
 
     console.assert(superClass.prototype._initContent);
@@ -421,6 +326,109 @@ export function addPhysicToContainer(superClass, {physicBuilder}) {
         this._physic._receiveDrop(element, dragSet);
     };
 
+}
+
+export function makeAbstractPositioningPhysic(superClass) {
+
+    superClass.prototype._init = function(...args) {
+        this._elements = new ESet();
+    };
+
+    superClass.prototype._refresh = function() {
+        for (let element of this._elements) {
+            this._refreshElement(element);
+        }
+        if (this._hoveredElements) {
+            for (let element of this._hoveredElements) {
+                this._refreshHoverElement(element);
+            }
+            this._hoveredElements.clear();
+        }
+        this._elements.clear();
+    };
+
+    superClass.prototype._reset = function() {
+        this._elements = this._acceptedElements(this._host.children);
+    };
+
+    superClass.prototype._hover = function(elements) {
+        this._hoveredElements = new List(...elements);
+    };
+
+    superClass.prototype._add = function(element) {
+        this._elements.add(element);
+    };
+
+    return superClass;
+}
+
+export function makePositioningPhysic(superClass, {
+    positionsBuilder,
+    clipBuilder = element => {
+        return {x: element.lx, y: element.ly};
+    }
+}) {
+
+    console.assert(positionsBuilder);
+    makeAbstractPositioningPhysic(superClass);
+
+    superClass.prototype._elementPosition = function(element) {
+        let {x, y} = clipBuilder(element);
+        let distance = Infinity;
+        let position = null;
+        let positions = positionsBuilder.call(this, element);
+        for (let _position of positions) {
+            let _distance = (_position.x-x)*(_position.x-x)+(_position.y-y)*(_position.y-y);
+            if (_distance<distance) {
+                distance = _distance;
+                position = _position;
+            }
+        }
+        return position ? {
+            x:position.x-x+element.lx,
+            y:position.y-y+element.ly,
+            attachment:position.attachment
+        } : null;
+    };
+
+    superClass.prototype._refreshHoverElement = function(element) {
+        let position = this._elementPosition(element);
+        if (this._acceptPosition(element, position)) {
+            element.move(position.x, position.y);
+        }
+    };
+
+    superClass.prototype._refreshElement = function(element) {
+        let position = this._elementPosition(element);
+        if (this._acceptPosition(element, position)) {
+            element.move(position.x, position.y);
+            element._positioned && element._positioned(this, position);
+        }
+    };
+
+    superClass.prototype._acceptPosition = function(element, position) {
+        return element._acceptPosition ? element._acceptPosition(this, position) : !!position;
+    };
+
+    superClass.prototype._acceptDrop = function(element, dragSet) {
+        let position = this._elementPosition(element);
+        return this._acceptPosition(element,  position);
+    };
+
+    return superClass;
+}
+
+export function createPositioningPhysic({
+    predicate = always,
+    positionsBuilder, clipBuilder})
+{
+    class PositioningPhysic extends Physic {
+        constructor(host, ...args) {
+            super(host, predicate, ...args);
+        }
+    }
+    makePositioningPhysic(PositioningPhysic, {positionsBuilder, clipBuilder});
+    return PositioningPhysic;
 }
 
 export function makePositioningContainer(superClass, {predicate, positionsBuilder, clipBuilder}) {
@@ -1055,6 +1063,345 @@ export function dichotomousSearch(array, value, comparator = (a, b) => a - b) {
         else end = half - 1;
     }
     return start;
+}
+
+export function makeCenteredAnchorage(superClass) {
+
+    Object.defineProperty(superClass.prototype, "anchors", {
+        configurable:true,
+        get() {
+            return {
+                x:[{pos:this.lx, distance:0}],
+                y:[{pos:this.ly, distance:0}]
+            };
+        }
+    });
+
+}
+
+export function makeHorizontalAnchorage(superClass) {
+
+    Object.defineProperty(superClass.prototype, "anchors", {
+        configurable:true,
+        get() {
+            return {
+                x:[{pos:this.lx, distance:0}]
+            };
+        }
+    });
+
+}
+
+export function makeVerticalAnchorage(superClass) {
+
+    Object.defineProperty(superClass.prototype, "anchors", {
+        configurable:true,
+        get() {
+            return {
+                y:[{pos:this.ly, distance:0}]
+            };
+        }
+    });
+
+}
+
+export function makeBoundedAnchorage(superClass) {
+
+    Object.defineProperty(superClass.prototype, "anchors", {
+        configurable:true,
+        get() {
+            let lgeom = this.localGeometry();
+            let lx = this.lx;
+            let ly = this.ly;
+            return {
+                x:[{pos:lgeom.left, distance:lgeom.left-lx}, {pos:lx, distance:0}, {pos:lgeom.right, distance:lgeom.right-lx}],
+                y:[{pos:lgeom.top, distance:lgeom.top-ly}, {pos:ly, distance:0}, {pos:lgeom.bottom, distance:lgeom.bottom-ly}]
+            };
+        }
+    });
+
+}
+
+export function makeRulesPhysic(superClass, {
+    rulesBuilder,
+    anchorsBuilder = element => element.anchors
+}) {
+
+    makeAbstractPositioningPhysic(superClass);
+
+    superClass.prototype._elementPosition = function(element) {
+
+        function getPosition(epos, rules) {
+            let distance = Infinity;
+            let pos = null;
+            let attachment = null;
+            for (let _pos of epos) {
+                for (let _rule of rules) {
+                    let _distance = _rule.pos - _pos.pos;
+                    if (_distance < distance) {
+                        distance = _distance;
+                        pos = _rule.pos + _pos.distance;
+                        attachment = _rule.attachment;
+                    }
+                }
+            }
+            return pos ? {pos, attachment} : null;
+        }
+
+        let {x:ex, y:ey} = anchorsBuilder(element);
+        let {x:rx, y:ry} = rulesBuilder.call(this, element);
+        let x = getPosition(ex, rx);
+        let y = getPosition(ey, ry);
+        if (x!==null || y!=null) {
+            let position = {};
+            if (x) {
+                position.x = x.pos;
+                position.attachmentX = x.attachment;
+            }
+            if (y) {
+                position.y = y.pos;
+                position.attachmentY = y.attachment;
+            }
+            return position;
+        }
+        return null;
+    };
+
+    superClass.prototype._refreshHoverElement = function(element) {
+        let position = this._elementPosition(element);
+        if (this._acceptPosition(element, position)) {
+            let x = position.x!==undefined ? position.x : element.lx;
+            let y = position.y!==undefined ? position.y : element.ly;
+            element.move(x, y);
+        }
+    };
+
+    superClass.prototype._refreshElement = function(element) {
+        let position = this._elementPosition(element);
+        if (this._acceptPosition(element, position)) {
+            let x = position.x!==undefined ? position.x : element.lx;
+            let y = position.y!==undefined ? position.y : element.ly;
+            element.move(x, y);
+            element._positioned && element._positioned(this, position);
+        }
+    };
+
+    superClass.prototype._acceptPosition = function(element, position) {
+        return element._acceptPosition ? element._acceptPosition(this, position) : !!position;
+    };
+
+    /*
+    superClass.prototype._acceptDrop = function(element, dragSet) {
+        let position = this._elementPosition(element);
+        return this._acceptPosition(element,  position);
+    };
+*/
+
+    return superClass;
+}
+
+export function createRulesPhysic({predicate = always, rulesBuilder, anchorsBuilder})
+{
+    class RulesPhysic extends Physic {
+        constructor(host, ...args) {
+            super(host, predicate, ...args);
+        }
+    }
+    makeRulesPhysic(RulesPhysic, {rulesBuilder, anchorsBuilder});
+    return RulesPhysic;
+}
+
+export function makeRulesContainer(superClass, {predicate, rulesBuilder, anchorsBuilder}) {
+    let ContainerPhysic = createRulesPhysic({predicate, rulesBuilder, anchorsBuilder});
+    addPhysicToContainer(superClass, {
+        physicBuilder: function() {
+            return new ContainerPhysic(this);
+        }
+    });
+
+    return superClass;
+}
+
+export function makeCenteredRuler(superClass) {
+
+    Object.defineProperty(superClass.prototype, "rules", {
+        configurable:true,
+        get() {
+            return {
+                x: [{pos: this.lx, anchor: this}],
+                y: [{pos: this.ly, anchor: this}]
+            }
+        }
+    });
+
+}
+export function makeBoundedRuler(superClass) {
+
+    Object.defineProperty(superClass.prototype, "rules", {
+        configurable:true,
+        get() {
+            let lgeom = this.localGeometry();
+            let lx = this.lx;
+            let ly = this.ly;
+            return {
+                x: [
+                    {pos: lgeom.left, anchor: this},
+                    {pos: lx, anchor: this},
+                    {pos: lgeom.right, anchor: this
+                }],
+                y: [
+                    {pos: lgeom.top, anchor: this},
+                    {pos: ly, anchor: this},
+                    {pos: lgeom.bottom, anchor: this
+                }]
+            }
+        }
+    });
+
+}
+
+export function makeRulersPhysic(superClass, {
+    rulerPredicate = always,
+    rulersBuilder = element=> {
+        return element.rules;
+    },
+    anchorsBuilder = element => {
+        return element.anchors;
+    }
+}) {
+
+    makeRulesPhysic(superClass, {
+        rulesBuilder:function(element) {
+            return this.findRules(element);
+        },
+        anchorsBuilder
+    });
+
+    let add = superClass.prototype.add;
+    superClass.prototype.add = function(element) {
+        if (this._addRules(element)) {
+            delete this._rules;
+        }
+        add.call(this, element);
+    };
+
+    superClass.prototype._addRules = function(element) {
+        if (rulerPredicate.call(this, element)) {
+            if (!this._rulesProviders) {
+                this._rulesProviders = new List(element);
+            }
+            else {
+                this._rulesProviders.add(element);
+            }
+            return true;
+        }
+        return false;
+    };
+
+    let reset = superClass.prototype._reset;
+    superClass.prototype._reset = function() {
+        delete this._rulesProviders;
+        for (let element of this._host.children) {
+            this._addRules(element);
+        }
+        this._rules = null;
+        reset.call(this);
+    };
+
+    let remove = superClass.prototype.remove;
+    superClass.prototype.remove = function(element) {
+        if (rulerPredicate.call(this, element)) {
+            if (element.rules) {
+                if (this._rulesProviders) {
+                    this._rulesProviders.remove(element);
+                    delete this._rules;
+                }
+            }
+        }
+        remove.call(this, element);
+    };
+
+    let resize = superClass.prototype._resize;
+    superClass.prototype._resize = function(width, height) {
+        delete this._rules;
+        resize.call(this, width, height);
+    };
+
+    superClass.prototype.findRules = function(element) {
+        if (!this._rules) {
+            this._rules = this._collectRules();
+        }
+        let rules = {
+            x:new List(),
+            y:new List()
+        };
+        let anchors = anchorsBuilder.call(this, element);
+        for (let anchor of anchors.x) {
+            let index = dichotomousSearch(this._rules.x, anchor.pos-Attachments.RANGE);
+            while(index>=0 && index<this._rules.x.length && this._rules.x[index].pos<=anchor.pos+Attachments.RANGE) {
+                if (this._rules.x[index].pos>=anchor.pos-Attachments.RANGE) {
+                    rules.x.add(this._rules.x[index]);
+                }
+                index++;
+            }
+        }
+        for (let anchor of anchors.y) {
+            let index = dichotomousSearch(this._rules.y, anchor.pos-Attachments.RANGE);
+            while(index>=0 && index<this._rules.y.length && this._rules.y[index].pos<=anchor.pos+Attachments.RANGE) {
+                if (this._rules.y[index].pos>=anchor.pos-Attachments.RANGE) {
+                    rules.y.add(this._rules.y[index]);
+                }
+                index++;
+            }
+        }
+        return rules;
+    };
+
+    superClass.prototype._collectRules = function() {
+        let rules = {
+          x:new List(),
+          y:new List()
+        };
+        if (this._rulesProviders) {
+            for (let element of this._rulesProviders) {
+                let _rules = rulersBuilder.call(this, element);
+                if (_rules.x) {
+                    for (let _rule of _rules.x) {
+                        rules.x.add(_rule);
+                    }
+                }
+                if (_rules.y) {
+                    for (let _rule of _rules.y) {
+                        rules.y.add(_rule);
+                    }
+                }
+            }
+            rules.x.sort((r1, r2)=>r1.pos-r2.pos);
+            rules.y.sort((r1, r2)=>r1.pos-r2.pos);
+        }
+        return rules;
+    }
+}
+
+export function createRulersPhysic({predicate, rulerPredicate, anchorsBuilder}) {
+    class RulersPhysic extends Physic {
+        constructor(host, ...args) {
+            super(host, predicate, ...args);
+        }
+    }
+    makeRulersPhysic(RulersPhysic, {rulerPredicate, anchorsBuilder});
+    return RulersPhysic;
+}
+
+export function makeRulersContainer(superClass, {predicate, rulerPredicate, anchorsBuilder}) {
+    let ContainerPhysic = createRulersPhysic({predicate, rulerPredicate, anchorsBuilder});
+    addPhysicToContainer(superClass, {
+        physicBuilder:function() {
+            return new ContainerPhysic(this);
+        }
+    });
+
+    return superClass;
 }
 
 export class SAPRecord {

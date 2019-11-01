@@ -420,24 +420,35 @@ export function loadSvgImage(url, callback) {
 
 // Testé
 export function rasterizeSvg(img, callback) {
+
+    function getSize(node) {
+        let width = node.getAttribute(Attrs.WIDTH);
+        if (width) {
+            width = parseInt(width);
+            let height = node.getAttribute(Attrs.HEIGHT);
+            if (height) return {width, height:parseInt(height)};
+        }
+        let viewBox = node.getAttribute("viewBox");
+        if (viewBox) {
+            viewBox = viewBox.split(' ');
+            return {width:parseInt(viewBox[2]), height:parseInt(viewBox[3])};
+        }
+        console.assert(false);
+    }
+
     let node =
         img instanceof DocumentFragment
             ? img.querySelector("svg")
             : img;
-    let width = node.getAttribute(Attrs.WIDTH);
-    width = width ? parseInt(width) : 200;
-    let height = node.getAttribute(Attrs.HEIGHT);
-    height = height ? parseInt(height) : 200;
     let svgText = node.outerHTML;
     if (!svgText.match(/xmlns=\"/mi)){
         svgText = svgText.replace ('<svg ','<svg xmlns="http://www.w3.org/2000/svg" ') ;
     }
-    var svg = new Blob([svgText], {
-        type: "image/svg+xml;charset=utf-8"
-    });
+    let svg = new Blob([svgText], {type: "image/svg+xml;charset=utf-8"});
     let url = URL.createObjectURL(svg);
     // create a canvas element to pass through
     let canvas = doc.createElement("canvas");
+    let {width, height} = getSize(node);
     canvas.width = width;
     canvas.height = height;
     let ctx = canvas.getContext("2d");
@@ -1194,13 +1205,11 @@ export class SVGElement {
 
 }
 
-// Testé
 defineStringProperty(SVGElement, Attrs.ID);
-// Testé
+defineStringProperty(SVGElement, Attrs.CLASS);
+defineStringProperty(SVGElement, Attrs.STYLE);
 defineFloatProperty(SVGElement, Attrs.OPACITY);
-// Testé
 defineStringProperty(SVGElement, Attrs.VISIBILITY);
-// Testé
 defineStringProperty(SVGElement, Attrs.STROKE);
 defineFloatListProperty(SVGElement, Attrs.STROKE_DASHARRAY);
 defineFloatProperty(SVGElement, Attrs.STROKE_DASHOFFSET);
@@ -1269,8 +1278,8 @@ export class Svg extends SVGElement {
         super("svg");
         this.attr("xmlns", SVG_NS);
         this.attr("xmlns:xlink", XLINK_NS);
-        this.width = width;
-        this.height = height;
+        width && (this.width = width);
+        height && (this.height = height);
         this.defs = new Defs();
         this.add(this.defs);
     }
@@ -1452,8 +1461,6 @@ export class SVGCoreElement extends SVGElement {
         this._node.style.cursor = cursor;
     }
 }
-defineStringProperty(SVGCoreElement, Attrs.CLASS);
-defineStringProperty(SVGCoreElement, Attrs.STYLE);
 
 // Testé
 export class Group extends SVGCoreElement {
@@ -2469,7 +2476,6 @@ export class SvgImage extends Shape {
 
 export class SvgRasterImage extends Shape {
 
-    // Testé
     constructor(url, x=0, y=0, width=0, height=0) {
         super("g");
         this._attrs.x = x;
@@ -2482,7 +2488,6 @@ export class SvgRasterImage extends Shape {
         })
     }
 
-    // Testé
     _setImage(raster) {
         this._old = this._node;
         this._node = raster.cloneNode(true);
@@ -2492,7 +2497,6 @@ export class SvgRasterImage extends Shape {
         }
     }
 
-    // Testé
     _cloneContent(copy) {
         super._cloneContent(copy);
         loadRasterSvgImage(this._url, raster=> {

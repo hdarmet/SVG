@@ -12,7 +12,7 @@ import {
 import {
     BoardElement, BoardTable, BoardArea, makeDeletable, makeDraggable, makeFramed, makeSelectable, makeContainer,
     makeMoveable, makeSupport, makePart, makeClickable, makeShaped, makeContainerMultiLayered, makeLayered,
-    makeGentleDropTarget, makePartsOwner, makeDecorationsOwner, makeContainerASupport,
+    makeGentleDropTarget, makePartsOwner, makeDecorationsOwner, makeMultiImaged,
     Decoration, TextDecoration
 } from "../../js/base-element.js";
 import {
@@ -27,7 +27,7 @@ import {
 import {
     makeGravitationContainer, makeCarriable, makeCarrier, makePositioningContainer, addBordersToCollisionPhysic,
     addPhysicToContainer, createSlotsAndClipsPhysic, createGravitationPhysic, makeClipsOwner, makeSlotsOwner,
-    createPositioningPhysic,
+    createPositioningPhysic, createRulersPhysic, makeCenteredAnchorage, makeCenteredRuler,
     Slot, Clip, PhysicSelector, ClipDecoration, ClipPositionDecoration
 } from "../../js/physics.js";
 
@@ -416,6 +416,9 @@ makeLayered(DIAMHook, {
     layer:DIAMLayers.UP
 });
 makeSlotsOwner(DIAMHook);
+makeCenteredAnchorage(DIAMHook);
+makeCenteredRuler(DIAMHook);
+
 DIAMHook.WIDTH = 10;
 DIAMHook.HEIGHT = 10;
 DIAMHook.RADIUS = 6;
@@ -498,7 +501,7 @@ class DIAMSlottedBoxContent extends DIAMBoxContent {
             positionsBuilder:function(element) {return this._host._buildPositions(element);}
         });
         return new PositioningPhysic(this,
-            is(DIAMModule)
+            is(DIAMAbstractModule)
         );
     }
 
@@ -616,6 +619,9 @@ makeLayered(DIAMFixing, {
     layer:DIAMLayers.DOWN
 });
 makeSlotsOwner(DIAMFixing);
+makeCenteredAnchorage(DIAMFixing);
+makeCenteredRuler(DIAMFixing);
+
 DIAMFixing.WIDTH = 16;
 DIAMFixing.HEIGHT = 6;
 DIAMFixing.DEVICE_RADIUS = 2;
@@ -671,6 +677,8 @@ makeLayered(DIAMAbstractLadder, {
     layer:DIAMLayers.DOWN
 });
 makeSlotsOwner(DIAMAbstractLadder);
+makeCenteredAnchorage(DIAMAbstractLadder);
+makeCenteredRuler(DIAMAbstractLadder);
 
 class DIAMLadder extends DIAMAbstractLadder {
 
@@ -804,8 +812,8 @@ class DIAMCaddyContent extends DIAMBoxContent {
 
     _createPhysic() {
         let ModulePhysic = createGravitationPhysic({
-            predicate:is(DIAMModule, DIAMShelf),
-            gravitationPredicate:is(DIAMModule),
+            predicate:is(DIAMAbstractModule, DIAMShelf),
+            gravitationPredicate:is(DIAMAbstractModule),
             carryingPredicate:always});
         addBordersToCollisionPhysic(ModulePhysic, {
             bordersCollide: {all: true}
@@ -815,7 +823,7 @@ class DIAMCaddyContent extends DIAMBoxContent {
             slotProviderPredicate: is(DIAMAbstractLadder)
         });
         return new PhysicSelector(this,
-            is(DIAMModule, DIAMShelf, DIAMAbstractLadder)
+            is(DIAMAbstractModule, DIAMShelf, DIAMAbstractLadder)
         )
         .register(new LadderPhysic(this))
         .register(new ModulePhysic(this));
@@ -1090,11 +1098,14 @@ class DIAMPaneContent extends DIAMSupport {
 
     _createPhysic() {
         let ModulePhysic = createGravitationPhysic({
-            predicate:is(DIAMModule, DIAMShelf, DIAMBox, DIAMBlister),
-            gravitationPredicate:is(DIAMModule),
+            predicate:is(DIAMAbstractModule, DIAMShelf, DIAMBox, DIAMBlister),
+            gravitationPredicate:is(DIAMAbstractModule),
             carryingPredicate:always});
         addBordersToCollisionPhysic(ModulePhysic, {
             bordersCollide: {all: true}
+        });
+        let AttachmentPhysic = createRulersPhysic({
+            predicate: is(DIAMAbstractLadder, DIAMFixing, DIAMHook)
         });
         let LadderPhysic = createSlotsAndClipsPhysic({
             predicate: is(DIAMShelf),
@@ -1109,8 +1120,9 @@ class DIAMPaneContent extends DIAMSupport {
             slotProviderPredicate: is(DIAMFixing)
         });
         return new PhysicSelector(this,
-            is(DIAMModule, DIAMShelf, DIAMAbstractLadder, DIAMBlister, DIAMHook, DIAMBox, DIAMFixing, DIAMDivider)
+            is(DIAMAbstractModule, DIAMShelf, DIAMAbstractLadder, DIAMBlister, DIAMHook, DIAMBox, DIAMFixing, DIAMDivider)
         )
+        .register(new AttachmentPhysic(this))
         .register(new LadderPhysic(this))
         .register(new HookPhysic(this))
         .register(new FixingPhysic(this))
@@ -1184,16 +1196,30 @@ class DIAMRichPane extends DIAMPane {
 makeHeaderOwner(DIAMRichPane);
 makeFooterOwner(DIAMRichPane);
 
-class DIAMModule extends DIAMItem {
-    constructor({width, height, color}) {
-        super({width, height});
+class DIAMAbstractModule extends DIAMItem {
+    constructor({width, height, ...args}) {
+        super({width, height, ...args});
+    }
+}
+makeCarrier(DIAMAbstractModule);
+makeCarriable(DIAMAbstractModule);
+makeGentleDropTarget(DIAMAbstractModule);
+
+class DIAMBasicModule extends DIAMAbstractModule {
+    constructor({width, height, color, ...args}) {
+        super({width, height, ...args});
         this._initFrame(width, height, Colors.BLACK, color);
     }
 }
-makeFramed(DIAMModule);
-makeCarrier(DIAMModule);
-makeCarriable(DIAMModule);
-makeGentleDropTarget(DIAMModule);
+makeFramed(DIAMBasicModule);
+
+class DIAMImageModule extends DIAMAbstractModule {
+    constructor({width, height, url, realisticUrl, ...args}) {
+        super({width, height, ...args});
+        this._initImages(width, height, Colors.LIGHT_GREY, url, realisticUrl);
+    }
+}
+makeMultiImaged(DIAMImageModule);
 
 class DIAMCell extends BoardElement {
     constructor({width, height, x, y, shape, compatibilities}) {
@@ -1295,20 +1321,27 @@ class DIAMConfigurableOption extends DIAMOption {
 }
 makePartsOwner(DIAMConfigurableOption);
 
-class DIAMConfigurableModule extends DIAMModule {
-    constructor({width, height, cells}) {
-        super({width, height, color:Colors.WHITE});
+function makeModuleConfigurable(superClass) {
+
+    makePartsOwner(superClass);
+
+    let init = superClass.prototype._init;
+    superClass.prototype._init = function({cells, ...args}) {
+        init && init.call(this, {cells, ...args});
         this._cells = new List(...cells);
         for (let cell of cells) {
             this._addPart(cell);
         }
-    }
+    };
 
-    get cells() {
-        return this._cells;
-    }
+    Object.defineProperty(superClass.prototype, "cells", {
+        configurable: true,
+        get() {
+            return this._cells;
+        }
+    });
 
-    cellCompatibilities() {
+    superClass.prototype.cellCompatibilities = function() {
         let result = new ESet();
         for (let cell of this.cells) {
             for (let compatibility of cell.allCompatibilities()) {
@@ -1316,10 +1349,16 @@ class DIAMConfigurableModule extends DIAMModule {
             }
         }
         return result;
-    }
+    };
 
 }
-makePartsOwner(DIAMConfigurableModule);
+
+class DIAMConfigurableModule extends DIAMBasicModule {
+    constructor({width, height, cells}) {
+        super({width, height, color:Colors.WHITE, cells});
+    }
+}
+makeModuleConfigurable(DIAMConfigurableModule);
 
 class BoardPaper extends BoardArea {
     constructor(width, height, backgroundColor) {
@@ -1334,7 +1373,7 @@ class DIAMPaperContent extends DIAMSupport {
     }
 }
 makeGravitationContainer(DIAMPaperContent, {
-    predicate: is(DIAMPane, DIAMModule, DIAMBox),
+    predicate: is(DIAMPane, DIAMAbstractModule, DIAMBox),
     carryingPredicate: always,
     bordersCollide:{all:true}
 });
@@ -1587,13 +1626,16 @@ function createPalettePopup() {
             })
         ]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMModule({
+    paletteContent.addCell(new BoardItemBuilder([new DIAMImageModule({
+        width:20, height:40, realisticUrl:"./apps/diam/modules/eye liner c.png", url:{svg:"./apps/diam/modules/eye liner b.svg", rasterized:true}
+    })]));
+    paletteContent.addCell(new BoardItemBuilder([new DIAMBasicModule({
         width:20, height:40, color:"#FF0000"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMModule({
+    paletteContent.addCell(new BoardItemBuilder([new DIAMBasicModule({
         width:40, height:40, color:"#00FF00"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMModule({
+    paletteContent.addCell(new BoardItemBuilder([new DIAMBasicModule({
         width:20, height:40, color:"#0000FF"
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMBlister({
@@ -1698,7 +1740,7 @@ function createPalettePopup() {
     palettePopup.addPanel(new ToolGridExpandablePanel("Furniture", paletteContent,
         cell=>cell.applyAnd(is(DIAMPane, DIAMAbstractLadder, DIAMShelf, DIAMBox, DIAMFixing, DIAMHook))));
     palettePopup.addPanel(new ToolGridExpandablePanel("Modules", paletteContent,
-        cell=>cell.applyAnd(is(DIAMModule))));
+        cell=>cell.applyAnd(is(DIAMAbstractModule))));
     palettePopup.addPanel(new OptionsExpandablePanel("Colors And Options", paletteContent));
     return palettePopup;
 }

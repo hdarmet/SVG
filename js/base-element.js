@@ -12,8 +12,7 @@ import {
 import {
     SVGElement, Translation, Rotation, Group, Rect, MouseEvents, l2l, RasterImage, Fill,
     ClippedRasterImage, Mutation, Colors, computeMatrix, TextAnchor, AlignmentBaseline, Text,
-    collectProperties, Attrs
-
+    collectProperties, Attrs, SvgRasterImage
 } from "./graphics.js";
 import {
     Memento, makeObservable, CopyPaste, Events, Context, getCanvasLayer, makeNotCloneable, makeCloneable,
@@ -1941,6 +1940,16 @@ export function makeImaged(superClass) {
             this.frame.attrs({height:height, y:-height/2});
         }
     });
+
+    superClass.prototype._loadImage = function(width, height, url) {
+        if (url.rasterized) {
+            return new SvgRasterImage(url.svg, -width/2, -height/2, width, height);
+        }
+        else {
+            console.assert(typeof(url)==='string');
+            return new RasterImage(url, -width/2, -height/2, width, height);
+        }
+    };
 }
 
 /**
@@ -1961,8 +1970,7 @@ export function makeSingleImaged(superClass) {
     makeImaged(superClass);
 
     superClass.prototype._initImage = function (width, height, strokeColor, backgroundURL) {
-        return this._initBackground(width, height, strokeColor,
-            new RasterImage(backgroundURL, -width / 2, -height / 2, width, height));
+        return this._initBackground(width, height, strokeColor, this._loadImage(width, height, backgroundURL));
     };
 
     return superClass;
@@ -1980,7 +1988,7 @@ export function makeMultiImaged(superClass) {
     superClass.prototype._loadImages = function(width, height, backgroundURLs) {
         this._images = new List();
         for (let backgroundURL of backgroundURLs) {
-            this._images.add(new RasterImage(backgroundURL, -width / 2, -height / 2, width, height));
+            this._images.add(this._loadImage(width, height, backgroundURL));
         }
         return this._images[0];
     };
