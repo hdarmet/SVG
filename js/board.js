@@ -77,9 +77,9 @@ makeDeletable(BoardCounter);
 makeCarrier(BoardCounter);
 makeCarriable(BoardCounter);
 
-Context.selection = new Selection();
-Context.canvas = new Canvas("#board", 1200, 600);
+Context.canvas = new Canvas("#board", "width:100%;height:100%;margin:0;padding:0;overflow:hidden;");
 Context.canvas.manageMenus();
+Context.selection = new Selection();
 
 let toggle = true;
 
@@ -193,10 +193,10 @@ class BoardHexMap extends BoardMap {
 }
 makeLayered(BoardHexMap, {layer:"_down"});
 
-//makeZindexSupport(BoardHexMap);
+makeZindexSupport(BoardHexMap);
 
 makeConfigurableMap(BoardHexMap, element=>element instanceof BoardCounter, function(element) {
-   return this.handlePositions;
+   return this.parent.handlePositions;
 });
 
 let map1 = new BoardHexMap(1256, 888, Colors.GREY, "./images/Jemmapes.jpg");

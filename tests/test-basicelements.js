@@ -19,8 +19,8 @@ describe("Basic elements", ()=> {
         document.body.innerHTML=
             '<div id="edit"></div>\n' +
             '<div tabindex="0" id="app"></div>';
-        Context.selection = new Selection();
         Context.canvas = new Canvas("#app", 1200, 600);
+        Context.selection = new Selection();
     });
 
     function putTable() {

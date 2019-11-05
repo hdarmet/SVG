@@ -257,7 +257,7 @@ class AVLNode {
 
     print(stringifier, parent) {
         if (this._parent !== parent) {
-            console.log("BIG Problem !!");
+            console.assert(false);
         }
         if (this._left) {
             this._left.print(stringifier, this);

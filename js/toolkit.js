@@ -9,7 +9,7 @@ import {
 import {
     Matrix, deg
 } from "./geometry.js";
-import {win, doc,
+import {win, doc, dom,
     MouseEvents, KeyboardEvents, Buttons,
     Svg, Rect, Group, Translation, Fill, Colors, Visibility,
     localOffset, globalOffset, computePosition, computeAngle
@@ -60,6 +60,7 @@ export const Events = {
     RESIZE : "resize",
     GEOMETRY : "geometry",
     MOVE : "move",
+    MOVED : "moved",
     DRAG_START : "drag-start",
     DRAG_MOVE : "drag-move",
     DRAG_DROP : "drag-drop",
@@ -81,8 +82,7 @@ export function sortByDistance(elements, gx, gy) {
         function distance(elem, x, y) {
             let egx = elem.gx;
             let egy = elem.gy;
-            let distance = (egx - x) * (egx - x) + (egy - y) * (egy - y);
-            return distance;
+            return (egx - x) * (egx - x) + (egy - y) * (egy - y);
         }
         return distance(elem1, gx, gy) - distance(elem2, gx, gy);
     });
@@ -100,7 +100,7 @@ export function boundingBox(elements, targetMatrix) {
 
 export function getCanvasLayer(artifact) {
     let parent = artifact.parent;
-    while (parent != null) {
+    while (parent !== null) {
         if (parent._owner && parent._owner instanceof CanvasLayer) {
             return parent._owner;
         }
@@ -113,7 +113,7 @@ export function getCanvasLayer(artifact) {
 /**
  * Extend the current selection by adding any element "associated" to already selected elements (for exemple,
  * element that are 'carried' or 'sticked' to the selected element.
- * @param selection core selection of element
+ * @param elements core selection of element
  * @returns {Set} extended set of selected element
  */
 export function getExtension(elements) {
@@ -291,7 +291,7 @@ export class DragOperation {
     }
 
     onDrop(element, x, y, event) {
-        if (this.start.moved) {
+        if (this.start && this.start.moved) {
             evaluate("doDragDrop", () => {
                 this.doDrop(element, x, y, event);
             });
@@ -1580,15 +1580,15 @@ export class Anchor {
 
     attach(svg, anchor) {
         this._anchor = doc.querySelector(anchor);
-        this._anchor.addEventListener(MouseEvents.MOUSE_UP, event=>{
+        dom.addEventListener(this._anchor, MouseEvents.MOUSE_UP, event=>{
             this._anchor.focus();
         });
-        this._anchor.addEventListener(MouseEvents.CONTEXT_MENU, function(event) {
+        dom.addEventListener(this._anchor, MouseEvents.CONTEXT_MENU, function(event) {
             event.preventDefault();
             return false;
         });
         for (let listener of this._listeners) {
-            this._anchor.addEventListener(listener.type, listener.handler);
+            dom.addEventListener(this._anchor, listener.type, listener.handler);
         }
         for (let event of this._events) {
             this._anchor.dispatchEvent(event);
@@ -1598,7 +1598,7 @@ export class Anchor {
 
     addEventListener(type, handler) {
         if (this._anchor) {
-            this._anchor.addEventListener(type, handler);
+            dom.addEventListener(this._anchor, type, handler);
         }
         else {
             this._listeners.add({type, handler});
@@ -1631,9 +1631,15 @@ Context.anchor = new Anchor();
 
 export class Canvas {
 
-    constructor(anchor, width, height) {
+    constructor(anchor, widthOrStyle, height) {
         this._root = new Svg();
-        this._root.style="width:100%;height:100%;margin:0;padding:0;overflow:hidden;";
+        if (typeof(widthOrStyle)==="string") {
+            this._root.style=widthOrStyle;
+        }
+        else {
+            this._root.width = widthOrStyle;
+            this._root.height = height;
+        }
         Context.anchor.attach(this._root, anchor);
         this._content = new Translation(this.width/2, this.height/2);
         this._root.add(this._content);
@@ -2090,7 +2096,9 @@ CopyPaste.clone = function(source, duplicata) {
             return CopyPaste.clone(source, duplicata);
         }
         else if (source.clone) {
-            return source.clone(duplicata);
+            let copy = source.clone(duplicata);
+            duplicata.set(source, copy);
+            return copy;
         }
         else if (source instanceof List) {
             return cloneList(source, duplicata);

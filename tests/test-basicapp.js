@@ -4,7 +4,7 @@ import {
     describe, it, before, assert, clickOn, drag, Snapshot, keyboard, findChild
 } from "./test-toolkit.js";
 import {
-    Rect, Group
+    dom, Rect, Group
 } from "../js/graphics.js";
 import {
     setRef, html, Context, Selection, Canvas, DragMoveSelectionOperation
@@ -23,8 +23,8 @@ describe("App fundamentals", ()=> {
         document.body.innerHTML=
             '<div id="edit"></div>\n' +
             '<div tabindex="0" id="app"></div>';
-        Context.selection = new Selection();
         Context.canvas = new Canvas("#app", 1200, 600);
+        Context.selection = new Selection();
         setRef(Context.canvas, 'app-canvas');
         setRef(Context.canvas.baseLayer, 'app-base-layer');
         setRef(Context.canvas.toolsLayer, 'app-tool-layer');
@@ -34,7 +34,7 @@ describe("App fundamentals", ()=> {
 
     it("Creates a minimal app", ()=>{
         assert(html(Context.canvas.baseLayer))
-            .equalsTo("<g id=\"app-base-layer\"></g>");
+            .equalsTo("<g transform=\"matrix(1 0 0 1 0 0)\" id=\"app-base-layer\"></g>");
         assert(html(Context.canvas.toolsLayer))
             .equalsTo("<g id=\"app-tool-layer\"></g>");
         assert(html(Context.canvas.glassLayer))
@@ -45,7 +45,7 @@ describe("App fundamentals", ()=> {
             .equalsTo(
                 '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1200" height="600" id="app-canvas">' +
                     '<defs>' +
-                        '<filter id="_shadow_" filterUnits="objectBoundingBox" primitiveUnits="userSpaceOnUse">' +
+                        '<filter id="_shadow_" filterUnits="objectBoundingBox" primitiveUnits="userSpaceOnUse" x="-20pc" y="-20pc" width="140pc" height="140pc">' +
                             '<feDropShadow stdDeviation="3 3" in="SourceGraphic" dx="0" dy="0" flood-color="#0F0F0F" flood-opacity="1">' +
                             '</feDropShadow>' +
                         '</filter>' +
@@ -69,11 +69,16 @@ describe("App fundamentals", ()=> {
     it("Set a table on the board", ()=>{
         // Yest, table is ALWAYS (much) bigger than canvas area.
         let table = putTable();
+        let tableShape = '<g><rect x="-2000" y="-1500" width="4000" height="3000" fill="#A0A0A0"></rect></g>';
+        let tablePartsOwnership = '<g></g>';
+        let tableChildrenOwnership = '<g></g>';
         assert(html(table))
-            .equalsTo('<g transform="matrix(1 0 0 1 0 0)" id="app-table"><g><g><rect x="-2000" y="-1500" width="4000" height="3000" fill="#A0A0A0"></rect></g><g></g></g></g>');
+            .equalsTo('<g transform="matrix(1 0 0 1 0 0)" id="app-table"><g>' +
+                tableShape+tablePartsOwnership+tableChildrenOwnership+
+                '</g></g>');
         assert(html(Context.canvas.baseLayer))
             .equalsTo(
-                '<g id="app-base-layer" transform="matrix(1 0 0 1 0 0)">'+
+                '<g transform="matrix(1 0 0 1 0 0)" id="app-base-layer">'+
                     html(table)+
                 '</g>');
     });
@@ -102,6 +107,7 @@ describe("App fundamentals", ()=> {
                 '<g transform="matrix(1 0 0 1 0 0)" id="app-table">' +
                     '<g>' +
                         '<g><rect x="-2000" y="-1500" width="4000" height="3000" fill="#A0A0A0"></rect></g>' +
+                        '<g></g>' +
                         '<g>' +
                          html(tiny)+
                         '</g>' +

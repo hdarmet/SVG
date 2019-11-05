@@ -35,7 +35,7 @@ export class AbstractBoardContent extends BoardSupport {
 
     constructor(owner, width, height, ...args) {
         super(width, height, ...args);
-        this._initPart(owner);
+        //this._initPart(owner);
     }
 
     _acceptDrop(element) {
@@ -109,7 +109,7 @@ export class AbstractBoardCover extends BoardElement {
 
     constructor(owner, width, height, ...args) {
         super(width, height);
-        this._initPart(owner);
+        //this._initPart(owner);
         this._hidden = false;
         this.initShape(width, height,...args);
     }
@@ -733,19 +733,21 @@ BoardFrame.COLOR = Colors.RED;
 
 export function makeConfigurableMap(superClass, predicate, positionsFct) {
 
-    let ContentLayer = makePositioningContainer(class ContentLayer extends BoardZindexLayer {},
+    let ContentLayer = makePositioningContainer(class ContentLayer extends BoardZindexLayer {}, {
         predicate,
-        function(element) {
-            return positionsFct.call(this.parent, element);
+        positionsBuilder: function (element) {
+            return positionsFct.call(this.host, element);
         }
-    );
+    });
 
-    makeLayersWithContainers(superClass, ()=>{
-        return {
-            configuration:new BoardLayer(),
-            content:new ContentLayer(),
-            top:new BoardLayer()
-        };
+    makeLayersWithContainers(superClass, {
+        layersBuilder:()=>{
+            return {
+                configuration:new BoardLayer(),
+                content:new ContentLayer(),
+                top:new BoardLayer()
+            };
+        }
     });
     makeContainerASupport(superClass);
     makeContainerASandBox(superClass);

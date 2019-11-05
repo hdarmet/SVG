@@ -12,11 +12,32 @@ console.log("Svgbase loaded");
 export let SVG_NS = "http://www.w3.org/2000/svg";
 export let XLINK_NS = "http://www.w3.org/1999/xlink";
 
+
+export let dom = {
+    clientWidth(node) {
+        return node.clientWidth;
+    },
+    clientHeight(node) {
+        return node.clientHeight;
+    },
+    getBoundingClientRect(node) {
+        return node.getBoundingClientRect();
+    },
+    getCTM(node) {
+        return node.getCTM();
+    },
+    addEventListener(node, event, callback) {
+        return node.addEventListener(event, callback);
+    },
+    removeEventListener(node, event, callback) {
+        return node.removeEventListener(event, callback);
+    }
+};
+
 export let doc = {
     createElement(type) {
         return document.createElement(type);
     },
-    // Testé
     createElementNS(ns, type) {
         return document.createElementNS(ns, type);
     },
@@ -27,10 +48,10 @@ export let doc = {
         return document.createDocumentFragment();
     },
     addEventListener(event, callback) {
-        return document.addEventListener(event, callback);
+        return dom.addEventListener(document, event, callback);
     },
     removeEventListener(event, callback) {
-        return document.removeEventListener(event, callback);
+        return dom.removeEventListener(document, event, callback);
     },
     querySelector(selectors) {
         return document.querySelector(selectors);
@@ -63,15 +84,16 @@ export let win = {
         return window.setTimeout(callback, delay, ...args);
     },
     addEventListener(event, callback) {
-        return window.addEventListener(event, callback);
+        return dom.addEventListener(window, event, callback);
     },
     removeEventListener(event, callback) {
-        return window.removeEventListener(event, callback);
+        return dom.removeEventListener(window, event, callback);
     }
 };
 
+
 export function localOffset(svgNode) {
-    let box = svgNode._node.getBoundingClientRect();
+    let box = dom.getBoundingClientRect(svgNode._node);
     let body = doc.body;
     let html = doc.documentElement;
     let left = box.left + (win.pageXOffset || html.scrollLeft || body.scrollLeft);
@@ -83,7 +105,7 @@ export function localOffset(svgNode) {
 }
 
 export function globalOffset(svgNode) {
-    let box = svgNode._node.getBoundingClientRect();
+    let box = dom.getBoundingClientRect(svgNode._node);
     return {
         x: box.left,
         y: box.top
@@ -1031,7 +1053,7 @@ export class SVGElement {
             this._events.set(event, actions);
         }
         actions.add(action);
-        this._node.addEventListener(event, action);
+        dom.addEventListener(this._node, event, action);
         return this;
     }
 
@@ -1046,7 +1068,7 @@ export class SVGElement {
                         delete this._events;
                     }
                 }
-                this._node.removeEventListener(event, action);
+                dom.removeEventListener(this._node, event, action);
             }
         }
         return this;
@@ -1314,11 +1336,11 @@ export class Svg extends SVGElement {
     }
 
     get clientWidth() {
-        return this._node.clientWidth;
+        return dom.clientWidth(this._node);
     }
 
     get clientHeight() {
-        return this._node.clientHeight;
+        return dom.clientHeight(this._node);
     }
 
 }
@@ -1405,7 +1427,7 @@ export class SVGCoreElement extends SVGElement {
 
     get globalMatrix() {
         if (!this._globalMatrix || this._globalMatrix.op!==matrixOp) {
-            let globalMatrix = this._node.getCTM();
+            let globalMatrix = dom.getCTM(this._node);
             this._globalMatrix = new Matrix(
                 globalMatrix.a, globalMatrix.b,
                 globalMatrix.c, globalMatrix.d,
@@ -2213,7 +2235,6 @@ export class RasterImage extends Shape {
         this.attrs(this._attrs);
     }
 
-    // Testé
     _setImage(raster, width, height) {
         if (!width || !height) {
             if (width) {
@@ -2234,16 +2255,14 @@ export class RasterImage extends Shape {
         }
     }
 
-    // Testé
-    clone() {
-        let copy = super.clone();
+    _clone() {
+        let copy = super._clone();
         loadRasterImage(this.href, raster=> {
             copy._setImage(raster, this.width, this.height);
         });
         return copy;
     }
 
-    // Testé
     get href() {
         return this._attrs.href;
     }
@@ -2314,8 +2333,8 @@ export class ClippedRasterImage extends Shape {
         }
     }
 
-    clone() {
-        let copy = super.clone();
+    _clone() {
+        let copy = super._clone();
         loadRasterImage(this.href, raster=> {
             copy._setImage(raster,
                 this._attrs.cx, this._attrs.cy,

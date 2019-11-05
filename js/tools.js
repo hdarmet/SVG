@@ -743,7 +743,6 @@ export class ToolPanelContent {
     }
 
     set height(height) {
-        console.log("h:"+height);
         this._height = height;
     }
 

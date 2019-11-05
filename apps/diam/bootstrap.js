@@ -38,6 +38,29 @@ const DIAMLayers = {
 };
 const LAYERS_DEFINITION = {layers:[DIAMLayers.DOWN,  DIAMLayers.MIDDLE, DIAMLayers.UP]};
 
+function makePositionEditable(superClass) {
+
+    function callForEditPosition(element) {
+        Context.canvas.openModal(
+            editPosition,
+            {
+                x: element.lx,
+                y: element.ly
+            },
+            data => {
+                element.move(data.x, data.y);
+            });
+    }
+
+    let createContextMenu = superClass.prototype._createContextMenu;
+    superClass.prototype._createContextMenu = function() {
+        this.addMenuOption(new TextMenuOption("edit position",
+            function() { callForEditPosition(this); })
+        );
+        createContextMenu && createContextMenu.call(this);
+    };
+
+}
 
 function makeLabelOwner(superClass) {
 
@@ -418,6 +441,7 @@ makeLayered(DIAMHook, {
 makeSlotsOwner(DIAMHook);
 makeCenteredAnchorage(DIAMHook);
 makeCenteredRuler(DIAMHook);
+makePositionEditable(DIAMHook);
 
 DIAMHook.WIDTH = 10;
 DIAMHook.HEIGHT = 10;
@@ -621,6 +645,7 @@ makeLayered(DIAMFixing, {
 makeSlotsOwner(DIAMFixing);
 makeCenteredAnchorage(DIAMFixing);
 makeCenteredRuler(DIAMFixing);
+makePositionEditable(DIAMFixing);
 
 DIAMFixing.WIDTH = 16;
 DIAMFixing.HEIGHT = 6;
@@ -679,6 +704,7 @@ makeLayered(DIAMAbstractLadder, {
 makeSlotsOwner(DIAMAbstractLadder);
 makeCenteredAnchorage(DIAMAbstractLadder);
 makeCenteredRuler(DIAMAbstractLadder);
+makePositionEditable(DIAMAbstractLadder);
 
 class DIAMLadder extends DIAMAbstractLadder {
 
@@ -1062,12 +1088,12 @@ class DIAMAnchorageDecoration extends Decoration {
     }
 
     _notified(source, event) {
-        if (source===this._element && (event===Events.ADD || event===Events.REMOVE)) {
+        if (source===this._element && (event===Events.ADD || event===Events.REMOVE || event===Events.MOVE)) {
             this.refresh();
         }
     }
 
-    _clone(duplicata) {
+    clone(duplicata) {
         return new DIAMAnchorageDecoration({
             lineMargin:this._lineMargin,
             labelMargin:this._labelMargin,
@@ -1403,7 +1429,7 @@ function createTable() {
 }
 
 function createCanvas() {
-    Context.canvas = new Canvas("#app", 1200, 600);
+    Context.canvas = new Canvas("#app", "width:100%;height:100%;margin:0;padding:0;overflow:hidden;");
     Context.canvas.manageMenus();
     Context.selection = new Selection();
 }

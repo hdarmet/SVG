@@ -4,7 +4,7 @@ import {
     Context
 } from "../js/toolkit.js";
 import {
-    win, KeyboardEvents
+    win, doc, dom, KeyboardEvents
 } from "../js/graphics.js";
 import {
     same
@@ -12,6 +12,44 @@ import {
 
 let itCount = 0;
 let itFailed = 0;
+
+function round(number, precision=1) {
+    return Math.round(number/precision)*precision;
+}
+
+let eventListeners = [];
+let domAddEventListener = dom.addEventListener;
+dom.addEventListener = function(node, event,  callback) {
+    eventListeners.push({node, event, callback});
+    domAddEventListener(node, event, callback);
+};
+dom.resetEventListeners = function() {
+    for (let listener of eventListeners) {
+        dom.removeEventListener(listener.node, listener.event, listener.callback);
+    }
+    eventListeners = [];
+};
+
+// To avoid Chrome bug...
+let domClientWidth = dom.clientWidth;
+dom.clientWidth = function(node) {
+    return round(domClientWidth(node), 100);
+};
+let domClientHeight = dom.clientHeight;
+dom.clientHeight = function(node) {
+    return round(domClientHeight(node), 100);
+};
+let domGetBoundingClientRect = dom.getBoundingClientRect;
+dom.getBoundingClientRect = function(node) {
+    let box = domGetBoundingClientRect(node);
+    return {left:round(box.left), top:round(box.top), right:round(box.right), bottom:round(box.bottom)};
+};
+let domGetCTM = dom.getCTM;
+dom.getCTM = function(node) {
+    let matrix = domGetCTM(node);
+    return {a:round(matrix.a, 0.01), b:round(matrix.b, 0.01), c:round(matrix.c, 0.01), d:round(matrix.d, 0.01), e:round(matrix.e, 0.01), f:round(matrix.f, 0.01)};
+};
+// End of Chrome bug... :( :( :(
 
 export class AssertionFailed {
     constructor(message) {
@@ -292,6 +330,7 @@ export class TestSuite {
                     win.setTimeout = (action, delay)=> {
                         this.timeouts.push({delay, action});
                     };
+                    dom.resetEventListeners();
                     for (let before of this.befores) {
                         before();
                     }

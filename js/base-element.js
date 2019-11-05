@@ -41,7 +41,13 @@ export function makeMoveable(superClass) {
 
     superClass.prototype.move = function(x, y) {
         let result = this.setLocation(x, y);
-        this._fire(Events.MOVE, {x, y});
+        this._fire(Events.MOVED, {x, y});
+        if (this.parent && this.parent._shift) {
+            this.parent._shift(this, x, y);
+            if (this.parent._fire) {
+                this.parent._fire(Events.MOVE, this);
+            }
+        }
         return result;
     };
 
@@ -295,8 +301,8 @@ export function makePartsOwner(superClass) {
             }
         });
 
-        let cloning = superClass.prototype.__cloning;
-        superClass.prototype.__cloning = function (duplicata) {
+        let cloning = superClass.prototype._cloning;
+        superClass.prototype._cloning = function (duplicata) {
             let copy = cloning.call(this, duplicata);
             for (let child of this.parts) {
                 let childCopy = child.clone(duplicata);
@@ -502,6 +508,9 @@ export function makeContainer(superClass) {
         return this;
     };
 
+    superClass.prototype._shift = function(element, x, y) {
+    };
+
     superClass.prototype.contains = function(element) {
         return this._children && this._children.contains(element);
     };
@@ -555,8 +564,8 @@ export function makeContainer(superClass) {
         };
     }
 
-    let cloning = superClass.prototype.__cloning;
-    superClass.prototype.__cloning = function (duplicata) {
+    let cloning = superClass.prototype._cloning;
+    superClass.prototype._cloning = function (duplicata) {
         let copy = cloning.call(this, duplicata);
         for (let child of this.children) {
             let childCopy = child.clone(duplicata);
@@ -589,14 +598,6 @@ export class Decoration {
         }
     }
 
-    clone(duplicata) {
-        let copy = duplicata.get(this);
-        if (!copy) {
-            copy = this._clone(duplicata);
-            duplicata.set(this, copy);
-        }
-        return copy;
-    }
 }
 
 export function makeDecorationsOwner(superClass) {
@@ -895,8 +896,8 @@ export function makeContainerMultiLayered(superClass, {layers}) {
         return layer;
     };
 
-    let cloning = superClass.prototype.__cloning;
-    superClass.prototype.__cloning = function(duplicata) {
+    let cloning = superClass.prototype._cloning;
+    superClass.prototype._cloning = function(duplicata) {
         let copy = cloning.call(this, duplicata);
         for (let layer of layers) {
             copy._content.add(copy._layers[layer]);
@@ -911,6 +912,8 @@ export function makeMultiLayeredContainer(superClass, {layers}) {
 }
 
 export function makeLayersWithContainers(superClass, {layersBuilder}) {
+
+    console.assert(layersBuilder);
 
     let defaultLayer;
     let layers = layersBuilder();
@@ -1297,7 +1300,6 @@ class ZIndexSupport {
 
     clone(duplicata) {
         let support = new ZIndexSupport(duplicata.get(this._host));
-        duplicata.set(this, support);
         return support;
     }
 
@@ -2440,20 +2442,12 @@ export class BoardElement {
     }
 
     clone(duplicata) {
-        return this._cloning(duplicata);
-    }
-
-    /**
-     * Eventual cloning of an element. Before effective cloning, this method checks if the element was already cloned.
-     * In this case, the clone is simply returned and no object is created nor changed.
-     * @param duplicata map of clones (referred by 'element cloned'->'clone')
-     * @private
-     */
-    _cloning(duplicata) {
+/*
         let copy = duplicata.get(this);
         if (!copy) {
-            copy = this.__cloning(duplicata);
-        }
+        */
+            let copy = this._cloning(duplicata);
+//        }
         return copy;
     }
 
@@ -2462,7 +2456,7 @@ export class BoardElement {
      * @param duplicata map of clones (referred by 'element cloned'->'clone')
      * @private
      */
-    __cloning(duplicata) {
+    _cloning(duplicata) {
         let copy = CopyPaste.clone(this, duplicata);
         copy._root._owner = copy;
         copy._id = createUUID();
@@ -2661,7 +2655,7 @@ export class TextDecoration extends Decoration {
         this._init();
     }
 
-    _clone(duplicata) {
+    clone(duplicata) {
         //let element = duplicata.get(this._element);
         let labelOwner = duplicata.get(this._labelOwner);
         let copy = new TextDecoration(labelOwner, this._labelGetter, {...this._specs}, {...this._fontProperties});

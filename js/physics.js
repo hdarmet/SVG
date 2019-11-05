@@ -97,9 +97,35 @@ export class Physic {
         return this;
     }
 
-    accept(element) {
-        return this._predicate(element);
+    move(element) {
+        if (this.accept(element)) {
+            this._trigger();
+            this._move(element);
+        }
+        return this;
     }
+
+    accept(element) {
+        return this._predicate.call(this, element);
+    }
+
+    /*
+    _notified(source, event, element) {
+        console.log("NOTIFIED")
+        if (source === this._host && this.accept(element)) {
+            if (event === Events.ADD) {
+                this.add(element);
+            }
+            else if (event === Events.REMOVE) {
+                this.remove(element);
+            }
+            else if (event === Events.MOVE) {
+                console.log("MOVED")
+                this.move(element);
+            }
+        }
+    }
+    */
 
     _acceptedElements(elements) {
         let accepted = new ESet();
@@ -122,6 +148,7 @@ export class Physic {
     _hover(elements) {}
     _add() {}
     _remove() {}
+    _move() {}
     _resize() {}
     _acceptDrop(element, dragSet) { return true; }
     _receiveDrop(element, dragSet) { return this; }
@@ -183,9 +210,18 @@ export class PhysicSelector extends Physic {
     }
 
     remove(element) {
-        if (this._predicate(element)) {
+        if (this.accept(element)) {
             for (let physic of this._physics) {
                 physic.remove(element);
+            }
+        }
+        return this;
+    }
+
+    move(element) {
+        if (this.accept(element)) {
+            for (let physic of this._physics) {
+                physic.move(element);
             }
         }
         return this;
@@ -204,6 +240,9 @@ export class PhysicSelector extends Physic {
         throw new Error("Should not be inovoked.");
     }
     _remove() {
+        throw new Error("Should not be inovoked.");
+    }
+    _move() {
         throw new Error("Should not be inovoked.");
     }
     _resize() {
@@ -264,6 +303,7 @@ export function addPhysicToContainer(superClass, {physicBuilder}) {
 
     superClass.prototype._initPhysic = function() {
         this._physic = physicBuilder.call(this);
+        //this._addObserver(this._physic);
         return this;
     };
 
@@ -271,6 +311,12 @@ export function addPhysicToContainer(superClass, {physicBuilder}) {
     superClass.prototype._add = function(element) {
         add.call(this, element);
         this._physic.add(element);
+    };
+
+    let shift = superClass.prototype._shift;
+    superClass.prototype._shift = function(element, x, y) {
+        shift.call(this, element, x, y);
+        this._physic.move(element);
     };
 
     let insert = superClass.prototype._insert;
@@ -458,6 +504,11 @@ export function makeAttachmentPhysic(superClass, {slotProviderPredicate = elemen
         clipBuilder
     });
 
+    /**
+     * Add method is redefined in order to process slot provider elements which are NOT accepted as managed elements
+     * (ie. clips owner elements) by the physic.
+     * @type {add|*}
+     */
     let add = superClass.prototype.add;
     superClass.prototype.add = function(element) {
         if (this._addAttachments(element)) {
@@ -468,15 +519,13 @@ export function makeAttachmentPhysic(superClass, {slotProviderPredicate = elemen
 
     superClass.prototype._addAttachments = function(element) {
         if (slotProviderPredicate.call(this, element)) {
-            if (element.attachments) {
-                if (!this._attachmentsProviders) {
-                    this._attachmentsProviders = new List(element);
-                }
-                else {
-                    this._attachmentsProviders.add(element);
-                }
-                return true;
+            if (!this._attachmentsProviders) {
+                this._attachmentsProviders = new List(element);
             }
+            else {
+                this._attachmentsProviders.add(element);
+            }
+            return true;
         }
         return false;
     };
@@ -494,14 +543,20 @@ export function makeAttachmentPhysic(superClass, {slotProviderPredicate = elemen
     let remove = superClass.prototype.remove;
     superClass.prototype.remove = function(element) {
         if (slotProviderPredicate.call(this, element)) {
-            if (element.attachments) {
-                if (this._attachmentsProviders) {
-                    this._attachmentsProviders.remove(element);
-                    delete this._attachments;
-                }
+            if (this._attachmentsProviders) {
+                this._attachmentsProviders.remove(element);
+                delete this._attachments;
             }
         }
         remove.call(this, element);
+    };
+
+    let move = superClass.prototype.move;
+    superClass.prototype.move = function(element) {
+        if (slotProviderPredicate.call(this, element)) {
+            delete this._attachments;
+        }
+        move.call(this, element);
     };
 
     let resize = superClass.prototype._resize;
@@ -585,9 +640,7 @@ export class Clip {
     }
 
     clone(duplicata) {
-        let copy = new Clip(duplicata.get(this._owner), this._x, this._y);
-        duplicata.set(this, copy);
-        return copy;
+        return new Clip(duplicata.get(this._owner), this._x, this._y);
     }
 
     get position() {
@@ -603,7 +656,7 @@ export class Clip {
             else {
                 delete this._position;
             }
-            this._fire(Events.MOVE, position);
+            this._fire(Events.MOVED, position);
         }
         return this;
     }
@@ -676,12 +729,10 @@ export class ClipDecoration extends Decoration {
         this._root.matrix = Matrix.translate(x, y);
     }
 
-    _clone(duplicata) {
-        //let element = duplicata.get(this._element);
+    clone(duplicata) {
         let boxCopy = duplicata.get(this._box);
         let clipCopy = duplicata.get(this._clip);
         let copy = new ClipDecoration(boxCopy, clipCopy);
-        //copy._element = element;
         return copy;
     }
 }
@@ -709,7 +760,7 @@ export class ClipPositionDecoration extends TextDecoration {
         return this._labelOwner;
     }
 
-    _clone(duplicata) {
+    clone(duplicata) {
         let element = duplicata.get(this._element);
         let clipCopy = duplicata.get(this.clip);
         let copy = new ClipPositionDecoration(clipCopy, this._specs, this._fontProperties);
@@ -727,9 +778,7 @@ export class Slot {
     }
 
     clone(duplicata) {
-        let copy = new Slot(duplicata.get(this._owner), this._x, this._y);
-        duplicata.set(this, copy);
-        return copy;
+        return new Slot(duplicata.get(this._owner), this._x, this._y);
     }
 
     cloned(duplicata) {
@@ -1190,13 +1239,6 @@ export function makeRulesPhysic(superClass, {
         return element._acceptPosition ? element._acceptPosition(this, position) : !!position;
     };
 
-    /*
-    superClass.prototype._acceptDrop = function(element, dragSet) {
-        let position = this._elementPosition(element);
-        return this._acceptPosition(element,  position);
-    };
-*/
-
     return superClass;
 }
 
@@ -1286,7 +1328,7 @@ export function makeRulersPhysic(superClass, {
     };
 
     superClass.prototype._addRules = function(element) {
-        if (rulerPredicate.call(this, element)) {
+        if (this.accept.call(this, element) && rulerPredicate.call(this, element)) {
             if (!this._rulesProviders) {
                 this._rulesProviders = new List(element);
             }
@@ -1311,12 +1353,18 @@ export function makeRulersPhysic(superClass, {
     let remove = superClass.prototype.remove;
     superClass.prototype.remove = function(element) {
         if (rulerPredicate.call(this, element)) {
-            if (element.rules) {
-                if (this._rulesProviders) {
-                    this._rulesProviders.remove(element);
-                    delete this._rules;
-                }
+            if (this._rulesProviders) {
+                this._rulesProviders.remove(element);
+                delete this._rules;
             }
+        }
+        remove.call(this, element);
+    };
+
+    let move = superClass.prototype.move;
+    superClass.prototype.move = function(element) {
+        if (rulerPredicate.call(this, element)) {
+            delete this._rules;
         }
         remove.call(this, element);
     };
@@ -1869,6 +1917,9 @@ export function makeCollisionPhysic(superClass) {
         this._supportSAP.remove(element);
     };
 
+    superClass.prototype._move = function(element) {
+        this._supportSAP.update(element);
+    };
 
     superClass.prototype._draggedCollideWith = function(element, exclude) {
         let elementBox = this._dragAndDropSAP.elementBox(element);

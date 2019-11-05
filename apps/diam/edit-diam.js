@@ -1,4 +1,65 @@
 
+Vue.component('edit-position', {
+    data() {
+        return {
+            x: 0,
+            y: 0,
+            visible: false,
+            onValidate: undefined,
+            onCancel: undefined
+        };
+    },
+    created() {
+        editPositionWidget = this;
+    },
+    methods: {
+        validate() {
+            this.onValidate({
+                x: this.x,
+                y: this.y
+            });
+            this.visible = false;
+        },
+        cancel() {
+            this.onCancel();
+            this.visible = false;
+        }
+    },
+    template:
+        `<div class="plano_modal" v-show="visible" style="position:absolute; left:200px; top:50px; width:550px;">
+            <b-card>
+              <label> <h3>Edit Position</h3> </label>
+              <b-container fluid>
+                <b-row>
+                  <b-col sm="4"> <label>X:</label> </b-col>
+                  <b-col sm="4">
+                    <b-form-input type="number" v-model="x"></b-form-input>
+                  </b-col>
+                </b-row>
+                <b-row>
+                  <b-col sm="4"> <label>Y:</label> </b-col>
+                  <b-col sm="4">
+                    <b-form-input type="number" v-model="y"></b-form-input>
+                  </b-col>
+                </b-row>
+              </b-container>
+              <b-button-toolbar>
+                <b-button style="margin:5px;" variant="primary" @click="validate();">Ok</b-button>
+                <b-button style="margin:5px;" @click="cancel();">Cancel</b-button>
+              </b-button-toolbar>
+            </b-card>
+          </div>`
+});
+
+var editPositionWidget;
+window.editPosition = function editPosition(data, onValidate, onCancel) {
+    editPositionWidget.x = data.x;
+    editPositionWidget.y = data.y;
+    editPositionWidget.visible = true;
+    editPositionWidget.onValidate = onValidate;
+    editPositionWidget.onCancel = onCancel;
+};
+
 Vue.component('rename', {
     data() {
         return {
@@ -378,6 +439,7 @@ new Vue({
     template: `
     <div style="position:relative;">
     	<rename></rename>
+    	<edit-position></edit-position>
     	<generate-ladders></generate-ladders>
     	<generate-fixings></generate-fixings>
     	<generate-hooks></generate-hooks>
