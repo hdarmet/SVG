@@ -28,7 +28,7 @@ import {
     makeGravitationContainer, makeCarriable, makeCarrier, makePositioningContainer, addBordersToCollisionPhysic,
     addPhysicToContainer, createSlotsAndClipsPhysic, createGravitationPhysic, makeClipsOwner, makeSlotsOwner,
     createPositioningPhysic, createRulersPhysic, makeCenteredAnchorage, makeCenteredRuler,
-    Slot, Clip, PhysicSelector, ClipDecoration, ClipPositionDecoration
+    Slot, Clip, PhysicSelector, ClipDecoration, ClipPositionDecoration, RulesDecoration
 } from "../../js/physics.js";
 
 const DIAMLayers = {
@@ -1108,6 +1108,8 @@ class DIAMPaneContent extends DIAMSupport {
         super({width, height, strokeColor:Colors.NONE, backgroundColor:Colors.LIGHTEST_GREY});
         this._anchorageDecoration = new DIAMAnchorageDecoration({lineMargin, labelMargin, indexMargin });
         this._addDecoration(this._anchorageDecoration);
+        this._rulesDecoration = new RulesDecoration(this._attachmentPhysic);
+        this._addDecoration(this._rulesDecoration);
     }
 
     _createContextMenu() {
@@ -1133,6 +1135,7 @@ class DIAMPaneContent extends DIAMSupport {
         let AttachmentPhysic = createRulersPhysic({
             predicate: is(DIAMAbstractLadder, DIAMFixing, DIAMHook)
         });
+        this._attachmentPhysic = new AttachmentPhysic(this);
         let LadderPhysic = createSlotsAndClipsPhysic({
             predicate: is(DIAMShelf),
             slotProviderPredicate: is(DIAMAbstractLadder)
@@ -1148,7 +1151,7 @@ class DIAMPaneContent extends DIAMSupport {
         return new PhysicSelector(this,
             is(DIAMAbstractModule, DIAMShelf, DIAMAbstractLadder, DIAMBlister, DIAMHook, DIAMBox, DIAMFixing, DIAMDivider)
         )
-        .register(new AttachmentPhysic(this))
+        .register(this._attachmentPhysic)
         .register(new LadderPhysic(this))
         .register(new HookPhysic(this))
         .register(new FixingPhysic(this))

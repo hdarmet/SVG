@@ -57,6 +57,7 @@ export const Events = {
     UNSELECT : "unselect",
     ZOOM : "zoom",
     SCROLL : "scroll",
+    HOVER : "hover",
     RESIZE : "resize",
     GEOMETRY : "geometry",
     MOVE : "move",
@@ -2338,10 +2339,18 @@ export class ElementGroup {
     }
 }
 
-Context.selectPredicate = function(element) {
+export function baseSelectionPredicate(element) {
     let layer = element.canvasLayer;
     return layer && layer instanceof BaseLayer;
-};
+}
+
+export function glassSelectionPredicate(element) {
+    let layer = element.canvasLayer;
+    console.log(layer)
+    return layer && layer instanceof GlassLayer;
+}
+
+Context.selectPredicate = baseSelectionPredicate;
 
 export class Selection {
 

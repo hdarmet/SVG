@@ -333,7 +333,6 @@ let Cache = {
     svgImageLoaders : new Map()
 };
 
-// Testé
 export function loadRasterImage(url, callback) {
     if (Cache.rasterImages.get(url)) {
         // forced timeout so that `callback` is always called asynchronously
@@ -385,9 +384,8 @@ win.httpRequest = function(url, postData, callback) {
         req.send(postData);
         return req;
     }
-}
+};
 
-// Testé
 export function svgParse(text) {
     let full = true;
     let div = doc.createElement("div");
@@ -440,7 +438,6 @@ export function loadSvgImage(url, callback) {
     }
 }
 
-// Testé
 export function rasterizeSvg(img, callback) {
 
     function getSize(node) {
@@ -491,7 +488,6 @@ export function rasterizeSvg(img, callback) {
     }
 }
 
-// Testé
 export function loadRasterSvgImage(url, callback) {
     if (Cache.rasterImages.get(url)) {
         // forced timeout so that `loaded` is always called asynchronously
@@ -952,7 +948,6 @@ export class SVGElement {
         return this;
     }
 
-    // Testé
     reset(element) {
         if (element._parent!==this) {
             throw "Not a child."
@@ -962,7 +957,6 @@ export class SVGElement {
         return this;
     }
 
-    // Testé
     replace(oldElement, element) {
         if (oldElement._parent!==this) {
             throw "Not a child."
@@ -978,7 +972,6 @@ export class SVGElement {
         return this;
     }
 
-    // Testé
     insert(beforeElement, element) {
         if (beforeElement.parent!==this) {
             throw "Not a child."
@@ -993,7 +986,6 @@ export class SVGElement {
         return this;
     }
 
-    // Testé
     remove(element) {
         if (this._children) {
             this._children.remove(element);
@@ -1004,7 +996,10 @@ export class SVGElement {
         return this;
     }
 
-    // Testé
+    contains(element) {
+        return this._children && this._children.contains(element);
+    }
+
     clear() {
         if (this._children) {
             for (let child of this._children) {
@@ -1017,7 +1012,6 @@ export class SVGElement {
         return this;
     }
 
-    // Testé
     node(type) {
         if (type) {
             this._node = doc.createElementNS(SVG_NS, type);
@@ -1026,23 +1020,19 @@ export class SVGElement {
         return this._node;
     }
 
-    // Testé
     get innerHTML() {
         return this._node.innerHTML;
     }
 
-    // Testé
     set innerHTML(innerHTML) {
         this._node.innerHTML = innerHTML;
         this._children.clear();
     }
 
-    // Testé
     get outerHTML() {
         return this._node.outerHTML;
     }
 
-    // Testé
     on(event, action) {
         if (!this._events) {
             this._events = new Map();
@@ -1057,7 +1047,6 @@ export class SVGElement {
         return this;
     }
 
-    // testé
     off(event, action) {
         let actions = this._events ? this._events.get(event) : null;
         if (actions) {
@@ -1074,7 +1063,6 @@ export class SVGElement {
         return this;
     }
 
-    // Testé
     onDrag(dragStart, dragMove, dragDrop) {
         if (this._dnd) this.offDrag();
         let dndMove;
@@ -1124,7 +1112,6 @@ export class SVGElement {
         this.on(MouseEvents.MOUSE_DOWN, this._dnd.start);
     }
 
-    // Testé
     offDrag() {
         if (this._dnd) {
             this.off(MouseEvents.MOUSE_DOWN, this._dnd.start);
@@ -1160,7 +1147,6 @@ export class SVGElement {
         return null;
     }
 
-    // Testé
     getElementFromPoint(x, y) {
         let offset = globalOffset(this);
         return SVGElement.getElementFromPoint(x+offset.x, y+offset.y);
@@ -1484,9 +1470,7 @@ export class SVGCoreElement extends SVGElement {
     }
 }
 
-// Testé
 export class Group extends SVGCoreElement {
-    // Testé
     constructor(matrix=null) {
         super("g");
         matrix && (this.matrix = matrix);

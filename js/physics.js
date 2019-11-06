@@ -10,10 +10,10 @@ import {
     Box, Matrix
 } from "./geometry.js";
 import {
-    win, Colors, Line, computePosition
+    win, Colors, Line, computePosition, Group
 } from "./graphics.js";
 import {
-    Memento, CloneableObject, Events, makeObservable
+    Memento, CloneableObject, Events, makeObservable, Context, glassSelectionPredicate
 } from "./toolkit.js";
 import {
     Decoration, TextDecoration
@@ -109,24 +109,6 @@ export class Physic {
         return this._predicate.call(this, element);
     }
 
-    /*
-    _notified(source, event, element) {
-        console.log("NOTIFIED")
-        if (source === this._host && this.accept(element)) {
-            if (event === Events.ADD) {
-                this.add(element);
-            }
-            else if (event === Events.REMOVE) {
-                this.remove(element);
-            }
-            else if (event === Events.MOVE) {
-                console.log("MOVED")
-                this.move(element);
-            }
-        }
-    }
-    */
-
     _acceptedElements(elements) {
         let accepted = new ESet();
         for (let element of elements) {
@@ -197,7 +179,7 @@ export class PhysicSelector extends Physic {
     }
 
     refresh() {
-        throw new Error("Should not be inovoked.");
+        throw new Error("Should not be invoked.");
     }
 
     add(element) {
@@ -228,25 +210,25 @@ export class PhysicSelector extends Physic {
     }
 
     _reset() {
-        throw new Error("Should not be inovoked.");
+        throw new Error("Should not be invoked.");
     }
     _refresh() {
-        throw new Error("Should not be inovoked.");
+        throw new Error("Should not be invoked.");
     }
     _hover(elements) {
-        throw new Error("Should not be inovoked.");
+        throw new Error("Should not be invoked.");
     }
     _add() {
-        throw new Error("Should not be inovoked.");
+        throw new Error("Should not be invoked.");
     }
     _remove() {
-        throw new Error("Should not be inovoked.");
+        throw new Error("Should not be invoked.");
     }
     _move() {
-        throw new Error("Should not be inovoked.");
+        throw new Error("Should not be invoked.");
     }
     _resize() {
-        throw new Error("Should not be inovoked.");
+        throw new Error("Should not be invoked.");
     }
 
     _acceptDrop(element, dragSet) {
@@ -271,7 +253,12 @@ export class PhysicSelector extends Physic {
     clone(duplicata) {
         let copy = new this.constructor(duplicata.get(this._host), this._predicate);
         for (let physic of this._physics) {
-            copy.register(physic.clone(duplicata));
+            let physicCopy = duplicata.get(physic);
+            if (!physicCopy) {
+                physicCopy = physic.clone(duplicata)
+                duplicata.set(physic, physicCopy);
+            }
+            copy.register(physicCopy);
         }
         return copy;
     }
@@ -303,52 +290,57 @@ export function addPhysicToContainer(superClass, {physicBuilder}) {
 
     superClass.prototype._initPhysic = function() {
         this._physic = physicBuilder.call(this);
-        //this._addObserver(this._physic);
         return this;
     };
 
+    Object.defineProperty(superClass.prototype, "physic", {
+        configurable:true,
+        get() {
+            return this._physic;
+        }
+    });
     let add = superClass.prototype._add;
     superClass.prototype._add = function(element) {
         add.call(this, element);
-        this._physic.add(element);
+        this.physic.add(element);
     };
 
     let shift = superClass.prototype._shift;
     superClass.prototype._shift = function(element, x, y) {
         shift.call(this, element, x, y);
-        this._physic.move(element);
+        this.physic.move(element);
     };
 
     let insert = superClass.prototype._insert;
     superClass.prototype._insert = function(previous, element) {
         insert.call(this, previous, element);
-        this._physic.add(element);
+        this.physic.add(element);
     };
 
     let replace = superClass.prototype._replace;
     superClass.prototype._replace = function(previous, element) {
         replace.call(this, previous, element);
-        this._physic.add(element);
-        this._physic.remove(element);
+        this.physic.add(element);
+        this.physic.remove(element);
     };
 
     let remove = superClass.prototype._remove;
     superClass.prototype._remove = function(element) {
         remove.call(this, element);
-        this._physic.remove(element);
+        this.physic.remove(element);
     };
 
     let hover = superClass.prototype.hover;
     superClass.prototype.hover = function(elements) {
         hover && hover.call(this, elements);
-        this._physic.hover(elements);
+        this.physic.hover(elements);
         return this;
     };
 
     let setsize = superClass.prototype._setSize;
     superClass.prototype._setSize = function(width, height) {
         setsize && setsize.call(this, width, height);
-        this._physic.resize(width, height);
+        this.physic.resize(width, height);
     };
 
     let superMemento = superClass.prototype._memento;
@@ -356,20 +348,20 @@ export function addPhysicToContainer(superClass, {physicBuilder}) {
         let recover = superClass.prototype._recover;
         superClass.prototype._recover = function (memento) {
             if (recover) recover.call(this, memento);
-            this._physic.reset();
+            this.physic.reset();
         }
     }
 
     let acceptDrop = superClass.prototype._acceptDrop;
     superClass.prototype._acceptDrop = function(element, dragSet) {
         if (acceptDrop && !acceptDrop.call(this, element, dragSet)) return false;
-        return this._physic._acceptDrop(element, dragSet);
+        return this.physic._acceptDrop(element, dragSet);
     };
 
     let receiveDrop = superClass.prototype._receiveDrop;
     superClass.prototype._receiveDrop = function(element, dragSet) {
         receiveDrop && receiveDrop.call(this, element, dragSet);
-        this._physic._receiveDrop(element, dragSet);
+        this.physic._receiveDrop(element, dragSet);
     };
 
 }
@@ -1314,9 +1306,19 @@ export function makeRulersPhysic(superClass, {
 
     makeRulesPhysic(superClass, {
         rulesBuilder:function(element) {
-            return this.findRules(element);
+            return this._findRules(element);
         },
         anchorsBuilder
+    });
+
+    Object.defineProperty(superClass.prototype, "rules", {
+        configurable:true,
+        get() {
+            if (!this._rules) {
+                this._rules = this._collectRules();
+            }
+            return this._rules;
+        }
     });
 
     let add = superClass.prototype.add;
@@ -1375,34 +1377,41 @@ export function makeRulersPhysic(superClass, {
         resize.call(this, width, height);
     };
 
-    superClass.prototype.findRules = function(element) {
-        if (!this._rules) {
-            this._rules = this._collectRules();
-        }
+    superClass.prototype._findRules = function(element, range=Attachments.RANGE) {
+        let allRules = this.rules;
         let rules = {
             x:new List(),
             y:new List()
         };
         let anchors = anchorsBuilder.call(this, element);
         for (let anchor of anchors.x) {
-            let index = dichotomousSearch(this._rules.x, anchor.pos-Attachments.RANGE);
-            while(index>=0 && index<this._rules.x.length && this._rules.x[index].pos<=anchor.pos+Attachments.RANGE) {
-                if (this._rules.x[index].pos>=anchor.pos-Attachments.RANGE) {
-                    rules.x.add(this._rules.x[index]);
+            let index = dichotomousSearch(allRules.x, anchor.pos-range);
+            while(index>=0 && index<allRules.x.length && allRules.x[index].pos<=anchor.pos+range) {
+                if (allRules.x[index].pos>=anchor.pos-range) {
+                    rules.x.add(allRules.x[index]);
                 }
                 index++;
             }
         }
         for (let anchor of anchors.y) {
-            let index = dichotomousSearch(this._rules.y, anchor.pos-Attachments.RANGE);
-            while(index>=0 && index<this._rules.y.length && this._rules.y[index].pos<=anchor.pos+Attachments.RANGE) {
-                if (this._rules.y[index].pos>=anchor.pos-Attachments.RANGE) {
-                    rules.y.add(this._rules.y[index]);
+            let index = dichotomousSearch(allRules.y, anchor.pos-range);
+            while(index>=0 && index<allRules.y.length && allRules.y[index].pos<=anchor.pos+range) {
+                if (allRules.y[index].pos>=anchor.pos-range) {
+                    rules.y.add(allRules.y[index]);
                 }
                 index++;
             }
         }
         return rules;
+    };
+
+    superClass.prototype.findRules = function(element, range=Attachments.RANGE) {
+        if (this._accept(element)) {
+            return this._findRules(element, range);
+        }
+        else {
+            return {x:new List(), y:new List()};
+        }
     };
 
     superClass.prototype._collectRules = function() {
@@ -1450,6 +1459,78 @@ export function makeRulersContainer(superClass, {predicate, rulerPredicate, anch
     });
 
     return superClass;
+}
+
+export class RulesDecoration extends Decoration {
+
+    constructor(rulesPhysic) {
+        super();
+        console.assert(rulesPhysic.rules);
+        this._physic = rulesPhysic;
+        this._rules = new Group();
+        Context.canvas.addObserver(this);
+    }
+
+    _init() {
+        this.refresh();
+    }
+
+    refresh() {
+        this._rules.clear();
+        for (let x of this._physic.rules.x) {
+            let line = new Line(x.pos, -this._element.height/2, x.pos, this._element.height/2);
+            line.attrs({stroke:Colors.RED});
+            this._rules.add(line);
+        }
+        for (let y of this._physic.rules.y) {
+            let line = new Line(-this._element.width/2, y.pos, this._element.width/2, y.pos);
+            line.attrs({stroke:Colors.RED});
+            this._rules.add(line);
+        }
+        this._adjustLinesAspect(Context.canvas.zoom);
+    }
+
+    _adjustLinesAspect(zoom) {
+        for (let line of this._rules.children) {
+            line.attrs({stroke_width:1/zoom, stroke_dasharray:[6/zoom, 4/zoom]});
+        }
+    }
+
+    _setElement(element) {
+        super._setElement(element);
+        element.addObserver(this);
+    }
+
+    _checksElements(elements) {
+        for (let element of elements) {
+            if (this._physic.accept(element)) return true;
+        }
+        return false;
+    }
+
+    _notified(source, event, value) {
+        if (source===this._element) {
+            if (event===Events.ADD || event===Events.REMOVE || event===Events.MOVE) {
+                this.refresh();
+            }
+            else if (event===Events.HOVER) {
+                if (this._checksElements(value)) {
+                    if (!this._root.contains(this._rules)) this._root.add(this._rules);
+                }
+                else {
+                    if (this._root.contains(this._rules)) this._root.remove(this._rules);
+                }
+            }
+        }
+        else if (source===Context.canvas && event===Events.ZOOM) {
+            this._adjustLinesAspect(Context.canvas.zoom);
+        }
+    }
+
+    clone(duplicata) {
+        return new RulesDecoration(duplicata.get(this._physic));
+    }
+
 }
 
 export class SAPRecord {

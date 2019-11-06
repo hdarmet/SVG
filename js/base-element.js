@@ -2408,6 +2408,10 @@ export class BoardElement {
         return parent ? parent : Context.canvas.getGlassSupport(this);
     }
 
+    hover(elements) {
+        this._fire(Events.HOVER, elements);
+    }
+
     visible() {
         let visible = this._root.visibility;
         return !visible || visible === Visibility.VISIBLE;
