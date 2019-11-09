@@ -18,6 +18,9 @@ import {
     Memento, makeObservable, CopyPaste, Events, Context, getCanvasLayer, makeNotCloneable, makeCloneable,
     CloneableObject, Cloning
 } from "./toolkit.js";
+import {
+    ColorChooserMenuOption
+} from "./tools.js";
 
 export function makeDeletable(superClass) {
 
@@ -107,13 +110,12 @@ export function makeRotatable(superClass) {
     });
 
     if (!superClass.prototype.hasOwnProperty("rotatable")) {
-        configurable:true,
-            Object.defineProperty(superClass.prototype, "rotatable", {
-                configurable:true,
-                get() {
-                    return true;
-                }
-            });
+        Object.defineProperty(superClass.prototype, "rotatable", {
+            configurable:true,
+            get() {
+                return true;
+            }
+        });
     }
 
     superClass.prototype.rotate = function(angle) {
@@ -123,20 +125,18 @@ export function makeRotatable(superClass) {
     };
 
     let superMemento = superClass.prototype._memento;
-    if (superMemento) {
-        superClass.prototype._memento = function () {
-            let memento = superMemento.call(this);
-            memento.angle = this._hinge.angle;
-            return memento;
-        };
+    superClass.prototype._memento = function () {
+        let memento = superMemento.call(this);
+        memento.angle = this._hinge.angle;
+        return memento;
+    };
 
-        let superRevert = superClass.prototype._revert;
-        superClass.prototype._revert = function (memento) {
-            superRevert.call(this, memento);
-            this._hinge.angle = memento.angle;
-            return this;
-        };
-    }
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function (memento) {
+        superRevert.call(this, memento);
+        this._hinge.angle = memento.angle;
+        return this;
+    };
 
 }
 
@@ -174,20 +174,18 @@ export function makeSelectable(superClass) {
     }
 
     let superMemento = superClass.prototype._memento;
-    if (superMemento) {
-        superClass.prototype._memento = function () {
-            let memento = superMemento.call(this);
-            memento._selectFrame = this._selectFrame;
-            return memento;
-        };
+    superClass.prototype._memento = function () {
+        let memento = superMemento.call(this);
+        memento._selectFrame = this._selectFrame;
+        return memento;
+    };
 
-        let superRevert = superClass.prototype._revert;
-        superClass.prototype._revert = function (memento) {
-            superRevert.call(this, memento);
-            this._selectFrame = memento._selectFrame;
-            return this;
-        };
-    }
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function (memento) {
+        superRevert.call(this, memento);
+        this._selectFrame = memento._selectFrame;
+        return this;
+    };
 
     let superCloned = superClass.prototype._cloned;
     superClass.prototype._cloned = function(copy, duplicata) {
@@ -208,48 +206,69 @@ export function makeShaped(superClass) {
     let init = superClass.prototype._init;
     superClass.prototype._init = function(...args) {
         init && init.call(this, ...args);
-        this._shape = new Group();
+        this._shape = this._buildShapeStructure();
         this._addShapeToTray();
     };
+
+    if (!superClass.prototype._buildShapeStructure) {
+
+        superClass.prototype._buildShapeStructure = function () {
+            return new Group();
+        };
+
+        Object.defineProperty(superClass.prototype, "_shapeContent", {
+            configurable:true,
+            get() {
+                return this._shape;
+            }
+        });
+
+    }
 
     superClass.prototype._addShapeToTray = function() {
         let next = this._partsSupport || this._decorationsSupport || this._content;
         next ? this._tray.insert(next, this._shape) : this._tray.add(this._shape);
     };
 
+
     superClass.prototype._initShape = function(svgElement) {
-        console.assert(svgElement);
-        this._shape.add(svgElement);
-        return this._shape;
+        this._shapeContent.add(svgElement);
+        return this;
     };
 
     let superMemento = superClass.prototype._memento;
-    if (superMemento) {
-        superClass.prototype._memento = function () {
-            let memento = superMemento.call(this);
-            memento._shape = this._shape.memento();
-            return memento;
-        };
+    superClass.prototype._memento = function () {
+        let memento = superMemento.call(this);
+        memento._shape = this._shape.memento();
+        return memento;
+    };
 
-        let superRevert = superClass.prototype._revert;
-        superClass.prototype._revert = function (memento) {
-            superRevert.call(this, memento);
-            this._shape.revert(memento._shape);
-            return this;
-        };
-    }
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function (memento) {
+        superRevert.call(this, memento);
+        this._shape.revert(memento._shape);
+        return this;
+    };
 
     Object.defineProperty(superClass.prototype, "shape", {
         configurable:true,
         get: function () {
-            return this._shape.child;
+            return this._shapeContent.child;
         },
         set : function(shape) {
             Memento.register(this);
-            this._shape.child = shape;
+            this._shapeContent.child = shape;
         }
     });
 
+    if (!superClass.prototype.hasOwnProperty("hasShape")) {
+        Object.defineProperty(superClass.prototype, "hasShape", {
+            configurable:true,
+            get() {
+                return true;
+            }
+        });
+    }
 }
 
 export function makePartsOwner(superClass) {
@@ -310,6 +329,15 @@ export function makePartsOwner(superClass) {
             }
             return copy;
         };
+
+        if (!superClass.prototype.hasOwnProperty("hasParts")) {
+            Object.defineProperty(superClass.prototype, "hasParts", {
+                configurable:true,
+                get() {
+                    return true;
+                }
+            });
+        }
     }
 
     return superClass;
@@ -549,20 +577,18 @@ export function makeContainer(superClass) {
     };
 
     let superMemento = superClass.prototype._memento;
-    if (superMemento) {
-        superClass.prototype._memento = function () {
-            let memento = superMemento.call(this);
-            this._memorizeContent(memento);
-            return memento;
-        };
+    superClass.prototype._memento = function () {
+        let memento = superMemento.call(this);
+        this._memorizeContent(memento);
+        return memento;
+    };
 
-        let superRevert = superClass.prototype._revert;
-        superClass.prototype._revert = function (memento) {
-            superRevert.call(this, memento);
-            this._revertContent(memento);
-            return this;
-        };
-    }
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function (memento) {
+        superRevert.call(this, memento);
+        this._revertContent(memento);
+        return this;
+    };
 
     let cloning = superClass.prototype._cloning;
     superClass.prototype._cloning = function (duplicata) {
@@ -574,12 +600,22 @@ export function makeContainer(superClass) {
         return copy;
     };
 
+    if (!superClass.prototype.hasOwnProperty("isContainer")) {
+        Object.defineProperty(superClass.prototype, "isContainer", {
+            configurable:true,
+            get() {
+                return true;
+            }
+        });
+    }
+
     return superClass;
 }
 
 export class Decoration {
 
     constructor() {
+        this._id = createUUID();
         this._root = new Group();
     }
 
@@ -637,7 +673,7 @@ export function makeDecorationsOwner(superClass) {
         Memento.register(this);
         Memento.register(decoration);
         this._addDecoration(decoration);
-//        this._fire(Events.ADD_DECORATION, decoration);
+        this._fire(Events.ADD_DECORATION, decoration);
         return this;
     };
 
@@ -658,7 +694,7 @@ export function makeDecorationsOwner(superClass) {
         Memento.register(this);
         Memento.register(decoration);
         this._removeDecoration(decoration);
-//        this._fire(Events.REMOVE_DECORATION, decoration);
+        this._fire(Events.REMOVE_DECORATION, decoration);
         return this;
     };
 
@@ -680,11 +716,9 @@ export function makeDecorationsOwner(superClass) {
                 Memento.register(decoration);
             }
             this._clearDecorations();
-            /*
             for (let decoration of decorations) {
                 this._fire(Events.REMOVE_DECORATION, decoration);
             }
-            */
         }
         return this;
     };
@@ -701,42 +735,52 @@ export function makeDecorationsOwner(superClass) {
     });
 
     let superMemento = superClass.prototype._memento;
-    if (superMemento) {
-        superClass.prototype._memento = function () {
-            let memento = superMemento.call(this);
-            if (this._decorations) {
-                memento._decorations = new List(...this._decorations);
-            }
-            return memento;
-        };
+    superClass.prototype._memento = function () {
+        let memento = superMemento.call(this);
+        if (this._decorations) {
+            memento._decorations = new List(...this._decorations);
+        }
+        return memento;
+    };
 
-        let superRevert = superClass.prototype._revert;
-        superClass.prototype._revert = function (memento) {
-            superRevert.call(this, memento);
-            this._decorationsSupport.clear();
-            if (memento._decorations) {
-                this._decorations = new List(...memento._decorations);
-                this._decorations.cloning = Cloning.NONE;
-                for (let decoration of this._decorations) {
-                    this._decorationsSupport.add(decoration._root);
-                }
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function (memento) {
+        superRevert.call(this, memento);
+        this._decorationsSupport.clear();
+        if (memento._decorations) {
+            this._decorations = new List(...memento._decorations);
+            this._decorations.cloning = Cloning.NONE;
+            for (let decoration of this._decorations) {
+                this._decorationsSupport.add(decoration._root);
             }
-            else {
-                delete this._decorations;
-            }
-            return this;
-        };
-    }
+        }
+        else {
+            delete this._decorations;
+        }
+        return this;
+    };
 
     let cloned = superClass.prototype._cloned;
     superClass.prototype._cloned = function (copy, duplicata) {
         cloned.call(this, copy, duplicata);
         for (let decoration of this.decorations) {
-            let decorationCopy = decoration.clone(duplicata);
+            let decorationCopy = duplicata.get(decoration);
+            if (!decorationCopy) {
+                decorationCopy = decoration.clone(duplicata);
+            }
             copy._addDecoration(decorationCopy);
         }
         return copy;
     };
+
+    if (!superClass.prototype.hasOwnProperty("hasDecorations")) {
+        Object.defineProperty(superClass.prototype, "hasDecorations", {
+            configurable:true,
+            get() {
+                return true;
+            }
+        });
+    }
 
     return superClass;
 }
@@ -1643,6 +1687,14 @@ export function makeContainerZindex(superClass) {
     superClass.prototype._revertContent = function(memento) {
     };
 
+    if (!superClass.prototype.hasOwnProperty("isZIndex")) {
+        Object.defineProperty(superClass.prototype, "isZIndex", {
+            configurable:true,
+            get() {
+                return true;
+            }
+        });
+    }
 }
 
 export function makeZindexContainer(superClass) {
@@ -1743,6 +1795,15 @@ export function makeDraggable(superClass) {
             copy._dragOperation(this._dragOp);
         }
     };
+
+    if (!superClass.prototype.hasOwnProperty("draggable")) {
+        Object.defineProperty(superClass.prototype, "draggable", {
+            configurable:true,
+            get() {
+                return true;
+            }
+        });
+    }
 
     return superClass;
 }
@@ -1854,6 +1915,15 @@ export function makeClickable(superClass) {
         }
     };
 
+    if (!superClass.prototype.hasOwnProperty("clickable")) {
+        Object.defineProperty(superClass.prototype, "clickable", {
+            configurable:true,
+            get() {
+                return true;
+            }
+        });
+    }
+
     return superClass;
 }
 
@@ -1880,6 +1950,14 @@ export function makeFramed(superClass) {
         return this._initShape(background);
     };
 
+    if (!superClass.prototype.hasOwnProperty("framed")) {
+        Object.defineProperty(superClass.prototype, "framed", {
+            configurable:true,
+            get() {
+                return true;
+            }
+        });
+    }
 }
 
 export function makeImaged(superClass) {
@@ -1901,14 +1979,14 @@ export function makeImaged(superClass) {
     Object.defineProperty(superClass.prototype, "background", {
         configurable:true,
         get: function () {
-            return this.shape._children[0];
+            return this._shapeContent.child._children[0];
         }
     });
 
     Object.defineProperty(superClass.prototype, "frame", {
         configurable:true,
         get: function () {
-            return this.shape._children[1];
+            return this._shapeContent.child._children[1];
         }
     });
 
@@ -1952,6 +2030,15 @@ export function makeImaged(superClass) {
             return new RasterImage(url, -width/2, -height/2, width, height);
         }
     };
+
+    if (!superClass.prototype.hasOwnProperty("imaged")) {
+        Object.defineProperty(superClass.prototype, "imaged", {
+            configurable:true,
+            get() {
+                return true;
+            }
+        });
+    }
 }
 
 /**
@@ -2015,19 +2102,26 @@ export function makeMultiImaged(superClass) {
     });
 
     let superMemento = superClass.prototype._memento;
-    if (superMemento) {
-        superClass.prototype._memento = function () {
-            let memento = superMemento.call(this);
-            memento._images = new List(...this._images);
-            return memento;
-        };
+    superClass.prototype._memento = function () {
+        let memento = superMemento.call(this);
+        memento._images = new List(...this._images);
+        return memento;
+    };
 
-        let superRevert = superClass.prototype._revert;
-        superClass.prototype._revert = function (memento) {
-            superRevert.call(this, memento);
-            this._images = new List(...memento._images);
-            return this;
-        };
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function (memento) {
+        superRevert.call(this, memento);
+        this._images = new List(...memento._images);
+        return this;
+    };
+
+    if (!superClass.prototype.hasOwnProperty("singleImaged")) {
+        Object.defineProperty(superClass.prototype, "singleImaged", {
+            configurable:true,
+            get() {
+                return true;
+            }
+        });
     }
 
     return superClass;
@@ -2049,6 +2143,15 @@ export function makeClipImaged(superClass) {
         }
         return this._images[0];
     };
+
+    if (!superClass.prototype.hasOwnProperty("clipImaged")) {
+        Object.defineProperty(superClass.prototype, "clipImaged", {
+            configurable:true,
+            get() {
+                return true;
+            }
+        });
+    }
 
     return superClass;
 }
@@ -2108,6 +2211,15 @@ export function makePart(superClass) {
         makeGentleDropTarget(superClass);
     }
 
+    if (!superClass.prototype.hasOwnProperty("isPart")) {
+        Object.defineProperty(superClass.prototype, "isPart", {
+            configurable:true,
+            get() {
+                return true;
+            }
+        });
+    }
+
     return superClass;
 }
 
@@ -2134,22 +2246,28 @@ export function makeFillUpdatable(superClass) {
     };
 
     let superMemento = superClass.prototype._memento;
-    if (superMemento) {
-        superClass.prototype._memento = function () {
-            let memento = superMemento.call(this);
-            memento._fillColor = this._fillColor;
-            return memento;
-        };
+    superClass.prototype._memento = function () {
+        let memento = superMemento.call(this);
+        memento._fillColor = this._fillColor;
+        return memento;
+    };
 
-        let superRevert = superClass.prototype._revert;
-        superClass.prototype._revert = function (memento) {
-            superRevert.call(this, memento);
-            this._fillColor = memento._fillColor;
-            this._shape.child.attrs({fill: this._fillColor});
-            return this;
-        };
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function (memento) {
+        superRevert.call(this, memento);
+        this._fillColor = memento._fillColor;
+        this._shape.child.attrs({fill: this._fillColor});
+        return this;
+    };
+
+    if (!superClass.prototype.hasOwnProperty("fillUpdatable")) {
+        Object.defineProperty(superClass.prototype, "fillUpdatable", {
+            configurable:true,
+            get() {
+                return true;
+            }
+        });
     }
-
 }
 
 export function makeStrokeUpdatable(superClass) {
@@ -2192,24 +2310,30 @@ export function makeStrokeUpdatable(superClass) {
     };
 
     let superMemento = superClass.prototype._memento;
-    if (superMemento) {
-        superClass.prototype._memento = function () {
-            let memento = superMemento.call(this);
-            memento._strokeColor = this._strokeColor;
-            memento._strokeWidth = this._strokeWidth;
-            return memento;
-        };
+    superClass.prototype._memento = function () {
+        let memento = superMemento.call(this);
+        memento._strokeColor = this._strokeColor;
+        memento._strokeWidth = this._strokeWidth;
+        return memento;
+    };
 
-        let superRevert = superClass.prototype._revert;
-        superClass.prototype._revert = function (memento) {
-            superRevert.call(this, memento);
-            this._strokeColor = memento._strokeColor;
-            this._strokeWidth = memento._strokeWidth;
-            this._shape.child.attrs({stroke: this._strokeColor, stroke_width: this._strokeWidth});
-            return this;
-        };
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function (memento) {
+        superRevert.call(this, memento);
+        this._strokeColor = memento._strokeColor;
+        this._strokeWidth = memento._strokeWidth;
+        this._shape.child.attrs({stroke: this._strokeColor, stroke_width: this._strokeWidth});
+        return this;
+    };
+
+    if (!superClass.prototype.hasOwnProperty("strokeUpdatable")) {
+        Object.defineProperty(superClass.prototype, "strokeUpdatable", {
+            configurable:true,
+            get() {
+                return true;
+            }
+        });
     }
-
 }
 
 export class BoardElement {
@@ -2221,10 +2345,13 @@ export class BoardElement {
         this._id = createUUID();
         this._createStructure();
         this._init(...args);
+        this._improve(...args);
+        this._finish(...args);
     }
 
-    _init(...args) {
-    }
+    _init(...args) {}
+    _improve(...args) {}
+    _finish(...args) {}
 
     _dropTarget(element) {
         return this;
@@ -2660,11 +2787,8 @@ export class TextDecoration extends Decoration {
     }
 
     clone(duplicata) {
-        //let element = duplicata.get(this._element);
         let labelOwner = duplicata.get(this._labelOwner);
-        let copy = new TextDecoration(labelOwner, this._labelGetter, {...this._specs}, {...this._fontProperties});
-        //copy._element = element;
-        return copy;
+        return new TextDecoration(labelOwner, this._labelGetter, {...this._specs}, {...this._fontProperties});
     }
 
 }
@@ -2674,3 +2798,125 @@ TextDecoration.RIGHT = "right";
 TextDecoration.MIDDLE = "middle";
 TextDecoration.TOP = "top";
 TextDecoration.BOTTOM = "bottom";
+
+export class HighlightShape {
+
+    constructor(host) {
+        this._host = host;
+        this._root = new Group();
+        this._init();
+    }
+
+    _init() {
+        if (this._host.highlight) {
+            let width = this._host.width;
+            let height = this._host.height;
+            let highlight = new Rect(-width/2, -height/2, width, height)
+                .attrs({fill:this._host.highlight, opacity:HighlightShape.OPACITY});
+            this._root.add(highlight);
+        }
+    }
+
+    refresh() {
+        this._root.clear();
+        this._init();
+    }
+
+    clone(duplicata) {
+        let host = duplicata.get(this._host);
+        let copy = {};
+        copy.__proto__ = HighlightShape.prototype;
+        copy._host = host;
+        copy._root = duplicata.get(this._root);
+        host._highlightShape = copy;
+        return copy;
+    }
+
+}
+HighlightShape.OPACITY = 0.2;
+
+export function makeHighlightable(superClass) {
+
+    let finish = superClass.prototype._finish;
+    superClass.prototype._finish = function(...args) {
+        finish.call(this, ...args);
+        this._highlightShape = new HighlightShape(this);
+        this._shape.add(this._highlightShape._root);
+    };
+
+    superClass.prototype._buildShapeStructure = function() {
+        let shape = new Group();
+        let shapeContent = new Group();
+        shape.add(shapeContent);
+        return shape;
+    };
+
+    Object.defineProperty(superClass.prototype, "_shapeContent", {
+        configurable: true,
+        get() {
+            return this._shape.child;
+        }
+    });
+
+    Object.defineProperty(superClass.prototype, "highlight", {
+        configurable:true,
+        get() {
+            return this._highlight;
+        },
+        set(highlight) {
+            Memento.register(this);
+            this._setHighlight(highlight);
+            if (this.hasParts) {
+                for (let part of this._parts) {
+                    part.highlight = highlight;
+                }
+            }
+            return this;
+        }
+    });
+
+    let createContextMenu = superClass.prototype._createContextMenu;
+    superClass.prototype._createContextMenu = function() {
+        this.addMenuOption(new ColorChooserMenuOption("highlight",
+            ["#000000", "#FF0000", "#00FF00", "#0000FF",
+             "#00FFFF", "#FF00FF", "#FFFF00", "#FFFFFF"],
+            function(highlight) {
+                this.highlight = highlight;
+            })
+        );
+        createContextMenu && createContextMenu.call(this);
+    };
+
+    let setHighlight = superClass.prototype._setHighlight;
+    superClass.prototype._setHighlight = function(highlight) {
+        this._highlight = highlight;
+        this._highlightShape.refresh();
+        setHighlight && setHighlight.call(this, highlight);
+        return this;
+    };
+
+    let superMemento = superClass.prototype._memento;
+    superClass.prototype._memento = function() {
+        let memento = superMemento.call(this);
+        memento._highlight = this._highlight;
+        return memento;
+    };
+
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function(memento) {
+        superRevert.call(this, memento);
+        this._highlight = memento._highlight;
+        return this;
+    };
+
+    if (!superClass.prototype.hasOwnProperty("highlightable")) {
+        Object.defineProperty(superClass.prototype, "highlightable", {
+            configurable:true,
+            get() {
+                return true;
+            }
+        });
+    }
+
+    return superClass;
+}

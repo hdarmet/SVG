@@ -12,7 +12,7 @@ import {
 import {
     BoardElement, BoardTable, BoardArea, makeDeletable, makeDraggable, makeFramed, makeSelectable, makeContainer,
     makeMoveable, makeSupport, makePart, makeClickable, makeShaped, makeContainerMultiLayered, makeLayered,
-    makeGentleDropTarget, makePartsOwner, makeDecorationsOwner, makeMultiImaged,
+    makeGentleDropTarget, makePartsOwner, makeDecorationsOwner, makeMultiImaged, makeHighlightable,
     Decoration, TextDecoration
 } from "../../js/base-element.js";
 import {
@@ -76,8 +76,8 @@ function makeLabelOwner(superClass) {
     }
 
     let init = superClass.prototype._init;
-    superClass.prototype._init = function(args) {
-        init.call(this, args);
+    superClass.prototype._init = function(...args) {
+        init.call(this, ...args);
         this._label = args.label || "";
     };
 
@@ -140,6 +140,7 @@ makeMoveable(DIAMItem);
 makeDeletable(DIAMItem);
 makeClickable(DIAMItem);
 makeMenuOwner(DIAMItem);
+makeHighlightable(DIAMItem);
 
 class DIAMSupport extends BoardElement {
     constructor({width, height, strokeColor, backgroundColor}) {
@@ -152,6 +153,7 @@ class DIAMSupport extends BoardElement {
 
 }
 makeFramed(DIAMSupport);
+makeHighlightable(DIAMSupport);
 makePart(DIAMSupport);
 makeSupport(DIAMSupport);
 makeMenuOwner(DIAMSupport);
@@ -249,7 +251,6 @@ class DIAMFasciaSupport extends BoardElement {
     }
 
 }
-//makeContainer(DIAMFasciaSupport);
 makePart(DIAMFasciaSupport);
 makeSupport(DIAMFasciaSupport);
 makePositioningContainer(DIAMFasciaSupport, {
@@ -790,13 +791,13 @@ class DIAMShelf extends DIAMItem {
 }
 DIAMShelf.POSITION_FONT_PROPERTIES = definePropertiesSet("position", Attrs.FONT_PROPERTIES);
 makeShaped(DIAMShelf);
+makeDecorationsOwner(DIAMShelf);
 makeLabelOwner(DIAMShelf);
 makeLayered(DIAMShelf, {
     layer:DIAMLayers.MIDDLE
 });
 makeClipsOwner(DIAMShelf);
 makeCarrier(DIAMShelf);
-makeDecorationsOwner(DIAMShelf);
 
 class DIAMRichShelf extends DIAMShelf {
 

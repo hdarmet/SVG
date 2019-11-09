@@ -40,8 +40,8 @@ export function insidePolygon(x, y, polygon) {
     return inside;
 }
 
-export function angle(x, y) {
-    return Math.atan2(x, -y)/Math.PI*180;
+export function angle(y, x) {
+    return Math.atan2(y, -x)/Math.PI*180;
 }
 
 export function rotate(x, y, angle) {

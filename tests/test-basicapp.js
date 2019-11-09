@@ -213,9 +213,8 @@ describe("App fundamentals", ()=> {
                 super(width, height);
                 let background = new Rect(-width / 2, -height / 2, width, height)
                     .attrs({fill:"#0A0A0A"});
-                this._root
-                    .add(this._initShape(background))
-                    .add(this._initContent());
+                this._initShape(background);
+                this._initContent();
             }
         }
         makeShaped(BoardNotATarget);

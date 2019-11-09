@@ -10,7 +10,7 @@ import {
     Box, Matrix
 } from "./geometry.js";
 import {
-    win, Colors, Line, computePosition, Group
+    win, Colors, Line, computePosition, Group, Fill
 } from "./graphics.js";
 import {
     Memento, CloneableObject, Events, makeObservable, Context, glassSelectionPredicate
@@ -18,6 +18,9 @@ import {
 import {
     Decoration, TextDecoration
 } from "./base-element.js";
+import {
+    Arrow
+} from "./svgtools.js";
 
 export class Physic {
 
@@ -1435,9 +1438,31 @@ export function makeRulersPhysic(superClass, {
             }
             rules.x.sort((r1, r2)=>r1.pos-r2.pos);
             rules.y.sort((r1, r2)=>r1.pos-r2.pos);
+            rules.x = this._extendsRules(-this._host.width/2, this._host.width/2, rules.x);
+            rules.y = this._extendsRules(-this._host.height/2, this._host.height/2, rules.y);
         }
         return rules;
-    }
+    };
+
+    superClass.prototype._extendsRules = function(start, end, rules) {
+        let extendedRules = new List();
+        let previous = start;
+        for (let index=0; index<rules.length; index++) {
+            let current = rules[index].pos;
+            let next = index < rules.length-1 ? rules[index+1].pos : end;
+            if (next !== current) {
+                if (current - previous > next - current) {
+                    extendedRules.add({pos: current * 2 - next, reference:current});
+                }
+                extendedRules.add(rules[index]);
+                if (current - previous < next - current) {
+                    extendedRules.add({pos: current * 2 - previous, reference:current});
+                }
+                previous = current;
+            }
+        }
+        return extendedRules;
+    };
 }
 
 export function createRulersPhysic({predicate, rulerPredicate, anchorsBuilder}) {
@@ -1468,6 +1493,7 @@ export class RulesDecoration extends Decoration {
         console.assert(rulesPhysic.rules);
         this._physic = rulesPhysic;
         this._rules = new Group();
+        this._arrows = new Group();
         Context.canvas.addObserver(this);
     }
 
@@ -1476,23 +1502,69 @@ export class RulesDecoration extends Decoration {
     }
 
     refresh() {
+
+        function getLevel(start, levels, rule) {
+            let minPos = Math.min(rule.reference*2-rule.pos, rule.pos, rule.reference);
+            let maxPos = Math.min(rule.reference*2-rule.pos, rule.pos, rule.reference);
+            for (let index=0; index<levels.length; index++) {
+                let level = levels[index];
+                if (level.pos<minPos) {
+                    level.pos = maxPos;
+                    return level.level;
+                }
+            }
+            let level = start+10*levels.length;
+            levels.add({level, pos:maxPos});
+            return level;
+        }
+
+        let zoom = Context.canvas.zoom;
         this._rules.clear();
+        this._arrows.clear();
+        this._root.attrs({stroke:Colors.RED, fill:Fill.NONE});
+        let wLevels = new List({level:-this._element.width/2+10, pos:-this.element._height/2});
+        let hLevels = new List({level:-this._element.height/2+10, pos:-this.element._width/2});
         for (let x of this._physic.rules.x) {
             let line = new Line(x.pos, -this._element.height/2, x.pos, this._element.height/2);
-            line.attrs({stroke:Colors.RED});
             this._rules.add(line);
+            if (x.reference !== undefined) {
+                let height = getLevel(-this._element.height/2+10, hLevels, x);
+                let arrow = new Arrow(x.pos, height, x.reference, height,
+                    [RulesDecoration.HEAD_SIZE, RulesDecoration.HEAD_SIZE],
+                    [RulesDecoration.HEAD_SIZE, RulesDecoration.HEAD_SIZE]);
+                this._arrows.add(arrow);
+                arrow = new Arrow(x.reference*2-x.pos, height, x.reference, height,
+                    [RulesDecoration.HEAD_SIZE, RulesDecoration.HEAD_SIZE],
+                    [RulesDecoration.HEAD_SIZE, RulesDecoration.HEAD_SIZE]);
+                this._arrows.add(arrow);
+            }
         }
         for (let y of this._physic.rules.y) {
             let line = new Line(-this._element.width/2, y.pos, this._element.width/2, y.pos);
-            line.attrs({stroke:Colors.RED});
             this._rules.add(line);
+            if (y.reference !== undefined) {
+                let width = getLevel(-this._element.width/2+10, wLevels, y);
+                let arrow = new Arrow(width, y.pos, width, y.reference,
+                    [RulesDecoration.HEAD_SIZE, RulesDecoration.HEAD_SIZE],
+                    [RulesDecoration.HEAD_SIZE, RulesDecoration.HEAD_SIZE]);
+                this._arrows.add(arrow);
+                arrow = new Arrow(width, y.reference*2-y.pos, width, y.reference,
+                    [RulesDecoration.HEAD_SIZE, RulesDecoration.HEAD_SIZE],
+                    [RulesDecoration.HEAD_SIZE, RulesDecoration.HEAD_SIZE]);
+                this._arrows.add(arrow);
+            }
         }
-        this._adjustLinesAspect(Context.canvas.zoom);
+        this._adjustLinesAspect(zoom);
     }
 
     _adjustLinesAspect(zoom) {
         for (let line of this._rules.children) {
-            line.attrs({stroke_width:1/zoom, stroke_dasharray:[6/zoom, 4/zoom]});
+            line.attrs({stroke_width:0.5/zoom, stroke_dasharray:[1/zoom, 1/zoom]});
+        }
+        for (let arrow of this._arrows.children) {
+            arrow.setLeftHeadGeometry(RulesDecoration.HEAD_SIZE/zoom, RulesDecoration.HEAD_SIZE/zoom);
+            arrow.setRightHeadGeometry(RulesDecoration.HEAD_SIZE/zoom, RulesDecoration.HEAD_SIZE/zoom);
+            arrow.attrs({stroke_width:0.5/zoom, stroke_dasharray:[1/zoom, 1/zoom]});
         }
     }
 
@@ -1515,10 +1587,16 @@ export class RulesDecoration extends Decoration {
             }
             else if (event===Events.HOVER) {
                 if (this._checksElements(value)) {
-                    if (!this._root.contains(this._rules)) this._root.add(this._rules);
+                    if (!this._root.contains(this._rules)) {
+                        this._root.add(this._rules);
+                        this._root.add(this._arrows);
+                    }
                 }
                 else {
-                    if (this._root.contains(this._rules)) this._root.remove(this._rules);
+                    if (this._root.contains(this._rules)) {
+                        this._root.remove(this._rules);
+                        this._root.remove(this._arrows);
+                    }
                 }
             }
         }
@@ -1532,6 +1610,7 @@ export class RulesDecoration extends Decoration {
     }
 
 }
+RulesDecoration.HEAD_SIZE = 5;
 
 export class SAPRecord {
 

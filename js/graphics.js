@@ -1814,7 +1814,7 @@ export class RelativeLinetoDirective {
     }
 }
 export function l(x, y) {
-    return new LinetoDirective(x, y);
+    return new RelativeLinetoDirective(x, y);
 }
 
 export class HorizontalDirective {
@@ -1866,7 +1866,7 @@ export class RelativeVerticalDirective {
     }
 }
 export function v(y) {
-    return new RelativeHorizontalDirective(y);
+    return new RelativeVerticalDirective(y);
 }
 
 export class CloseDirective {

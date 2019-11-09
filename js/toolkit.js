@@ -74,7 +74,9 @@ export const Events = {
     ROTATED : "rotated",
     REVERT_ROTATION : "revert-rotation",
     REVERT_ROTATED : "revert-rotated",
-    SCROLL_END : "scroll-end"
+    SCROLL_END : "scroll-end",
+    ADD_DECORATION : "add-decoration",
+    REMOVE_DECORATION : "remove-decoration"
 };
 
 export function sortByDistance(elements, gx, gy) {
