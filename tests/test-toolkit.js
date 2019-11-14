@@ -49,6 +49,11 @@ dom.getCTM = function(node) {
     let matrix = domGetCTM(node);
     return {a:round(matrix.a, 0.01), b:round(matrix.b, 0.01), c:round(matrix.c, 0.01), d:round(matrix.d, 0.01), e:round(matrix.e, 0.01), f:round(matrix.f, 0.01)};
 };
+/*
+Object.defineProperty(win, "pageYOffset", {
+    get() { return 0;}
+});
+*/
 // End of Chrome bug... :( :( :(
 
 export class AssertionFailed {

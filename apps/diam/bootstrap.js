@@ -7,7 +7,7 @@ import {
     ESet, List
 } from "../../js/collections.js";
 import {
-    Context, Events, Canvas, Selection, DragOperation, Memento, makeNotCloneable, setLayeredGlassStrategy
+    Context, Events, Canvas, Groups, DragOperation, Memento, makeNotCloneable, setLayeredGlassStrategy, standardDrag
 } from "../../js/toolkit.js";
 import {
     BoardElement, BoardTable, BoardArea, makeDeletable, makeDraggable, makeFramed, makeSelectable, makeContainer,
@@ -22,6 +22,7 @@ import {
 import {
     Tools, BoardItemBuilder, copyCommand, deleteCommand, pasteCommand, redoCommand, ToolCommandPopup, undoCommand,
     zoomExtentCommand, zoomInCommand, zoomOutCommand, zoomSelectionCommand, ToolGridExpandablePanel, ToolExpandablePopup,
+    regroupCommand, ungroupCommand,
     ToolGridPanelContent, makeMenuOwner, TextMenuOption
 } from "../../js/tools.js";
 import {
@@ -128,7 +129,7 @@ function makeLabelOwner(superClass) {
 class DIAMItem extends BoardElement {
     constructor({width, height, ...args}) {
         super(width, height, args);
-        this._dragOperation(()=>Context.moveSelectionDrag);
+        this._dragOperation(()=>standardDrag);
         this._createContextMenu();
     }
 
@@ -1248,6 +1249,10 @@ class DIAMImageModule extends DIAMAbstractModule {
         super({width, height, ...args});
         this._initImages(width, height, Colors.LIGHT_GREY, url, realisticUrl);
     }
+
+    clone(duplicata) {
+        return super.clone(duplicata)
+    }
 }
 makeMultiImaged(DIAMImageModule);
 
@@ -1435,7 +1440,7 @@ function createTable() {
 function createCanvas() {
     Context.canvas = new Canvas("#app", "width:100%;height:100%;margin:0;padding:0;overflow:hidden;");
     Context.canvas.manageMenus();
-    Context.selection = new Selection();
+    Context.selection = new Groups();
 }
 
 function createPaper() {
@@ -1456,6 +1461,8 @@ function createCommandPopup() {
     cmdPopup.addMargin();
     undoCommand(cmdPopup);
     redoCommand(cmdPopup);
+    regroupCommand(cmdPopup);
+    ungroupCommand(cmdPopup);
     cmdPopup.addMargin();
     deleteCommand(cmdPopup);
     return cmdPopup;

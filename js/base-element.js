@@ -15,7 +15,7 @@ import {
     collectProperties, Attrs, SvgRasterImage
 } from "./graphics.js";
 import {
-    Memento, makeObservable, CopyPaste, Events, Context, getCanvasLayer, makeNotCloneable, makeCloneable,
+    Memento, makeObservable, CopyPaste, Events, Context, getCanvasLayer, makeNotCloneable, makeCloneable, areaDrag,
     CloneableObject, Cloning
 } from "./toolkit.js";
 import {
@@ -2194,15 +2194,15 @@ export function makePart(superClass) {
     Object.defineProperty(superClass.prototype, "menuOptions", {
         configurable: true,
         get: function () {
-            let menuOptions = new List(...this.owner.menuOptions);
-            if (menuOptions) {
+            let ownerMenuOptions = this.owner.menuOptions;
+            if (ownerMenuOptions) {
                 if (this._menuOptions) {
-                    menuOptions.push(...this._getOwnMenuOptions());
+                    return new List(...ownerMenuOptions, ...this._getOwnMenuOptions());
                 }
-                return menuOptions;
+                return ownerMenuOptions;
             }
             else {
-                return this._menuOptions;
+                return this._getOwnMenuOptions();
             }
         }
     });
@@ -2608,7 +2608,8 @@ export class BoardArea extends BoardElement {
         background.fill = backgroundColor;
         this._initShape(background);
         this._setSize(width, height);
-        this._dragOperation(function() {return Context.scrollOrSelectAreaDrag;});
+        this._dragOperation(function() {return areaDrag;});
+        this._clickHandler(null);
     }
 
     get color() {
@@ -2632,6 +2633,7 @@ export class BoardArea extends BoardElement {
 makeShaped(BoardArea);
 makeContainer(BoardArea);
 makeDraggable(BoardArea);
+makeClickable(BoardArea);
 makeNotCloneable(BoardArea);
 
 export class BoardTable extends BoardArea {

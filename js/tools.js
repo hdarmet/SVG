@@ -169,7 +169,7 @@ export function makeMenuOwner(superClass) {
 
     superClass.prototype._getOwnMenuOptions = function() {
         return this._menuOptions.map(option=>{return {line:option, that:this}});
-    }
+    };
 
     if (!superClass.prototype.hasOwnProperty("menuOptions")) {
         Object.defineProperty(superClass.prototype, "menuOptions", {
@@ -1246,6 +1246,18 @@ export const Tools = {
     redo() {
         Context.memento.redo();
     },
+    regroup() {
+        Context.selection.regroup();
+    },
+    ungroup() {
+        Context.selection.ungroup();
+    },
+    groupable() {
+        return Context.selection.groupable();
+    },
+    ungroupable() {
+        return Context.selection.ungroupable();
+    },
     deleteSelection() {
         Context.memento.open();
         for (let child of [...Context.selection.selection()]) {
@@ -1342,5 +1354,21 @@ export function deleteCommand(toolPopup) {
         () => {
             Tools.deleteSelection();
         }, () => Tools.selectionDeletable(), 66)
+    );
+}
+
+export function regroupCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/group_on.svg", "./images/icons/group_off.svg",
+        () => {
+            Tools.regroup();
+        }, () => Tools.groupable())
+    );
+}
+
+export function ungroupCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/ungroup_on.svg", "./images/icons/ungroup_off.svg",
+        () => {
+            Tools.ungroup();
+        }, () => Tools.ungroupable())
     );
 }

@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    evaluate
+    evaluate, always
 } from "./misc.js";
 import {
     List, ESet
@@ -731,7 +731,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
     }
 }
 makeNotCloneable(DragMoveSelectionOperation);
-Context.moveSelectionDrag = new DragMoveSelectionOperation();
+DragMoveSelectionOperation.instance = new DragMoveSelectionOperation();
 
 class DragRotateSelectionOperation extends DragElementOperation {
 
@@ -841,7 +841,7 @@ class DragRotateSelectionOperation extends DragElementOperation {
     }
 }
 makeNotCloneable(DragRotateSelectionOperation);
-Context.rotateSelectionDrag = new DragRotateSelectionOperation();
+DragRotateSelectionOperation.instance = new DragRotateSelectionOperation();
 
 export class DragSelectAreaOperation extends DragOperation {
 
@@ -849,14 +849,16 @@ export class DragSelectAreaOperation extends DragOperation {
         super();
     }
 
-    accept(element, x, y, event) {
-        return super.accept(element, x, y, event);
-    }
-
     doDragStart(element, x, y, event) {
         Context.canvas.addObserver(this);
         let zoom = Context.canvas.zoom;
         this._start = Context.canvas.getPointOnGlass(x, y);
+        this._selectBackground = new Rect(this._start.x, this._start.y, 1, 1)
+            .attrs({
+                fill: Fill.NONE,
+                stroke: Colors.CRIMSON,
+                stroke_opacity: 0.01,
+            });
         this._selectArea = new Rect(this._start.x, this._start.y, 1, 1)
             .attrs({
                 fill: Fill.NONE,
@@ -864,12 +866,14 @@ export class DragSelectAreaOperation extends DragOperation {
                 stroke_opacity: 0.9,
             });
         this._setStrokeParametersAccordingToZoom();
+        Context.canvas.putArtifactOnGlass(this._selectBackground);
         Context.canvas.putArtifactOnGlass(this._selectArea);
         this.doDragMove(element, x, y, event);
     }
 
     _setStrokeParametersAccordingToZoom() {
         let zoom = Context.canvas.zoom;
+        this._selectBackground.stroke_width =2/zoom;
         this._selectArea.stroke_width =2/zoom;
         this._selectArea.stroke_dasharray=  [5/zoom, 5/zoom];
     }
@@ -894,11 +898,15 @@ export class DragSelectAreaOperation extends DragOperation {
             rh = -rh;
             ry = ry - rh;
         }
+        this._selectBackground.attrs({ x: rx, y: ry, width: rw, height: rh });
         this._selectArea.attrs({ x: rx, y: ry, width: rw, height: rh });
     }
 
     doDrop(element, x, y, event) {
         this._doSelection(event);
+        win.setTimeout(()=>{
+            Context.canvas.removeArtifactFromGlass(this._selectBackground);
+        }, 1);
         Context.canvas.removeArtifactFromGlass(this._selectArea);
         Context.canvas.removeObserver(this);
     }
@@ -934,6 +942,11 @@ export class DragSelectAreaOperation extends DragOperation {
             if (selement && _isSelected(selement)) {
                 Context.selection.select(selement);
             } else {
+                if (element.parts) {
+                    for (let part of element.parts) {
+                        _doSelection(part);
+                    }
+                }
                 if (element.children) {
                     for (let child of element.children) {
                         _doSelection(child);
@@ -951,19 +964,12 @@ export class DragSelectAreaOperation extends DragOperation {
 
 }
 makeNotCloneable(DragSelectAreaOperation);
-Context.selectAreaDrag = new DragSelectAreaOperation();
+DragSelectAreaOperation.instance = new DragSelectAreaOperation();
 
 export class DragScrollOperation extends DragOperation {
 
     constructor() {
         super();
-    }
-
-    accept(element, x, y, event) {
-        if (!super.accept(element, x, y, event)) {
-            return false;
-        }
-        return event.button === Buttons.WHEEL_BUTTON;
     }
 
     doDragStart(element, x, y, event) {
@@ -985,7 +991,7 @@ export class DragScrollOperation extends DragOperation {
     }
 }
 makeNotCloneable(DragScrollOperation);
-Context.scrollDrag = new DragScrollOperation();
+DragScrollOperation.instance = new DragScrollOperation();
 
 export class DragSwitchOperation extends DragOperation {
     constructor() {
@@ -1058,11 +1064,25 @@ export class ParentDragOperation extends DragOperation {
     }
 }
 makeNotCloneable(ParentDragOperation);
-Context.parentDrag = new ParentDragOperation();
+ParentDragOperation.instance = new ParentDragOperation();
 
-Context.scrollOrSelectAreaDrag = new DragSwitchOperation()
-    .add(()=>true, Context.scrollDrag)
-    .add(()=>true, Context.selectAreaDrag);
+
+export function ifWheelButton(element, x, y, event) {
+    return event.button === Buttons.WHEEL_BUTTON;
+}
+
+export function ifRightButton(element, x, y, event) {
+    return event.button === Buttons.RIGHT_BUTTON;
+}
+
+export let standardDrag = new DragSwitchOperation()
+    .add(ifWheelButton, DragScrollOperation.instance)
+    .add(ifRightButton, DragSelectAreaOperation.instance)
+    .add(always, new DragMoveSelectionOperation());
+
+export let areaDrag = new DragSwitchOperation()
+    .add(ifWheelButton, DragScrollOperation.instance)
+    .add(ifRightButton, DragSelectAreaOperation.instance);
 
 export class CanvasLayer {
 
@@ -2321,6 +2341,7 @@ export class ElementGroup {
         this._content = new ESet();
         for (let element of elements.values()) {
             this._content.add(element);
+            element._group = this;
         }
     }
 
@@ -2339,6 +2360,25 @@ export class ElementGroup {
         }
         return result;
     }
+
+    dismiss() {
+        for (let part of this._content) {
+            Context.selection._elements.delete(part);
+        }
+        for (let part of this._content) {
+            if (part instanceof ElementGroup) {
+                Context.selection._registerGroup(part);
+            }
+        }
+    }
+
+    clone(duplicata) {
+        let copy = CopyPaste.clone(this, duplicata);
+        if (!copy._group) {
+            Context.selection._registerGroup(copy);
+        }
+        return copy;
+    }
 }
 
 export function baseSelectionPredicate(element) {
@@ -2348,7 +2388,6 @@ export function baseSelectionPredicate(element) {
 
 export function glassSelectionPredicate(element) {
     let layer = element.canvasLayer;
-    console.log(layer)
     return layer && layer instanceof GlassLayer;
 }
 
@@ -2452,6 +2491,11 @@ export class Selection {
                 this.selectOnly(selected);
             }
         }
+        else {
+            if (unselectAllowed) {
+                this.unselectAll();
+            }
+        }
     }
 
 }
@@ -2499,20 +2543,10 @@ export class Groups extends Selection {
 
     ungroup(element) {
         Memento.register(this);
-        let group = element instanceof ElementGroup ? element : this.getGroup(element);
-        let done = new ESet();
-        if (group) {
-            for (let part of group.content()) {
-                this._elements.delete(part);
-            }
-            for (let part of group.content()) {
-                if (part instanceof Group) {
-                    if (!done.has(part)) {
-                        this._registerGroup(part);
-                        done.add(part);
-                    }
-                }
-            }
+        let elements = this.selection(element);
+        let result = this._groupSet(elements);
+        for (let group of result) {
+            group.dismiss();
         }
     }
 
@@ -2534,7 +2568,7 @@ export class Groups extends Selection {
     }
 
     unselect(element) {
-        let group = this.group(element);
+        let group = this.getGroup(element);
         if (group) {
             for (let part of group.elements()) {
                 super.unselect(part);
@@ -2544,9 +2578,9 @@ export class Groups extends Selection {
         }
     }
 
-    groupSelection(predicate=Context.selectPredicate()) {
+    _groupSet(elements) {
         let result = new ESet();
-        for (let element of this.selection(predicate)) {
+        for (let element of elements) {
             let group = this._elements.get(element);
             if (!group) {
                 result.add(element);
@@ -2554,37 +2588,30 @@ export class Groups extends Selection {
                 result.add(group);
             }
         }
+        return result;
+    }
+
+    groupSelection(predicate=Context.selectPredicate) {
+        let result = this._groupSet(this.selection(predicate));
         return [...result.values()];
     }
 
-    groupable(element, predicate=Context.selectPredicate()) {
-        let group = null;
-        let elements = this.selection(predicate);
-        elements.add(element);
-        let count = 0;
-        for (let element of elements) {
-            let egroup = this.getGroup(element);
-            if (!egroup || !group || group !== egroup) {
-                count++;
-            }
-            group = egroup;
-        }
-        return count > 1;
+    groupable(element, predicate=Context.selectPredicate) {
+        let result = this._groupSet(this.selection(predicate));
+        return result.size>1;
     }
 
-    ungroupable(element, predicate=Context.selectPredicate()) {
-        let group = null;
-        let elements = this.selection(predicate);
-        elements.add(element);
-        for (let element of elements) {
-            let egroup = this.getGroup(element);
-            if (!egroup || (group && group !== egroup)) {
+    ungroupable(element, predicate=Context.selectPredicate) {
+        let result = this._groupSet(this.selection(predicate));
+        if (result.size===0) return false;
+        for (let element of result) {
+            if (!(element instanceof ElementGroup)) {
                 return false;
             }
-            group = egroup;
         }
-        return !!group;
+        return true;
     }
+
 }
 makeNotCloneable(Groups);
 

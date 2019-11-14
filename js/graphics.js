@@ -355,11 +355,11 @@ export function loadRasterImage(url, callback) {
 }
 
 win.httpRequest = function(url, postData, callback) {
-    var req = new XMLHttpRequest();
+    let req = new XMLHttpRequest();
     if (req) {
         if (typeof(postData)==="object") {
-            var pd = [];
-            for (var key in postData) {
+            let pd = [];
+            for (let key in postData) {
                 if (postData.hasOwnProperty(key)) {
                     pd.push(encodeURIComponent(key)+"="+encodeURIComponent(postData[key]));
                 }
@@ -2502,6 +2502,7 @@ export class SvgRasterImage extends Shape {
 
     _cloneContent(copy) {
         super._cloneContent(copy);
+        copy._url = this._url;
         loadRasterSvgImage(this._url, raster=> {
             copy._setImage(raster);
         });

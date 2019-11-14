@@ -359,12 +359,12 @@ describe("App fundamentals", ()=> {
     it("Select an element using the select area facility", ()=>{
         let {table, tiny} = createATableWithOneElement();
         tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
-        let dragOperation = drag(table).from(-10, -10).through(10, 10);
+        let dragOperation = drag(table).from(-10, -10, {button:2}).through(10, 10, {button:2});
         // Ensure that selection artifact is here
         assert(html(Context.canvas.glassLayer)).equalsTo(
-            '<g id="app-glass-layer" transform="matrix(1 0 0 1 0 0)"><g><rect x="-18" y="-18" width="20" height="20" fill="none" stroke="#dc143c" stroke-opacity="0.9" stroke-width="2" stroke-dasharray="5 5"></rect></g></g>'
+            '<g id="app-glass-layer" transform="matrix(1 0 0 1 0 0)"><g><rect x="-18" y="-18" width="20" height="20" fill="none" stroke="#dc143c" stroke-opacity="0.01" stroke-width="2"></rect><rect x="-18" y="-18" width="20" height="20" fill="none" stroke="#dc143c" stroke-opacity="0.9" stroke-width="2" stroke-dasharray="5 5"></rect></g></g>\n'
         );
-        dragOperation.to(30, 30);
+        dragOperation.to(30, 30, {button:2});
         // Ensure that select area artifact has disappeared.
         assert(html(Context.canvas.glassLayer)).equalsTo('<g id="app-glass-layer" transform="matrix(1 0 0 1 0 0)"><g></g></g>');
         assert(Context.selection.selected(tiny)).isTrue();
@@ -373,17 +373,17 @@ describe("App fundamentals", ()=> {
     it("Select an element event if the select area artifact covers partially the element", ()=>{
         let {table, tiny} = createATableWithOneElement();
         tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
-        let dragOperation = drag(table).from(-10, -10).to(0, 0);
+        let dragOperation = drag(table).from(-10, -10, {button:2}).to(0, 0, {button:2});
         assert(Context.selection.selected(tiny)).isTrue();
     });
 
     it("Ensure that the select area artifact takes into account the zoom factor", ()=>{
         let table = putTable();
         Context.canvas.zoomSet(0.5, 0, 0);
-        let dragOperation = drag(table).from(-10, -10).through(10, 10);
+        let dragOperation = drag(table).from(-10, -10, {button:2}).through(10, 10, {button:2});
         // Ensure that selection artifact stroke options are updated in accordance with zoom factor is here
         assert(html(Context.canvas.glassLayer)).equalsTo(
-            '<g id="app-glass-layer" transform="matrix(0.5 0 0 0.5 0 0)"><g><rect x="-36" y="-36" width="40" height="40" fill="none" stroke="#dc143c" stroke-opacity="0.9" stroke-width="4" stroke-dasharray="10 10"></rect></g></g>'
+            '<g id="app-glass-layer" transform="matrix(0.5 0 0 0.5 0 0)"><g><rect x="-36" y="-36" width="40" height="40" fill="none" stroke="#dc143c" stroke-opacity="0.01" stroke-width="4"></rect><rect x="-36" y="-36" width="40" height="40" fill="none" stroke="#dc143c" stroke-opacity="0.9" stroke-width="4" stroke-dasharray="10 10"></rect></g></g>\n'
         );
         dragOperation.through(20, 20);
         // Even if zoom factor change during area selection !
