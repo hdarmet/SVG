@@ -29,11 +29,6 @@ export class Menu {
         Context.canvas.putArtifactOnToolsLayer(this._root);
     }
 
-    refresh() {
-        this._root.clear();
-        this._buildContent();
-    }
-
     _buildContent() {
         let rect = new Rect(0, 0, 10, 10).attrs({
             stroke: Colors.BLACK,
@@ -1246,17 +1241,19 @@ export const Tools = {
     redo() {
         Context.memento.redo();
     },
-    regroup() {
-        Context.selection.regroup();
+    regroup(element) {
+        Context.memento.open();
+        Context.selection.regroup(element);
     },
-    ungroup() {
-        Context.selection.ungroup();
+    ungroup(element) {
+        Context.memento.open();
+        Context.selection.ungroup(element);
     },
-    groupable() {
-        return Context.selection.groupable();
+    groupable(element) {
+        return Context.selection.groupable(element);
     },
-    ungroupable() {
-        return Context.selection.ungroupable();
+    ungroupable(element) {
+        return Context.selection.ungroupable(element);
     },
     deleteSelection() {
         Context.memento.open();

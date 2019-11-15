@@ -19,7 +19,7 @@ import {
     CloneableObject, Cloning
 } from "./toolkit.js";
 import {
-    ColorChooserMenuOption
+    ColorChooserMenuOption, TextToggleMenuOption, Tools
 } from "./tools.js";
 
 export function makeDeletable(superClass) {
@@ -324,8 +324,15 @@ export function makePartsOwner(superClass) {
         superClass.prototype._cloning = function (duplicata) {
             let copy = cloning.call(this, duplicata);
             for (let child of this.parts) {
-                let childCopy = child.clone(duplicata);
+                /*
+                let childCopy = duplicata.get(child);
+                if (!childCopy) {
+                    childCopy = child.clone(duplicata);
+                    duplicata.set(child, childCopy);
+                }
                 copy._addPart(childCopy);
+                */
+                copy._addPart(child.duplicate(duplicata));
             }
             return copy;
         };
@@ -594,8 +601,15 @@ export function makeContainer(superClass) {
     superClass.prototype._cloning = function (duplicata) {
         let copy = cloning.call(this, duplicata);
         for (let child of this.children) {
-            let childCopy = child.clone(duplicata);
+            /*
+            let childCopy = duplicata.get(child);
+            if (!childCopy) {
+                childCopy = child.clone(duplicata);
+                duplicata.set(child, childCopy);
+            }
             copy._add(childCopy);
+            */
+            copy._add(child.duplicate(duplicata));
         }
         return copy;
     };
@@ -2382,6 +2396,15 @@ export class BoardElement {
         this._parent = null;
     }
 
+    duplicate(duplicata) {
+        let copy = duplicata.get(this);
+        if (!copy) {
+            copy = this.clone(duplicata);
+            duplicata.set(this, copy);
+        }
+        return copy;
+    }
+
     _memento() {
         let memento = {};
         memento._parent = this._parent;
@@ -2913,6 +2936,65 @@ export function makeHighlightable(superClass) {
 
     if (!superClass.prototype.hasOwnProperty("highlightable")) {
         Object.defineProperty(superClass.prototype, "highlightable", {
+            configurable:true,
+            get() {
+                return true;
+            }
+        });
+    }
+
+    return superClass;
+}
+
+export function makeGroupable(superClass) {
+
+    let createContextMenu = superClass.prototype._createContextMenu;
+    superClass.prototype._createContextMenu = function() {
+        this.addMenuOption(new TextToggleMenuOption("Group", "Ungroup",
+            function() {
+                Tools.regroup(this);
+            },
+            function() {
+                Tools.ungroup(this);
+            },
+            function() {
+                return Tools.ungroupable(this);
+            },
+            function() {
+                return Tools.groupable(this) || Tools.ungroupable(this);
+            })
+        );
+        createContextMenu && createContextMenu.call(this);
+    };
+
+    Object.defineProperty(superClass.prototype, "group", {
+        configurable:true,
+        get() {
+            return this._group;
+        },
+        set(group) {
+            Memento.register(this);
+            this._group = group;
+            return this;
+        }
+    });
+
+    let superMemento = superClass.prototype._memento;
+    superClass.prototype._memento = function() {
+        let memento = superMemento.call(this);
+        memento._group = this._group;
+        return memento;
+    };
+
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function(memento) {
+        superRevert.call(this, memento);
+        this._group = memento._group;
+        return this;
+    };
+
+    if (!superClass.prototype.hasOwnProperty("groupable")) {
+        Object.defineProperty(superClass.prototype, "groupable", {
             configurable:true,
             get() {
                 return true;

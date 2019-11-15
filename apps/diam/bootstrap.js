@@ -12,7 +12,7 @@ import {
 import {
     BoardElement, BoardTable, BoardArea, makeDeletable, makeDraggable, makeFramed, makeSelectable, makeContainer,
     makeMoveable, makeSupport, makePart, makeClickable, makeShaped, makeContainerMultiLayered, makeLayered,
-    makeGentleDropTarget, makePartsOwner, makeDecorationsOwner, makeMultiImaged, makeHighlightable,
+    makeGentleDropTarget, makePartsOwner, makeDecorationsOwner, makeMultiImaged, makeHighlightable, makeGroupable,
     Decoration, TextDecoration
 } from "../../js/base-element.js";
 import {
@@ -141,6 +141,7 @@ makeMoveable(DIAMItem);
 makeDeletable(DIAMItem);
 makeClickable(DIAMItem);
 makeMenuOwner(DIAMItem);
+makeGroupable(DIAMItem);
 makeHighlightable(DIAMItem);
 
 class DIAMSupport extends BoardElement {

@@ -2336,51 +2336,6 @@ Memento.register = function(element) {
     }
 };
 
-export class ElementGroup {
-    constructor(elements) {
-        this._content = new ESet();
-        for (let element of elements.values()) {
-            this._content.add(element);
-            element._group = this;
-        }
-    }
-
-    get content() {
-        return new List(...this._content.values());
-    }
-
-    get flatten() {
-        let result = new List();
-        for (let element of this._content) {
-            if (element instanceof ElementGroup) {
-                result.push(...element.flatten);
-            } else {
-                result.push(element);
-            }
-        }
-        return result;
-    }
-
-    dismiss() {
-        for (let part of this._content) {
-            Context.selection._elements.delete(part);
-        }
-        for (let part of this._content) {
-            if (part instanceof ElementGroup) {
-                Context.selection._registerGroup(part);
-            }
-        }
-    }
-
-    clone(duplicata) {
-        let copy = CopyPaste.clone(this, duplicata);
-        if (!copy._group) {
-            Context.selection._registerGroup(copy);
-        }
-        return copy;
-    }
-}
-
 export function baseSelectionPredicate(element) {
     let layer = element.canvasLayer;
     return layer && layer instanceof BaseLayer;
@@ -2502,6 +2457,52 @@ export class Selection {
 makeObservable(Selection);
 makeNotCloneable(Selection);
 
+export class ElementGroup {
+    constructor(elements) {
+        this._content = new ESet();
+        for (let element of elements.values()) {
+            this._content.add(element);
+            console.assert(element.groupable);
+            element.group = this;
+        }
+    }
+
+    get content() {
+        return new List(...this._content.values());
+    }
+
+    get flatten() {
+        let result = new List();
+        for (let element of this._content) {
+            if (element instanceof ElementGroup) {
+                result.push(...element.flatten);
+            } else {
+                result.push(element);
+            }
+        }
+        return result;
+    }
+
+    dismiss() {
+        for (let part of this._content) {
+            Context.selection._elements.delete(part);
+        }
+        for (let part of this._content) {
+            if (part instanceof ElementGroup) {
+                Context.selection._registerGroup(part);
+            }
+        }
+    }
+
+    clone(duplicata) {
+        let copy = CopyPaste.clone(this, duplicata);
+        if (!copy._group) {
+            Context.selection._registerGroup(copy);
+        }
+        return copy;
+    }
+}
+
 export class Groups extends Selection {
 
     constructor() {
@@ -2527,7 +2528,8 @@ export class Groups extends Selection {
     regroup(element) {
         Memento.register(this);
         let content = new ESet();
-        let elements = this.selection(element);
+        let elements = this.selection();
+        element && elements.add(element);
         for (let element of elements) {
             let group = this.getGroup(element);
             if (!group) {
@@ -2536,6 +2538,9 @@ export class Groups extends Selection {
                 content.add(group);
                 this._elements.delete(element);
             }
+            if (!this.selected(element)) {
+                this.select(element);
+            }
         }
         let group = new ElementGroup(content);
         this._registerGroup(group);
@@ -2543,7 +2548,8 @@ export class Groups extends Selection {
 
     ungroup(element) {
         Memento.register(this);
-        let elements = this.selection(element);
+        let elements = this.selection();
+        element && elements.add(element);
         let result = this._groupSet(elements);
         for (let group of result) {
             group.dismiss();
@@ -2583,6 +2589,7 @@ export class Groups extends Selection {
         for (let element of elements) {
             let group = this._elements.get(element);
             if (!group) {
+                if (!element.groupable) return null;
                 result.add(element);
             } else {
                 result.add(group);
@@ -2593,17 +2600,21 @@ export class Groups extends Selection {
 
     groupSelection(predicate=Context.selectPredicate) {
         let result = this._groupSet(this.selection(predicate));
-        return [...result.values()];
+        return result ? [] : [...result.values()];
     }
 
     groupable(element, predicate=Context.selectPredicate) {
-        let result = this._groupSet(this.selection(predicate));
-        return result.size>1;
+        let elements = this.selection(predicate);
+        element && elements.add(element);
+        let result = this._groupSet(elements);
+        return result && result.size>1;
     }
 
     ungroupable(element, predicate=Context.selectPredicate) {
-        let result = this._groupSet(this.selection(predicate));
-        if (result.size===0) return false;
+        let elements = this.selection(predicate);
+        element && elements.add(element);
+        let result = this._groupSet(elements);
+        if (!result || result.size===0) return false;
         for (let element of result) {
             if (!(element instanceof ElementGroup)) {
                 return false;
