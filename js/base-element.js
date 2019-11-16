@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    createUUID, same, isNumber
+    createUUID, same, isNumber, getPropertyDescriptor
 } from "./misc.js";
 import {
     List, ESet
@@ -34,13 +34,13 @@ export function makeDeletable(superClass) {
         Object.defineProperty(superClass.prototype, "deletable", {
             configurable:true,
             get() {
-                return true;
+                return !this.lock;
             }
         });
     }
 }
 
-export function makeMoveable(superClass) {
+export function makeMovable(superClass) {
 
     superClass.prototype.move = function(x, y) {
         let result = this.setLocation(x, y);
@@ -54,11 +54,11 @@ export function makeMoveable(superClass) {
         return result;
     };
 
-    if (!superClass.prototype.hasOwnProperty("moveable")) {
-        Object.defineProperty(superClass.prototype, "moveable", {
+    if (!superClass.prototype.hasOwnProperty("movable")) {
+        Object.defineProperty(superClass.prototype, "movable", {
             configurable:true,
             get() {
-                return true;
+                return !this.lock;
             }
         });
     }
@@ -113,7 +113,7 @@ export function makeRotatable(superClass) {
         Object.defineProperty(superClass.prototype, "rotatable", {
             configurable:true,
             get() {
-                return true;
+                return !this.lock;
             }
         });
     }
@@ -324,14 +324,6 @@ export function makePartsOwner(superClass) {
         superClass.prototype._cloning = function (duplicata) {
             let copy = cloning.call(this, duplicata);
             for (let child of this.parts) {
-                /*
-                let childCopy = duplicata.get(child);
-                if (!childCopy) {
-                    childCopy = child.clone(duplicata);
-                    duplicata.set(child, childCopy);
-                }
-                copy._addPart(childCopy);
-                */
                 copy._addPart(child.duplicate(duplicata));
             }
             return copy;
@@ -601,14 +593,6 @@ export function makeContainer(superClass) {
     superClass.prototype._cloning = function (duplicata) {
         let copy = cloning.call(this, duplicata);
         for (let child of this.children) {
-            /*
-            let childCopy = duplicata.get(child);
-            if (!childCopy) {
-                childCopy = child.clone(duplicata);
-                duplicata.set(child, childCopy);
-            }
-            copy._add(childCopy);
-            */
             copy._add(child.duplicate(duplicata));
         }
         return copy;
@@ -3001,6 +2985,91 @@ export function makeGroupable(superClass) {
             }
         });
     }
+
+    return superClass;
+}
+
+export function makeLockable(superClass) {
+
+    let superInit = superClass.prototype._init;
+    superClass.prototype._init = function(...args) {
+        superInit.call(this, ...args);
+        this._showLocking();
+    };
+
+    let createContextMenu = superClass.prototype._createContextMenu;
+    superClass.prototype._createContextMenu = function() {
+        this.addMenuOption(new TextToggleMenuOption("Lock", "Unlock",
+            function() {
+                Tools.lock(this);
+            },
+            function() {
+                Tools.unlock(this);
+            },
+            function() {
+                return Tools.unlockable(this);
+            },
+            function() {
+                return Tools.lockable(this) || Tools.unlockable(this);
+            })
+        );
+        createContextMenu && createContextMenu.call(this);
+    };
+
+    superClass.prototype._showLocking = function() {
+        if (this.lock) {
+            this._root.stroke = Colors.LIGHT_GREY;
+        }
+        else {
+            this._root.stroke = Colors.BLACK;
+        }
+    };
+
+    Object.defineProperty(superClass.prototype, "lock", {
+        configurable:true,
+        get() {
+            return this._lock;
+        },
+        set(lock) {
+            Memento.register(this);
+            this._lock = lock;
+            this._showLocking();
+            return this;
+        }
+    });
+
+    let superMemento = superClass.prototype._memento;
+    superClass.prototype._memento = function() {
+        let memento = superMemento.call(this);
+        memento._lock = this._lock;
+        return memento;
+    };
+
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function(memento) {
+        superRevert.call(this, memento);
+        this._lock = memento._lock;
+        this._showLocking();
+        return this;
+    };
+
+    if (!superClass.prototype.hasOwnProperty("lockable")) {
+        Object.defineProperty(superClass.prototype, "lockable", {
+            configurable:true,
+            get() {
+                return true;
+            }
+        });
+    }
+
+    let superCloned = superClass.prototype._cloned;
+    superClass.prototype._cloned = function(copy, duplicata) {
+        superCloned && superCloned.call(this, copy, duplicata);
+        if (!duplicata.get(this.parent)) {
+            copy._lock = false;
+        }
+        this._showLocking();
+    };
 
     return superClass;
 }

@@ -11,7 +11,7 @@ import {
 } from "../../js/toolkit.js";
 import {
     BoardElement, BoardTable, BoardArea, makeDeletable, makeDraggable, makeFramed, makeSelectable, makeContainer,
-    makeMoveable, makeSupport, makePart, makeClickable, makeShaped, makeContainerMultiLayered, makeLayered,
+    makeLockable, makeMovable, makeSupport, makePart, makeClickable, makeShaped, makeContainerMultiLayered, makeLayered,
     makeGentleDropTarget, makePartsOwner, makeDecorationsOwner, makeMultiImaged, makeHighlightable, makeGroupable,
     Decoration, TextDecoration
 } from "../../js/base-element.js";
@@ -22,7 +22,7 @@ import {
 import {
     Tools, BoardItemBuilder, copyCommand, deleteCommand, pasteCommand, redoCommand, ToolCommandPopup, undoCommand,
     zoomExtentCommand, zoomInCommand, zoomOutCommand, zoomSelectionCommand, ToolGridExpandablePanel, ToolExpandablePopup,
-    regroupCommand, ungroupCommand,
+    regroupCommand, ungroupCommand, lockCommand, unlockCommand,
     ToolGridPanelContent, makeMenuOwner, TextMenuOption
 } from "../../js/tools.js";
 import {
@@ -137,8 +137,9 @@ class DIAMItem extends BoardElement {
 }
 makeSelectable(DIAMItem);
 makeDraggable(DIAMItem);
-makeMoveable(DIAMItem);
+makeMovable(DIAMItem);
 makeDeletable(DIAMItem);
+makeLockable(DIAMItem);
 makeClickable(DIAMItem);
 makeMenuOwner(DIAMItem);
 makeGroupable(DIAMItem);
@@ -263,7 +264,7 @@ makePositioningContainer(DIAMFasciaSupport, {
 class DIAMFascia extends DIAMItem {
     constructor({width, height, color}) {
         super({width, height});
-        this._initFrame(width, height, Colors.BLACK, color);
+        this._initFrame(width, height, Colors.INHERIT, color);
     }
 }
 makeFramed(DIAMFascia);
@@ -349,7 +350,7 @@ function makeKnobOwner(superClass, {size, predicate}) {
 
 class DIAMCover extends DIAMSupport {
     constructor({width, height}) {
-        super({width, height, strokeColor:Colors.BLACK, backgroundColor:Colors.LIGHTEST_GREY});
+        super({width, height, strokeColor:Colors.LIGHT_GREY, backgroundColor:Colors.LIGHTEST_GREY});
     }
 
     _acceptDrop(element, dragSet) {
@@ -367,7 +368,7 @@ makePositioningContainer(DIAMCover, {
 class DIAMVisual extends DIAMItem {
     constructor({width, height, color}) {
         super({width, height});
-        this._initFrame(width, height, Colors.BLACK, color);
+        this._initFrame(width, height, Colors.INHERIT, color);
     }
 }
 makeFramed(DIAMVisual);
@@ -387,7 +388,7 @@ class DIAMBlister extends DIAMItem {
     buildShape() {
         let base = new Group();
         let item = new Rect(-this.width / 2, -this.height / 2, this.width, this.height)
-            .attrs({stroke: Colors.BLACK, fill:this._color});
+            .attrs({stroke: Colors.INHERIT, fill:this._color});
         let hole = new Circle(this._clip.x, this._clip.y, this._radius)
             .attrs({ stroke: Colors.BLACK, fill: Colors.WHITE });
         base.add(item).add(hole);
@@ -432,7 +433,7 @@ class DIAMHook extends DIAMItem {
                 DIAMHook.WIDTH - DIAMHook.SIZE * 2, DIAMHook.HEIGHT / 2,
                 DIAMHook.HEIGHT - DIAMHook.SIZE, DIAMHook.RADIUS - DIAMHook.SIZE / 2
             )
-        ).attrs({stroke: Colors.BLACK, fill: Colors.WHITE});
+        ).attrs({stroke: Colors.INHERIT, fill: Colors.WHITE});
         base.add(item);
         return base;
     }
@@ -477,7 +478,7 @@ class DIAMBox extends DIAMItem {
     buildShape() {
         let base = new Group();
         let item = new Rect(-this.width / 2, -this.height / 2, this.width, this.height)
-            .attrs({stroke: Colors.BLACK, fill:Colors.WHITE});
+            .attrs({stroke: Colors.INHERIT, fill:Colors.WHITE});
         base.add(item);
         return base;
     }
@@ -633,7 +634,7 @@ class DIAMFixing extends DIAMItem {
     buildShape() {
         let base = new Group();
         base.add(new Rect(-DIAMFixing.WIDTH / 2, -DIAMFixing.HEIGHT / 2, DIAMFixing.WIDTH, DIAMFixing.HEIGHT)
-            .attrs({ stroke: Colors.BLACK, fill: Colors.WHITE }));
+            .attrs({ stroke: Colors.INHERIT, fill: Colors.WHITE }));
         base.add(new Circle(-DIAMFixing.WIDTH / 4, 0, DIAMFixing.DEVICE_RADIUS)
             .attrs({ stroke: Colors.BLACK, fill: Colors.WHITE }));
         base.add(new Circle(DIAMFixing.WIDTH / 4, 0, DIAMFixing.DEVICE_RADIUS)
@@ -668,7 +669,7 @@ class DIAMAbstractLadder extends DIAMItem {
     buildShape() {
         let base = new Group();
         base.add(new Rect(-this.width / 2, -this.height / 2, this.width, this.height)
-            .attrs({stroke:Colors.NONE, fill:Colors.LIGHT_GREY}));
+            .attrs({stroke:Colors.INHERIT, fill:Colors.LIGHT_GREY}));
         let slotSize = Math.min(2, this._slotInterval / 6);
         for (let slot of this.slots) {
             base.add(new Circle(slot.x, slot.y, slotSize).attrs({ fill: Colors.BLACK }));
@@ -786,7 +787,7 @@ class DIAMShelf extends DIAMItem {
     buildShape() {
         let base = new Group();
         let item = new Rect(-this.width / 2, -this.height / 2, this.width, this.height)
-            .attrs({stroke: Colors.BLACK, fill:Colors.WHITE});
+            .attrs({stroke: Colors.INHERIT, fill:Colors.WHITE});
         base.add(item);
         return base;
     }
@@ -898,7 +899,7 @@ class DIAMDivider extends DIAMItem {
 
     constructor({width, height}) {
         super({width, height});
-        this._initFrame(width, height, Colors.BLACK, Colors.WHITE);
+        this._initFrame(width, height, Colors.INHERIT, Colors.WHITE);
     }
 
 }
@@ -1187,7 +1188,7 @@ class DIAMPane extends DIAMItem {
 
     constructor({width, height, label, contentX, contentY, contentWidth, contentHeight, lineMargin, labelMargin, indexMargin}) {
         super({width, height, label});
-        this._initFrame(width, height, Colors.BLACK, Colors.WHITE);
+        this._initFrame(width, height, Colors.INHERIT, Colors.WHITE);
         this._paneContent = this._createPaneContent(contentX, contentY, contentWidth, contentHeight, lineMargin, labelMargin, indexMargin);
         this._addPart(this._paneContent);
     }
@@ -1240,7 +1241,7 @@ makeGentleDropTarget(DIAMAbstractModule);
 class DIAMBasicModule extends DIAMAbstractModule {
     constructor({width, height, color, ...args}) {
         super({width, height, ...args});
-        this._initFrame(width, height, Colors.BLACK, color);
+        this._initFrame(width, height, Colors.INHERIT, color);
     }
 }
 makeFramed(DIAMBasicModule);
@@ -1248,7 +1249,7 @@ makeFramed(DIAMBasicModule);
 class DIAMImageModule extends DIAMAbstractModule {
     constructor({width, height, url, realisticUrl, ...args}) {
         super({width, height, ...args});
-        this._initImages(width, height, Colors.LIGHT_GREY, url, realisticUrl);
+        this._initImages(width, height, Colors.INHERIT, url, realisticUrl);
     }
 
     clone(duplicata) {
@@ -1464,6 +1465,8 @@ function createCommandPopup() {
     redoCommand(cmdPopup);
     regroupCommand(cmdPopup);
     ungroupCommand(cmdPopup);
+    lockCommand(cmdPopup);
+    unlockCommand(cmdPopup);
     cmdPopup.addMargin();
     deleteCommand(cmdPopup);
     return cmdPopup;

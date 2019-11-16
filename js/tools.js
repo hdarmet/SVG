@@ -1159,6 +1159,11 @@ export class BoardItemBuilder extends ToolCell {
 }
 
 export const Tools = {
+    _selection(element, predicate) {
+        let selection = Context.selection.selection(predicate);
+        element && selection.add(element);
+        return selection;
+    },
     isMaxZoom() {
         return Context.canvas.maxZoom <= Context.canvas.zoom;
     },
@@ -1254,6 +1259,42 @@ export const Tools = {
     },
     ungroupable(element) {
         return Context.selection.ungroupable(element);
+    },
+    lock(element) {
+        Context.memento.open();
+        let selection = this._selection(element);
+        for (let element of selection) {
+            if (element.lockable && !element.lock) {
+                element.lock = true;
+            }
+        }
+    },
+    unlock(element) {
+        Context.memento.open();
+        let selection = this._selection(element);
+        for (let element of selection) {
+            if (element.lockable && element.lock) {
+                element.lock = false;
+            }
+        }
+    },
+    lockable(element) {
+        let selection = this._selection(element);
+        let result = false;
+        for (let element of selection) {
+            if (!element.lockable) return false;
+            if (!element.lock) result = true;
+        }
+        return result;
+    },
+    unlockable(element) {
+        let selection = this._selection(element);
+        let result = true;
+        for (let element of selection) {
+            if (!element.lockable) return false;
+            if (!element.lock) result = false;
+        }
+        return result;
     },
     deleteSelection() {
         Context.memento.open();
@@ -1367,5 +1408,21 @@ export function ungroupCommand(toolPopup) {
         () => {
             Tools.ungroup();
         }, () => Tools.ungroupable())
+    );
+}
+
+export function lockCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/lock_on.svg", "./images/icons/lock_off.svg",
+        () => {
+            Tools.lock();
+        }, () => Tools.lockable())
+    );
+}
+
+export function unlockCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/unlock_on.svg", "./images/icons/unlock_off.svg",
+        () => {
+            Tools.unlock();
+        }, () => Tools.unlockable())
     );
 }

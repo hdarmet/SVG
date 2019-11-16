@@ -342,7 +342,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
     }
 
     /**
-     * Accept drag/drop if element is moveable.
+     * Accept drag/drop if element is movable.
      * @param element element to be dragged and dropped
      * @param x mouse position
      * @param y mouse position
@@ -350,7 +350,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
      * @returns {boolean|*} true if drag/drop accepted
      */
     accept(element, x, y, event) {
-        return (!Context.isReadOnly() && element.moveable && super.accept(element, x, y, event));
+        return (!Context.isReadOnly() && element.movable && super.accept(element, x, y, event));
     }
 
     /**
@@ -379,7 +379,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
         }
         let dragSet = getExtension(Context.selection.selection(element=>true));
         for (let element of [...dragSet]) {
-            if (!element.moveable ||
+            if (!element.movable ||
                 element._acceptDrag && !element._acceptDrag() ||
                 inSelection(element.parent, dragSet)) {
                 dragSet.delete(element);
