@@ -1998,10 +1998,12 @@ export function makeImaged(superClass) {
     Object.defineProperty(superClass.prototype, "width", {
         configurable:true,
         get: function () {
-            return this.background.width;
+            //return this.background.width;
+            return this._width;
         },
         set: function(width) {
             Memento.register(this);
+            this._width = width;
             this.background.attrs({width:width, x:-width/2});
             this.frame.attrs({width:width, x:-width/2});
         }
@@ -2010,10 +2012,12 @@ export function makeImaged(superClass) {
     Object.defineProperty(superClass.prototype, "height", {
         configurable:true,
         get: function () {
-            return this.background.height;
+            //return this.background.height;
+            return this._height;
         },
         set: function(height) {
             Memento.register(this);
+            this._height = height;
             this.background.attrs({height:height, y:-height/2});
             this.frame.attrs({height:height, y:-height/2});
         }
@@ -3073,3 +3077,98 @@ export function makeLockable(superClass) {
 
     return superClass;
 }
+
+export class Mark {
+
+    constructor(shape, rank) {
+        this._shape = shape;
+        this._rank = rank;
+    }
+
+    get shape() {
+        return this._shape;
+    }
+}
+
+export class MarksDecoration extends Decoration {
+
+    constructor(specs) {
+        super();
+        this._specs = {...specs};
+        this._marks = new ESet();
+    }
+
+    add(...marks) {
+        for (let mark of marks) {
+            this._marks.add(mark);
+        }
+        this._init();
+    }
+
+    remove(...marks) {
+        for (let mark of marks) {
+            this._marks.delete(mark);
+        }
+        this._init();
+    }
+
+    _init() {
+
+        function getX(specs) {
+            let {x, markWidth} = specs;
+            if (x === MarksDecoration.LEFT) {
+                x = -this._element.width/2+MarksDecoration.MARGIN;
+            } else if (x === MarksDecoration.RIGHT) {
+                x = this._element.width/2-MarksDecoration.MARGIN;
+                markWidth = -markWidth;
+            } else {
+                console.assert(isNumber(x));
+            }
+            return {x, markWidth};
+        }
+
+        function getY(specs) {
+            let {y, markHeight} = specs;
+            if (y === MarksDecoration.TOP) {
+                y = -this._element.height/2+MarksDecoration.MARGIN;
+            } else if (x === MarksDecoration.BOTTOM) {
+                y = this._element.height/2-MarksDecoration.MARGIN;
+                markHeight = -markHeight;
+            } else {
+                console.assert(isNumber(y));
+            }
+            return {y, markHeight};
+        }
+
+        this._root.clear();
+        let marks = [...this._marks].sort((m1, m2)=>m1.rank - m2.rank);
+        let {x, markWidth} = getX.call(this, this._specs);
+        let {y, markHeight} = getY.call(this, this._specs);
+        let px = x + markWidth/2;
+        let py = y + markHeight/2;
+        for (let mark of marks) {
+            let shape = mark.shape.clone();
+            let pedestal = new Translation(px, py);
+            px += markWidth;
+            pedestal.add(shape);
+            this._root.add(pedestal);
+        }
+    }
+
+    refresh() {
+        this._root.clear();
+        this._init();
+    }
+
+    clone(duplicata) {
+        let decoration = new MarksDecoration(this._specs);
+        decoration._marks = new ESet(this._marks);
+        return decoration;
+    }
+
+}
+MarksDecoration.MARGIN = 1;
+MarksDecoration.LEFT = "left";
+MarksDecoration.RIGHT = "right";
+MarksDecoration.TOP = "top";
+MarksDecoration.BOTTOM = "bottom";

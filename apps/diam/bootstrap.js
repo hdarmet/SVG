@@ -13,10 +13,10 @@ import {
     BoardElement, BoardTable, BoardArea, makeDeletable, makeDraggable, makeFramed, makeSelectable, makeContainer,
     makeLockable, makeMovable, makeSupport, makePart, makeClickable, makeShaped, makeContainerMultiLayered, makeLayered,
     makeGentleDropTarget, makePartsOwner, makeDecorationsOwner, makeMultiImaged, makeHighlightable, makeGroupable,
-    Decoration, TextDecoration
+    Decoration, TextDecoration, Mark, MarksDecoration
 } from "../../js/base-element.js";
 import {
-    Colors, Group, Line, Rect, Circle, Path, Text, M, Q, L, C, Attrs, AlignmentBaseline,
+    Colors, Group, Line, Rect, Circle, Path, Text, RasterImage, M, Q, L, C, Attrs, AlignmentBaseline, FontWeight, TextAnchor,
     definePropertiesSet, filterProperties
 } from "../../js/graphics.js";
 import {
@@ -72,6 +72,7 @@ function makeLabelOwner(superClass) {
                 label: element.label
             },
             data => {
+                Context.memento.open();
                 element.label = data.label;
             });
     }
@@ -119,22 +120,141 @@ function makeLabelOwner(superClass) {
     let superRevert = superClass.prototype._revert;
     superClass.prototype._revert = function(memento) {
         superRevert.call(this, memento);
-        this._label = memento._label;
+        this._setLabel(memento._label);
         return this;
     };
 
     return superClass;
 }
 
+function makeCommentOwner(superClass) {
+
+    function callForComment(element) {
+        Context.canvas.openModal(
+            comment,
+            {
+                comment: element.comment
+            },
+            data => {
+                Context.memento.open();
+                element.comment = data.comment;
+            });
+    }
+
+    let init = superClass.prototype._init;
+    superClass.prototype._init = function(...args) {
+        init.call(this, ...args);
+        this.comment = args.comment || "";
+    };
+
+    Object.defineProperty(superClass.prototype, "comment", {
+        configurable:true,
+        get() {
+            return this._comment;
+        },
+        set(comment) {
+            Memento.register(this);
+            this._setComment(comment);
+            return this;
+        }
+    });
+
+    let createContextMenu = superClass.prototype._createContextMenu;
+    superClass.prototype._createContextMenu = function() {
+        this.addMenuOption(new TextMenuOption("Add comment",
+            function() { callForComment(this); })
+        );
+        createContextMenu && createContextMenu.call(this);
+    };
+
+    let setComment = superClass.prototype._setComment;
+    superClass.prototype._setComment = function(comment) {
+        this._comment = comment;
+        setComment && setComment.call(this, comment);
+        return this;
+    };
+
+    let superMemento = superClass.prototype._memento;
+    superClass.prototype._memento = function() {
+        let memento = superMemento.call(this);
+        memento._comment = this._comment;
+        return memento;
+    };
+
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function(memento) {
+        superRevert.call(this, memento);
+        this._setComment(memento._comment);
+        return this;
+    };
+
+    return superClass;
+}
+
+let commentMark = new Mark(new RasterImage("./images/icons/comments.png", -5, -3.75, 10, 7.5), 0);
+
+class DIAMMarksSupport extends BoardElement {
+
+    constructor({width, height}) {
+        super(width, height);
+    }
+
+}
+makeDecorationsOwner(DIAMMarksSupport);
+DIAMMarksSupport.SIZE = 10;
+
 class DIAMItem extends BoardElement {
     constructor({width, height, ...args}) {
         super(width, height, args);
+    }
+
+    _init({...args}) {
+        super._init({...args});
         this._dragOperation(()=>standardDrag);
         this._createContextMenu();
+        this._createMarksSupport();
+        if (args.status) {
+            this._setStatus(args.status.code, args.status.color);
+        }
+    }
+
+    _finish(args) {
+        super._finish(args);
+        this._addPart(this._marksSupport);
     }
 
     _createContextMenu() {}
+
+    _createMarksSupport() {
+        this._marksDecoration = new MarksDecoration({
+            x:MarksDecoration.RIGHT, y:MarksDecoration.TOP,
+            markWidth:DIAMMarksSupport.SIZE, markHeight:DIAMMarksSupport.SIZE
+        });
+        this._marksSupport = new DIAMMarksSupport({width:this.width, height:this.height});
+        this._marksSupport.addDecoration(this._marksDecoration);
+    }
+
+    _setComment(comment) {
+        if (comment) {
+            this._marksDecoration.add(commentMark);
+        }
+        else {
+            this._marksDecoration.remove(commentMark);
+        }
+    }
+
+    _setStatus(code, color) {
+        let statusMark = new Mark(new Text(0, 0, code)
+            .attrs({
+                stroke:Colors.NONE, fill:color,
+                font_family:"arial", font_size:8, font_weight:FontWeight.BOLD,
+                alignment_baseline : AlignmentBaseline.MIDDLE, text_anchor:TextAnchor.MIDDLE
+            }), 1);
+        this._marksDecoration.add(statusMark);
+        return this;
+    }
 }
+makePartsOwner(DIAMItem);
 makeSelectable(DIAMItem);
 makeDraggable(DIAMItem);
 makeMovable(DIAMItem);
@@ -143,6 +263,7 @@ makeLockable(DIAMItem);
 makeClickable(DIAMItem);
 makeMenuOwner(DIAMItem);
 makeGroupable(DIAMItem);
+makeCommentOwner(DIAMItem);
 makeHighlightable(DIAMItem);
 
 class DIAMSupport extends BoardElement {
@@ -262,9 +383,13 @@ makePositioningContainer(DIAMFasciaSupport, {
 });
 
 class DIAMFascia extends DIAMItem {
-    constructor({width, height, color}) {
-        super({width, height});
-        this._initFrame(width, height, Colors.INHERIT, color);
+    constructor(specs) {
+        super(specs);
+    }
+
+    _improve({color}) {
+        super._improve({});
+        this._initFrame(this.width, this.height, Colors.INHERIT, color);
     }
 }
 makeFramed(DIAMFascia);
@@ -336,8 +461,8 @@ function makeKnobOwner(superClass, {size, predicate}) {
     makePartsOwner(superClass);
 
     let superInit = superClass.prototype._init;
-    superClass.prototype._init = function(...args) {
-        superInit && superInit.call(this, ...args);
+    superClass.prototype._init = function({...args}) {
+        superInit && superInit.call(this, {...args});
         let knob = this._createKnob(size, this.height);
         knob._setLocation(-this.width/2+size/2, 0);
         this._addPart(knob);
@@ -366,9 +491,10 @@ makePositioningContainer(DIAMCover, {
 });
 
 class DIAMVisual extends DIAMItem {
-    constructor({width, height, color}) {
-        super({width, height});
-        this._initFrame(width, height, Colors.INHERIT, color);
+
+    _improve({color}) {
+        super._improve({});
+        this._initFrame(this.width, this.height, Colors.INHERIT, color);
     }
 }
 makeFramed(DIAMVisual);
@@ -376,8 +502,8 @@ makeKnobOwner(DIAMVisual, {size: 15, predicate:is(DIAMCover)});
 
 class DIAMBlister extends DIAMItem {
 
-    constructor({width, height, clip, color}) {
-        super({width, height, color});
+    _improve({clip, color}) {
+        super._improve({});
         this._clip = new Clip(this, clip.x, clip.y);
         this._radius = clip.radius;
         this._addClips(this._clip);
@@ -411,7 +537,11 @@ class DIAMHook extends DIAMItem {
      * constants instead.
      */
     constructor() {
-        super({width:DIAMHook.WIDTH, height:DIAMHook.HEIGHT});
+        super({width: DIAMHook.WIDTH, height: DIAMHook.HEIGHT});
+    }
+
+    _improve() {
+        super._improve({});
         this._initShape(this.buildShape());
         this._addSlots(new Slot(this, 0, 0));
     }
@@ -462,8 +592,8 @@ makeDecorationsOwner(DIAMBoxContent);
 
 class DIAMBox extends DIAMItem {
 
-    constructor({width, height, clips, contentX, contentY, contentWidth, contentHeight, color, ...args}) {
-        super({width, height, color});
+    _improve({clips, contentX, contentY, contentWidth, contentHeight, color, ...args}) {
+        super._improve({color});
         this._initShape(this.buildShape());
         this._boxContent = this._buildBoxContent(contentWidth, contentHeight, color, args);
         this._boxContent._setLocation(contentX, contentY);
@@ -493,7 +623,6 @@ makeLayered(DIAMBox, {
 });
 makeClipsOwner(DIAMBox);
 makeCarrier(DIAMBox);
-makePartsOwner(DIAMBox);
 
 class DIAMSlottedBoxContent extends DIAMBoxContent {
 
@@ -595,10 +724,6 @@ addPhysicToContainer(DIAMSlottedBoxContent, {
 
 class DIAMSlottedBox extends DIAMBox {
 
-    constructor({width, height, clips, contentX, contentY, contentWidth, contentHeight, slotWidth, color}) {
-        super({width, height, clips, contentX, contentY, contentWidth, contentHeight, color, slotWidth});
-    }
-
     _buildBoxContent(contentWidth, contentHeight, color, {slotWidth}) {
         return new DIAMSlottedBoxContent({width:contentWidth, height:contentHeight, color, slotWidth});
     }
@@ -607,12 +732,13 @@ class DIAMSlottedBox extends DIAMBox {
 
 class DIAMSlottedRichBox extends DIAMSlottedBox {
 
-    constructor({
-        width, height, clips,
+    _improve({
+        clips,
         contentX, contentY, contentWidth, contentHeight,
         slotWidth, color,
-        headerHeight, footerHeight}) {
-        super({width, height, clips, contentX, contentY, contentWidth, contentHeight, color, slotWidth});
+        headerHeight, footerHeight}
+    ) {
+        super._improve({clips, contentX, contentY, contentWidth, contentHeight, color, slotWidth});
         this._initHeader(headerHeight);
         this._initFooter(footerHeight);
         this._initFasciaSupport(headerHeight, footerHeight);
@@ -626,7 +752,11 @@ makeFasciaSupport(DIAMSlottedRichBox);
 class DIAMFixing extends DIAMItem {
 
     constructor() {
-        super({width:DIAMFixing.WIDTH, height:DIAMFixing.HEIGHT});
+        super({width: DIAMFixing.WIDTH, height: DIAMFixing.HEIGHT});
+    }
+
+    _improve() {
+        super._improve();
         this._initShape(this.buildShape());
         this._addSlots(new Slot(this, 0, 0));
     }
@@ -657,8 +787,8 @@ DIAMFixing.DEVICE_RADIUS = 2;
 
 class DIAMAbstractLadder extends DIAMItem {
 
-    constructor({width, height, topSlot, bottomSlot, slotInterval}) {
-        super({width, height});
+    _improve({topSlot, bottomSlot, slotInterval}) {
+        super._improve();
         this._topSlot = topSlot;
         this._bottomSlot = bottomSlot;
         this._slotInterval = slotInterval;
@@ -750,8 +880,8 @@ class DIAMDoubleLadder extends DIAMAbstractLadder {
 
 class DIAMShelf extends DIAMItem {
 
-    constructor({width, height, leftClip:leftClipSpec, rightClip:rightClipSpec, label, ...args}) {
-        super({width, height, color:Colors.GREY, label, ...args});
+    _improve({leftClip:leftClipSpec, rightClip:rightClipSpec, label, ...args}) {
+        super._improve({color:Colors.GREY, label, ...args});
         this._leftClip = new Clip(this, leftClipSpec.x, leftClipSpec.y);
         this._addClips(this._leftClip);
         this._rightClip = new Clip(this, rightClipSpec.x, rightClipSpec.y);
@@ -804,15 +934,15 @@ makeCarrier(DIAMShelf);
 
 class DIAMRichShelf extends DIAMShelf {
 
-    constructor({width, height, leftClip, rightClip, coverY, coverHeight, ...args}) {
-        super({width, height, leftClip, rightClip, coverY, coverHeight, ...args});
-        this._addPart(this._cover);
-    }
-
     _init({leftClip, rightClip, coverY, coverHeight, ...args}) {
         super._init({leftClip, rightClip, coverY, coverHeight, ...args});
         this._cover = this._buildCover(this.width, coverHeight, args);
+    }
+
+    _improve({leftClip, rightClip, coverY, coverHeight, ...args}) {
+        super._improve({leftClip, rightClip, coverY, coverHeight, ...args});
         this._cover._setLocation(0, coverY);
+        this._addPart(this._cover);
     }
 
     get decorationTarget() {
@@ -826,13 +956,8 @@ class DIAMRichShelf extends DIAMShelf {
 makeLayered(DIAMRichShelf, {
     layer:DIAMLayers.UP
 });
-makePartsOwner(DIAMRichShelf);
 
 class DIAMCaddyContent extends DIAMBoxContent {
-
-    constructor({width, height, color}) {
-        super({width, height, color});
-    }
 
     _createContextMenu() {
         this.addMenuOption(new TextMenuOption("generate ladders",
@@ -867,10 +992,6 @@ addPhysicToContainer(DIAMCaddyContent, {
 
 class DIAMCaddy extends DIAMBox {
 
-    constructor({width, height, clips, contentX, contentY, contentWidth, contentHeight, color}) {
-        super({width, height, clips, contentX, contentY, contentWidth, contentHeight, color});
-    }
-
     _buildBoxContent(contentWidth, contentHeight, color) {
         return new DIAMCaddyContent({width:contentWidth, height:contentHeight, color:Colors.LIGHTEST_GREY});
     }
@@ -879,12 +1000,13 @@ class DIAMCaddy extends DIAMBox {
 
 class DIAMRichCaddy extends DIAMCaddy {
 
-    constructor({
-                    width, height, clips,
-                    contentX, contentY, contentWidth, contentHeight,
-                    color,
-                    headerHeight, footerHeight}) {
-        super({width, height, clips, contentX, contentY, contentWidth, contentHeight, color});
+    _improve({
+        clips,
+        contentX, contentY, contentWidth, contentHeight,
+        color,
+        headerHeight, footerHeight}
+    ) {
+        super._improve({clips, contentX, contentY, contentWidth, contentHeight, color});
         this._initHeader(headerHeight);
         this._initFooter(footerHeight);
         this._initFasciaSupport(headerHeight, footerHeight);
@@ -897,9 +1019,9 @@ makeFasciaSupport(DIAMRichCaddy);
 
 class DIAMDivider extends DIAMItem {
 
-    constructor({width, height}) {
-        super({width, height});
-        this._initFrame(width, height, Colors.INHERIT, Colors.WHITE);
+    _improve() {
+        super._improve();
+        this._initFrame(this.width, this.height, Colors.INHERIT, Colors.WHITE);
     }
 
 }
@@ -1186,9 +1308,9 @@ makeDecorationsOwner(DIAMPaneContent);
 
 class DIAMPane extends DIAMItem {
 
-    constructor({width, height, label, contentX, contentY, contentWidth, contentHeight, lineMargin, labelMargin, indexMargin}) {
-        super({width, height, label});
-        this._initFrame(width, height, Colors.INHERIT, Colors.WHITE);
+    _improve({label, contentX, contentY, contentWidth, contentHeight, lineMargin, labelMargin, indexMargin}) {
+        super._improve({label});
+        this._initFrame(this.width, this.height, Colors.INHERIT, Colors.WHITE);
         this._paneContent = this._createPaneContent(contentX, contentY, contentWidth, contentHeight, lineMargin, labelMargin, indexMargin);
         this._addPart(this._paneContent);
     }
@@ -1206,50 +1328,55 @@ class DIAMPane extends DIAMItem {
 }
 makeFramed(DIAMPane);
 makeLabelOwner(DIAMPane);
-makePartsOwner(DIAMPane);
 makeCarrier(DIAMPane);
 makeCarriable(DIAMPane);
 
 class DIAMRichPane extends DIAMPane {
 
-    constructor({
-        width, height, contentX, contentY, contentWidth, contentHeight, label,
-        headerHeight, footerHeight,
-        lineMargin, labelMargin, indexMargin
+    constructor(specs) {
+        super(specs);
+    }
+
+    _improve({
+         contentX, contentY, contentWidth, contentHeight, label,
+         lineMargin, labelMargin, indexMargin, headerHeight, footerHeight
     }) {
-        super({
-            width, height, contentX, contentY, contentWidth, contentHeight, label,
+        super._improve({
+            contentX, contentY, contentWidth, contentHeight, label,
             lineMargin, labelMargin, indexMargin
         });
         this._initHeader(headerHeight);
         this._initFooter(footerHeight);
     }
-
 }
 makeHeaderOwner(DIAMRichPane);
 makeFooterOwner(DIAMRichPane);
 
-class DIAMAbstractModule extends DIAMItem {
-    constructor({width, height, ...args}) {
-        super({width, height, ...args});
-    }
-}
+class DIAMAbstractModule extends DIAMItem {}
 makeCarrier(DIAMAbstractModule);
 makeCarriable(DIAMAbstractModule);
 makeGentleDropTarget(DIAMAbstractModule);
 
 class DIAMBasicModule extends DIAMAbstractModule {
-    constructor({width, height, color, ...args}) {
-        super({width, height, ...args});
-        this._initFrame(width, height, Colors.INHERIT, color);
+    constructor(specs) {
+        super(specs);
+    }
+
+    _improve({color, ...args}) {
+        super._improve({color, ...args});
+        this._initFrame(this.width, this.height, Colors.INHERIT, color);
     }
 }
 makeFramed(DIAMBasicModule);
 
 class DIAMImageModule extends DIAMAbstractModule {
-    constructor({width, height, url, realisticUrl, ...args}) {
-        super({width, height, ...args});
-        this._initImages(width, height, Colors.INHERIT, url, realisticUrl);
+    constructor(specs) {
+        super(specs);
+    }
+
+    _improve({ url, realisticUrl, ...args}) {
+        super._improve(args);
+        this._initImages(this.width, this.height, Colors.INHERIT, url, realisticUrl);
     }
 
     clone(duplicata) {
@@ -1295,8 +1422,8 @@ makePositioningContainer(DIAMCell, {
 makePart(DIAMCell);
 
 class DIAMOption extends DIAMItem {
-    constructor({width, height, shape, compatibilities}) {
-        super({width, height});
+    _improve({shape, compatibilities}) {
+        super._improve();
         console.assert(compatibilities);
         this._initShape(shape.clone());
         this._compatibilities = new ESet(compatibilities);
@@ -1356,11 +1483,11 @@ class DIAMConfigurableOption extends DIAMOption {
     }
 
 }
-makePartsOwner(DIAMConfigurableOption);
+//makePartsOwner(DIAMConfigurableOption);
 
 function makeModuleConfigurable(superClass) {
 
-    makePartsOwner(superClass);
+    //makePartsOwner(superClass);
 
     let init = superClass.prototype._init;
     superClass.prototype._init = function({cells, ...args}) {
@@ -1551,13 +1678,15 @@ function createPalettePopup() {
         position_font_family:"arial", position_font_size:4, position_fill:Colors.GREY
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMSlottedBox({
-        width:120, height:70, clips:[{x:0, y:15}], contentX:0, contentY:0, contentWidth:100, contentHeight:60, slotWidth:20
+        width:120, height:70, clips:[{x:0, y:15}], contentX:0, contentY:0, contentWidth:100, contentHeight:60, slotWidth:20,
+        status:{code:"N", color:Colors.RED}
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMSlottedRichBox({
         width:120, height:70, clips:[{x:0, y:15}],
         contentX:0, contentY:0, contentWidth:100, contentHeight:60,
         slotWidth:20,
-        headerHeight:10, footerHeight:10
+        headerHeight:10, footerHeight:10,
+        status:{code:"V", color:Colors.GREEN}
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMRichCaddy({
         width:120, height:70, clips:[{x:0, y:15}],

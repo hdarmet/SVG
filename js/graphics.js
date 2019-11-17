@@ -2133,20 +2133,20 @@ export class TextItem extends Shape {
     }
 
     get text() {
-        let text = this.attrs.text;
+        let text = this._attrs.text;
         if (text===undefined) {
            let textNode = Array.from(this._node.childNodes)
                .find(node=>node.nodeType===Node.TEXT_NODE);
            if (textNode) {
                text = textNode.nodeValue;
-               this.attrs.text = text;
+               this._attrs.text = text;
            }
         }
         return text;
     }
 
     set text(text) {
-        this.attrs.text = text;
+        this._attrs.text = text;
         let textNode = Array.from(this._node.childNodes)
             .find(node=>node.nodeType===Node.TEXT_NODE);
         if (!textNode) {
@@ -2158,6 +2158,13 @@ export class TextItem extends Shape {
             textNode.nodeValue = text;
         }
     }
+
+    _clone() {
+        let copy = super._clone();
+        copy.text = this.text;
+        return copy;
+    }
+
 }
 defineStringProperty(TextItem, Attrs.TEXT_ANCHOR);
 defineStringProperty(TextItem, Attrs.ALIGNMENT_BASELINE);
@@ -2190,10 +2197,8 @@ export const AspectRatio = {
     NONE: "none"
 };
 
-// Testé
 export class RasterImage extends Shape {
 
-    // Testé
     constructor(url, x=0, y=0, width=0, height=0) {
         super();
         this._attrs.width = width;
@@ -3141,6 +3146,8 @@ export const Colors = {
     LIGHTEST_GREY: "#ECECEC",
     BLACK: "#0F0F0F",
     RED: "#F00F0F",
+    BLUE: "#0F0FF0",
+    GREEN: "#0FF00F",
     WHITE: "#FFFFFF"
 };
 

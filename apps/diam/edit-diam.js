@@ -114,6 +114,66 @@ window.rename = function rename(data, onValidate, onCancel) {
     renameWidget.onCancel = onCancel;
 };
 
+Vue.component('comment', {
+    data() {
+        return {
+            comment: "",
+            visible: false,
+            onValidate: undefined,
+            onCancel: undefined
+        };
+    },
+    created() {
+        commentWidget = this;
+    },
+    methods: {
+        validate() {
+            this.onValidate({
+                comment: this.comment
+            });
+            this.visible = false;
+        },
+        cancel() {
+            this.onCancel();
+            this.visible = false;
+        }
+    },
+    template:
+        `<div class="plano_modal" v-show="visible" style="position:absolute; left:200px; top:50px; width:550px;">
+            <b-card>
+              <label> <h3>Edit comment</h3> </label>
+              <b-container fluid>
+                <b-row>
+                  <b-col sm="4"> <label>Comment:</label> </b-col>
+                  <b-col sm="4">
+                    <b-form-textarea
+                      id="textarea"
+                      v-model="comment"
+                      placeholder="Add a comment..."
+                      rows="3"
+                      max-rows="6"
+                    ></b-form-textarea>
+                  </b-col>
+                </b-row>
+              </b-container>
+              <b-button-toolbar>
+                <b-button style="margin:5px;" variant="primary" @click="validate();"
+                  >Ok</b-button
+                >
+                <b-button style="margin:5px;" @click="cancel();">Cancel</b-button>
+              </b-button-toolbar>
+            </b-card>
+          </div>`
+});
+
+var commentWidget;
+window.comment = function comment(data, onValidate, onCancel) {
+    commentWidget.comment = data.comment;
+    commentWidget.visible = true;
+    commentWidget.onValidate = onValidate;
+    commentWidget.onCancel = onCancel;
+};
+
 Vue.component('generate-ladders', {
     data() {
         return {
@@ -439,6 +499,7 @@ new Vue({
     template: `
     <div style="position:relative;">
     	<rename></rename>
+    	<comment></comment>
     	<edit-position></edit-position>
     	<generate-ladders></generate-ladders>
     	<generate-fixings></generate-fixings>
