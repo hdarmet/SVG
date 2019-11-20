@@ -16,11 +16,14 @@ import {
     Memento, CloneableObject, Events, makeObservable, Context, glassSelectionPredicate
 } from "./toolkit.js";
 import {
-    Decoration, TextDecoration
-} from "./base-element.js";
+    TextDecoration
+} from "./standard-mixins.js";
 import {
     Arrow
 } from "./svgtools.js";
+import {
+    Decoration
+} from "./core-mixins.js";
 
 export class Physic {
 

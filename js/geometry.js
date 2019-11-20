@@ -375,8 +375,8 @@ export class Box {
     add(box) {
         let left = Math.min(this.left, box.left);
         let top = Math.min(this.top, box.top);
-        let right = Math.min(this.right, box.right);
-        let bottom = Math.min(this.bottom, box.bottom);
+        let right = Math.max(this.right, box.right);
+        let bottom = Math.max(this.bottom, box.bottom);
         return new Box(left, top, right-left, bottom-top);
     }
 

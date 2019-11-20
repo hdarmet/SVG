@@ -10,11 +10,13 @@ import {
     Memento, Context, Events, DragSwitchOperation, DragOperation, makeNotCloneable
 } from "./toolkit.js";
 import {
-    BoardElement, BoardSupport, BoardLayer, BoardZindexLayer,
+    BoardElement, BoardSupport, BoardLayer, BoardZindexLayer
+} from "./base-element.js";
+import {
     makeContainer, makeSupport, makeDraggable, makeSelectable, makeMoveable, makeRotatable, makeClickable,
     makePart, makeFramed, makeSingleImaged, makeMultiImaged, makeClipImaged, makeShaped,
     makeLayersWithContainers, makeLayered, makeStrokeUpdatable, makeContainerASandBox, makeContainerASupport
-} from "./base-element.js";
+} from "./core-mixins.js";
 import {
     TextMenuOption, TextToggleMenuOption, makeMenuOwner
 } from "./tools.js";

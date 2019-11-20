@@ -11,11 +11,15 @@ import {
     Colors, MouseEvents, TextAnchor, win, Cursor, KeyboardEvents
 } from "./graphics.js";
 import {
-    Context, Events, boundingBox, DragOperation, Memento, Canvas, makeObservable, makeNotCloneable
+    Context, Events, l2lBoundingBox, l2pBoundingBox, DragOperation, Memento, Canvas, makeObservable, makeNotCloneable,
+    getExtension
 } from "./toolkit.js";
 import {
-    makeDraggable, BoardElement
+    BoardElement
 } from "./base-element.js";
+import {
+    makeContainer, makeDraggable
+} from "./core-mixins.js";
 
 export class Menu {
 
@@ -1083,6 +1087,11 @@ export class ToolGridExpandablePanel extends ToolExpandablePanel {
     }
 }
 
+export class BoardBackFolder extends BoardElement {
+
+}
+makeContainer(BoardBackFolder);
+
 export class BoardItemBuilder extends ToolCell {
 
     constructor(proto) {
@@ -1095,6 +1104,21 @@ export class BoardItemBuilder extends ToolCell {
     activate(owner, width, height) {
         super.activate(owner, width, height);
         this._makeItems();
+        this._glass = new Rect(
+            -width/2-BoardItemBuilder.MARGIN, -height/2-BoardItemBuilder.MARGIN,
+            width+BoardItemBuilder.MARGIN*2, height+BoardItemBuilder.MARGIN*2).attrs({
+           fill:Colors.WHITE, stroke:Colors.NONE, opacity:0.01
+        });
+        this._root.add(this._glass);
+        this._glass.on(MouseEvents.MOUSE_DOWN, (event)=> {
+            event.stopPropagation();
+            this.select();
+            let anchor = [...this._currentItems][0];
+            let eventSpecs = {bubbles:true, clientX:event.clientX, clientY:event.clientY};
+            let dragEvent = new MouseEvent(MouseEvents.MOUSE_DOWN, eventSpecs);
+            anchor._root._node.dispatchEvent(dragEvent);
+            this._makeItems();
+        });
         return this;
     }
 
@@ -1119,27 +1143,16 @@ export class BoardItemBuilder extends ToolCell {
     add(element) {}
 
     remove(element) {
-        for (let item of this._currentItems) {
-            this._support.remove(item._root);
-            item._parent = null;
-        }
-        this._makeItems();
+        this._support.remove(element._root);
+        element._parent = null;
     }
 
     _adjustSize() {
-        let bbox = boundingBox(this._currentItems, this._support.globalMatrix);
+        let bbox = l2pBoundingBox(this._currentItems);
         let sizeWidthFactor = this.width / bbox.width;
         let sizeHeightFactor = this.height / bbox.height;
         let sizeFactor = Math.min(sizeWidthFactor, sizeHeightFactor, 10);
         this._support.matrix = Matrix.scale(sizeFactor, sizeFactor, 0, 0).translate(-bbox.cx, -bbox.cy)
-    }
-
-    _notified(source, type, value) {
-        if (source instanceof BoardElement) {
-            if (type === Events.GEOMETRY) {
-                this._adjustSize();
-            }
-        }
     }
 
     applyOr(predicate) {
@@ -1154,6 +1167,15 @@ export class BoardItemBuilder extends ToolCell {
             if (!predicate(element)) return false;
         }
         return true;
+    }
+
+}
+BoardItemBuilder.MARGIN = 4;
+
+export class FavoriteItemBuilder extends BoardItemBuilder {
+
+    constructor(proto) {
+        super(proto);
     }
 
 }
@@ -1172,7 +1194,7 @@ export const Tools = {
     },
     zoomInSelect() {
         if (!this.isMaxZoom()) {
-            let bbox = boundingBox(Context.selection.selection(), Context.canvas.globalMatrix);
+            let bbox = l2lBoundingBox(Context.selection.selection(), Context.canvas.globalMatrix);
             if (bbox !== null) {
                 let px = (bbox.left + bbox.right) / 2;
                 let py = (bbox.top + bbox.bottom) / 2;
@@ -1189,7 +1211,7 @@ export const Tools = {
     },
     zoomOutSelect() {
         if (!this.isMinZoom()) {
-            let bbox = boundingBox(Context.selection.selection(), Context.canvas.globalMatrix);
+            let bbox = l2lBoundingBox(Context.selection.selection(), Context.canvas.globalMatrix);
             if (bbox !== null) {
                 let px = (bbox.left + bbox.right) / 2;
                 let py = (bbox.top + bbox.bottom) / 2;
@@ -1205,7 +1227,7 @@ export const Tools = {
         }
     },
     zoomFit(elements) {
-        let bbox = boundingBox(elements, Context.canvas.baseGlobalMatrix);
+        let bbox = l2lBoundingBox(elements, Context.canvas.baseGlobalMatrix);
         if (bbox !== null) {
             let width = bbox.right - bbox.left;
             let height = bbox.bottom - bbox.top;
@@ -1320,6 +1342,15 @@ export const Tools = {
             if (!child.deletable) return false;
         }
         return true;
+    },
+    addToFavorites(paletteContent) {
+        let favorites = getExtension(Context.selection.selection());
+        let models = Context.copyPaste.duplicateForCopy(favorites);
+        let builder = new FavoriteItemBuilder(models);
+        paletteContent.addCell(builder);
+    },
+    mayAddToFavorites() {
+        return Context.selection.selection().size>0;
     }
 };
 
@@ -1424,5 +1455,13 @@ export function unlockCommand(toolPopup) {
         () => {
             Tools.unlock();
         }, () => Tools.unlockable())
+    );
+}
+
+export function favoritesCommand(toolPopup, paletteContent) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/favorites_on.svg", "./images/icons/favorites_off.svg",
+        () => {
+            Tools.addToFavorites(paletteContent);
+        }, () => Tools.mayAddToFavorites())
     );
 }

@@ -9,9 +9,11 @@ import {
 } from "./toolkit.js";
 import {
     BoardElement, BoardTable,
-    makeMoveable, makeRotatable, makeShaped, makeDraggable, makeClickable, makeSelectable,
-    makeContainerMultiLayered, makeLayered, makeDeletable, makeZindexSupport
 } from "./base-element.js";
+import {
+    makeMovable, makeRotatable, makeShaped, makeDraggable, makeClickable, makeSelectable,
+    makeContainerMultiLayered, makeLayered, makeDeletable, makeZindexSupport
+} from "./core-mixins.js";
 import {
     ToolCommandPopup, ToolExpandablePopup, ToolExpandablePanel,
     ToolGridPanelContent, ToolCell,

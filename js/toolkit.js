@@ -92,11 +92,20 @@ export function sortByDistance(elements, gx, gy) {
 
 }
 
-export function boundingBox(elements, targetMatrix) {
+export function l2pBoundingBox(elements) {
+    let result = null;
+    for (let element of elements) {
+        let box = element.l2pbbox();
+        result = (result === null) ? box : result.add(box);
+    }
+    return result;
+}
+
+export function l2lBoundingBox(elements, targetMatrix) {
     let result = null;
     for (let element of elements) {
         let box = element.l2mbbox(targetMatrix);
-        result===null ? result = box : result.add(box);
+        result = (result === null) ? box : result.add(box);
     }
     return result;
 }
@@ -397,23 +406,25 @@ export class DragMoveSelectionOperation extends DragElementOperation {
         this._dragSet = this.dragSet();
         for (let selectedElement of this._dragSet.values()) {
             Memento.register(selectedElement);
+            let zoom = selectedElement.global.scalex;
+            let gx = selectedElement.gx, gy = selectedElement.gy;
             selectedElement._drag = {
                 // Memento to specifically revert that element if drop is cancelled for it (but not for the entire
                 // selection.
                 origin: selectedElement._memento(),
                 // Delta from mouse position and element position
-                dragX: x-selectedElement.gx,
-                dragY: y-selectedElement.gy,
+                dragX: (x-gx)/zoom,
+                dragY: (y-gy)/zoom,
                 // Original position of the element (when drag started). Never change.
-                originX: x,
-                originY: y,
+                originX: gx,
+                originY: gy,
                 // Last position occupied by the element during the drag and drop process. Change for every mouse mouve
                 // event.
-                lastX: x,
-                lastY: y,
+                lastX: gx,
+                lastY: gy,
                 // Last valid position occupied by the element
-                validX: selectedElement.gx,
-                validY: selectedElement.gy
+                validX: gx,
+                validY: gy
             };
             let support = selectedElement.parent;
             Context.canvas.putElementOnGlass(selectedElement, support, x, y);
@@ -493,11 +504,10 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             if (!target) {
                 Context.canvas.moveElementOnGlass(selectedElement, null,
                     selectedElement._drag.lastX, selectedElement._drag.lastY);
-            } else // Support has changed
-                if (target!==selectedElement.parent) {
+            } else /* support changed */ if (target!==selectedElement.parent) {
                 Context.canvas.moveElementOnGlass(selectedElement, target, x, y);
-                selectedElement._drag.lastX = x;
-                selectedElement._drag.lastY = y;
+                selectedElement._drag.lastX = selectedElement.gx;
+                selectedElement._drag.lastY = selectedElement.gy;
             }
             selectedElement._fire(Events.DRAG_MOVE);
         }
@@ -1117,6 +1127,7 @@ export class CanvasLayer {
     global2local(x, y) {
         return this._root.global2local(x, y);
     }
+
 }
 makeNotCloneable(CanvasLayer);
 
@@ -1264,6 +1275,7 @@ export class BaseLayer extends CanvasLayer {
         this._canvas._fire(event, ...args);
         return this;
     }
+
 }
 BaseLayer.ZOOM_STEP = 1.2;
 BaseLayer.ZOOM_MAX = 50;
@@ -1292,6 +1304,7 @@ export class ToolsLayer extends CanvasLayer {
         }
         return bbox;
     }
+
 }
 
 class GlassPedestal {
@@ -1328,6 +1341,7 @@ class GlassPedestal {
     }
 
     putElement(element, x, y) {
+        let zoom = Context.canvas.zoom;
         let ematrix = this._root.globalMatrix;
         let dmatrix = ematrix.multLeft(this._root.globalMatrix.invert());
         let pedestal = new Group(dmatrix);
@@ -1339,18 +1353,19 @@ class GlassPedestal {
             element.detach();
         }
         pedestal.add(element._root);
-        let fx = x-element._drag.dragX;
-        let fy = y-element._drag.dragY;
+        let fx = x-element._drag.dragX*zoom;
+        let fy = y-element._drag.dragY*zoom;
         let dX = invertedMatrix.x(fx, fy);
         let dY = invertedMatrix.y(fx, fy);
         element._setLocation(dX, dY);
     }
 
     moveElement(element, x, y) {
+        let zoom = Context.canvas.zoom;
         let pedestal = this._pedestals.get(element);
         let invertedMatrix = pedestal.globalMatrix.invert();
-        let fx = x-element._drag.dragX;
-        let fy = y-element._drag.dragY;
+        let fx = x-element._drag.dragX*zoom;
+        let fy = y-element._drag.dragY*zoom;
         let dX = invertedMatrix.x(fx, fy);
         let dY = invertedMatrix.y(fx, fy);
         element._setLocation(dX, dY);
@@ -1967,7 +1982,12 @@ export class CopyPaste {
 
     _duplicate(elements, duplicata) {
         for (let element of elements) {
-            let copy = element.clone(duplicata);
+            let copy = duplicata.get(element);
+            if (!copy) {
+                copy = element.clone(duplicata);
+                duplicata.set(element, copy);
+            }
+            Context.selection._unsetSelectionMark(copy);
         }
         for (let entry of duplicata.entries()) {
             let [that, thatCopy] = entry;
@@ -2389,10 +2409,14 @@ export class Selection {
         return result;
     }
 
+    _setSelectionMark(element) {
+        element.selectFrame && (element.selectFrame.filter = this.selectFilter);
+    }
+
     _select(element) {
         this._selection.add(element);
+        this._setSelectionMark(element);
         element.select && element.select();
-        element.selectFrame && (element.selectFrame.filter = this.selectFilter);
         this._fire(Events.SELECT, element);
         return true;
     }
@@ -2405,11 +2429,15 @@ export class Selection {
         return false;
     }
 
+    _unsetSelectionMark(element) {
+        element.selectFrame && (element.selectFrame.filter = null);
+    }
+
     _unselect(element) {
         if (this._selection.has(element)) {
             this._selection.delete(element);
             element.unselect && element.unselect();
-            element.selectFrame && (element.selectFrame.filter = null);
+            this._unsetSelectionMark(element);
             this._fire(Events.UNSELECT, element);
         }
         return true;

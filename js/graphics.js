@@ -3151,8 +3151,7 @@ export const Colors = {
     WHITE: "#FFFFFF"
 };
 
-export function l2l(sourceMatrix, targetMatrix, ...points) {
-    let matrix = sourceMatrix.multLeft(targetMatrix.invert());
+export function l2m(matrix, ...points) {
     let result = [];
     for (let index=0; index<points.length; index+=2) {
         let x = points[index];
@@ -3160,6 +3159,11 @@ export function l2l(sourceMatrix, targetMatrix, ...points) {
         result.push(matrix.x(x, y), matrix.y(x, y));
     }
     return result;
+}
+
+export function l2l(sourceMatrix, targetMatrix, ...points) {
+    let matrix = sourceMatrix.multLeft(targetMatrix.invert());
+    return l2m(matrix, ...points);
 }
 
 export const Mutation = {

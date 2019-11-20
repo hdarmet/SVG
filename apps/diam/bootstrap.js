@@ -10,11 +10,17 @@ import {
     Context, Events, Canvas, Groups, DragOperation, Memento, makeNotCloneable, setLayeredGlassStrategy, standardDrag
 } from "../../js/toolkit.js";
 import {
-    BoardElement, BoardTable, BoardArea, makeDeletable, makeDraggable, makeFramed, makeSelectable, makeContainer,
-    makeLockable, makeMovable, makeSupport, makePart, makeClickable, makeShaped, makeContainerMultiLayered, makeLayered,
-    makeGentleDropTarget, makePartsOwner, makeDecorationsOwner, makeMultiImaged, makeHighlightable, makeGroupable,
-    Decoration, TextDecoration, Mark, MarksDecoration
+    BoardElement, BoardTable, BoardArea
 } from "../../js/base-element.js";
+import {
+    Decoration,
+    makeDeletable, makeDraggable, makeFramed, makeSelectable, makeContainer,
+    makeMovable, makeSupport, makePart, makeClickable, makeShaped, makeContainerMultiLayered, makeLayered,
+    makeGentleDropTarget, makePartsOwner, makeDecorationsOwner, makeMultiImaged
+} from "../../js/core-mixins.js";
+import {
+    makeLockable, makeHighlightable, makeGroupable, TextDecoration, Mark, MarksDecoration
+} from "../../js/standard-mixins.js";
 import {
     Colors, Group, Line, Rect, Circle, Path, Text, RasterImage, M, Q, L, C, Attrs, AlignmentBaseline, FontWeight, TextAnchor,
     definePropertiesSet, filterProperties
@@ -22,8 +28,8 @@ import {
 import {
     Tools, BoardItemBuilder, copyCommand, deleteCommand, pasteCommand, redoCommand, ToolCommandPopup, undoCommand,
     zoomExtentCommand, zoomInCommand, zoomOutCommand, zoomSelectionCommand, ToolGridExpandablePanel, ToolExpandablePopup,
-    regroupCommand, ungroupCommand, lockCommand, unlockCommand,
-    ToolGridPanelContent, makeMenuOwner, TextMenuOption
+    regroupCommand, ungroupCommand, lockCommand, unlockCommand, favoritesCommand,
+    ToolGridPanelContent, makeMenuOwner, TextMenuOption, FavoriteItemBuilder
 } from "../../js/tools.js";
 import {
     makeGravitationContainer, makeCarriable, makeCarrier, makePositioningContainer, addBordersToCollisionPhysic,
@@ -55,7 +61,7 @@ function makePositionEditable(superClass) {
 
     let createContextMenu = superClass.prototype._createContextMenu;
     superClass.prototype._createContextMenu = function() {
-        this.addMenuOption(new TextMenuOption("edit position",
+        this._addMenuOption(new TextMenuOption("edit position",
             function() { callForEditPosition(this); })
         );
         createContextMenu && createContextMenu.call(this);
@@ -97,7 +103,7 @@ function makeLabelOwner(superClass) {
 
     let createContextMenu = superClass.prototype._createContextMenu;
     superClass.prototype._createContextMenu = function() {
-        this.addMenuOption(new TextMenuOption("rename",
+        this._addMenuOption(new TextMenuOption("rename",
             function() { callForRename(this); })
         );
         createContextMenu && createContextMenu.call(this);
@@ -144,7 +150,7 @@ function makeCommentOwner(superClass) {
     let init = superClass.prototype._init;
     superClass.prototype._init = function(...args) {
         init.call(this, ...args);
-        this.comment = args.comment || "";
+        this._setComment(args.comment || "");
     };
 
     Object.defineProperty(superClass.prototype, "comment", {
@@ -161,7 +167,7 @@ function makeCommentOwner(superClass) {
 
     let createContextMenu = superClass.prototype._createContextMenu;
     superClass.prototype._createContextMenu = function() {
-        this.addMenuOption(new TextMenuOption("Add comment",
+        this._addMenuOption(new TextMenuOption("Add comment",
             function() { callForComment(this); })
         );
         createContextMenu && createContextMenu.call(this);
@@ -802,7 +808,7 @@ class DIAMAbstractLadder extends DIAMItem {
             .attrs({stroke:Colors.INHERIT, fill:Colors.LIGHT_GREY}));
         let slotSize = Math.min(2, this._slotInterval / 6);
         for (let slot of this.slots) {
-            base.add(new Circle(slot.x, slot.y, slotSize).attrs({ fill: Colors.BLACK }));
+            base.add(new Circle(slot.x, slot.y, slotSize).attrs({ stroke:Colors.NONE, fill: Colors.BLACK }));
         }
         return base;
     }
@@ -841,10 +847,6 @@ makeCenteredRuler(DIAMAbstractLadder);
 makePositionEditable(DIAMAbstractLadder);
 
 class DIAMLadder extends DIAMAbstractLadder {
-
-    constructor({width, height, topSlot, bottomSlot, slotInterval}) {
-        super({width, height, topSlot, bottomSlot, slotInterval});
-    }
 
     _generateSlots() {
         let slotIndex = 0;
@@ -1136,6 +1138,7 @@ class DIAMAnchorageDecoration extends Decoration {
         this._lineMargin = lineMargin;
         this._labelMargin = labelMargin;
         this._indexMargin = indexMargin;
+        this._root.attrs({stroke:Colors.NONE});
     }
 
     _init() {
@@ -1578,7 +1581,7 @@ function createPaper() {
     Tools.zoomExtent();
 }
 
-function createCommandPopup() {
+function createCommandPopup(palettePopup) {
     let cmdPopup = new ToolCommandPopup(78, 32).display(39, 16);
     copyCommand(cmdPopup);
     pasteCommand(cmdPopup);
@@ -1594,6 +1597,7 @@ function createCommandPopup() {
     ungroupCommand(cmdPopup);
     lockCommand(cmdPopup);
     unlockCommand(cmdPopup);
+    favoritesCommand(cmdPopup, palettePopup._paletteContent);
     cmdPopup.addMargin();
     deleteCommand(cmdPopup);
     return cmdPopup;
@@ -1912,6 +1916,9 @@ function createPalettePopup() {
     palettePopup.addPanel(new ToolGridExpandablePanel("Modules", paletteContent,
         cell=>cell.applyAnd(is(DIAMAbstractModule))));
     palettePopup.addPanel(new OptionsExpandablePanel("Colors And Options", paletteContent));
+    palettePopup.addPanel(new ToolGridExpandablePanel("Favorites", paletteContent,
+        cell=>cell instanceof FavoriteItemBuilder));
+    palettePopup._paletteContent = paletteContent;
     return palettePopup;
 }
 
@@ -1919,8 +1926,8 @@ function main() {
     createCanvas();
     createTable();
     createPaper();
-    createCommandPopup();
-    createPalettePopup();
+    let palettePopup = createPalettePopup();
+    createCommandPopup(palettePopup);
     setShortcuts();
     Context.memento.opened = true;
 }
