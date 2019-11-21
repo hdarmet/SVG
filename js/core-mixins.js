@@ -327,6 +327,15 @@ export function makePartsOwner(superClass) {
                 }
             });
         }
+
+        let accept = superClass.prototype.accept;
+        superClass.prototype.accept = function (visitor) {
+            accept.call(this, visitor);
+            for (let child of this.parts) {
+                visitor.visit(child);
+            }
+            return this;
+        };
     }
 
     return superClass;
@@ -596,6 +605,15 @@ export function makeContainer(superClass) {
             }
         });
     }
+
+    let accept = superClass.prototype.accept;
+    superClass.prototype.accept = function (visitor) {
+        accept.call(this, visitor);
+        for (let child of this.children) {
+            visitor.visit(child);
+        }
+        return this;
+    };
 
     return superClass;
 }

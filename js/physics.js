@@ -68,6 +68,7 @@ export class Physic {
                 managedElements.add(element);
             }
         }
+        console.log(this, managedElements)
         return managedElements;
     }
 
@@ -455,8 +456,11 @@ export function makePositioningPhysic(superClass, {
     };
 
     superClass.prototype._acceptDrop = function(element, dragSet) {
-        let position = this._elementPosition(element);
-        return this._acceptPosition(element,  position);
+        if (this.accept(element)) {
+            let position = this._elementPosition(element);
+            return this._acceptPosition(element, position);
+        }
+        return true;
     };
 
     return superClass;

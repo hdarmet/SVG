@@ -11,6 +11,9 @@ import {
     Colors, MouseEvents, TextAnchor, win, Cursor, KeyboardEvents
 } from "./graphics.js";
 import {
+    always
+} from "./misc.js";
+import {
     Context, Events, l2lBoundingBox, l2pBoundingBox, DragOperation, Memento, Canvas, makeObservable, makeNotCloneable,
     getExtension
 } from "./toolkit.js";
@@ -75,6 +78,11 @@ export class Menu {
     insideMenu(x, y) {
         let gbox = this._root.gbox;
         return x >= gbox.x && x <= gbox.x + gbox.width && y >= gbox.y && y <= gbox.y + gbox.height;
+    }
+
+    refresh() {
+        this._root.clear();
+        this._buildContent();
     }
 }
 Menu.XMARGIN = 5;
@@ -603,7 +611,7 @@ export class ToolCommand {
 
     constructor(imageURL, action, size = 32) {
         this._root = new Group();
-        this._root.on(MouseEvents.CLICK, function() {
+        this._root.on(MouseEvents.CLICK, ()=>{
             action.call(this)
         });
         this._root.on(MouseEvents.MOUSE_DOWN, ()=>{this._iconSupport.matrix=Matrix.scale(0.95, 0.95, 0, 0)});
@@ -834,6 +842,12 @@ export class ToolExpandablePanel {
             ? ToolExpandablePanel.PANEL_MIN_HEIGHT + this._content.height
             : ToolExpandablePanel.PANEL_MIN_HEIGHT;
     }
+
+    accept(visitor) {
+        visitor.visit(this._content);
+        return this;
+    }
+
 }
 ToolExpandablePanel.PANEL_TITLE_HEIGHT = 15;
 ToolExpandablePanel.PANEL_MIN_HEIGHT = 16;
@@ -903,6 +917,22 @@ export class ToolExpandablePanelSet {
         }
         return this;
     }
+
+    get panels() {
+        let panels = new List();
+        for (let proot of this._panels.children) {
+            panels.add(proot._owner);
+        }
+        return panels;
+    }
+
+    accept(visitor) {
+        for (let panel of this.panels) {
+            visitor.visit(panel);
+        }
+        return this;
+    }
+
 }
 
 export class ToolExpandablePopup extends ToolPopup {
@@ -932,6 +962,11 @@ export class ToolExpandablePopup extends ToolPopup {
         return this;
     }
 
+    accept(visitor) {
+        visitor.visit(this._panelSet);
+        return this;
+    }
+
 }
 
 export class ToolCell {
@@ -947,6 +982,10 @@ export class ToolCell {
         this._height = height;
     }
 
+    get owner() {
+        return this._owner;
+    }
+
     get width() {
         return this._width;
     }
@@ -954,6 +993,11 @@ export class ToolCell {
     get height() {
         return this._height;
     }
+
+    accept(visitor) {
+        return this;
+    }
+
 }
 
 export function all() {
@@ -1069,6 +1113,14 @@ export class ToolGridPanelContent extends ToolPanelContent {
         }
         this._dirty = true;
     }
+
+    accept(visitor) {
+        for (let cell of this._cells) {
+            visitor.visit(cell);
+        }
+        return this;
+    }
+
 }
 makeObservable(ToolGridPanelContent);
 ToolGridPanelContent.SCROLL_WHEEL_STEP = 50;
@@ -1085,6 +1137,7 @@ export class ToolGridExpandablePanel extends ToolExpandablePanel {
         super.open();
         this._content.predicate = this._predicate;
     }
+
 }
 
 export class BoardBackFolder extends BoardElement {
@@ -1101,6 +1154,22 @@ export class BoardItemBuilder extends ToolCell {
         this._root.add(this._support);
     }
 
+    get gx() {
+        return this._root.globalMatrix.dx;
+    }
+
+    get gy() {
+        return this._root.globalMatrix.dy;
+    }
+
+    _addMenuOption(menuOption) {
+        if (!this._menuOptions) {
+            this._menuOptions = new List();
+        }
+        this._menuOptions.add(menuOption);
+        return this;
+    }
+
     activate(owner, width, height) {
         super.activate(owner, width, height);
         this._makeItems();
@@ -1110,7 +1179,7 @@ export class BoardItemBuilder extends ToolCell {
            fill:Colors.WHITE, stroke:Colors.NONE, opacity:0.01
         });
         this._root.add(this._glass);
-        this._glass.on(MouseEvents.MOUSE_DOWN, (event)=> {
+        this._glass.on(MouseEvents.MOUSE_DOWN, event=>{
             event.stopPropagation();
             this.select();
             let anchor = [...this._currentItems][0];
@@ -1118,6 +1187,12 @@ export class BoardItemBuilder extends ToolCell {
             let dragEvent = new MouseEvent(MouseEvents.MOUSE_DOWN, eventSpecs);
             anchor._root._node.dispatchEvent(dragEvent);
             this._makeItems();
+        });
+        this._glass.on(MouseEvents.CONTEXT_MENU, event=>{
+            event.preventDefault();
+            if (this._menuOptions) {
+                Context.canvas.openMenu(this.gx, this.gy, this._menuOptions);
+            }
         });
         return this;
     }
@@ -1169,6 +1244,13 @@ export class BoardItemBuilder extends ToolCell {
         return true;
     }
 
+    accept(visitor) {
+        for (let item of this._currentItems) {
+            visitor.visit(item);
+        }
+        return this;
+    }
+
 }
 BoardItemBuilder.MARGIN = 4;
 
@@ -1176,6 +1258,7 @@ export class FavoriteItemBuilder extends BoardItemBuilder {
 
     constructor(proto) {
         super(proto);
+        this._addMenuOption({that:this, line:new TextMenuOption("Remove", ()=>{this.owner.removeCell(this);})});
     }
 
 }
@@ -1351,6 +1434,19 @@ export const Tools = {
     },
     mayAddToFavorites() {
         return Context.selection.selection().size>0;
+    },
+    addLayer(layer) {
+        if (!this._layers) {
+            this._layers = new List();
+        }
+        this._layers.add(layer);
+    },
+    manageLayers(x, y) {
+        let menuOptions = new List();
+        for (let layer of this._layers) {
+            menuOptions.add({line:new CheckMenuOption(layer.title, layer.checked, layer.action)})
+        }
+        Context.canvas.openMenu(x, y, menuOptions, false);
     }
 };
 
@@ -1463,5 +1559,18 @@ export function favoritesCommand(toolPopup, paletteContent) {
         () => {
             Tools.addToFavorites(paletteContent);
         }, () => Tools.mayAddToFavorites())
+    );
+}
+
+export function layersCommand(toolPopup, layers) {
+    for (let layer of layers) {
+        Tools.addLayer(layer);
+    }
+    toolPopup.add(new ToolToggleCommand("./images/icons/layers_on.svg", "./images/icons/layers_off.svg",
+        function() {
+            let x = this._root.globalMatrix.x(0, 0);
+            let y = this._root.globalMatrix.y(0, 0);
+            Tools.manageLayers(x, y);
+        }, always)
     );
 }

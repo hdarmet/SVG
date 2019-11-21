@@ -112,7 +112,7 @@ export function l2lBoundingBox(elements, targetMatrix) {
 
 export function getCanvasLayer(artifact) {
     let parent = artifact.parent;
-    while (parent !== null) {
+    while (parent) {
         if (parent._owner && parent._owner instanceof CanvasLayer) {
             return parent._owner;
         }

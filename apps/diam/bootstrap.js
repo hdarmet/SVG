@@ -10,7 +10,7 @@ import {
     Context, Events, Canvas, Groups, DragOperation, Memento, makeNotCloneable, setLayeredGlassStrategy, standardDrag
 } from "../../js/toolkit.js";
 import {
-    BoardElement, BoardTable, BoardArea
+    BoardElement, BoardTable, BoardArea, Visitor
 } from "../../js/base-element.js";
 import {
     Decoration,
@@ -28,7 +28,7 @@ import {
 import {
     Tools, BoardItemBuilder, copyCommand, deleteCommand, pasteCommand, redoCommand, ToolCommandPopup, undoCommand,
     zoomExtentCommand, zoomInCommand, zoomOutCommand, zoomSelectionCommand, ToolGridExpandablePanel, ToolExpandablePopup,
-    regroupCommand, ungroupCommand, lockCommand, unlockCommand, favoritesCommand,
+    regroupCommand, ungroupCommand, lockCommand, unlockCommand, favoritesCommand, layersCommand,
     ToolGridPanelContent, makeMenuOwner, TextMenuOption, FavoriteItemBuilder
 } from "../../js/tools.js";
 import {
@@ -661,11 +661,10 @@ class DIAMSlottedBoxContent extends DIAMBoxContent {
 
     _createPhysic() {
         let PositioningPhysic = createPositioningPhysic({
+            predicate:is(DIAMAbstractModule),
             positionsBuilder:function(element) {return this._host._buildPositions(element);}
         });
-        return new PositioningPhysic(this,
-            is(DIAMAbstractModule)
-        );
+        return new PositioningPhysic(this);
     }
 
     _allocateCells(element) {
@@ -1400,9 +1399,13 @@ class DIAMCell extends BoardElement {
         return this._compatibilities;
     }
 
-    _acceptDrop(element, dragSet) {
+    _acceptElement(element) {
         if (!is(DIAMOption)(element) || !element.compatibilities) return false;
         return element.isCompatible(this.compatibilities);
+    }
+
+    _acceptDrop(element, dragSet) {
+        return this._acceptElement(element);
     }
 
     allCompatibilities() {
@@ -1419,7 +1422,7 @@ class DIAMCell extends BoardElement {
 makeShaped(DIAMCell);
 makeSupport(DIAMCell);
 makePositioningContainer(DIAMCell, {
-        predicate: function(element) {return this.host._acceptDrop(element);},
+        predicate: function(element) {return this.host._acceptElement(element);},
         positionsBuilder: element=>{return [{x:0, y:0}]}
     });
 makePart(DIAMCell);
@@ -1581,6 +1584,20 @@ function createPaper() {
     Tools.zoomExtent();
 }
 
+function defineLayers() {
+    function showModules(checked) {
+        new Visitor([Context.table], {checked}, function({checked}) {
+            if (this instanceof DIAMAbstractModule) {
+                checked ? this.show() : this.hide();
+            }
+        })
+    }
+    return [
+        {title:"modules", checked:true, action:showModules},
+        {title:"menu2", checked:true, action:()=>true}
+    ];
+}
+
 function createCommandPopup(palettePopup) {
     let cmdPopup = new ToolCommandPopup(78, 32).display(39, 16);
     copyCommand(cmdPopup);
@@ -1598,6 +1615,7 @@ function createCommandPopup(palettePopup) {
     lockCommand(cmdPopup);
     unlockCommand(cmdPopup);
     favoritesCommand(cmdPopup, palettePopup._paletteContent);
+    layersCommand(cmdPopup, defineLayers());
     cmdPopup.addMargin();
     deleteCommand(cmdPopup);
     return cmdPopup;
@@ -1926,8 +1944,8 @@ function main() {
     createCanvas();
     createTable();
     createPaper();
-    let palettePopup = createPalettePopup();
-    createCommandPopup(palettePopup);
+    Context.palettePopup = createPalettePopup();
+    Context.commandPopup = createCommandPopup(Context.palettePopup);
     setShortcuts();
     Context.memento.opened = true;
 }

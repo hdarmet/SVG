@@ -10,7 +10,7 @@ import {
     Box, getBox, Matrix
 } from "./geometry.js";
 import {
-    Group, l2l, l2m, Rect, Translation
+    Group, l2l, l2m, Rect, Translation, Visibility
 } from "./graphics.js";
 import {
     areaDrag, Cloning, Context, CopyPaste, Events, getCanvasLayer, makeNotCloneable, makeObservable, Memento
@@ -267,6 +267,11 @@ export class BoardElement {
         return this;
     }
 
+    accept(visitor) {
+        visitor.action.call(this, visitor.context);
+        return this;
+    }
+
     get canvasLayer() {
         return getCanvasLayer(this._root);
     }
@@ -418,3 +423,30 @@ export class BoardZindexLayer extends BoardBaseLayer {
 }
 makeZindexContainer(BoardZindexLayer);
 
+export class Visitor {
+
+    constructor(elements, context, action) {
+        this._visited = new ESet();
+        this._context = context;
+        this._action = action;
+        for (let element of elements) {
+            this.visit(element);
+        }
+    }
+
+    get context() {
+        return this._context;
+    }
+
+    get action() {
+        return this._action;
+    }
+
+    visit(element) {
+        if (!this._visited.has(element)) {
+            this._visited.add(element);
+            element.accept(this);
+        }
+    }
+
+}
