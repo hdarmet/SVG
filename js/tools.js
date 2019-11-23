@@ -15,7 +15,7 @@ import {
 } from "./misc.js";
 import {
     Context, Events, l2lBoundingBox, l2pBoundingBox, DragOperation, Memento, Canvas, makeObservable, makeNotCloneable,
-    getExtension
+    getExtension, Layers, makeSingleton, CopyPaste, Selection, Anchor
 } from "./toolkit.js";
 import {
     BoardElement
@@ -33,14 +33,14 @@ export class Menu {
         this._menuOptions = menuOptions;
         this._buildContent();
         this.closeOnSelect = closeOnSelect;
-        Context.canvas.putArtifactOnToolsLayer(this._root);
+        Canvas.instance.putArtifactOnToolsLayer(this._root);
     }
 
     _buildContent() {
         let rect = new Rect(0, 0, 10, 10).attrs({
             stroke: Colors.BLACK,
             fill: Colors.WHITE,
-            filter: Context.canvas.shadowFilter
+            filter: Canvas.instance.shadowFilter
         });
         this._root.add(rect);
         let menuGeometry = {
@@ -62,11 +62,11 @@ export class Menu {
         }
         let x = this._x;
         let y = this._y;
-        if (x + menuGeometry.width + Menu.XMARGIN > Context.canvas.clientWidth) {
-            x = Context.canvas.clientWidth - menuGeometry.width - Menu.XMARGIN;
+        if (x + menuGeometry.width + Menu.XMARGIN > Canvas.instance.clientWidth) {
+            x = Canvas.instance.clientWidth - menuGeometry.width - Menu.XMARGIN;
         }
-        if (y + menuGeometry.height + Menu.YMARGIN > Context.canvas.clientHeight) {
-            y = Context.canvas.clientHeight - menuGeometry.height - Menu.YMARGIN;
+        if (y + menuGeometry.height + Menu.YMARGIN > Canvas.instance.clientHeight) {
+            y = Canvas.instance.clientHeight - menuGeometry.height - Menu.YMARGIN;
         }
         this._root.matrix = new Matrix().translate(x, y);
     }
@@ -91,16 +91,16 @@ Menu.YMARGIN = 5;
 Canvas.prototype.manageMenus = function() {
     win.addEventListener(MouseEvents.MOUSE_DOWN, event => {
         if (!this._menu || !this._menu.insideMenu(
-                Context.canvas.canvasX(event.pageX),
-                Context.canvas.canvasY(event.pageY))
+                Canvas.instance.canvasX(event.pageX),
+                Canvas.instance.canvasY(event.pageY))
         ) {
             this._closeMenu();
         }
     });
     win.addEventListener(MouseEvents.MOUSE_UP, event => {
         if (this._menu && (this._menu.closeOnSelect || !this._menu.insideMenu(
-                Context.canvas.canvasX(event.pageX),
-                Context.canvas.canvasY(event.pageY)))
+                Canvas.instance.canvasX(event.pageX),
+                Canvas.instance.canvasY(event.pageY)))
         ) {
             this._closeMenu();
         } else {
@@ -155,8 +155,8 @@ export function makeMenuOwner(superClass) {
         this._root.on(MouseEvents.CONTEXT_MENU,
             event => {
                 this.openMenu(
-                    Context.canvas.canvasX(event.pageX),
-                    Context.canvas.canvasY(event.pageY));
+                    Canvas.instance.canvasX(event.pageX),
+                    Canvas.instance.canvasY(event.pageY));
                 event.preventDefault();
                 event.stopPropagation();
                 return false;
@@ -189,7 +189,7 @@ export function makeMenuOwner(superClass) {
     superClass.prototype.openMenu = function(x, y) {
         let menuOptions = this.menuOptions;
         if (menuOptions && menuOptions.length > 0) {
-            Context.canvas.openMenu(x, y, menuOptions);
+            Canvas.instance.openMenu(x, y, menuOptions);
         }
     };
 
@@ -264,7 +264,7 @@ export class MenuOption {
         }
         text.class = MenuOption.TEXT_CLASS;
         this._root.add(text);
-        let bbox = Context.canvas.bbox(text);
+        let bbox = Canvas.instance.bbox(text);
         text.y += bbox.height;
         if (bbox.width > menuGeometry.width) {
             menuGeometry.width = bbox.width;
@@ -425,7 +425,7 @@ export class ToolPopup {
             .attrs({
                 stroke: Colors.BLACK,
                 fill: Colors.LIGHT_GREY,
-                rx: ToolPopup.CORNER_SIZE, ry: ToolPopup.CORNER_SIZE, filter: Context.canvas.shadowFilter
+                rx: ToolPopup.CORNER_SIZE, ry: ToolPopup.CORNER_SIZE, filter: Canvas.instance.shadowFilter
             });
         this._root.add(this._background);
         this._root._owner = this;
@@ -452,9 +452,9 @@ export class ToolPopup {
         this._restore = new ToolTitleCommand(ToolPopup.RESTORE_URL, this.width/2-ToolPopup.HEADER_MARGIN,
             () => this.restore()
         );
-        this._dragOperation(function() {return Context.dragPopup;});
-        Context.canvas.addObserver(this);
-        Context.canvas.putArtifactOnToolsLayer(this._root);
+        this._dragOperation(function() {return DragPopupOperation.instance;});
+        Canvas.instance.addObserver(this);
+        Canvas.instance.putArtifactOnToolsLayer(this._root);
     }
 
     get minimized() {
@@ -511,8 +511,8 @@ export class ToolPopup {
     }
 
     _adjustPosition() {
-        let clientWidth = Context.canvas.clientWidth;
-        let clientHeight = Context.canvas.clientHeight;
+        let clientWidth = Canvas.instance.clientWidth;
+        let clientHeight = Canvas.instance.clientHeight;
         let x = this._root.globalMatrix.dx-clientWidth/2;
         let y = this._root.globalMatrix.dy-clientHeight/2;
         if (x + this.width/2 > clientWidth/2 - ToolPopup.BORDER_MARGIN) {
@@ -544,14 +544,14 @@ export class ToolPopup {
     }
 
     _notified(source, type, value) {
-        if (source === Context.canvas && type === Events.GEOMETRY) {
+        if (source === Canvas.instance && type === Events.GEOMETRY) {
             this._adjustPosition();
         }
     }
 
     display(x, y) {
-        let clientWidth = Context.canvas.clientWidth;
-        let clientHeight = Context.canvas.clientHeight;
+        let clientWidth = Canvas.instance.clientWidth;
+        let clientHeight = Canvas.instance.clientHeight;
         let fx = x>=0 ? -clientWidth/2+x : clientWidth/2-x;
         let fy = y>=0 ? -clientHeight/2+y : clientHeight/2-y;
         this._root.matrix = Matrix.translate(fx, fy);
@@ -580,7 +580,7 @@ export class DragPopupOperation extends DragOperation {
     doDragStart(popup, x, y, event) {
         let dmatrix = Matrix.translate(popup._root.matrix.dx, popup._root.matrix.dy);
         let pedestal = new Group(dmatrix);
-        Context.canvas.putArtifactOnToolsLayer(pedestal);
+        Canvas.instance.putArtifactOnToolsLayer(pedestal);
         let imatrix = pedestal.globalMatrix.invert();
         pedestal.dragX = imatrix.x(x, y);
         pedestal.dragY = imatrix.y(x, y);
@@ -598,14 +598,14 @@ export class DragPopupOperation extends DragOperation {
 
     doDrop(popup, x, y, event) {
         let pedestal = popup._root.parent;
-        let { x:fx, y:fy } = computePosition(popup._root, Context.canvas._toolsLayer._root);
+        let { x:fx, y:fy } = computePosition(popup._root, Canvas.instance._toolsLayer._root);
         popup._root.matrix = Matrix.translate(fx, fy);
-        Context.canvas.putArtifactOnToolsLayer(popup._root);
+        Canvas.instance.putArtifactOnToolsLayer(popup._root);
         pedestal.detach();
     }
 
 }
-Context.dragPopup = new DragPopupOperation();
+makeSingleton(DragPopupOperation);
 
 export class ToolCommand {
 
@@ -1191,22 +1191,22 @@ export class BoardItemBuilder extends ToolCell {
         this._glass.on(MouseEvents.CONTEXT_MENU, event=>{
             event.preventDefault();
             if (this._menuOptions) {
-                Context.canvas.openMenu(this.gx, this.gy, this._menuOptions);
+                Canvas.instance.openMenu(this.gx, this.gy, this._menuOptions);
             }
         });
         return this;
     }
 
     select() {
-        Context.selection.unselectAll();
+        Selection.instance.unselectAll();
         for (let element of this._currentItems) {
-            Context.selection.select(element);
+            Selection.instance.select(element);
         }
     }
 
     _makeItems() {
-        let mementoOpened = Context.memento.opened;
-        this._currentItems = Context.copyPaste.duplicateForPaste(this._proto);
+        let mementoOpened = Memento.instance.opened;
+        this._currentItems = CopyPaste.instance.duplicateForPaste(this._proto);
         for (let item of this._currentItems) {
             item._parent = this;
             this._support.add(item._root);
@@ -1245,6 +1245,9 @@ export class BoardItemBuilder extends ToolCell {
     }
 
     accept(visitor) {
+        for (let item of this._proto) {
+            visitor.visit(item);
+        }
         for (let item of this._currentItems) {
             visitor.visit(item);
         }
@@ -1265,108 +1268,108 @@ export class FavoriteItemBuilder extends BoardItemBuilder {
 
 export const Tools = {
     _selection(element, predicate) {
-        let selection = Context.selection.selection(predicate);
+        let selection = Selection.instance.selection(predicate);
         element && selection.add(element);
         return selection;
     },
     isMaxZoom() {
-        return Context.canvas.maxZoom <= Context.canvas.zoom;
+        return Canvas.instance.maxZoom <= Canvas.instance.zoom;
     },
     isMinZoom() {
-        return Context.canvas.minZoom >= Context.canvas.zoom;
+        return Canvas.instance.minZoom >= Canvas.instance.zoom;
     },
     zoomInSelect() {
         if (!this.isMaxZoom()) {
-            let bbox = l2lBoundingBox(Context.selection.selection(), Context.canvas.globalMatrix);
+            let bbox = l2lBoundingBox(Selection.instance.selection(), Canvas.instance.globalMatrix);
             if (bbox !== null) {
                 let px = (bbox.left + bbox.right) / 2;
                 let py = (bbox.top + bbox.bottom) / 2;
-                Context.canvas.zoomIn(px, py);
+                Canvas.instance.zoomIn(px, py);
             } else {
-                let matrix = Context.canvas.globalMatrix.invert();
-                let cx = Context.canvas.clientWidth / 2;
-                let cy = Context.canvas.clientHeight / 2;
+                let matrix = Canvas.instance.globalMatrix.invert();
+                let cx = Canvas.instance.clientWidth / 2;
+                let cy = Canvas.instance.clientHeight / 2;
                 let px = matrix.x(cx, cy);
                 let py = matrix.y(cx, cy);
-                Context.canvas.zoomIn(px, py);
+                Canvas.instance.zoomIn(px, py);
             }
         }
     },
     zoomOutSelect() {
         if (!this.isMinZoom()) {
-            let bbox = l2lBoundingBox(Context.selection.selection(), Context.canvas.globalMatrix);
+            let bbox = l2lBoundingBox(Selection.instance.selection(), Canvas.instance.globalMatrix);
             if (bbox !== null) {
                 let px = (bbox.left + bbox.right) / 2;
                 let py = (bbox.top + bbox.bottom) / 2;
-                Context.canvas.zoomOut(px, py);
+                Canvas.instance.zoomOut(px, py);
             } else {
-                let matrix = Context.canvas.globalMatrix.invert();
-                let cx = Context.canvas.clientWidth / 2;
-                let cy = Context.canvas.clientHeight / 2;
+                let matrix = Canvas.instance.globalMatrix.invert();
+                let cx = Canvas.instance.clientWidth / 2;
+                let cy = Canvas.instance.clientHeight / 2;
                 let px = matrix.x(cx, cy);
                 let py = matrix.y(cx, cy);
-                Context.canvas.zoomOut(px, py);
+                Canvas.instance.zoomOut(px, py);
             }
         }
     },
     zoomFit(elements) {
-        let bbox = l2lBoundingBox(elements, Context.canvas.baseGlobalMatrix);
+        let bbox = l2lBoundingBox(elements, Canvas.instance.baseGlobalMatrix);
         if (bbox !== null) {
             let width = bbox.right - bbox.left;
             let height = bbox.bottom - bbox.top;
-            let scale = Math.min(Context.canvas.clientWidth / width, Context.canvas.clientHeight / height) * 0.9;
-            Context.canvas.zoomSet(scale, 0, 0);
+            let scale = Math.min(Canvas.instance.clientWidth / width, Canvas.instance.clientHeight / height) * 0.9;
+            Canvas.instance.zoomSet(scale, 0, 0);
             let px = (bbox.left + bbox.right) / 2;
             let py = (bbox.top + bbox.bottom) / 2;
-            Context.canvas.scrollTo(px, py);
+            Canvas.instance.scrollTo(px, py);
         }
     },
     zoomExtent() {
-        this.zoomFit(Context.canvas.baseChildren);
+        this.zoomFit(Canvas.instance.baseChildren);
     },
     zoomSelection() {
-        this.zoomFit(Context.selection.selection());
+        this.zoomFit(Selection.instance.selection());
     },
     selectionEmpty() {
-        return Context.selection.selection().size === 0;
+        return Selection.instance.selection().size === 0;
     },
     copy() {
-        Context.copyPaste.copyModel(Context.selection.selection());
+        CopyPaste.instance.copyModel(Selection.instance.selection());
     },
     pastable() {
-        return Context.copyPaste.pastable;
+        return CopyPaste.instance.pastable;
     },
     paste() {
-        Context.copyPaste.pasteModel();
+        CopyPaste.instance.pasteModel();
     },
     undoable() {
-        return Context.memento.undoable();
+        return Memento.instance.undoable();
     },
     undo() {
-        Context.memento.undo();
+        Memento.instance.undo();
     },
     redoable() {
-        return Context.memento.redoable();
+        return Memento.instance.redoable();
     },
     redo() {
-        Context.memento.redo();
+        Memento.instance.redo();
     },
     regroup(element) {
-        Context.memento.open();
-        Context.selection.regroup(element);
+        Memento.instance.open();
+        Selection.instance.regroup(element);
     },
     ungroup(element) {
-        Context.memento.open();
-        Context.selection.ungroup(element);
+        Memento.instance.open();
+        Selection.instance.ungroup(element);
     },
     groupable(element) {
-        return Context.selection.groupable(element);
+        return Selection.instance.groupable(element);
     },
     ungroupable(element) {
-        return Context.selection.ungroupable(element);
+        return Selection.instance.ungroupable(element);
     },
     lock(element) {
-        Context.memento.open();
+        Memento.instance.open();
         let selection = this._selection(element);
         for (let element of selection) {
             if (element.lockable && !element.lock) {
@@ -1375,7 +1378,7 @@ export const Tools = {
         }
     },
     unlock(element) {
-        Context.memento.open();
+        Memento.instance.open();
         let selection = this._selection(element);
         for (let element of selection) {
             if (element.lockable && element.lock) {
@@ -1402,15 +1405,15 @@ export const Tools = {
         return result;
     },
     deleteSelection() {
-        Context.memento.open();
-        for (let child of [...Context.selection.selection()]) {
+        Memento.instance.open();
+        for (let child of [...Selection.instance.selection()]) {
             if (child.deletable) {
                 child.delete();
             }
         }
     },
     allowElementDeletion() {
-        Context.anchor.addEventListener(KeyboardEvents.KEY_UP, event => {
+        Anchor.instance.addEventListener(KeyboardEvents.KEY_UP, event => {
                 if (!Context.freezed) {
                     if (event.key === "Delete" || event.key === "Backspace")
                         Tools.deleteSelection();
@@ -1419,7 +1422,7 @@ export const Tools = {
         );
     },
     selectionDeletable() {
-        let selection = [...Context.selection.selection()];
+        let selection = [...Selection.instance.selection()];
         if (!selection.length) return false;
         for (let child of selection) {
             if (!child.deletable) return false;
@@ -1427,26 +1430,28 @@ export const Tools = {
         return true;
     },
     addToFavorites(paletteContent) {
-        let favorites = getExtension(Context.selection.selection());
-        let models = Context.copyPaste.duplicateForCopy(favorites);
+        let favorites = getExtension(Selection.instance.selection());
+        let models = CopyPaste.instance.duplicateForCopy(favorites);
         let builder = new FavoriteItemBuilder(models);
         paletteContent.addCell(builder);
     },
     mayAddToFavorites() {
-        return Context.selection.selection().size>0;
+        return Selection.instance.selection().size>0;
     },
     addLayer(layer) {
-        if (!this._layers) {
-            this._layers = new List();
-        }
-        this._layers.add(layer);
+        Layers.instance.addLayer(layer);
     },
-    manageLayers(x, y) {
+    manageLayers(x, y, elements) {
         let menuOptions = new List();
-        for (let layer of this._layers) {
-            menuOptions.add({line:new CheckMenuOption(layer.title, layer.checked, layer.action)})
+        for (let layer of Layers.instance.layers) {
+            menuOptions.add({line:new CheckMenuOption(
+                layer.title, layer.checked,
+                function(checked) {
+                    layer.action(checked, elements);
+                }
+            )})
         }
-        Context.canvas.openMenu(x, y, menuOptions, false);
+        Canvas.instance.openMenu(x, y, menuOptions, false);
     }
 };
 
@@ -1562,15 +1567,12 @@ export function favoritesCommand(toolPopup, paletteContent) {
     );
 }
 
-export function layersCommand(toolPopup, layers) {
-    for (let layer of layers) {
-        Tools.addLayer(layer);
-    }
+export function layersCommand(toolPopup) {
     toolPopup.add(new ToolToggleCommand("./images/icons/layers_on.svg", "./images/icons/layers_off.svg",
         function() {
             let x = this._root.globalMatrix.x(0, 0);
             let y = this._root.globalMatrix.y(0, 0);
-            Tools.manageLayers(x, y);
+            Tools.manageLayers(x, y, [Context.table, Context.palettePopup]);
         }, always)
     );
 }

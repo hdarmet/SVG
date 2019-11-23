@@ -1,9 +1,9 @@
 import {
     ClippedRasterImage, computeMatrix, Fill, Group, MouseEvents,
-    Mutation, RasterImage, Rect, Rotation, SVGElement, SvgRasterImage
+    Mutation, RasterImage, Rect, Rotation, SVGElement, SvgRasterImage, Visibility
 } from "./graphics.js";
 import {
-    CloneableObject, Cloning, Context, Events, Memento, makeCloneable
+    CloneableObject, Cloning, Context, Events, Memento, makeCloneable, Selection, MutationObservers
 } from "./toolkit.js";
 import {
     ESet, List
@@ -137,7 +137,7 @@ export function makeSelectable(superClass) {
         superInit && superInit.call(this, ...args);
         if (!this._clickHdlImpl) {
             this._clickHdlImpl = function (event) {
-                Context.selection.adjustSelection(this, event, true);
+                Selection.instance.adjustSelection(this, event, true);
                 event.stopPropagation();
             }.bind(this);
             this._root.on(MouseEvents.CLICK, this._clickHdlImpl);
@@ -182,7 +182,7 @@ export function makeSelectable(superClass) {
         superCloned && superCloned.call(this, copy, duplicata);
         if (!copy._clickHdl) {
             copy._clickHdlImpl = function (event) {
-                Context.selection.adjustSelection(this, event, true);
+                Selection.instance.adjustSelection(this, event, true);
                 event.stopPropagation();
             }.bind(copy);
             copy._root.on(MouseEvents.CLICK, copy._clickHdlImpl);
@@ -779,14 +779,24 @@ export function makeDecorationsOwner(superClass) {
         return copy;
     };
 
-    if (!superClass.prototype.hasOwnProperty("hasDecorations")) {
+    superClass.prototype.showDecorations = function () {
+        this._decorationsSupport.visibility = null;
+        return this;
+    };
+
+    superClass.prototype.hideDecorations = function () {
+        this._decorationsSupport.visibility = Visibility.HIDDEN;
+        return this;
+    };
+
+//    if (!superClass.prototype.hasOwnProperty("hasDecorations")) {
         Object.defineProperty(superClass.prototype, "hasDecorations", {
             configurable: true,
             get() {
                 return true;
             }
         });
-    }
+//    }
 
     return superClass;
 }
@@ -1395,13 +1405,13 @@ class ZIndexSupport {
                 let pedestal = this._pedestals.get(element);
                 pedestal && process(pedestal, true);
             }
-            Context.mutationObservers.disconnect(this._host);
+            MutationObservers.instance.disconnect(this._host);
             for (let pedestal of roots) {
                 pedestal.refresh();
             }
-            Context.mutationObservers.observe(this._host, action, this._host._content._node, config);
+            MutationObservers.instance.observe(this._host, action, this._host._content._node, config);
         };
-        Context.mutationObservers.observe(this._host, action, this._host._content._node, config);
+        MutationObservers.instance.observe(this._host, action, this._host._content._node, config);
     }
 
     removePedestal(pedestal) {
@@ -1890,7 +1900,7 @@ export function makeClickable(superClass) {
             this._root.off(MouseEvents.CLICK, this._clickHdlImpl);
         }
         this._clickHdlImpl = event => {
-            Context.selection.adjustSelection(this, event, true);
+            Selection.instance.adjustSelection(this, event, true);
             handler && handler.call(this)(event);
             event.stopPropagation();
         };
@@ -1903,7 +1913,7 @@ export function makeClickable(superClass) {
             this._root.off(Events.DOUBLE_CLICK, this._doubleClickHdlImpl);
         }
         this._doubleClickHdlImpl = event => {
-            Context.selection.adjustSelection(this, event, true);
+            Selection.instance.adjustSelection(this, event, true);
             handler && handler.call(this)(event);
             event.stopPropagation();
         };

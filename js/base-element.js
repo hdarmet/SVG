@@ -13,7 +13,7 @@ import {
     Group, l2l, l2m, Rect, Translation, Visibility
 } from "./graphics.js";
 import {
-    areaDrag, Cloning, Context, CopyPaste, Events, getCanvasLayer, makeNotCloneable, makeObservable, Memento
+    areaDrag, Cloning, Context, CopyPaste, Events, getCanvasLayer, makeNotCloneable, makeObservable, Memento, Canvas
 } from "./toolkit.js";
 import {
     makeClickable, makeContainer, makeDraggable, makePartsOwner, makeShaped, makeSupport,
@@ -231,7 +231,7 @@ export class BoardElement {
 
     get support() {
         let parent = this.parent;
-        return parent ? parent : Context.canvas.getGlassSupport(this);
+        return parent ? parent : Canvas.instance.getGlassSupport(this);
     }
 
     hover(elements) {
@@ -244,11 +244,11 @@ export class BoardElement {
     }
 
     show() {
-        this._root.visibility = Visibility.VISIBLE;
+        delete this._root.visibility;
     }
 
     hide() {
-        this._root.visibility = Visibility.HIDDEN;
+        this._root.visibility;
     }
 
     _registerParent() {
@@ -338,12 +338,12 @@ export class BoardTable extends BoardArea {
 
     constructor(width, height, backgroundColor) {
         super(width, height, backgroundColor);
-        this._observe(Context.copyPaste);
+        this._observe(CopyPaste.instance);
     }
 
     _setSize(width, height) {
         super._setSize(width, height);
-        Context.canvas.setBaseSize(width, height);
+        Canvas.instance.setBaseSize(width, height);
     }
 
     _notified(source, type, value) {

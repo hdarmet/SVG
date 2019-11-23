@@ -13,7 +13,7 @@ import {
     win, Colors, Line, computePosition, Group, Fill
 } from "./graphics.js";
 import {
-    Memento, CloneableObject, Events, makeObservable, Context, glassSelectionPredicate
+    Canvas, Memento, CloneableObject, Events, makeObservable, Context, glassSelectionPredicate
 } from "./toolkit.js";
 import {
     TextDecoration
@@ -68,7 +68,6 @@ export class Physic {
                 managedElements.add(element);
             }
         }
-        console.log(this, managedElements)
         return managedElements;
     }
 
@@ -1501,7 +1500,7 @@ export class RulesDecoration extends Decoration {
         this._physic = rulesPhysic;
         this._rules = new Group();
         this._arrows = new Group();
-        Context.canvas.addObserver(this);
+        Canvas.instance.addObserver(this);
     }
 
     _init() {
@@ -1525,7 +1524,7 @@ export class RulesDecoration extends Decoration {
             return level;
         }
 
-        let zoom = Context.canvas.zoom;
+        let zoom = Canvas.instance.zoom;
         this._rules.clear();
         this._arrows.clear();
         this._root.attrs({stroke:Colors.RED, fill:Fill.NONE});
@@ -1607,8 +1606,8 @@ export class RulesDecoration extends Decoration {
                 }
             }
         }
-        else if (source===Context.canvas && event===Events.ZOOM) {
-            this._adjustLinesAspect(Context.canvas.zoom);
+        else if (source===Canvas.instance && event===Events.ZOOM) {
+            this._adjustLinesAspect(Canvas.instance.zoom);
         }
     }
 

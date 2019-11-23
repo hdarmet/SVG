@@ -7,7 +7,8 @@ import {
     ESet, List
 } from "../../js/collections.js";
 import {
-    Context, Events, Canvas, Groups, DragOperation, Memento, makeNotCloneable, setLayeredGlassStrategy, standardDrag
+    Context, Events, Canvas, Groups, DragOperation, Memento, makeNotCloneable, setLayeredGlassStrategy, standardDrag,
+    Layer, Layers, Selection
 } from "../../js/toolkit.js";
 import {
     BoardElement, BoardTable, BoardArea, Visitor
@@ -48,7 +49,7 @@ const LAYERS_DEFINITION = {layers:[DIAMLayers.DOWN,  DIAMLayers.MIDDLE, DIAMLaye
 function makePositionEditable(superClass) {
 
     function callForEditPosition(element) {
-        Context.canvas.openModal(
+        Canvas.instance.openModal(
             editPosition,
             {
                 x: element.lx,
@@ -72,13 +73,13 @@ function makePositionEditable(superClass) {
 function makeLabelOwner(superClass) {
 
     function callForRename(element) {
-        Context.canvas.openModal(
+        Canvas.instance.openModal(
             rename,
             {
                 label: element.label
             },
             data => {
-                Context.memento.open();
+                Memento.instance.open();
                 element.label = data.label;
             });
     }
@@ -136,13 +137,13 @@ function makeLabelOwner(superClass) {
 function makeCommentOwner(superClass) {
 
     function callForComment(element) {
-        Context.canvas.openModal(
+        Canvas.instance.openModal(
             comment,
             {
                 comment: element.comment
             },
             data => {
-                Context.memento.open();
+                Memento.instance.open();
                 element.comment = data.comment;
             });
     }
@@ -374,17 +375,21 @@ class DIAMFasciaSupport extends BoardElement {
         super(width, height);
     }
 
-    _acceptDrop(element, dragSet) {
+    _acceptElement(element) {
         return element instanceof DIAMFascia &&
             element.width === this.width &&
             element.height === this.height;
+    }
+
+    _acceptDrop(element, dragSet) {
+        return this._acceptElement(element);
     }
 
 }
 makePart(DIAMFasciaSupport);
 makeSupport(DIAMFasciaSupport);
 makePositioningContainer(DIAMFasciaSupport, {
-    predicate: function(element) {return this.host._acceptDrop(element);},
+    predicate: function(element) {return this.host._acceptElement(element);},
     positionsBuilder: element=>{return [{x:0, y:0}]}
 });
 
@@ -484,15 +489,20 @@ class DIAMCover extends DIAMSupport {
         super({width, height, strokeColor:Colors.LIGHT_GREY, backgroundColor:Colors.LIGHTEST_GREY});
     }
 
-    _acceptDrop(element, dragSet) {
+    _acceptElement(element) {
         return element instanceof DIAMVisual &&
                element.width === this.width &&
                element.height === this.height;
     }
+
+    _acceptDrop(element, dragSet) {
+        return this._acceptElement(element);
+    }
+
 }
 makeDecorationsOwner(DIAMCover);
 makePositioningContainer(DIAMCover, {
-    predicate: function(element) {return this.host._acceptDrop(element);},
+    predicate: function(element) {return this.host._acceptElement(element);},
     positionsBuilder: element=>{return [{x:0, y:0}]}
 });
 
@@ -1032,7 +1042,7 @@ makeLayered(DIAMDivider, {
 });
 
 function callForGenerateLadders(container) {
-    Context.canvas.openModal(
+    Canvas.instance.openModal(
         generateLadders,
         {
             width: container.width,
@@ -1045,7 +1055,7 @@ function callForGenerateLadders(container) {
 
 function applyGenerateLadders(container, data) {
     if (!Context.isReadOnly()) {
-        Context.memento.open();
+        Memento.instance.open();
         let leftLadder = new DIAMLadder({
             width: data.ladderWidth,
             height: data.ladderHeight,
@@ -1081,7 +1091,7 @@ function applyGenerateLadders(container, data) {
 }
 
 function callForGenerateFixings(container) {
-    Context.canvas.openModal(
+    Canvas.instance.openModal(
         generateFixings,
         {
             width: container.width,
@@ -1094,7 +1104,7 @@ function callForGenerateFixings(container) {
 
 function applyGenerateFixings(container, data) {
     if (!Context.isReadOnly()) {
-        Context.memento.open();
+        Memento.instance.open();
         for (let x = data.left; x <= data.right; x += data.boxWidth) {
             for (let y = data.top; y <= data.bottom ; y += data.boxHeight) {
                 let fixing = new DIAMFixing();
@@ -1106,7 +1116,7 @@ function applyGenerateFixings(container, data) {
 }
 
 function callForGenerateHooks(container) {
-    Context.canvas.openModal(
+    Canvas.instance.openModal(
         generateHooks,
         {
             width: container.width,
@@ -1119,7 +1129,7 @@ function callForGenerateHooks(container) {
 
 function applyGenerateHooks(container, data) {
     if (!Context.isReadOnly()) {
-        Context.memento.open();
+        Memento.instance.open();
         for (let x = data.left; x <= data.right; x += data.blisterWidth) {
             for (let y = data.top; y <= data.bottom ; y += data.blisterHeight) {
                 let fixing = new DIAMHook();
@@ -1381,6 +1391,14 @@ class DIAMImageModule extends DIAMAbstractModule {
         this._initImages(this.width, this.height, Colors.INHERIT, url, realisticUrl);
     }
 
+    showRealistic() {
+        this._setImageIndex(1);
+    }
+
+    showSchematic() {
+        this._setImageIndex(0);
+    }
+
     clone(duplicata) {
         return super.clone(duplicata)
     }
@@ -1422,7 +1440,10 @@ class DIAMCell extends BoardElement {
 makeShaped(DIAMCell);
 makeSupport(DIAMCell);
 makePositioningContainer(DIAMCell, {
-        predicate: function(element) {return this.host._acceptElement(element);},
+        predicate: function(element) {
+            //console.log("accept:", this.host._acceptElement(element));
+            return this.host._acceptElement(element);
+        },
         positionsBuilder: element=>{return [{x:0, y:0}]}
     });
 makePart(DIAMCell);
@@ -1450,8 +1471,8 @@ class DIAMOption extends DIAMItem {
     _notified(source, event, value) {
         if (source === this && event===Events.ATTACH) {
             if (this.parent && this.parent instanceof DIAMCell) {
-                Context.selection.unselect(this);
-                Context.selection.select(this.parent);
+                Selection.instance.unselect(this);
+                Selection.instance.select(this.parent);
             }
         }
     }
@@ -1464,6 +1485,9 @@ class DIAMOption extends DIAMItem {
 makeShaped(DIAMOption);
 makeContainer(DIAMOption);
 makeDraggable(DIAMOption);
+
+class DIAMColorOption extends DIAMOption {
+}
 
 class DIAMConfigurableOption extends DIAMOption {
     constructor({width, height, shape, compatibilities, cells}) {
@@ -1489,11 +1513,8 @@ class DIAMConfigurableOption extends DIAMOption {
     }
 
 }
-//makePartsOwner(DIAMConfigurableOption);
 
 function makeModuleConfigurable(superClass) {
-
-    //makePartsOwner(superClass);
 
     let init = superClass.prototype._init;
     superClass.prototype._init = function({cells, ...args}) {
@@ -1569,13 +1590,13 @@ makeContainerMultiLayered(DIAMTable, LAYERS_DEFINITION);
 function createTable() {
     setLayeredGlassStrategy(BoardTable, LAYERS_DEFINITION);
     Context.table = new DIAMTable({width:4000, height:3000, backgroundColor:"#A0A0A0"});
-    Context.canvas.putOnBase(Context.table);
+    Canvas.instance.putOnBase(Context.table);
 }
 
 function createCanvas() {
-    Context.canvas = new Canvas("#app", "width:100%;height:100%;margin:0;padding:0;overflow:hidden;");
-    Context.canvas.manageMenus();
-    Context.selection = new Groups();
+    Canvas.instance = new Canvas("#app", "width:100%;height:100%;margin:0;padding:0;overflow:hidden;");
+    Canvas.instance.manageMenus();
+    Selection.instance = new Groups();
 }
 
 function createPaper() {
@@ -1585,17 +1606,78 @@ function createPaper() {
 }
 
 function defineLayers() {
-    function showModules(checked) {
-        new Visitor([Context.table], {checked}, function({checked}) {
+
+    function showColorOptions(checked, elements) {
+        new Visitor(elements, {checked}, function({checked}) {
+            if (this instanceof DIAMColorOption) {
+                checked ? this.show() : this.hide();
+            }
+        })
+    }
+
+    function showVisuals(checked, elements) {
+        new Visitor(elements, {checked}, function({checked}) {
+            if (this instanceof DIAMVisual) {
+                checked ? this.show() : this.hide();
+            }
+        })
+    }
+
+    function showArtworks(checked, elements) {
+        new Visitor(elements, {checked}, function({checked}) {
+            if (this instanceof DIAMCover || this instanceof DIAMFasciaSupport) {
+                checked ? this.show() : this.hide();
+            }
+        })
+    }
+
+    function showModules(checked, elements) {
+        new Visitor(elements, {checked}, function({checked}) {
             if (this instanceof DIAMAbstractModule) {
                 checked ? this.show() : this.hide();
             }
         })
     }
-    return [
-        {title:"modules", checked:true, action:showModules},
-        {title:"menu2", checked:true, action:()=>true}
-    ];
+
+    function showHighlights(checked, elements) {
+        new Visitor(elements, {checked}, function({checked}) {
+            if (this.highlightable) {
+                checked ? this.showHighlight() : this.hideHighlight();
+            }
+        })
+    }
+
+    function showDecorations(checked, elements) {
+        new Visitor(elements, {checked}, function({checked}) {
+            if (this.hasDecorations) {
+                checked ? this.showDecorations() : this.hideDecorations();
+            }
+        })
+    }
+
+    function showRealistic(checked, elements) {
+        new Visitor(elements, {checked}, function({checked}) {
+            if (this.showRealistic) {
+                checked ? this.showRealistic() : this.showSchematic();
+            }
+        })
+    }
+
+    function showReferences(checked, elements) {
+        // TODO
+    }
+
+    //Layers.instance = new Layers();
+    Layers.instance
+        .addLayer(new Layer("Legends", true, showDecorations))
+        .addLayer(new Layer("Artwork", true, showArtworks))
+        .addLayer(new Layer("Realistic", false, showRealistic))
+        .addLayer(new Layer("Highlight", true, showHighlights))
+        .addLayer(new Layer("Tickets", true, showVisuals))
+        .addLayer(new Layer("Icon colors", true, showColorOptions))
+        .addLayer(new Layer("References", true, showReferences))
+        .addLayer(new Layer("Modules", true, showModules))
+        .update([Context.table, Context.palettePopup]);
 }
 
 function createCommandPopup(palettePopup) {
@@ -1615,7 +1697,7 @@ function createCommandPopup(palettePopup) {
     lockCommand(cmdPopup);
     unlockCommand(cmdPopup);
     favoritesCommand(cmdPopup, palettePopup._paletteContent);
-    layersCommand(cmdPopup, defineLayers());
+    layersCommand(cmdPopup);
     cmdPopup.addMargin();
     deleteCommand(cmdPopup);
     return cmdPopup;
@@ -1632,19 +1714,19 @@ class OptionsExpandablePanel extends ToolGridExpandablePanel {
     }
 
     open() {
-        Context.selection.addObserver(this);
+        Selection.instance.addObserver(this);
         this._compatibilitySet = null;
         super.open();
     }
 
     close() {
         super.close();
-        Context.selection.removeObserver(this);
+        Selection.instance.removeObserver(this);
     }
 
     _notified(source, event, value) {
-        if (source === Context.selection) {
-            if (Context.selection.selection().size) {
+        if (source === Selection.instance) {
+            if (Selection.instance.selection().size) {
                 this._compatibilitySet = null;
                 this._refresh();
             }
@@ -1667,7 +1749,7 @@ class OptionsExpandablePanel extends ToolGridExpandablePanel {
 
     _compatibleOptions(element) {
         if (!is(DIAMOption)(element)) return false;
-        let compatibilities = this._getCompatibilitySet(Context.selection.selection());
+        let compatibilities = this._getCompatibilitySet(Selection.instance.selection());
         return element.isCompatible(compatibilities);
     }
 
@@ -1857,23 +1939,23 @@ function createPalettePopup() {
     paletteContent.addCell(new BoardItemBuilder([new DIAMFascia({
         width:120, height:60, color:"#FF00FF"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:4,
+    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#FF0000"}),
         compatibilities:["C"]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:4,
+    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#F00000"}),
         compatibilities:["C"]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:4,
+    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#FF0F0F"}),
         compatibilities:["C"]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:4,
+    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#F00F0F"}),
         compatibilities:["C"]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:4,
+    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#AA0000"}),
         compatibilities:["C"]
     })]));
@@ -1907,23 +1989,23 @@ function createPalettePopup() {
             })
         ]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:6,
+    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#FF0000"}),
         compatibilities:["R"]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:6,
+    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#F00000"}),
         compatibilities:["R"]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:6,
+    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#FF0F0F"}),
         compatibilities:["R"]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:6,
+    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#F00F0F"}),
         compatibilities:["R"]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMOption({width:4, height:6,
+    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#AA0000"}),
         compatibilities:["R"]
     })]));
@@ -1947,6 +2029,7 @@ function main() {
     Context.palettePopup = createPalettePopup();
     Context.commandPopup = createCommandPopup(Context.palettePopup);
     setShortcuts();
+    defineLayers();
     Context.memento.opened = true;
 }
 

@@ -7,7 +7,8 @@ import {
     Group, Rect, Fill, Visibility, win, Colors, Circle, Line
 } from "./graphics.js";
 import {
-    Memento, Context, Events, DragSwitchOperation, DragOperation, makeNotCloneable
+    Memento, Context, Events, DragSwitchOperation, DragOperation, makeNotCloneable,
+    DragMoveSelectionOperation, DragRotateSelectionOperation
 } from "./toolkit.js";
 import {
     BoardElement, BoardSupport, BoardLayer, BoardZindexLayer
@@ -25,8 +26,8 @@ import {
 } from "./physics.js";
 
 Context.itemDrag = new DragSwitchOperation()
-    .add(()=>true, Context.rotateSelectionDrag)
-    .add(()=>true, Context.moveSelectionDrag);
+    .add(()=>true, DragRotateSelectionOperation.instance)
+    .add(()=>true, DragMoveSelectionOperation.instance);
 
 /**
  * Base class for elements that materialize the "content" of something. For example the content of a box. Essentially,
@@ -174,11 +175,11 @@ export class AbstractBoardBox extends BoardElement {
         this._add(this._boxCover);
         this.addMenuOption(new TextToggleMenuOption("Hide cover", "Show cover",
             function() {
-                Context.memento.open();
+                Memento.instance.open();
                 this._boxCover.hide();
             },
             function() {
-                Context.memento.open();
+                Memento.instance.open();
                 this._boxCover.show();
             },
             function() {return this._boxCover.hidden;}));
@@ -355,7 +356,7 @@ export class AbstractBoardDie extends BoardElement {
     constructor(width, height, ...args) {
         super(width, height);
         this.initShape(width, height, ...args);
-        this._dragOperation(function() {return Context.moveSelectionDrag;});
+        this._dragOperation(function() {return DragMoveSelectionOperation.instance;});
         this._clickHandler(function () {
             return ()=> {
                 for (let t = 0; t < 10; t++) {
@@ -438,7 +439,7 @@ export class DragHandleOperation extends DragOperation {
     }
 
     doDragStart(element, x, y, event) {
-        Context.memento.open();
+        Memento.instance.open();
         Memento.register(element);
         let invertedMatrix = element.global.invert();
         this.dragX = invertedMatrix.x(x, y);
@@ -464,16 +465,16 @@ DragHandleOperation.instance = new DragHandleOperation();
 export class BoardHandle extends BoardElement {
 
     constructor() {
-        let zoom = Context.canvas.zoom;
+        let zoom = Canvas.instance.zoom;
         super(0, 0);
         this._root.add(this.initShape(BoardHandle.SIZE/zoom, BoardHandle.SIZE/zoom, BoardHandle.COLOR, zoom));
         this._dragOperation(function() {return DragHandleOperation.instance;});
-        this._observe(Context.canvas);
+        this._observe(Canvas.instance);
     }
 
     _notified(source, event, data) {
         if (event === Events.ZOOM) {
-            let zoom = Context.canvas.zoom;
+            let zoom = Canvas.instance.zoom;
             this.shape.attrs({
                 x:-BoardHandle.SIZE/zoom/2, y:-BoardHandle.SIZE/zoom/2,
                 width:BoardHandle.SIZE/zoom, height:BoardHandle.SIZE/zoom, stroke_width:1/zoom
@@ -491,7 +492,7 @@ export class BoardHandle extends BoardElement {
 
     _cloned(copy, duplicata) {
         super._cloned();
-        copy._observe(Context.canvas);
+        copy._observe(Canvas.instance);
     }
 }
 makeMoveable(BoardHandle);
@@ -632,12 +633,12 @@ export class BoardFrame extends BoardElement {
         super(width, height);
         this._root.add(this.initShape(width, height, BoardFrame.COLOR));
         this._initResize();
-        this._observe(Context.canvas);
+        this._observe(Canvas.instance);
     }
 
     _notified(source, event, data) {
         if (event === Events.ZOOM) {
-            let zoom = Context.canvas.zoom;
+            let zoom = Canvas.instance.zoom;
             this.shape.attrs({stroke_width:1/zoom});
         }
     }
@@ -659,7 +660,7 @@ export class BoardFrame extends BoardElement {
 
     _cloned(copy, duplicata) {
         super._cloned();
-        copy._observe(Context.canvas);
+        copy._observe(Canvas.instance);
     }
 }
 makeShaped(BoardFrame);
@@ -671,8 +672,8 @@ export class BoardTarget extends BoardElement {
     constructor(size, strokeColor) {
         super(size, size);
         this._root.add(this.initShape(size, strokeColor));
-        this._dragOperation(function() {return Context.moveSelectionDrag;});
-        this._observe(Context.canvas);
+        this._dragOperation(function() {return DragMoveSelectionOperation.instance;});
+        this._observe(Canvas.instance);
         this.addMenuOption(new TextMenuOption("Edit Target",
             function () {
                 this.edit();
@@ -680,7 +681,7 @@ export class BoardTarget extends BoardElement {
     }
 
     edit() {
-        Context.canvas.openModal(
+        Canvas.instance.openModal(
             editTarget,
             {
                 x: this.lx,
@@ -688,7 +689,7 @@ export class BoardTarget extends BoardElement {
                 strokeColor: this.strokeColor
             },
             data => {
-                Context.memento.open();
+                Memento.instance.open();
                 this.update(data);
             });
     }
@@ -701,7 +702,7 @@ export class BoardTarget extends BoardElement {
 
     _notified(source, event, data) {
         if (event === Events.ZOOM) {
-            let zoom = Context.canvas.zoom;
+            let zoom = Canvas.instance.zoom;
             this.shape.attrs({stroke_width:this._strokeWidth/zoom});
         }
     }
@@ -718,7 +719,7 @@ export class BoardTarget extends BoardElement {
 
     _cloned(copy, duplicata) {
         super._cloned();
-        copy._observe(Context.canvas);
+        copy._observe(Canvas.instance);
     }
 
 }
@@ -782,7 +783,7 @@ export function makeConfigurableMap(superClass, predicate, positionsFct) {
     };
 
     superClass.prototype.callForHexTargetsGeneration = function () {
-        Context.canvas.openModal(
+        Canvas.instance.openModal(
             generateHexTargets,
             {
                 colCount: 10,
@@ -790,20 +791,20 @@ export function makeConfigurableMap(superClass, predicate, positionsFct) {
                 type: 1
             },
             data => {
-                Context.memento.open();
+                Memento.instance.open();
                 this.generateHexTargets(this.configFrame.box, data);
             });
     };
 
     superClass.prototype.callForSquareTargetsGeneration = function () {
-        Context.canvas.openModal(
+        Canvas.instance.openModal(
             generateSquareTargets,
             {
                 colCount: 10,
                 rowCount: 10
             },
             data => {
-                Context.memento.open();
+                Memento.instance.open();
                 this.generateSquareTargets(this.configFrame.box, data);
             });
     };

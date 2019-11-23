@@ -2,7 +2,7 @@ import {
     ColorChooserMenuOption, TextToggleMenuOption, Tools
 } from "./tools.js";
 import {
-    AlignmentBaseline, Attrs, collectProperties, Colors, Group, Rect, Text, TextAnchor, Translation
+    AlignmentBaseline, Attrs, collectProperties, Colors, Group, Rect, Text, TextAnchor, Translation, Visibility
 } from "./graphics.js";
 import {
     Memento
@@ -320,14 +320,24 @@ export function makeHighlightable(superClass) {
         return this;
     };
 
-    if (!superClass.prototype.hasOwnProperty("highlightable")) {
+//    if (!superClass.prototype.hasOwnProperty("highlightable")) {
         Object.defineProperty(superClass.prototype, "highlightable", {
             configurable: true,
             get() {
                 return true;
             }
         });
-    }
+//    }
+
+    superClass.prototype.showHighlight = function () {
+        this._highlightShape._root.visibility = null;
+        return this;
+    };
+
+    superClass.prototype.hideHighlight = function () {
+        this._highlightShape._root.visibility = Visibility.HIDDEN;
+        return this;
+    };
 
     return superClass;
 }

@@ -5,13 +5,13 @@ import {
 } from "./graphics.js";
 import {
     Context, Memento, Selection, Canvas, DragSwitchOperation,
-    setLayeredGlassStrategy
+    setLayeredGlassStrategy, DragMoveSelectionOperation, DragRotateSelectionOperation
 } from "./toolkit.js";
 import {
     BoardElement, BoardTable,
 } from "./base-element.js";
 import {
-    makeMovable, makeRotatable, makeShaped, makeDraggable, makeClickable, makeSelectable,
+    makeRotatable, makeShaped, makeDraggable, makeClickable, makeSelectable,
     makeContainerMultiLayered, makeLayered, makeDeletable, makeZindexSupport
 } from "./core-mixins.js";
 import {
@@ -31,8 +31,8 @@ import {
 
 
 Context.rotateOrMoveDrag = new DragSwitchOperation()
-    .add(()=>true, Context.rotateSelectionDrag)
-    .add(()=>true, Context.moveSelectionDrag);
+    .add(()=>true, DragRotateSelectionOperation.instance)
+    .add(()=>true, DragMoveSelectionOperation.instance);
 
 class BoardDummy extends BoardElement {
 
@@ -79,9 +79,9 @@ makeDeletable(BoardCounter);
 makeCarrier(BoardCounter);
 makeCarriable(BoardCounter);
 
-Context.canvas = new Canvas("#board", "width:100%;height:100%;margin:0;padding:0;overflow:hidden;");
-Context.canvas.manageMenus();
-Context.selection = new Selection();
+Canvas.instance = new Canvas("#board", "width:100%;height:100%;margin:0;padding:0;overflow:hidden;");
+Canvas.instance.manageMenus();
+Selection.instance = new Selection();
 
 let toggle = true;
 
@@ -133,7 +133,7 @@ createCommandPopup();
 createPalettePopup();
 
 let area = new BoardTable(4000, 3000, "#A0A0A0");
-Context.canvas.putOnBase(area);
+Canvas.instance.putOnBase(area);
 
 let dummy1 = new BoardDummy(30, 20, "#FF0000");
 let dummy2 = new BoardDummy(30, 20, "#00FF00");
@@ -215,4 +215,4 @@ area.add(handle);
 let target = new BoardTarget(16, Colors.RED);
 map1.add(target);
 
-Context.memento.opened = true;
+Memento.instance.opened = true;

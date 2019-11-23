@@ -261,25 +261,42 @@ export class NotCloneableObject {
 }
 makeNotCloneable(NotCloneableObject);
 
+export function makeSingleton(Clazz, create=true) {
+    let instanceName = Clazz.name;
+    instanceName = instanceName[0].toLowerCase()+instanceName.substring(1);
+    if (create) Context[instanceName] = new Clazz();
+    Object.defineProperty(Clazz, "instance", {
+        configurable:true,
+        get() {
+            console.assert(Context[instanceName]);
+            return Context[instanceName];
+        },
+        set(instance) {
+            console.assert(!Context[instanceName]);
+            Context[instanceName] = instance;
+        }
+    });
+}
+
 export class DragOperation {
 
     constructor() {
     }
 
     _accept(element, x, y, event) {
-        return this.accept(element, Context.canvas.canvasX(x), Context.canvas.canvasY(y), event);
+        return this.accept(element, Canvas.instance.canvasX(x), Canvas.instance.canvasY(y), event);
     }
 
     _onDragStart(element, x, y, event) {
-        return this.onDragStart(element, Context.canvas.canvasX(x), Context.canvas.canvasY(y), event);
+        return this.onDragStart(element, Canvas.instance.canvasX(x), Canvas.instance.canvasY(y), event);
     }
 
     _onDragMove(element, x, y, event) {
-        return this.onDragMove(element, Context.canvas.canvasX(x), Context.canvas.canvasY(y), event);
+        return this.onDragMove(element, Canvas.instance.canvasX(x), Canvas.instance.canvasY(y), event);
     }
 
     _onDrop(element, x, y, event) {
-        this.onDrop(element, Context.canvas.canvasX(x), Context.canvas.canvasY(y), event);
+        this.onDrop(element, Canvas.instance.canvasX(x), Canvas.instance.canvasY(y), event);
     }
 
     accept(element, x, y, event) {
@@ -386,7 +403,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             }
             return false;
         }
-        let dragSet = getExtension(Context.selection.selection(element=>true));
+        let dragSet = getExtension(Selection.instance.selection(element=>true));
         for (let element of [...dragSet]) {
             if (!element.movable ||
                 element._acceptDrag && !element._acceptDrag() ||
@@ -398,11 +415,11 @@ export class DragMoveSelectionOperation extends DragElementOperation {
     }
 
     doDragStart(element, x, y, event) {
-        Context.memento.open();
-        if (!Context.selection.selected(element.selectable)) {
-            Context.selection.adjustSelection(element, event);
+        Memento.instance.open();
+        if (!Selection.instance.selected(element.selectable)) {
+            Selection.instance.adjustSelection(element, event);
         }
-        Context.canvas.clearGlass();
+        Canvas.instance.clearGlass();
         this._dragSet = this.dragSet();
         for (let selectedElement of this._dragSet.values()) {
             Memento.register(selectedElement);
@@ -427,7 +444,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 validY: gy
             };
             let support = selectedElement.parent;
-            Context.canvas.putElementOnGlass(selectedElement, support, x, y);
+            Canvas.instance.putElementOnGlass(selectedElement, support, x, y);
             selectedElement._draggedFrom && selectedElement._draggedFrom(support, this._dragSet);
             selectedElement._fire(Events.DRAG_START);
         }
@@ -470,9 +487,9 @@ export class DragMoveSelectionOperation extends DragElementOperation {
     }
 
     _doHover(dx, dy) {
-        for (let support of Context.canvas.glassSupports) {
+        for (let support of Canvas.instance.glassSupports) {
             if (support.hover) {
-                support.hover(this.sortedSelection(Context.canvas.getHoveredElements(support), dx, dy));
+                support.hover(this.sortedSelection(Canvas.instance.getHoveredElements(support), dx, dy));
             }
         }
     }
@@ -493,7 +510,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
         let dy = y - this._drag.lastY;
         // get initial supports and move elements on glass without changing support.
         for (let selectedElement of this._dragSet) {
-            Context.canvas.moveElementOnGlass(selectedElement, null, x, y);
+            Canvas.instance.moveElementOnGlass(selectedElement, null, x, y);
         }
         // get targets (using final positions of dragged elements)
         let targets = this.getTargets(this._dragSet);
@@ -502,10 +519,10 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             let target = targets.get(selectedElement);
             // No target at all : element is outside viewport
             if (!target) {
-                Context.canvas.moveElementOnGlass(selectedElement, null,
+                Canvas.instance.moveElementOnGlass(selectedElement, null,
                     selectedElement._drag.lastX, selectedElement._drag.lastY);
             } else /* support changed */ if (target!==selectedElement.parent) {
-                Context.canvas.moveElementOnGlass(selectedElement, target, x, y);
+                Canvas.instance.moveElementOnGlass(selectedElement, target, x, y);
                 selectedElement._drag.lastX = selectedElement.gx;
                 selectedElement._drag.lastY = selectedElement.gy;
             }
@@ -567,13 +584,13 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             inside.set(element, {gx, gy});
         }
         // Remove glass (global positions of elements cannot be computed from here)
-        Context.canvas.hideGlass();
+        Canvas.instance.hideGlass();
         let outside = new Map();
         // Look for targets using previously kept positions
         // First case : position is on visible part of viewport
         for (let element of elements) {
             let {gx, gy} = inside.get(element);
-            let target = Context.canvas.getElementFromPoint(gx, gy);
+            let target = Canvas.instance.getElementFromPoint(gx, gy);
             if (!target || !target.owner) {
                 outside.set(element, {gx, gy});
             }
@@ -585,15 +602,15 @@ export class DragMoveSelectionOperation extends DragElementOperation {
         // element position become visible
         for (let element of outside.keys()) {
             let {gx, gy} = outside.get(element);
-            Context.canvas._adjustContent(-gx, -gy);
-            let target = Context.canvas.getElementFromPoint(0, 0);
+            Canvas.instance._adjustContent(-gx, -gy);
+            let target = Canvas.instance.getElementFromPoint(0, 0);
             if (target && target.owner) {
                 targets.set(element, getTarget(element, target.owner));
             }
         }
         // Revert viewport and glass
-        if (outside.size) Context.canvas._adjustContent(0, 0);
-        Context.canvas.showGlass();
+        if (outside.size) Canvas.instance._adjustContent(0, 0);
+        Canvas.instance.showGlass();
         return targets;
     }
 
@@ -674,7 +691,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
         function executeDrop(dragSet) {
             let dropped = new ESet();
             for (let selectedElement of dragSet) {
-                Context.canvas.removeElementFromGlass(selectedElement);
+                Canvas.instance.removeElementFromGlass(selectedElement);
                 if (!this.dropCancelled(selectedElement)) {
                     // ... when drop succeeded
                     dropped.add(selectedElement);
@@ -735,15 +752,15 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             finalizeAndFireEvents.call(this, dragSet, dropped);
         }
         else {
-            Context.memento.cancel();
+            Memento.instance.cancel();
         }
         this._doHover(dx, dy);
     }
 }
 makeNotCloneable(DragMoveSelectionOperation);
-DragMoveSelectionOperation.instance = new DragMoveSelectionOperation();
+makeSingleton(DragMoveSelectionOperation);
 
-class DragRotateSelectionOperation extends DragElementOperation {
+export class DragRotateSelectionOperation extends DragElementOperation {
 
     constructor() {
         super();
@@ -766,9 +783,9 @@ class DragRotateSelectionOperation extends DragElementOperation {
     }
 
     doDragStart(element, x, y, event) {
-        Context.memento.open();
-        if (!Context.selection.selected(element)) {
-            Context.selection.selectOnly(element);
+        Memento.instance.open();
+        if (!Selection.instance.selected(element)) {
+            Selection.instance.selectOnly(element);
         }
         element._drag = {
             matrix : element.global.invert()
@@ -776,7 +793,7 @@ class DragRotateSelectionOperation extends DragElementOperation {
         let dragX = element._drag.matrix.x(x, y);
         let dragY = element._drag.matrix.y(x, y);
         element._drag.angle = Math.atan2(-dragX, dragY);
-        for (let selectedElement of Context.selection.selection()) {
+        for (let selectedElement of Selection.instance.selection()) {
             if (selectedElement.rotatable) {
                 Memento.register(selectedElement);
                 if (!selectedElement._drag) {
@@ -792,7 +809,7 @@ class DragRotateSelectionOperation extends DragElementOperation {
         let lx = element._drag.matrix.x(x, y);
         let ly = element._drag.matrix.y(x, y);
         let angle = Math.atan2(-lx, ly);
-        for (let selectedElement of Context.selection.selection()) {
+        for (let selectedElement of Selection.instance.selection()) {
             if (selectedElement.rotatable) {
                 selectedElement.rotate(selectedElement._drag.startAngle + deg(angle - element._drag.angle));
             }
@@ -800,7 +817,7 @@ class DragRotateSelectionOperation extends DragElementOperation {
     }
 
     doDrop(element, x, y, event) {
-        for (let selectedElement of Context.selection.selection()) {
+        for (let selectedElement of Selection.instance.selection()) {
             if (selectedElement.rotatable) {
                 if (!this.dropCancelled(selectedElement)) {
                     if ((selectedElement.parent._acceptRotation && !selectedElement.parent._acceptRotation(selectedElement)) ||
@@ -811,7 +828,7 @@ class DragRotateSelectionOperation extends DragElementOperation {
             }
         }
         let dropped = new ESet();
-        for (let selectedElement of Context.selection.selection()) {
+        for (let selectedElement of Selection.instance.selection()) {
             if (selectedElement.rotatable) {
                 if (!this.dropCancelled(selectedElement)) {
                     dropped.add(selectedElement);
@@ -825,7 +842,7 @@ class DragRotateSelectionOperation extends DragElementOperation {
         }
         element._drag = null;
         if (dropped.size>0) {
-            for (let selectedElement of Context.selection.selection()) {
+            for (let selectedElement of Selection.instance.selection()) {
                 if (selectedElement.rotatable) {
                     if (dropped.has(selectedElement)) {
                         let parent = selectedElement.parent;
@@ -846,12 +863,12 @@ class DragRotateSelectionOperation extends DragElementOperation {
             this._fire(Events.DRAG_ROTATED, new ESet(dropped.keys()));
         }
         else {
-            Context.memento.cancel();
+            Memento.instance.cancel();
         }
     }
 }
 makeNotCloneable(DragRotateSelectionOperation);
-DragRotateSelectionOperation.instance = new DragRotateSelectionOperation();
+makeSingleton(DragRotateSelectionOperation);
 
 export class DragSelectAreaOperation extends DragOperation {
 
@@ -860,9 +877,9 @@ export class DragSelectAreaOperation extends DragOperation {
     }
 
     doDragStart(element, x, y, event) {
-        Context.canvas.addObserver(this);
-        let zoom = Context.canvas.zoom;
-        this._start = Context.canvas.getPointOnGlass(x, y);
+        Canvas.instance.addObserver(this);
+        let zoom = Canvas.instance.zoom;
+        this._start = Canvas.instance.getPointOnGlass(x, y);
         this._selectBackground = new Rect(this._start.x, this._start.y, 1, 1)
             .attrs({
                 fill: Fill.NONE,
@@ -876,26 +893,26 @@ export class DragSelectAreaOperation extends DragOperation {
                 stroke_opacity: 0.9,
             });
         this._setStrokeParametersAccordingToZoom();
-        Context.canvas.putArtifactOnGlass(this._selectBackground);
-        Context.canvas.putArtifactOnGlass(this._selectArea);
+        Canvas.instance.putArtifactOnGlass(this._selectBackground);
+        Canvas.instance.putArtifactOnGlass(this._selectArea);
         this.doDragMove(element, x, y, event);
     }
 
     _setStrokeParametersAccordingToZoom() {
-        let zoom = Context.canvas.zoom;
+        let zoom = Canvas.instance.zoom;
         this._selectBackground.stroke_width =2/zoom;
         this._selectArea.stroke_width =2/zoom;
         this._selectArea.stroke_dasharray=  [5/zoom, 5/zoom];
     }
 
     _notified(source, type, ...values) {
-        if (source === Context.canvas && type === Events.ZOOM) {
+        if (source === Canvas.instance && type === Events.ZOOM) {
             this._setStrokeParametersAccordingToZoom();
         }
     }
 
     doDragMove(element, x, y, event) {
-        let local = Context.canvas.getPointOnGlass(x, y);
+        let local = Canvas.instance.getPointOnGlass(x, y);
         let rw = local.x - this._start.x;
         let rh = local.y - this._start.y;
         let rx = this._start.x;
@@ -915,10 +932,10 @@ export class DragSelectAreaOperation extends DragOperation {
     doDrop(element, x, y, event) {
         this._doSelection(event);
         win.setTimeout(()=>{
-            Context.canvas.removeArtifactFromGlass(this._selectBackground);
+            Canvas.instance.removeArtifactFromGlass(this._selectBackground);
         }, 1);
-        Context.canvas.removeArtifactFromGlass(this._selectArea);
-        Context.canvas.removeObserver(this);
+        Canvas.instance.removeArtifactFromGlass(this._selectArea);
+        Canvas.instance.removeObserver(this);
     }
 
     _doSelection(event) {
@@ -950,7 +967,7 @@ export class DragSelectAreaOperation extends DragOperation {
         function _doSelection(element) {
             let selement = element.selectable;
             if (selement && _isSelected(selement)) {
-                Context.selection.select(selement);
+                Selection.instance.select(selement);
             } else {
                 if (element.parts) {
                     for (let part of element.parts) {
@@ -965,16 +982,16 @@ export class DragSelectAreaOperation extends DragOperation {
             }
         }
         if (!event.ctrlKey && !event.metaKey && !event.shiftKey) {
-            Context.selection.unselectAll();
+            Selection.instance.unselectAll();
         }
-        for (let child of Context.canvas.baseChildren) {
+        for (let child of Canvas.instance.baseChildren) {
             _doSelection(child);
         }
     }
 
 }
 makeNotCloneable(DragSelectAreaOperation);
-DragSelectAreaOperation.instance = new DragSelectAreaOperation();
+makeSingleton(DragSelectAreaOperation);
 
 export class DragScrollOperation extends DragOperation {
 
@@ -983,7 +1000,7 @@ export class DragScrollOperation extends DragOperation {
     }
 
     doDragStart(element, x, y, event) {
-        let invert = Context.canvas.baseGlobalMatrix.invert();
+        let invert = Canvas.instance.baseGlobalMatrix.invert();
         this._drag = {
             x: invert.x(x, y),
             y: invert.y(x, y)
@@ -992,16 +1009,16 @@ export class DragScrollOperation extends DragOperation {
     }
 
     doDragMove(element, x, y, event) {
-        let invert = Context.canvas.baseGlobalMatrix.invert();
+        let invert = Canvas.instance.baseGlobalMatrix.invert();
         let localX = invert.x(x, y);
         let localY = invert.y(x, y);
-        Context.canvas.scrollTo(
+        Canvas.instance.scrollTo(
             this._drag.x - localX, this._drag.y - localY
         );
     }
 }
 makeNotCloneable(DragScrollOperation);
-DragScrollOperation.instance = new DragScrollOperation();
+makeSingleton(DragScrollOperation);
 
 export class DragSwitchOperation extends DragOperation {
     constructor() {
@@ -1074,8 +1091,7 @@ export class ParentDragOperation extends DragOperation {
     }
 }
 makeNotCloneable(ParentDragOperation);
-ParentDragOperation.instance = new ParentDragOperation();
-
+makeSingleton(ParentDragOperation);
 
 export function ifWheelButton(element, x, y, event) {
     return event.button === Buttons.WHEEL_BUTTON;
@@ -1341,7 +1357,7 @@ class GlassPedestal {
     }
 
     putElement(element, x, y) {
-        let zoom = Context.canvas.zoom;
+        let zoom = Canvas.instance.zoom;
         let ematrix = this._root.globalMatrix;
         let dmatrix = ematrix.multLeft(this._root.globalMatrix.invert());
         let pedestal = new Group(dmatrix);
@@ -1361,7 +1377,7 @@ class GlassPedestal {
     }
 
     moveElement(element, x, y) {
-        let zoom = Context.canvas.zoom;
+        let zoom = Canvas.instance.zoom;
         let pedestal = this._pedestals.get(element);
         let invertedMatrix = pedestal.globalMatrix.invert();
         let fx = x-element._drag.dragX*zoom;
@@ -1665,7 +1681,8 @@ export class Anchor {
     }
 
 }
-Context.anchor = new Anchor();
+
+makeSingleton(Anchor);
 
 export class Canvas {
 
@@ -1678,7 +1695,7 @@ export class Canvas {
             this._root.width = widthOrStyle;
             this._root.height = height;
         }
-        Context.anchor.attach(this._root, anchor);
+        Anchor.instance.attach(this._root, anchor);
         this._content = new Translation(this.width/2, this.height/2);
         this._root.add(this._content);
         this._baseLayer = this.createBaseLayer();
@@ -1875,6 +1892,7 @@ export class Canvas {
 }
 makeNotCloneable(Canvas);
 makeObservable(Canvas);
+makeSingleton(Canvas, false);
 
 export class MutationObservers {
     constructor() {
@@ -1918,8 +1936,7 @@ export class MutationObservers {
     }
 }
 makeNotCloneable(MutationObservers);
-
-Context.mutationObservers = new MutationObservers();
+makeSingleton(MutationObservers);
 
 export class CopyPaste {
 
@@ -1929,11 +1946,11 @@ export class CopyPaste {
     }
 
     _keyboardCommands() {
-        Context.anchor.addEventListener(KeyboardEvents.KEY_UP, event => {
+        Anchor.instance.addEventListener(KeyboardEvents.KEY_UP, event => {
             if (!Context.freezed) {
                 if (event.ctrlKey || event.metaKey) {
                     if (event.key === "c") {
-                        this.copyModel(getExtension(Context.selection.selection()));
+                        this.copyModel(getExtension(Selection.instance.selection()));
                     } else if (event.key === "v") {
                         this.pasteModel();
                     }
@@ -1981,13 +1998,15 @@ export class CopyPaste {
     }
 
     _duplicate(elements, duplicata) {
+        let result = new List();
         for (let element of elements) {
             let copy = duplicata.get(element);
             if (!copy) {
                 copy = element.clone(duplicata);
+                result.add(copy);
                 duplicata.set(element, copy);
             }
-            Context.selection._unsetSelectionMark(copy);
+            Selection.instance._unsetSelectionMark(copy);
         }
         for (let entry of duplicata.entries()) {
             let [that, thatCopy] = entry;
@@ -1995,6 +2014,8 @@ export class CopyPaste {
                 that._cloned(thatCopy, duplicata);
             }
         }
+        this._fire(CopyPaste.events.DUPLICATE, result);
+        return result;
     }
 
     copyModel(elements) {
@@ -2018,10 +2039,10 @@ export class CopyPaste {
 
     pasteModel() {
         let pasted = this.duplicateForPaste(this._models);
-        Context.selection.selectOnly(...pasted);
-        let matrix = Context.canvas.baseGlobalMatrix.invert();
-        let cx = Context.canvas.clientWidth / 2;
-        let cy = Context.canvas.clientHeight / 2;
+        Selection.instance.selectOnly(...pasted);
+        let matrix = Canvas.instance.baseGlobalMatrix.invert();
+        let cx = Canvas.instance.clientWidth / 2;
+        let cy = Canvas.instance.clientHeight / 2;
         let vx = matrix.x(cx, cy);
         let vy = matrix.y(cx, cy);
         for (let copy of pasted) {
@@ -2184,10 +2205,10 @@ CopyPaste.clone = function(source, duplicata) {
 };
 makeObservable(CopyPaste);
 makeNotCloneable(CopyPaste);
-
-Context.copyPaste = new CopyPaste();
+makeSingleton(CopyPaste);
 
 CopyPaste.events = {
+    DUPLICATE : "duplicate",
     COPY_MODEL : "copy-model",
     PASTE_MODEL : "paste-model"
 };
@@ -2203,7 +2224,7 @@ export class Memento {
     }
 
     _keyboardCommands() {
-        Context.anchor.addEventListener(KeyboardEvents.KEY_UP, event => {
+        Anchor.instance.addEventListener(KeyboardEvents.KEY_UP, event => {
             if (!Context.freezed) {
                 if (event.ctrlKey || event.metaKey) {
                     if (event.key === "z") {
@@ -2272,7 +2293,7 @@ export class Memento {
             }
             if (current) {
                 this.opened = false;
-                Context.mutationObservers.stop();
+                MutationObservers.instance.stop();
                 let redo = new Map();
                 for (let element of current.keys()) {
                     redo.set(element, this.__memento(element));
@@ -2284,7 +2305,7 @@ export class Memento {
                     element._recover && element._recover(current.get(element));
                 }
                 this.opened = true;
-                Context.mutationObservers.restart();
+                MutationObservers.instance.restart();
                 this._redoTrx.push(redo);
                 this._fire(Memento.events.UNDO);
             }
@@ -2298,7 +2319,7 @@ export class Memento {
             let current = this._redoTrx.pop();
             if (current) {
                 this.opened = false;
-                Context.mutationObservers.stop();
+                MutationObservers.instance.stop();
                 let undo = new Map();
                 for (let element of current.keys()) {
                     undo.set(element, this.__memento(element));
@@ -2313,7 +2334,7 @@ export class Memento {
                     this._undoTrx.pop();
                 }
                 this.opened = true;
-                Context.mutationObservers.restart();
+                MutationObservers.instance.restart();
                 this._undoTrx.push(undo);
                 this._fire(Memento.events.REDO);
             }
@@ -2338,8 +2359,7 @@ export class Memento {
 }
 makeObservable(Memento);
 makeNotCloneable(Memento);
-
-Context.memento = new Memento();
+makeSingleton(Memento);
 
 Memento.events = {
     OPEN : "open",
@@ -2352,7 +2372,7 @@ Memento.events = {
 
 Memento.register = function(element) {
     if (element && element._memento) {
-        Context.memento.keep(element);
+        Memento.instance.keep(element);
     }
 };
 
@@ -2365,14 +2385,13 @@ export function glassSelectionPredicate(element) {
     let layer = element.canvasLayer;
     return layer && layer instanceof GlassLayer;
 }
-
 Context.selectPredicate = baseSelectionPredicate;
 
 export class Selection {
 
     constructor() {
         this._selection = new ESet();
-        Context.canvas.addObserver(this);
+        Canvas.instance.addObserver(this);
     }
 
     get selectFilter() {
@@ -2384,12 +2403,12 @@ export class Selection {
 
     set selectFilter(filter) {
         this._selectFilter = filter;
-        Context.canvas.addFilter(filter);
+        Canvas.instance.addFilter(filter);
     }
 
     _notified(source, event, value) {
         if (event === Events.ZOOM) {
-            let zoom = Context.canvas.zoom;
+            let zoom = Canvas.instance.zoom;
             this.selectFilter.feDropShadow.stdDeviation = [5/zoom, 5/zoom];
         }
     }
@@ -2484,6 +2503,7 @@ export class Selection {
 }
 makeObservable(Selection);
 makeNotCloneable(Selection);
+makeSingleton(Selection, false);
 
 export class ElementGroup {
     constructor(elements) {
@@ -2513,11 +2533,11 @@ export class ElementGroup {
 
     dismiss() {
         for (let part of this._content) {
-            Context.selection._elements.delete(part);
+            Selection.instance._elements.delete(part);
         }
         for (let part of this._content) {
             if (part instanceof ElementGroup) {
-                Context.selection._registerGroup(part);
+                Selection.instance._registerGroup(part);
             }
         }
     }
@@ -2525,7 +2545,7 @@ export class ElementGroup {
     clone(duplicata) {
         let copy = CopyPaste.clone(this, duplicata);
         if (!copy._group) {
-            Context.selection._registerGroup(copy);
+            Selection.instance._registerGroup(copy);
         }
         return copy;
     }
@@ -2654,3 +2674,60 @@ export class Groups extends Selection {
 }
 makeNotCloneable(Groups);
 
+export class Layer {
+
+    constructor(title, checked, action) {
+        this._title = title;
+        this._checked = checked;
+        this._action = action;
+    }
+
+    get title() {
+        return this._title;
+    }
+
+    get checked() {
+        return this._checked;
+    }
+
+    get action() {
+        return function(checked=this.checked, elements) {
+            this._action(checked, elements);
+            this._checked = checked;
+        }.bind(this);
+
+    }
+
+}
+
+export class Layers {
+
+    constructor() {
+        this._layers = new List();
+        CopyPaste.instance.addObserver(this);
+    }
+
+    addLayer(layer) {
+        this._layers.add(layer);
+        return this;
+    }
+
+    get layers() {
+        return this._layers;
+    }
+
+    update(elements) {
+        for (let layer of this.layers) {
+            layer.action(layer.checked, elements);
+        }
+        return this;
+    }
+
+    _notified(source, event, elements) {
+        if (source===CopyPaste.instance && event===CopyPaste.events.DUPLICATE) {
+            this.update(elements);
+        }
+    }
+}
+makeNotCloneable(Layers);
+makeSingleton(Layers);
