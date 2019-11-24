@@ -244,11 +244,11 @@ export class BoardElement {
     }
 
     show() {
-        delete this._root.visibility;
+        this._root.visibility = null;
     }
 
     hide() {
-        this._root.visibility;
+        this._root.visibility = Visibility.HIDDEN;
     }
 
     _registerParent() {

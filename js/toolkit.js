@@ -354,7 +354,7 @@ export class DragElementOperation extends DragOperation {
 
     cancelDrop(element) {
         element._drag.cancelled = true;
-        element._cancelDrop && element._cancelDrop();
+        element._cancelDrop && element._cancelDrop(this);
     }
 }
 

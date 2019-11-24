@@ -499,6 +499,13 @@ class DIAMCover extends DIAMSupport {
         return this._acceptElement(element);
     }
 
+    showRealistic() {
+        this.shape.fill = Colors.DARK_GREY;
+    }
+
+    showSchematic() {
+        this.shape.fill = Colors.LIGHTEST_GREY;
+    }
 }
 makeDecorationsOwner(DIAMCover);
 makePositioningContainer(DIAMCover, {
@@ -599,8 +606,23 @@ DIAMHook.RADIUS = 6;
 DIAMHook.SIZE = 2;
 
 class DIAMBoxContent extends DIAMSupport {
-    constructor({width, height, color=Colors.WHITE}) {
-        super({width, height, strokeColor:Colors.GREY, backgroundColor:color});
+    constructor({width, height}) {
+        super({width, height, strokeColor:Colors.GREY, backgroundColor:Colors.LIGHTEST_GREY});
+    }
+
+    _dropTarget(element) {
+        if (element instanceof DIAMFascia) {
+            return this.parent._dropTarget(element);
+        }
+        return this;
+    };
+
+    showRealistic() {
+        this.shape.fill = Colors.DARKEST_GREY;
+    }
+
+    showSchematic() {
+        this.shape.fill = Colors.LIGHTEST_GREY;
     }
 }
 makePart(DIAMBoxContent);
@@ -608,10 +630,10 @@ makeDecorationsOwner(DIAMBoxContent);
 
 class DIAMBox extends DIAMItem {
 
-    _improve({clips, contentX, contentY, contentWidth, contentHeight, color, ...args}) {
-        super._improve({color});
+    _improve({clips, contentX, contentY, contentWidth, contentHeight, ...args}) {
+        super._improve({color:Colors.WHITE});
         this._initShape(this.buildShape());
-        this._boxContent = this._buildBoxContent(contentWidth, contentHeight, color, args);
+        this._boxContent = this._buildBoxContent(contentWidth, contentHeight, args);
         this._boxContent._setLocation(contentX, contentY);
         this._addPart(this._boxContent);
         for (let clipSpec of clips) {
@@ -623,14 +645,23 @@ class DIAMBox extends DIAMItem {
 
     buildShape() {
         let base = new Group();
+        base.fill = Colors.WHITE;
         let item = new Rect(-this.width / 2, -this.height / 2, this.width, this.height)
-            .attrs({stroke: Colors.INHERIT, fill:Colors.WHITE});
+            .attrs({stroke: Colors.INHERIT, fill:Colors.INHERIT});
         base.add(item);
         return base;
     }
 
-    _buildBoxContent(contentWidth, contentHeight, color) {
-        return new DIAMBoxContent({width:contentWidth, height:contentHeight, color:color});
+    _buildBoxContent(contentWidth, contentHeight) {
+        return new DIAMBoxContent({width:contentWidth, height:contentHeight});
+    }
+
+    showRealistic() {
+        this.shape.fill = Colors.BLACK;
+    }
+
+    showSchematic() {
+        this.shape.fill = Colors.WHITE;
     }
 }
 makeShaped(DIAMBox);
@@ -642,8 +673,8 @@ makeCarrier(DIAMBox);
 
 class DIAMSlottedBoxContent extends DIAMBoxContent {
 
-    constructor({width, height, color, slotWidth}) {
-        super({width, height, color});
+    constructor({width, height, slotWidth}) {
+        super({width, height});
         this._slotWidth = slotWidth;
         this._cells = [];
         this._cells.length = Math.floor(width/slotWidth);
@@ -739,8 +770,8 @@ addPhysicToContainer(DIAMSlottedBoxContent, {
 
 class DIAMSlottedBox extends DIAMBox {
 
-    _buildBoxContent(contentWidth, contentHeight, color, {slotWidth}) {
-        return new DIAMSlottedBoxContent({width:contentWidth, height:contentHeight, color, slotWidth});
+    _buildBoxContent(contentWidth, contentHeight, {slotWidth}) {
+        return new DIAMSlottedBoxContent({width:contentWidth, height:contentHeight, slotWidth});
     }
 
 }
@@ -750,10 +781,10 @@ class DIAMSlottedRichBox extends DIAMSlottedBox {
     _improve({
         clips,
         contentX, contentY, contentWidth, contentHeight,
-        slotWidth, color,
+        slotWidth,
         headerHeight, footerHeight}
     ) {
-        super._improve({clips, contentX, contentY, contentWidth, contentHeight, color, slotWidth});
+        super._improve({clips, contentX, contentY, contentWidth, contentHeight, slotWidth});
         this._initHeader(headerHeight);
         this._initFooter(footerHeight);
         this._initFasciaSupport(headerHeight, footerHeight);
@@ -813,8 +844,9 @@ class DIAMAbstractLadder extends DIAMItem {
 
     buildShape() {
         let base = new Group();
+        base.fill = Colors.LIGHT_GREY;
         base.add(new Rect(-this.width / 2, -this.height / 2, this.width, this.height)
-            .attrs({stroke:Colors.INHERIT, fill:Colors.LIGHT_GREY}));
+            .attrs({stroke:Colors.INHERIT, fill:Colors.INHERIT}));
         let slotSize = Math.min(2, this._slotInterval / 6);
         for (let slot of this.slots) {
             base.add(new Circle(slot.x, slot.y, slotSize).attrs({ stroke:Colors.NONE, fill: Colors.BLACK }));
@@ -845,6 +877,15 @@ class DIAMAbstractLadder extends DIAMItem {
         this._slotInterval = memento._slotInterval;
         return this;
     }
+
+    showRealistic() {
+        this.shape.fill = Colors.DARK_GREY;
+    }
+
+    showSchematic() {
+        this.shape.fill = Colors.LIGHT_GREY;
+    }
+
 }
 makeShaped(DIAMAbstractLadder);
 makeLayered(DIAMAbstractLadder, {
@@ -994,6 +1035,7 @@ class DIAMCaddyContent extends DIAMBoxContent {
         .register(new LadderPhysic(this))
         .register(new ModulePhysic(this));
     }
+
 }
 addPhysicToContainer(DIAMCaddyContent, {
     physicBuilder: function() {
@@ -1309,6 +1351,14 @@ class DIAMPaneContent extends DIAMSupport {
         this._anchorageDecoration.refresh();
         return this;
     }
+
+    showRealistic() {
+        this.shape.fill = Colors.DARKEST_GREY;
+    }
+
+    showSchematic() {
+        this.shape.fill = Colors.LIGHTEST_GREY;
+    }
 }
 makeContainerMultiLayered(DIAMPaneContent, LAYERS_DEFINITION);
 addPhysicToContainer(DIAMPaneContent, {
@@ -1337,6 +1387,13 @@ class DIAMPane extends DIAMItem {
         this._paneContent._anchorageDecoration.refresh();
     }
 
+    showRealistic() {
+        this.shape.fill = Colors.BLACK;
+    }
+
+    showSchematic() {
+        this.shape.fill = Colors.WHITE;
+    }
 }
 makeFramed(DIAMPane);
 makeLabelOwner(DIAMPane);

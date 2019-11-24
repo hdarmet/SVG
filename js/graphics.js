@@ -3140,6 +3140,8 @@ export const Colors = {
     NONE: "none",
     INHERIT : "inherit",
     CRIMSON: "#dc143c",
+    DARKEST_GREY: "#303030",
+    DARK_GREY: "#505050",
     GREY: "#808080",
     LIGHT_GREY: "#C0C0C0",
     MIDDLE_GREY: "#A0A0A0",

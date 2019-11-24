@@ -1226,14 +1226,14 @@ export function makeRulesPhysic(superClass, {
         }
     };
 
-    superClass.prototype._refreshElement = function(element) {
-        let position = this._elementPosition(element);
-        if (this._acceptPosition(element, position)) {
-            let x = position.x!==undefined ? position.x : element.lx;
-            let y = position.y!==undefined ? position.y : element.ly;
-            element.move(x, y);
-            element._positioned && element._positioned(this, position);
+    superClass.prototype._refresh = function() {
+        if (this._hoveredElements) {
+            for (let element of this._hoveredElements) {
+                this._refreshHoverElement(element);
+            }
+            this._hoveredElements.clear();
         }
+        this._elements.clear();
     };
 
     superClass.prototype._acceptPosition = function(element, position) {
@@ -2648,6 +2648,18 @@ export function makeCarrier(superClass) {
         return false;
     };
 
+    let cancelDrop = superClass.prototype._cancelDrop;
+    superClass.prototype._cancelDrop = function(dragOperation) {
+        cancelDrop && cancelDrop.call(this, dragOperation);
+        if (this._carried) {
+            for (let element of this._carried.keys()) {
+                if (!dragOperation.dropCancelled(element)) {
+                    dragOperation.cancelDrop(element);
+                }
+            }
+        }
+    };
+
     let cloned = superClass.prototype._cloned;
     superClass.prototype._cloned = function (copy, duplicata) {
         cloned && cloned.call(this, copy, duplicata);
@@ -2982,6 +2994,18 @@ export function makeGlueable(superClass) {
         if (this._gluedWith) {
             for (let element of this._gluedWith.keys()) {
                 element.__glue(this, element._createRecord(this));
+            }
+        }
+    };
+
+    let cancelDrop = superClass.prototype._cancelDrop;
+    superClass.prototype._cancelDrop = function(dragOperation) {
+        cancelDrop && cancelDrop.call(this, dragOperation);
+        if (this._gluedWith) {
+            for (let element of this._gluedWith.keys()) {
+                if (!dragOperation.dropCancelled(element)) {
+                    dragOperation.cancelDrop(element);
+                }
             }
         }
     };
