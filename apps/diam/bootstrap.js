@@ -1463,7 +1463,7 @@ class DIAMBasicModule extends DIAMAbstractModule {
     }
 
     _improve({color, ...args}) {
-        super._improve({color, ...args});
+        super._improve({...args});
         this._initFrame(this.width, this.height, Colors.INHERIT, color);
     }
 }
@@ -1492,6 +1492,85 @@ class DIAMImageModule extends DIAMAbstractModule {
     }
 }
 makeMultiImaged(DIAMImageModule);
+
+class DIAMBoxModule extends DIAMAbstractModule {
+    constructor(specs) {
+        super(specs);
+    }
+
+    _improve({contentWidth, contentHeight, contentX, contentY, ...args}) {
+        super._improve({...args});
+        this._initFrame(this.width, this.height, Colors.INHERIT, Colors.WHITE);
+        this._boxContent = this._buildBoxContent(contentWidth, contentHeight, args);
+        this._boxContent._setLocation(contentX, contentY);
+        this._addPart(this._boxContent);
+    }
+
+    _buildBoxContent(contentWidth, contentHeight) {
+        return new DIAMBoxContent({width:contentWidth, height:contentHeight});
+    }
+
+    showRealistic() {
+        this.shape.fill = Colors.BLACK;
+    }
+
+    showSchematic() {
+        this.shape.fill = Colors.WHITE;
+    }
+}
+makeFramed(DIAMBoxModule);
+
+class DIAMSlottedBoxModule extends DIAMBoxModule {
+
+    _buildBoxContent(contentWidth, contentHeight, {slotWidth}) {
+        return new DIAMSlottedBoxContent({width:contentWidth, height:contentHeight, slotWidth});
+    }
+
+}
+
+class DIAMSlottedRichBoxModule extends DIAMSlottedBoxModule {
+
+    _improve({
+         contentX, contentY, contentWidth, contentHeight,
+         slotWidth,
+         headerHeight, footerHeight}
+    ) {
+        super._improve({contentX, contentY, contentWidth, contentHeight, slotWidth});
+        this._initHeader(headerHeight);
+        this._initFooter(footerHeight);
+        this._initFasciaSupport(headerHeight, footerHeight);
+    }
+
+}
+makeHeaderOwner(DIAMSlottedRichBoxModule);
+makeFooterOwner(DIAMSlottedRichBoxModule);
+makeFasciaSupport(DIAMSlottedRichBoxModule);
+
+class DIAMCaddyModule extends DIAMBoxModule {
+
+    _buildBoxContent(contentWidth, contentHeight, color) {
+        return new DIAMCaddyContent({width:contentWidth, height:contentHeight, color:Colors.LIGHTEST_GREY});
+    }
+
+}
+
+class DIAMRichCaddyModule extends DIAMCaddyModule {
+
+    _improve({
+         contentX, contentY, contentWidth, contentHeight,
+         color,
+         headerHeight, footerHeight}
+    ) {
+        super._improve({contentX, contentY, contentWidth, contentHeight});
+        this._initHeader(headerHeight);
+        this._initFooter(footerHeight);
+        this._initFasciaSupport(headerHeight, footerHeight);
+    }
+
+}
+makeHeaderOwner(DIAMRichCaddyModule);
+makeFooterOwner(DIAMRichCaddyModule);
+makeFasciaSupport(DIAMRichCaddyModule);
 
 class DIAMCell extends BoardElement {
     constructor({width, height, x, y, shape, compatibilities}) {
@@ -1535,6 +1614,7 @@ makePositioningContainer(DIAMCell, {
         positionsBuilder: element=>{return [{x:0, y:0}]}
     });
 makePart(DIAMCell);
+makeGentleDropTarget(DIAMCell);
 
 class DIAMOption extends DIAMItem {
     _improve({shape, compatibilities}) {
@@ -1573,6 +1653,7 @@ class DIAMOption extends DIAMItem {
 makeShaped(DIAMOption);
 makeContainer(DIAMOption);
 makeDraggable(DIAMOption);
+makeGentleDropTarget(DIAMOption);
 
 class DIAMColorOption extends DIAMOption {
 }
@@ -1892,6 +1973,12 @@ function createPalettePopup() {
         width:120, height:70, clips:[{x:0, y:15}], contentX:0, contentY:0, contentWidth:100, contentHeight:60, slotWidth:20,
         status:{code:"N", color:Colors.RED}
     })]));
+
+    paletteContent.addCell(new BoardItemBuilder([new DIAMSlottedBoxModule({
+        width:120, height:70, contentX:0, contentY:0, contentWidth:100, contentHeight:60, slotWidth:20,
+        status:{code:"B", color:Colors.BLUE}
+    })]));
+
     paletteContent.addCell(new BoardItemBuilder([new DIAMSlottedRichBox({
         width:120, height:70, clips:[{x:0, y:15}],
         contentX:0, contentY:0, contentWidth:100, contentHeight:60,
@@ -1899,12 +1986,29 @@ function createPalettePopup() {
         headerHeight:10, footerHeight:10,
         status:{code:"V", color:Colors.GREEN}
     })]));
+    paletteContent.addCell(new BoardItemBuilder([new DIAMSlottedRichBoxModule({
+        width:120, height:70,
+        contentX:0, contentY:0, contentWidth:100, contentHeight:60,
+        slotWidth:20,
+        headerHeight:10, footerHeight:10,
+        status:{code:"B", color:Colors.BLUE}
+    })]));
+
     paletteContent.addCell(new BoardItemBuilder([new DIAMRichCaddy({
         width:120, height:70, clips:[{x:0, y:15}],
         contentX:0, contentY:0, contentWidth:100, contentHeight:60,
         slotWidth:20,
         headerHeight:5, footerHeight:15
     })]));
+
+    paletteContent.addCell(new BoardItemBuilder([new DIAMRichCaddyModule({
+        width:120, height:70,
+        contentX:0, contentY:0, contentWidth:100, contentHeight:60,
+        slotWidth:20,
+        headerHeight:5, footerHeight:15,
+        status:{code:"B", color:Colors.BLUE}
+    })]));
+
     paletteContent.addCell(new BoardItemBuilder([new DIAMDivider({
         width:10, height:460, contentX:0
     })]));

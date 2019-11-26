@@ -1237,7 +1237,7 @@ defineElementProperty(SVGElement, Attrs.MASK, "url(#ELEMENT)");
 SVGElement.elementOn = function(node) {
     while (node) {
         if (node._owner) return node._owner;
-        node = node.parent;
+        node = node.parentNode;
     }
     return null;
 };
