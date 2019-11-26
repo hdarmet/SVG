@@ -2495,17 +2495,16 @@ export function addGravitationToCollisionPhysic(superClass, {
                     }
                 }
             }
-            /*
+
             if (element.isCarrier) {
                 for (let child of element.carried) {
-                    console.log("TRY REMOVE", element, child, element._fall.carried);
                     if (!element._fall.carried || !element._fall.carried.has(child)) {
                         element.removeCarried(child);
                         console.log("REMOVE", element, child);
                     }
                 }
             }
-            */
+
             delete element._fall;
         }
     };
@@ -2692,37 +2691,12 @@ export function makeCarrier(superClass) {
 
     let move = superClass.prototype.move;
     superClass.prototype.move = function(x, y) {
-/*
-        function displaceCarriedOf(support) {
-            if (support._carried) {
-                for (let element of support._carried.keys()) {
-                    let record = support._carried.get(element);
-                    if (element.support === support.support) {
-                        element.setLocation(support.lx + record.dx, support.ly + record.dy);
-                        displaceCarriedOf(element);
-                        if (element.parent && element.parent._shift) {
-                            element.parent._shift(element, element.lx, element.ly);
-                        }
-                    }
-                }
-            }
-        }
-
-        if (move.call(this, x, y)) {
-            displaceCarriedOf(this);
-            return true;
-        }
-        return false;
-        */
         if (move.call(this, x, y)) {
             if (this._carried) {
                 for (let element of this._carried.keys()) {
                     let record = this._carried.get(element);
                     if (element.support === this.support) {
                         element.move(this.lx + record.dx, this.ly + record.dy);
-                        if (element.parent && element.parent._shift) {
-                            element.parent._shift(element, element.lx, element.ly);
-                        }
                     }
                 }
             }
@@ -2816,23 +2790,6 @@ export function makeCarriable(superClass) {
             return this._carriedBy ? this._carriedBy.keys() : [];
         }
     });
-
-    /*
-    let move = superClass.prototype.move;
-    superClass.prototype.move = function(x, y) {
-        if (move.call(this, x, y)) {
-            if (this._carriedBy) {
-                for (let support of this._carriedBy.keys()) {
-                    let record = this._carriedBy.get(support);
-                    record.dx = this.lx - support.lx;
-                    record.dy = this.ly - support.ly;
-                }
-            }
-            return true;
-        }
-        return false;
-    };
-    */
 
     superClass.prototype._clearCarriedBy = function() {
         delete this._carriedBy;
