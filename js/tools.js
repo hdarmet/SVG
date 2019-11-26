@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    List
+    List, ESet
 } from "./collections.js";
 import {
     Matrix
@@ -994,6 +994,10 @@ export class ToolCell {
         return this._height;
     }
 
+    get visible() {
+        return true;
+    }
+
     accept(visitor) {
         return this;
     }
@@ -1028,6 +1032,7 @@ export class ToolGridPanelContent extends ToolPanelContent {
         this._content.add(this._background);
         this._content.clip_path = this._clipPath;
         this._cells = new List();
+        this._shownCells = new ESet();
         this._content.on(MouseEvents.WHEEL, event => {
             if (event.deltaY > 0) {
                 this.scroll(-ToolGridPanelContent.SCROLL_WHEEL_STEP);
@@ -1037,6 +1042,23 @@ export class ToolGridPanelContent extends ToolPanelContent {
             event.preventDefault();
             event.stopPropagation();
         });
+        Layers.instance.addObserver(this);
+    }
+
+    _notified(source, event) {
+        if (source === Layers.instance && event === Layers.events.ACTIVATE) {
+            this._askForRefresh();
+        }
+    }
+
+    _getCellsToShow() {
+        let shownCells = new ESet();
+        for (let cell of this._cells) {
+            if (this._accept(cell)) {
+                shownCells.add(cell);
+            }
+        }
+        return shownCells;
     }
 
     get predicate() {
@@ -1059,7 +1081,7 @@ export class ToolGridPanelContent extends ToolPanelContent {
     }
 
     _accept(cell) {
-        return this._predicate(cell);
+        return cell.visible && this._predicate(cell);
     }
 
     _refresh() {
@@ -1073,7 +1095,7 @@ export class ToolGridPanelContent extends ToolPanelContent {
         this._content.add(this._cellsLayer);
         let startX = this._cellWidth / 2;
         let startY = this._cellHeight / 2;
-        for (let cell of this._cells) {
+        for (let cell of this._shownCells) {
             if (this._accept(cell)) {
                 if (startX+this._cellWidth > this.width) {
                     startX = this._cellWidth / 2;
@@ -1086,7 +1108,9 @@ export class ToolGridPanelContent extends ToolPanelContent {
         }
         this._maxHeight = startY + this._cellHeight / 2 + ToolGridPanelContent.CELL_MARGIN;
         this._background.attrs({ height: this._maxHeight });
+        let step = this._content.matrix.dy;
         this.move(0, 0);
+        this.scroll(step);
     }
 
     move(x, y) {
@@ -1108,10 +1132,14 @@ export class ToolGridPanelContent extends ToolPanelContent {
     }
 
     _askForRefresh() {
-        if (!this._dirty) {
-            win.setTimeout(()=>this._refresh(), 0);
+        let shownCells = this._getCellsToShow();
+        if (!shownCells.same(this._shownCells)) {
+            this._shownCells = shownCells;
+            if (!this._dirty) {
+                win.setTimeout(() => this._refresh(), 0);
+            }
+            this._dirty = true;
         }
-        this._dirty = true;
     }
 
     accept(visitor) {
@@ -1139,11 +1167,6 @@ export class ToolGridExpandablePanel extends ToolExpandablePanel {
     }
 
 }
-
-export class BoardBackFolder extends BoardElement {
-
-}
-makeContainer(BoardBackFolder);
 
 export class BoardItemBuilder extends ToolCell {
 
@@ -1252,6 +1275,15 @@ export class BoardItemBuilder extends ToolCell {
             visitor.visit(item);
         }
         return this;
+    }
+
+    get visible() {
+        for (let element of this._currentItems) {
+            if (element.visible) {
+                return true;
+            }
+        }
+        return false;
     }
 
 }

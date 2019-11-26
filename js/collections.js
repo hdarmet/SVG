@@ -224,7 +224,7 @@ export class EMap extends Map {
         if (tsize !== this.size) {
             return false;
         }
-        let entries = target instanceof Map ? target.entries() : target
+        let entries = target instanceof Map ? target.entries() : target;
         for (let entry of entries) {
             if (!this.has(entry[0])) {
                 return false;

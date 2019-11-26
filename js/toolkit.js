@@ -76,7 +76,15 @@ export const Events = {
     REVERT_ROTATED : "revert-rotated",
     SCROLL_END : "scroll-end",
     ADD_DECORATION : "add-decoration",
-    REMOVE_DECORATION : "remove-decoration"
+    REMOVE_DECORATION : "remove-decoration",
+    ADD_CARRIED : "add-carried",
+    MOVE_CARRIED : "move-carried",
+    REMOVE_CARRIED : "remove-carried",
+    ADD_CARRIER : "add-carrier",
+    MOVE_CARRIER : "move-carrier",
+    REMOVE_CARRIER : "remove-carrier",
+    ADD_GLUED : "add-glued",
+    REMOVE_GLUED : "remove-glued"
 };
 
 export function sortByDistance(elements, gx, gy) {
@@ -2694,8 +2702,8 @@ export class Layer {
         return function(checked=this.checked, elements) {
             this._action(checked, elements);
             this._checked = checked;
+            Layers.instance._fire(Layers.events.ACTIVATE, this);
         }.bind(this);
-
     }
 
 }
@@ -2729,5 +2737,9 @@ export class Layers {
         }
     }
 }
+makeObservable(Layers);
 makeNotCloneable(Layers);
 makeSingleton(Layers);
+Layers.events = {
+    ACTIVATE : "activate"
+};

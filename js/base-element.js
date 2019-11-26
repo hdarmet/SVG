@@ -238,9 +238,9 @@ export class BoardElement {
         this._fire(Events.HOVER, elements);
     }
 
-    visible() {
+    get visible() {
         let visible = this._root.visibility;
-        return !visible || visible === Visibility.VISIBLE;
+        return !visible;
     }
 
     show() {

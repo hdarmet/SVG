@@ -4,7 +4,7 @@ import {
     evaluate, same, always
 } from "./misc.js";
 import {
-    List, AVLTree, ESet, SpatialLocator
+    List, AVLTree, ESet, EMap, SpatialLocator
 } from "./collections.js";
 import {
     Box, Matrix
@@ -78,12 +78,8 @@ export class Physic {
     }
 
     refresh() {
-        try {
-            this._refresh();
-        }
-        finally {
-            this._triggered = false;
-        }
+        this._triggered = false;
+        this._refresh();
         return this;
     }
 
@@ -2036,17 +2032,20 @@ export function makeCollisionPhysic(superClass) {
         this._elements = new ESet();
         this._supportSAP = new SweepAndPrune();
         this._dragAndDropSAP = new SweepAndPrune();
+        this._valids = new EMap();
     };
 
     superClass.prototype._refresh = function() {
-        //this._supportSAP.updateInternals();
+        this._avoidCollisionsForElements();
     };
 
     superClass.prototype._reset = function() {
         this._elements = this._acceptedElements(this._host.children);
         this._supportSAP.clear();
+        this._valids.clear();
         for (let element of this._elements) {
             this._supportSAP.add(element);
+            this._valids.set(element, {validX:element.lx, validY:element.ly});
         }
     };
 
@@ -2070,25 +2069,27 @@ export function makeCollisionPhysic(superClass) {
             this._dragAndDropSAP.remove(element);
         }
         this._dragAndDropSAP.updateInternals();
-        this._avoidCollisionsForElements(this._hoveredElements);
+        this._avoidCollisionsForDraggedElements(this._hoveredElements);
     };
 
     superClass.prototype._add = function(element) {
         this._elements.add(element);
         this._supportSAP.add(element);
+        this._valids.set(element, {validX:element.lx, validY:element.ly});
     };
 
     superClass.prototype._remove = function(element) {
         this._elements.delete(element);
         this._supportSAP.remove(element);
+        this._valids.delete(element);
     };
 
     superClass.prototype._move = function(element) {
         this._supportSAP.update(element);
     };
 
-    superClass.prototype._draggedCollideWith = function(element, exclude) {
-        let elementBox = this._dragAndDropSAP.elementBox(element);
+    superClass.prototype._collideWith = function(element, exclude, sap) {
+        let elementBox = sap.elementBox(element);
         let collisions = new List(
             ...this._supportSAP.collideWith(elementBox),
             ...this._dragAndDropSAP.collideWith(elementBox)
@@ -2114,14 +2115,14 @@ export function makeCollisionPhysic(superClass) {
     };
 
     /**
-     * Fix the position of a DRAGGED element (NEVER an element already contained by the host of the physic) so this
-     * element (if possible...) does not collide with another one (dragged of already on host).
+     * Fix the position of a MOVED element so this element (if possible...) does not collide with another one on
+     * physic host.
      * @param element element to fix
      * @param exclude elements to exclude from processing (these element are those that are not already processed so
      * their positions are not relevant).
      * @private
      */
-    superClass.prototype._avoidCollisionsForElement = function(element, exclude) {
+    superClass.prototype._avoidCollisionsForElement = function(element, exclude, sap, record, originMatrix) {
 
         /**
          * Set the fixed position of the element and update physics internal structures accordingly. Note that this
@@ -2133,11 +2134,11 @@ export function makeCollisionPhysic(superClass) {
         let put = (element, x, y) => {
             // setLocation(), not move(), on order to keep the DnD fluid (floating elements not correlated).
             element.setLocation(x, y);
-            this._dragAndDropSAP.update(element);
+            sap.update(element);
         };
 
         /**
-         * Get a proposition on the X axis. This proposition is the nearest position between the one given by "mouse"
+         * Get a proposition on the X axis. This proposition is the nearest position between the one given by "current"
          * toward the "original" (= lasted valid) position of the element.
          * @param target element to "avoid".
          * @param ox original position
@@ -2156,7 +2157,7 @@ export function makeCollisionPhysic(superClass) {
         };
 
         /**
-         * Get a proposition on the Y axis. This proposition is the nearest position between the one given by "mouse"
+         * Get a proposition on the Y axis. This proposition is the nearest position between the one given by "current"
          * toward the "original" (= lasted valid) position of the element.
          * @param target element to "avoid".
          * @param oy original position
@@ -2189,16 +2190,15 @@ export function makeCollisionPhysic(superClass) {
         let sx = element.lx, sy = element.ly;
         let hx = sx, hy = sy;
         let finished = false;
-        let originMatrix = this._host.global;
         let invertedMatrix = originMatrix.invert();
         // Coords of last valid position of the element (we have to "go" in this direction...)
-        let ox = invertedMatrix.x(element._drag.validX, element._drag.validY);
-        let oy = invertedMatrix.y(element._drag.validX, element._drag.validY);
+        let ox = invertedMatrix.x(record.validX, record.validY);
+        let oy = invertedMatrix.y(record.validX, record.validY);
         // In order to avoid (= bug ?) infinite loop
         let cycleCount = 0;
         while (!finished && cycleCount < 100) {
             cycleCount++;
-            let targets = this._draggedCollideWith(element, exclude);
+            let targets = this._collideWith(element, exclude, sap);
             if (targets.length > 0) {
                 // Get a proposition
                 let {fx, fy} = adjust(targets);
@@ -2227,26 +2227,38 @@ export function makeCollisionPhysic(superClass) {
                 finished = true;
             }
         }
-        // If final position is "too far" from "mouse" position, revert to mouse position, but mark element drag as
+        // If final position is "too far" from "current" position, revert to current position, but mark element drag as
         // invalid.
         if (Math.abs(hx - sx) > ADJUST_MARGIN || Math.abs(hy - sy) > ADJUST_MARGIN) {
             put(element, sx, sy, true);
-            element._drag.invalid = true;
+            record.invalid = true;
         } else {
             // Fixing accepted: update drag infos.
-            element._drag.validX = element.gx;
-            element._drag.validY = element.gy;
-            delete element._drag.invalid;
+            record.validX = originMatrix.x(element.lx, element.ly);
+            record.validY = originMatrix.y(element.lx, element.ly);
+            delete record.invalid;
         }
         exclude.delete(element);
     };
 
-    superClass.prototype._avoidCollisionsForElements = function(elements) {
+    superClass.prototype._avoidCollisionsForDraggedElements = function(elements) {
         let exclude = new ESet(elements);
         for (let element of elements) {
-            evaluate("avoid collision for element", () => {
-                this._avoidCollisionsForElement(element, exclude);
-            });
+            this._avoidCollisionsForElement(element, exclude, this._dragAndDropSAP, element._drag, this._host.global);
+        }
+    };
+
+    superClass.prototype._avoidCollisionsForElements = function() {
+        let elements = new List();
+        for (let element of this._valids.keys()) {
+            let record = this._valids.get(element);
+            if (record.validX !== element.lx || record.validY !== element.ly) {
+                elements.add(element);
+            }
+        }
+        let exclude = new ESet(elements);
+        for (let element of elements) {
+            this._avoidCollisionsForElement(element, exclude, this._supportSAP, this._valids.get(element), new Matrix());
         }
     };
 
@@ -2471,13 +2483,29 @@ export function addGravitationToCollisionPhysic(superClass, {
         for (let element of elements) {
             if (element.isCarriable && element._fall.carriers) {
                 for (let support of element._fall.carriers) {
-                    let dx = element.lx-support.lx;
-                    let dy = element.ly-support.ly;
+                    let dx = element.lx - support.lx;
+                    let dy = element.ly - support.ly;
                     if (support.isCarrier && carryingPredicate(support, element, dx, dy)) {
-                        support.addCarried(element);
+                        if (!element.carriedBy(support)) {
+                            support.addCarried(element);
+                        }
+                        else {
+                            support.moveCarried(element);
+                        }
                     }
                 }
             }
+            /*
+            if (element.isCarrier) {
+                for (let child of element.carried) {
+                    console.log("TRY REMOVE", element, child, element._fall.carried);
+                    if (!element._fall.carried || !element._fall.carried.has(child)) {
+                        element.removeCarried(child);
+                        console.log("REMOVE", element, child);
+                    }
+                }
+            }
+            */
             delete element._fall;
         }
     };
@@ -2496,17 +2524,15 @@ export function addGravitationToCollisionPhysic(superClass, {
 
         elements.sort(comparator);
         for (let element of elements) {
+            element._fall = {};
+        }
+        for (let element of elements) {
             ground.process(element);
         }
     };
 
     superClass.prototype._processElements = function() {
         let elements = new List(...this._elements);
-        for (let element of elements) {
-            element._clearCarried && element._clearCarried();
-            element._clearCarriedBy && element._clearCarriedBy();
-            element._fall = {};
-        }
         this._letFall(elements, new Ground(this));
         this._setCarried(elements);
     };
@@ -2569,6 +2595,18 @@ export function makeCarrier(superClass) {
             Memento.register(this);
             Memento.register(element);
             this._addCarried(element);
+            this._fire(Events.ADD_CARRIED, element);
+            element._fire(Events.ADD_CARRIER, this);
+        }
+    };
+
+    superClass.prototype.moveCarried = function(element) {
+        if (element.__addCarriedBy) {
+            Memento.register(this);
+            Memento.register(element);
+            this._moveCarried(element);
+            this._fire(Events.MOVE_CARRIED, element);
+            element._fire(Events.MOVE_CARRIER, this);
         }
     };
 
@@ -2577,6 +2615,8 @@ export function makeCarrier(superClass) {
             Memento.register(this);
             Memento.register(element);
             this._removeCarried(element);
+            this._fire(Events.REMOVE_CARRIED, element);
+            element._fire(Events.REMOVE_CARRIER, this);
         }
     };
 
@@ -2584,6 +2624,10 @@ export function makeCarrier(superClass) {
         if (!this._carried) {
             this._carried = new Map();
         }
+        this._carried.set(element, record);
+    };
+
+    superClass.prototype.__moveCarried = function(element, record) {
         this._carried.set(element, record);
     };
 
@@ -2596,12 +2640,26 @@ export function makeCarrier(superClass) {
         }
     };
 
+    superClass.prototype.carry = function(element) {
+        return this._carried && this._carried.has(element);
+    };
+
     superClass.prototype._addCarried = function(element) {
-        this.__addCarried(element, new CloneableObject({
+        let record = new CloneableObject({
             dx:element.lx-this.lx,
             dy:element.ly-this.ly
-        }));
-        element.__addCarriedBy(this);
+        });
+        this.__addCarried(element, record);
+        element.__addCarriedBy(this, record);
+    };
+
+    superClass.prototype._moveCarried = function(element) {
+        let record = new CloneableObject({
+            dx:element.lx-this.lx,
+            dy:element.ly-this.ly
+        });
+        this.__moveCarried(element, record);
+        element.__moveCarriedBy(this, record);
     };
 
     superClass.prototype._removeCarried = function(element) {
@@ -2634,12 +2692,37 @@ export function makeCarrier(superClass) {
 
     let move = superClass.prototype.move;
     superClass.prototype.move = function(x, y) {
+/*
+        function displaceCarriedOf(support) {
+            if (support._carried) {
+                for (let element of support._carried.keys()) {
+                    let record = support._carried.get(element);
+                    if (element.support === support.support) {
+                        element.setLocation(support.lx + record.dx, support.ly + record.dy);
+                        displaceCarriedOf(element);
+                        if (element.parent && element.parent._shift) {
+                            element.parent._shift(element, element.lx, element.ly);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (move.call(this, x, y)) {
+            displaceCarriedOf(this);
+            return true;
+        }
+        return false;
+        */
         if (move.call(this, x, y)) {
             if (this._carried) {
                 for (let element of this._carried.keys()) {
                     let record = this._carried.get(element);
                     if (element.support === this.support) {
                         element.move(this.lx + record.dx, this.ly + record.dy);
+                        if (element.parent && element.parent._shift) {
+                            element.parent._shift(element, element.lx, element.ly);
+                        }
                     }
                 }
             }
@@ -2734,6 +2817,23 @@ export function makeCarriable(superClass) {
         }
     });
 
+    /*
+    let move = superClass.prototype.move;
+    superClass.prototype.move = function(x, y) {
+        if (move.call(this, x, y)) {
+            if (this._carriedBy) {
+                for (let support of this._carriedBy.keys()) {
+                    let record = this._carriedBy.get(support);
+                    record.dx = this.lx - support.lx;
+                    record.dy = this.ly - support.ly;
+                }
+            }
+            return true;
+        }
+        return false;
+    };
+    */
+
     superClass.prototype._clearCarriedBy = function() {
         delete this._carriedBy;
     };
@@ -2745,6 +2845,10 @@ export function makeCarriable(superClass) {
         this._carriedBy.set(element, record);
     };
 
+    superClass.prototype.__moveCarriedBy = function(element, record) {
+        this._carriedBy.set(element, record);
+    };
+
     superClass.prototype.__removeCarriedBy = function(element) {
         if (this._carriedBy) {
             this._carriedBy.delete(element);
@@ -2752,6 +2856,10 @@ export function makeCarriable(superClass) {
                 delete this._carriedBy;
             }
         }
+    };
+
+    superClass.prototype.carriedBy = function(support) {
+        return this._carriedBy && this._carriedBy.has(support);
     };
 
     superClass.prototype.clearCarriedBy = function() {
@@ -2905,6 +3013,8 @@ export function makeGlueable(superClass) {
             Memento.register(this);
             Memento.register(element);
             this._glue(element, strategy);
+            element._fire(Events.ADD_GLUED, this);
+            this._fire(Events.ADD_GLUED, element);
         }
     };
 
@@ -2913,6 +3023,8 @@ export function makeGlueable(superClass) {
             Memento.register(this);
             Memento.register(element);
             this._unglue(element);
+            element._fire(Events.REMOVE_GLUED, this);
+            this._fire(Events.REMOVE_GLUED, element);
         }
     };
 

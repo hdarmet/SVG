@@ -30,7 +30,7 @@ import {
     Tools, BoardItemBuilder, copyCommand, deleteCommand, pasteCommand, redoCommand, ToolCommandPopup, undoCommand,
     zoomExtentCommand, zoomInCommand, zoomOutCommand, zoomSelectionCommand, ToolGridExpandablePanel, ToolExpandablePopup,
     regroupCommand, ungroupCommand, lockCommand, unlockCommand, favoritesCommand, layersCommand,
-    ToolGridPanelContent, makeMenuOwner, TextMenuOption, FavoriteItemBuilder
+    ToolGridPanelContent, makeMenuOwner, TextMenuOption, FavoriteItemBuilder, ToolToggleCommand
 } from "../../js/tools.js";
 import {
     makeGravitationContainer, makeCarriable, makeCarrier, makePositioningContainer, addBordersToCollisionPhysic,
@@ -940,6 +940,13 @@ class DIAMShelf extends DIAMItem {
         this._addClips(this._rightClip);
         this._initShape(this.buildShape());
         this._addDecorations(args);
+        this._addObserver(this);
+    }
+
+    _notified(source, event, element) {
+        if (source === this && event === Events.ADD_CARRIED) {
+            this.magnetise();
+        }
     }
 
     get decorationTarget() {
@@ -973,6 +980,30 @@ class DIAMShelf extends DIAMItem {
         base.add(item);
         return base;
     }
+
+    magnetise() {
+
+        if (!Context.isReadOnly()) {
+            let elements = new List(...this.carried);
+            elements.sort((e1, e2) => e1.lx - e2.lx);
+            elements[0].move(
+                this.lx-this.width/2 + elements[0].width / 2,
+                elements[0].ly
+            );
+            for (let index = 1; index < elements.length; index++) {
+                let left = elements[index - 1].lx+elements[index - 1].width/2;
+                let right = elements[index].lx-elements[index].width/2;
+                let top = elements[index].ly-elements[index].height/2;
+                let bottom = this.ly-this.height/2;
+                elements[index].move(
+                    elements[index - 1].lx + elements[index - 1].width/2 + elements[index].width / 2,
+                    elements[index].ly
+                );
+            }
+        }
+
+    }
+
 }
 DIAMShelf.POSITION_FONT_PROPERTIES = definePropertiesSet("position", Attrs.FONT_PROPERTIES);
 makeShaped(DIAMShelf);
@@ -1737,6 +1768,22 @@ function defineLayers() {
         .update([Context.table, Context.palettePopup]);
 }
 
+function spanOnLaddersCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/span_on.svg", "./images/icons/span_off.svg",
+        () => {
+            //Tools.addToFavorites(paletteContent);
+        }, () => true)
+    );
+}
+
+function magnetCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/magnet_on.svg", "./images/icons/magnet_off.svg",
+        () => {
+            //Tools.addToFavorites(paletteContent);
+        }, () => true)
+    );
+}
+
 function createCommandPopup(palettePopup) {
     let cmdPopup = new ToolCommandPopup(78, 32).display(39, 16);
     copyCommand(cmdPopup);
@@ -1753,6 +1800,9 @@ function createCommandPopup(palettePopup) {
     ungroupCommand(cmdPopup);
     lockCommand(cmdPopup);
     unlockCommand(cmdPopup);
+    cmdPopup.addMargin();
+    magnetCommand(cmdPopup);
+    spanOnLaddersCommand(cmdPopup);
     favoritesCommand(cmdPopup, palettePopup._paletteContent);
     layersCommand(cmdPopup);
     cmdPopup.addMargin();
