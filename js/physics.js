@@ -1616,16 +1616,17 @@ RulesDecoration.HEAD_SIZE = 5;
 
 export class SAPRecord {
 
-    constructor(element, sweepAndPrune, ...args) {
+    constructor(element, sweepAndPrune) {
+        this._element = element;
         this._sweepAndPrune = sweepAndPrune;
-        this.createBounds(element, ...args);
     }
 
     _createBound(element) {
-        let geometry = this._element.localGeometry;
+        let geometry = element.localGeometry;
         let widthSlim = same(geometry.left, geometry.right);
         let heightSlim = same(geometry.top, geometry.bottom);
         let bound = {
+            element: element,
             left: {first: true, value: geometry.left, slim:widthSlim, element, index: -1, opened: new ESet([element])},
             right: {first: false, value: geometry.right, slim:widthSlim, element, index: -1, opened: new ESet()},
             top: {first: true, value: geometry.top, slim:heightSlim, element, index: -1, opened: new ESet([element])},
@@ -1642,11 +1643,10 @@ export class SAPRecord {
         return bound;
     }
 
-    createBounds(element) {
-        this._element = element;
+    createBounds() {
         this._x = this._element.lx;
         this._y = this._element.ly;
-        this._bound = this._createBound(element);
+        this._bound = this._createBound(this._element);
     }
 
     get bounds() {
@@ -1666,18 +1666,17 @@ export class SAPRecord {
         this._sweepAndPrune._yAxis.dirty = 2;
     }
 
-    _updateBound(bound) {
-        let geometry = this._element.localGeometry;
-        this._bound.left.value = geometry.left;
-        this._bound.right.value = geometry.right;
-        this._bound.top.value = geometry.top;
-        this._bound.bottom.value = geometry.bottom
+    _updateBound(bound, box) {
+        bound.left.value = box.left;
+        bound.right.value = box.right;
+        bound.top.value = box.top;
+        bound.bottom.value = box.bottom
     }
 
     update() {
         this._x = this._element.lx;
         this._y = this._element.ly;
-        this._updateBound(this._bound);
+        this._updateBound(this._bound, this._element.localGeometry);
         if (!this._sweepAndPrune._xAxis.dirty) {
             this._sweepAndPrune._xAxis.dirty=1;
         } else {
@@ -1761,7 +1760,9 @@ export class SweepAndPrune {
     add(element) {
         if (!this.has(element)) {
             let record = this._createRecord(element);
-            this._elements.set(element, record);
+            for (let bound of record.bounds) {
+                this._elements.set(bound.element, record);
+            }
             return true;
         }
         return false;
@@ -1872,7 +1873,9 @@ export class SweepAndPrune {
     }
 
     _createRecord(element) {
-        return new SAPRecord(element, this);
+        let record = element._createSAPRecord ? element._createSAPRecord(this) : new SAPRecord(element, this);
+        record.createBounds();
+        return record;
     }
 
     _getRecord(element) {

@@ -7,6 +7,9 @@ import {
     ESet, List
 } from "../../js/collections.js";
 import {
+    Box
+} from "../../js/geometry.js";
+import {
     Context, Events, Canvas, Groups, DragOperation, Memento, makeNotCloneable, setLayeredGlassStrategy, standardDrag,
     Layer, Layers, Selection
 } from "../../js/toolkit.js";
@@ -36,7 +39,7 @@ import {
     makeGravitationContainer, makeCarriable, makeCarrier, makePositioningContainer, addBordersToCollisionPhysic,
     addPhysicToContainer, createSlotsAndClipsPhysic, createGravitationPhysic, makeClipsOwner, makeSlotsOwner,
     createPositioningPhysic, createRulersPhysic, makeCenteredAnchorage, makeCenteredRuler,
-    Slot, Clip, PhysicSelector, ClipDecoration, ClipPositionDecoration, RulesDecoration
+    Slot, Clip, PhysicSelector, ClipDecoration, ClipPositionDecoration, RulesDecoration, SAPRecord
 } from "../../js/physics.js";
 
 const DIAMLayers = {
@@ -219,6 +222,7 @@ class DIAMItem extends BoardElement {
         super._init({...args});
         this._dragOperation(()=>standardDrag);
         this._createContextMenu();
+        this._createMarksSupport();
         this._createMarksSupport();
         if (args.status) {
             this._setStatus(args.status.code, args.status.color);
@@ -930,6 +934,131 @@ class DIAMDoubleLadder extends DIAMAbstractLadder {
 
 }
 
+class Spike {
+
+    constructor(element, spikeSize, deltaX) {
+        this._element = element;
+        this._size = spikeSize;
+        this._deltaX = deltaX;
+    }
+
+    get localGeometry() {
+        return new Box(
+            this._element.lx+this._deltaX,
+            this._element.ly-this._element.height/2-this._size,
+            0, this._size*2+this._element.height);
+    }
+
+    get x() {
+        return this._element.lx+this._deltaX;
+    }
+
+    get y() {
+        return this._element.ly;
+    }
+
+    get mayNotCollide() {
+        return !DIAMShelf.spiked;
+    }
+}
+
+class SpikedSAPRecord extends SAPRecord {
+    constructor(element, sweepAndPrune, spikeSize) {
+        super(element, sweepAndPrune, spikeSize);
+        this._spikeSize = spikeSize;
+    }
+
+    createBounds() {
+        this._leftSpike = new Spike(this._element, this._spikeSize, -this._element.width / 2);
+        this._rightSpike = new Spike(this._element, this._spikeSize, this._element.width / 2);
+        this._leftSpikeBound = this._createBound(this._leftSpike);
+        super.createBounds();
+        this._rightSpikeBound = this._createBound(this._rightSpike);
+    }
+
+    get bounds() {
+        return [this._leftSpikeBound, this._bound, this._rightSpikeBound];
+    }
+
+    update() {
+        super.update();
+        this._updateBound(this._leftSpikeBound, this._leftSpike.localGeometry);
+        this._updateBound(this._rightSpikeBound, this._rightSpike.localGeometry);
+    }
+
+    left(element) {
+        if (element === this._element) return super.left(element);
+        else if (element === this._leftSpike) return this._leftSpikeBound.left.value;
+        else return this._rightSpikeBound.left.value;
+    }
+
+    right(element) {
+        if (element === this._element) return super.right(element);
+        else if (element === this._leftSpike) return this._leftSpikeBound.right.value;
+        else return this._rightSpikeBound.right.value;
+    }
+
+    top(element) {
+        if (element === this._element) return super.top(element);
+        else if (element === this._leftSpike) return this._leftSpikeBound.top.value;
+        else return this._rightSpikeBound.top.value;
+    }
+
+    bottom(element) {
+        if (element === this._element) return super.bottom(element);
+        else if (element === this._leftSpike) return this._leftSpikeBound.bottom.value;
+        else return this._rightSpikeBound.bottom.value;
+    }
+
+    x(element) {
+        if (element === this._element) return super.x(element);
+        else if (element === this._leftSpike) return this._leftSpike.x;
+        else return this._rightSpike.x;
+    }
+
+    y(element) {
+        if (element === this._element) return super.y(element);
+        else if (element === this._leftSpike) return this._leftSpike.y;
+        else return this._rightSpike.y;
+    }
+
+    remove() {
+        this._removeBound(this._leftSpikeBound);
+        this._removeBound(this._rightSpikeBound);
+        super.remove();
+    }
+}
+
+export class SpikeDecoration extends Decoration {
+
+    constructor() {
+        super();
+    }
+
+    _init() {
+        if (DIAMShelf.spiked) {
+            this._root.add(new Line(
+                -this._element.width / 2, -this._element.height / 2 - DIAMShelf.SPIKE_SIZE,
+                -this._element.width / 2, this._element.height / 2 + DIAMShelf.SPIKE_SIZE));
+            this._root.add(new Line(
+                this._element.width / 2, -this._element.height / 2 - DIAMShelf.SPIKE_SIZE,
+                this._element.width / 2, this._element.height / 2 + DIAMShelf.SPIKE_SIZE));
+            this._root.stroke = Colors.GREY;
+            this._root.stroke_width = SpikeDecoration.STROKE_WIDTH;
+        }
+    }
+
+    clone(duplicata) {
+        return new SpikeDecoration();
+    }
+
+    refresh() {
+        this._root.clear();
+        this._init();
+    }
+}
+SpikeDecoration.STROKE_WIDTH = 0.25;
+
 class DIAMShelf extends DIAMItem {
 
     _improve({leftClip:leftClipSpec, rightClip:rightClipSpec, label, ...args}) {
@@ -944,7 +1073,7 @@ class DIAMShelf extends DIAMItem {
     }
 
     _notified(source, event, element) {
-        if (source === this && event === Events.ADD_CARRIED) {
+        if (source === this && event === Events.ADD_CARRIED && DIAMShelf.magnetized) {
             this.magnetise();
         }
     }
@@ -967,6 +1096,8 @@ class DIAMShelf extends DIAMItem {
             {x:TextDecoration.MIDDLE, y:TextDecoration.MIDDLE, ...labelProperties}
         );
         this.decorationTarget._addDecoration(this._labelDecoration);
+        this._spikeDecoration = new SpikeDecoration();
+        this._addDecoration(this._spikeDecoration);
     }
 
     _setLabel(label) {
@@ -982,7 +1113,6 @@ class DIAMShelf extends DIAMItem {
     }
 
     magnetise() {
-
         if (!Context.isReadOnly()) {
             let elements = new List(...this.carried);
             elements.sort((e1, e2) => e1.lx - e2.lx);
@@ -1001,10 +1131,35 @@ class DIAMShelf extends DIAMItem {
                 );
             }
         }
+    }
 
+    _createSAPRecord(sweepAndPrune) {
+        return new SpikedSAPRecord(this, sweepAndPrune, DIAMShelf.SPIKE_SIZE);
     }
 
 }
+DIAMShelf.SPIKE_SIZE = 20;
+Object.defineProperty(DIAMShelf, "magnetized", {
+    get() {
+        return Context.magnetized;
+    },
+    set(magnetized) {
+        Context.magnetized = magnetized;
+    }
+});
+Object.defineProperty(DIAMShelf, "spiked", {
+    get() {
+        return Context.spiked;
+    },
+    set(spiked) {
+        Context.spiked = spiked;
+        new Visitor([Context.table, Context.palettePopup], {}, function() {
+            if (this instanceof DIAMShelf) {
+                this._spikeDecoration.refresh();
+            }
+        })
+    }
+});
 DIAMShelf.POSITION_FONT_PROPERTIES = definePropertiesSet("position", Attrs.FONT_PROPERTIES);
 makeShaped(DIAMShelf);
 makeDecorationsOwner(DIAMShelf);
@@ -1781,7 +1936,7 @@ function defineLayers() {
             if (this instanceof DIAMColorOption) {
                 checked ? this.show() : this.hide();
             }
-        })
+        });
     }
 
     function showVisuals(checked, elements) {
@@ -1789,7 +1944,7 @@ function defineLayers() {
             if (this instanceof DIAMVisual) {
                 checked ? this.show() : this.hide();
             }
-        })
+        });
     }
 
     function showArtworks(checked, elements) {
@@ -1797,7 +1952,7 @@ function defineLayers() {
             if (this instanceof DIAMCover || this instanceof DIAMFasciaSupport) {
                 checked ? this.show() : this.hide();
             }
-        })
+        });
     }
 
     function showModules(checked, elements) {
@@ -1805,7 +1960,7 @@ function defineLayers() {
             if (this instanceof DIAMAbstractModule) {
                 checked ? this.show() : this.hide();
             }
-        })
+        });
     }
 
     function showHighlights(checked, elements) {
@@ -1813,7 +1968,7 @@ function defineLayers() {
             if (this.highlightable) {
                 checked ? this.showHighlight() : this.hideHighlight();
             }
-        })
+        });
     }
 
     function showDecorations(checked, elements) {
@@ -1821,7 +1976,7 @@ function defineLayers() {
             if (this.hasDecorations) {
                 checked ? this.showDecorations() : this.hideDecorations();
             }
-        })
+        });
     }
 
     function showRealistic(checked, elements) {
@@ -1829,7 +1984,7 @@ function defineLayers() {
             if (this.showRealistic) {
                 checked ? this.showRealistic() : this.showSchematic();
             }
-        })
+        });
     }
 
     function showReferences(checked, elements) {
@@ -1852,16 +2007,16 @@ function defineLayers() {
 function spanOnLaddersCommand(toolPopup) {
     toolPopup.add(new ToolToggleCommand("./images/icons/span_on.svg", "./images/icons/span_off.svg",
         () => {
-            //Tools.addToFavorites(paletteContent);
-        }, () => true)
+            DIAMShelf.spiked = !DIAMShelf.spiked;
+        }, () => DIAMShelf.spiked)
     );
 }
 
 function magnetCommand(toolPopup) {
     toolPopup.add(new ToolToggleCommand("./images/icons/magnet_on.svg", "./images/icons/magnet_off.svg",
         () => {
-            //Tools.addToFavorites(paletteContent);
-        }, () => true)
+            DIAMShelf.magnetized = !DIAMShelf.magnetized;
+        }, () => DIAMShelf.magnetized)
     );
 }
 
