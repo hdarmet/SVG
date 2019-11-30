@@ -1,12 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
-  <title>paste_on</title>
-  <g id="Layer_2" data-name="Layer 2">
-    <g id="toolbar">
-      <rect width="40" height="40" rx="1.6" fill="#6d6c6c"/>
-      <g>
-        <polygon points="14.72 24.41 10.81 24.41 10.81 10.82 24.4 10.82 24.4 14.71 26.15 14.71 26.15 9.07 9.06 9.07 9.06 26.17 14.72 26.17 14.72 24.41" fill="#fff"/>
-        <path d="M30.94,30.93H13.85V13.83H30.94Z" fill="#fff"/>
-      </g>
+    <title>copy_active_1</title>
+    <g id="icon">
+        <rect x="0.46" y="0.46" width="39.09" height="39.09" rx="1.6" fill="#fff" opacity="0"/>
+        <rect x="0.46" y="0.46" width="39.09" height="39.09" rx="1.6" fill="none" stroke="#fff" stroke-miterlimit="10" stroke-width="0.98"/>
+        <g>
+            <polygon points="14.72 24.41 10.81 24.41 10.81 10.82 24.4 10.82 24.4 14.71 26.15 14.71 26.15 9.07 9.06 9.07 9.06 26.17 14.72 26.17 14.72 24.41" fill="#3a3a3a"/>
+            <path d="M30.94,30.93H13.85V13.83H30.94Z" fill="#3a3a3a"/>
+        </g>
     </g>
-  </g>
 </svg>

@@ -44,6 +44,13 @@ export function makeMovable(superClass) {
         return result;
     };
 
+    superClass.prototype.gmove = function (x, y) {
+        let invertDiff = this.diff.invert();
+        let lx = invertDiff.x(x, y);
+        let ly = invertDiff.y(x, y);
+        return this.move(lx, ly);
+    };
+
     if (!superClass.prototype.hasOwnProperty("movable")) {
         Object.defineProperty(superClass.prototype, "movable", {
             configurable: true,
@@ -108,9 +115,19 @@ export function makeRotatable(superClass) {
         });
     }
 
-    superClass.prototype.rotate = function (angle) {
-        Memento.register(this);
+    superClass.prototype._setAngle = function (angle) {
         this._hinge.angle = angle;
+    };
+
+    superClass.prototype.setAngle = function (angle) {
+        Memento.register(this);
+        this._setAngle(angle);
+        return this;
+    };
+
+    superClass.prototype.rotate = function (angle) {
+        this.setAngle(angle);
+        this._fire(Events.ROTATED, angle);
         return this;
     };
 
@@ -951,7 +968,8 @@ export function makeContainerMultiLayered(superClass, {layers}) {
     };
 
     superClass.prototype._getLayer = function (element) {
-        let layer = element.getLayer && element.getLayer(this) || defaultLayer;
+        let layer = element.getLayer && element.getLayer(this);
+        if (!layer) layer = defaultLayer;
         if (!this._layers[layer]) layer = defaultLayer;
         return layer;
     };
@@ -1118,7 +1136,8 @@ export function makeLayersWithContainers(superClass, {layersBuilder}) {
     };
 
     superClass.prototype._getLayer = function (element) {
-        let layer = element.getLayer && element.getLayer(this) || defaultLayer;
+        let layer = element.getLayer && element.getLayer(this);
+        if (!layer) layer = defaultLayer;
         if (!this._layers[layer]) layer = defaultLayer;
         return layer;
     };

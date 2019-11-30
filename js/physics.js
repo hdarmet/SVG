@@ -13,7 +13,7 @@ import {
     win, Colors, Line, computePosition, Group, Fill
 } from "./graphics.js";
 import {
-    Canvas, Memento, CloneableObject, Events, makeObservable, Context, glassSelectionPredicate
+    Canvas, Memento, CopyPaste, CloneableObject, Events, makeObservable, Context, glassSelectionPredicate
 } from "./toolkit.js";
 import {
     TextDecoration
@@ -1572,7 +1572,7 @@ export class RulesDecoration extends Decoration {
 
     _setElement(element) {
         super._setElement(element);
-        element.addObserver(this);
+        element._addObserver(this);
     }
 
     _checksElements(elements) {
@@ -2498,16 +2498,13 @@ export function addGravitationToCollisionPhysic(superClass, {
                     }
                 }
             }
-
             if (element.isCarrier) {
                 for (let child of element.carried) {
                     if (!element._fall.carried || !element._fall.carried.has(child)) {
                         element.removeCarried(child);
-                        console.log("REMOVE", element, child);
                     }
                 }
             }
-
             delete element._fall;
         }
     };

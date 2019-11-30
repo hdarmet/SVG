@@ -117,7 +117,7 @@ export class Matrix {
 
     _check() {
         if (isNaN(this.a+this.b+this.c+this.d+this.e+this.f)) {
-            error();
+            console.assert("Invalid matrix:", this);
         }
     }
 
@@ -317,6 +317,11 @@ export class Matrix {
 
     get shear() {
         return this._compute().shear;
+    }
+
+    equals(matrix) {
+        return this.a===matrix.a && this.b===matrix.b && this.c===matrix.c &&
+               this.d===matrix.d && this.e===matrix.e && this.f===matrix.f;
     }
 
     toString() {

@@ -124,6 +124,11 @@ export class BoardElement {
         return this;
     }
 
+    _setLocation(x, y) {
+        this._matrix = Matrix.translate(x, y);
+        return this;
+    }
+
     setLocation(x, y) {
         if (!same(x, this.lx) || !same(y, this.ly)) {
             Memento.register(this);
@@ -134,6 +139,12 @@ export class BoardElement {
         return false;
     }
 
+    _setSize(width, height) {
+        this._width = width;
+        this._height = height;
+        return this;
+    }
+
     setSize(width, height) {
         if (!same(width, this.width) || !same(height, this.height)) {
             Memento.register(this);
@@ -142,17 +153,6 @@ export class BoardElement {
             return true;
         }
         return false;
-    }
-
-    _setLocation(x, y) {
-        this._matrix = Matrix.translate(x, y);
-        return this;
-    }
-
-    _setSize(width, height) {
-        this._width = width;
-        this._height = height;
-        return this;
     }
 
     get x() {return 0;}
@@ -174,6 +174,7 @@ export class BoardElement {
     }
     get local() { return this.matrix; }
     get global() { return this._root.globalMatrix; }
+    get diff() { return this.global.mult(this.local.invert()) }
 
     get lbbox() {
         return new Box(this.left, this.top, this.right-this.left, this.bottom-this.top);
@@ -217,6 +218,8 @@ export class BoardElement {
     get ly() { return this.matrix.y(0, 0); }
     get gx() { return this.global.x(0, 0); }
     get gy() { return this.global.y(0, 0); }
+    get clx() { return this.canvasLayerMatrix.x(0, 0); }
+    get cly() { return this.canvasLayerMatrix.y(0, 0); }
     get location() { return {x:this.lx, y:this.ly} }
     get position() { return {x:this.gx, y:this.gy} }
 
@@ -276,6 +279,11 @@ export class BoardElement {
         return getCanvasLayer(this._root);
     }
 
+    get canvasLayerMatrix() {
+        let layer = this.canvasLayer;
+        return this.global.mult(layer.globalMatrix.invert());
+    }
+
     clone(duplicata) {
         return this._cloning(duplicata);
     }
@@ -294,6 +302,15 @@ export class BoardElement {
 
     _cloned(copy, duplicata) {
         this._cloneObservers(duplicata);
+    }
+
+    _draggedFrom(dragged, dragSet) {
+    }
+
+    _droppedIn(dragged, dragSet) {
+    }
+
+    _revertDroppedIn(parent) {
     }
 }
 makeObservable(BoardElement, Cloning.NONE);

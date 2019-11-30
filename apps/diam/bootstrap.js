@@ -11,7 +11,7 @@ import {
 } from "../../js/geometry.js";
 import {
     Context, Events, Canvas, Groups, DragOperation, Memento, makeNotCloneable, setLayeredGlassStrategy, standardDrag,
-    Layer, Layers, Selection
+    Layer, Layers, Selection, CopyPaste
 } from "../../js/toolkit.js";
 import {
     BoardElement, BoardTable, BoardArea, Visitor
@@ -23,16 +23,17 @@ import {
     makeGentleDropTarget, makePartsOwner, makeDecorationsOwner, makeMultiImaged
 } from "../../js/core-mixins.js";
 import {
-    makeLockable, makeHighlightable, makeGroupable, TextDecoration, Mark, MarksDecoration
+    makeLockable, makeHighlightable, makeGroupable, TextDecoration, Mark, MarksDecoration, makeFollowed, makeFollower
 } from "../../js/standard-mixins.js";
 import {
     Colors, Group, Line, Rect, Circle, Path, Text, RasterImage, M, Q, L, C, Attrs, AlignmentBaseline, FontWeight, TextAnchor,
     definePropertiesSet, filterProperties
 } from "../../js/graphics.js";
 import {
-    Tools, BoardItemBuilder, copyCommand, deleteCommand, pasteCommand, redoCommand, ToolCommandPopup, undoCommand,
+    Tools, BoardItemBuilder, normalModeCommand, pdfModeCommand, scrollModeCommand, selectAreaModeCommand,
+    copyCommand, deleteCommand, pasteCommand, redoCommand, ToolCommandPopup, undoCommand,
     zoomExtentCommand, zoomInCommand, zoomOutCommand, zoomSelectionCommand, ToolGridExpandablePanel, ToolExpandablePopup,
-    regroupCommand, ungroupCommand, lockCommand, unlockCommand, favoritesCommand, layersCommand,
+    regroupCommand, ungroupCommand, lockCommand, unlockCommand, favoritesCommand, layersCommand, showInfosCommand,
     ToolGridPanelContent, makeMenuOwner, TextMenuOption, FavoriteItemBuilder, ToolToggleCommand
 } from "../../js/tools.js";
 import {
@@ -45,9 +46,22 @@ import {
 const DIAMLayers = {
     DOWN: "d",
     MIDDLE : "m",
-    UP : "u"
+    UP : "u",
+    FREE : "f",
+    PDF : "p"
 };
 const LAYERS_DEFINITION = {layers:[DIAMLayers.DOWN,  DIAMLayers.MIDDLE, DIAMLayers.UP]};
+const TABLE_LAYERS_DEFINITION = {layers:[DIAMLayers.DOWN,  DIAMLayers.MIDDLE, DIAMLayers.UP, DIAMLayers.FREE, DIAMLayers.PDF]};
+
+export const FreePositioningMode = {};
+Object.defineProperty(FreePositioningMode, "mode", {
+    get() {
+        return Context.freePositioningMode ? Context.freePositioningMode : false;
+    },
+    set(mode) {
+        Context.freePositioningMode = mode;
+    }
+});
 
 function makePositionEditable(superClass) {
 
@@ -264,6 +278,28 @@ class DIAMItem extends BoardElement {
         this._marksDecoration.add(statusMark);
         return this;
     }
+
+    getDropTarget(target) {
+        if (FreePositioningMode.mode || this.followed) {
+            this.__free = target.selectable;
+            return Context.table;
+        }
+        return target;
+    }
+
+    _droppedIn(...args) {
+        super._droppedIn(...args);
+        delete this.__free;
+    }
+
+    _revertDroppedIn(...args) {
+        super._revertDroppedIn(...args);
+        delete this.__free;
+    }
+
+    getLayer() {
+        if (this.__free || this.followed) return DIAMLayers.FREE;
+    }
 }
 makePartsOwner(DIAMItem);
 makeSelectable(DIAMItem);
@@ -276,6 +312,8 @@ makeMenuOwner(DIAMItem);
 makeGroupable(DIAMItem);
 makeCommentOwner(DIAMItem);
 makeHighlightable(DIAMItem);
+makeFollowed(DIAMItem);
+makeFollower(DIAMItem);
 
 class DIAMSupport extends BoardElement {
     constructor({width, height, strokeColor, backgroundColor}) {
@@ -1450,7 +1488,7 @@ class DIAMAnchorageDecoration extends Decoration {
 
     _setElement(element) {
         super._setElement(element);
-        element.addObserver(this);
+        element._addObserver(this);
     }
 
     _notified(source, event) {
@@ -1728,11 +1766,12 @@ makeFooterOwner(DIAMRichCaddyModule);
 makeFasciaSupport(DIAMRichCaddyModule);
 
 class DIAMCell extends BoardElement {
-    constructor({width, height, x, y, shape, compatibilities}) {
+    constructor({width, height, x, y, shape, compatibilities, family}) {
         super(width, height);
         this._initShape(shape.clone());
         this._setLocation(x, y);
         this._compatibilities = new ESet(compatibilities);
+        this._family = family;
     }
 
     get compatibilities() {
@@ -1746,6 +1785,16 @@ class DIAMCell extends BoardElement {
 
     _acceptDrop(element, dragSet) {
         return this._acceptElement(element);
+    }
+
+    _receiveDrop(element) {
+        if (this._family) {
+            this.parent.dispatchOnFamily(this, element);
+        }
+    }
+
+    get family() {
+        return this._family;
     }
 
     allCompatibilities() {
@@ -1763,7 +1812,6 @@ makeShaped(DIAMCell);
 makeSupport(DIAMCell);
 makePositioningContainer(DIAMCell, {
         predicate: function(element) {
-            //console.log("accept:", this.host._acceptElement(element));
             return this.host._acceptElement(element);
         },
         positionsBuilder: element=>{return [{x:0, y:0}]}
@@ -1813,32 +1861,7 @@ makeGentleDropTarget(DIAMOption);
 class DIAMColorOption extends DIAMOption {
 }
 
-class DIAMConfigurableOption extends DIAMOption {
-    constructor({width, height, shape, compatibilities, cells}) {
-        super({width, height, compatibilities, shape});
-        this._cells = new List(...cells);
-        for (let cell of cells) {
-            this._addPart(cell);
-        }
-    }
-
-    get cells() {
-        return this._cells;
-    }
-
-    cellCompatibilities() {
-        let result = new ESet();
-        for (let cell of this.cells) {
-            for (let compatibility of cell.allCompatibilities()) {
-                result.add(compatibility);
-            }
-        }
-        return result;
-    }
-
-}
-
-function makeModuleConfigurable(superClass) {
+function makeCellsOwner(superClass) {
 
     let init = superClass.prototype._init;
     superClass.prototype._init = function({cells, ...args}) {
@@ -1866,14 +1889,30 @@ function makeModuleConfigurable(superClass) {
         return result;
     };
 
+    superClass.prototype.dispatchOnFamily = function(cell, option) {
+        for (let aCell of this.cells) {
+            if (aCell !== cell && aCell.family === cell.familty) {
+                let anOption = CopyPaste.instance.duplicateElement(option);
+                aCell.add(anOption);
+            }
+        }
+    };
 }
+
+class DIAMConfigurableOption extends DIAMOption {
+    constructor({width, height, shape, compatibilities, cells}) {
+        super({width, height, compatibilities, shape, cells});
+    }
+
+}
+makeCellsOwner(DIAMConfigurableOption);
 
 class DIAMConfigurableModule extends DIAMBasicModule {
     constructor({width, height, cells}) {
         super({width, height, color:Colors.WHITE, cells});
     }
 }
-makeModuleConfigurable(DIAMConfigurableModule);
+makeCellsOwner(DIAMConfigurableModule);
 
 class BoardPaper extends BoardArea {
     constructor(width, height, backgroundColor) {
@@ -1908,11 +1947,17 @@ class DIAMTable extends BoardTable {
     constructor({width, height, backgroundColor}) {
         super(width, height, backgroundColor);
     }
+
+    _receiveDrop(element) {
+        if (element.__free) {
+            element.__free.addFollower(element);
+        }
+    }
 }
-makeContainerMultiLayered(DIAMTable, LAYERS_DEFINITION);
+makeContainerMultiLayered(DIAMTable, TABLE_LAYERS_DEFINITION);
 
 function createTable() {
-    setLayeredGlassStrategy(BoardTable, LAYERS_DEFINITION);
+    setLayeredGlassStrategy(BoardTable, TABLE_LAYERS_DEFINITION);
     Context.table = new DIAMTable({width:4000, height:3000, backgroundColor:"#A0A0A0"});
     Canvas.instance.putOnBase(Context.table);
 }
@@ -2020,18 +2065,31 @@ function magnetCommand(toolPopup) {
     );
 }
 
+function freePositioningCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/free_on.svg", "./images/icons/free_off.svg",
+        () => {
+            FreePositioningMode.mode = !FreePositioningMode.mode;
+        }, () => FreePositioningMode.mode)
+    );
+}
+
 function createCommandPopup(palettePopup) {
     let cmdPopup = new ToolCommandPopup(78, 32).display(39, 16);
-    copyCommand(cmdPopup);
-    pasteCommand(cmdPopup);
+    normalModeCommand(cmdPopup);
+    selectAreaModeCommand(cmdPopup);
+    scrollModeCommand(cmdPopup);
+    pdfModeCommand(cmdPopup);
     cmdPopup.addMargin();
     zoomInCommand(cmdPopup);
     zoomOutCommand(cmdPopup);
     zoomExtentCommand(cmdPopup);
     zoomSelectionCommand(cmdPopup);
     cmdPopup.addMargin();
+    copyCommand(cmdPopup);
+    pasteCommand(cmdPopup);
     undoCommand(cmdPopup);
     redoCommand(cmdPopup);
+    cmdPopup.addMargin();
     regroupCommand(cmdPopup);
     ungroupCommand(cmdPopup);
     lockCommand(cmdPopup);
@@ -2039,8 +2097,10 @@ function createCommandPopup(palettePopup) {
     cmdPopup.addMargin();
     magnetCommand(cmdPopup);
     spanOnLaddersCommand(cmdPopup);
-    favoritesCommand(cmdPopup, palettePopup._paletteContent);
+    freePositioningCommand(cmdPopup);
     layersCommand(cmdPopup);
+    showInfosCommand(cmdPopup);
+    favoritesCommand(cmdPopup, palettePopup._paletteContent);
     cmdPopup.addMargin();
     deleteCommand(cmdPopup);
     return cmdPopup;
@@ -2174,27 +2234,27 @@ function createPalettePopup() {
         width:20, height:40, cells:[
             new DIAMCell({width:4, height:4, x:-5, y:-15,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
-                compatibilities:["C"]
+                compatibilities:["C"], family:"a"
             }),
             new DIAMCell({width:4, height:4, x:0, y:-15,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
-                compatibilities:["C"]
+                compatibilities:["C"], family:"a"
             }),
             new DIAMCell({width:4, height:4, x:5, y:-15,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
-                compatibilities:["C"]
+                compatibilities:["C"], family:"a"
             }),
             new DIAMCell({width:4, height:4, x:-5, y:-10,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
-                compatibilities:["C"]
+                compatibilities:["C"], family:"b"
             }),
             new DIAMCell({width:4, height:4, x:0, y:-10,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
-                compatibilities:["C"]
+                compatibilities:["C"], family:"b"
             }),
             new DIAMCell({width:4, height:4, x:5, y:-10,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
-                compatibilities:["C"]
+                compatibilities:["C"], family:"b"
             }),
             new DIAMCell({width:4, height:4, x:-5, y:-5,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),

@@ -15,7 +15,7 @@ import {
 } from "./misc.js";
 import {
     Context, Events, l2lBoundingBox, l2pBoundingBox, DragOperation, Memento, Canvas, makeObservable, makeNotCloneable,
-    getExtension, Layers, makeSingleton, CopyPaste, Selection, Anchor
+    getExtension, Layers, makeSingleton, CopyPaste, Selection, Anchor, StandardDragMode
 } from "./toolkit.js";
 import {
     BoardElement
@@ -1228,7 +1228,7 @@ export class BoardItemBuilder extends ToolCell {
     }
 
     _makeItems() {
-        let mementoOpened = Memento.instance.opened;
+        //let mementoOpened = Memento.instance.opened;
         this._currentItems = CopyPaste.instance.duplicateForPaste(this._proto);
         for (let item of this._currentItems) {
             item._parent = this;
@@ -1484,8 +1484,46 @@ export const Tools = {
             )})
         }
         Canvas.instance.openMenu(x, y, menuOptions, false);
+    },
+    showInfos() {
+        Canvas.instance.openModal(
+            showInfos,
+            {},
+            data => {});
     }
 };
+
+export function normalModeCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/selection_on.svg", "./images/icons/selection_off.svg",
+        () => {
+            StandardDragMode.mode = StandardDragMode.ELEMENT_DRAG;
+        }, () => StandardDragMode.mode === StandardDragMode.ELEMENT_DRAG)
+    );
+}
+
+export function selectAreaModeCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/select_many_on.svg", "./images/icons/select_many_off.svg",
+        () => {
+            StandardDragMode.mode = StandardDragMode.SELECT_AREA;
+        }, () => StandardDragMode.mode === StandardDragMode.SELECT_AREA)
+    );
+}
+
+export function scrollModeCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/pan_on.svg", "./images/icons/pan_off.svg",
+        () => {
+            StandardDragMode.mode = StandardDragMode.SCROLL;
+        }, () => StandardDragMode.mode === StandardDragMode.SCROLL)
+    );
+}
+
+export function pdfModeCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/pdf_on.svg", "./images/icons/pdf_off.svg",
+        () => {
+            Tools.zoomInSelect();
+        }, () => !Tools.isMaxZoom())
+    );
+}
 
 export function zoomInCommand(toolPopup) {
     toolPopup.add(new ToolToggleCommand("./images/icons/zoom-in_on.svg", "./images/icons/zoom-in_off.svg",
@@ -1606,5 +1644,13 @@ export function layersCommand(toolPopup) {
             let y = this._root.globalMatrix.y(0, 0);
             Tools.manageLayers(x, y, [Context.table, Context.palettePopup]);
         }, always)
+    );
+}
+
+export function showInfosCommand(toolPopup) {
+    toolPopup.add(new ToolCommand("./images/icons/info_on.svg",
+        function() {
+            Tools.showInfos();
+        })
     );
 }

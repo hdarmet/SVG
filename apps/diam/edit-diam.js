@@ -1,4 +1,42 @@
 
+Vue.component('show-infos', {
+    data() {
+        return {
+            visible: false,
+            onValidate: undefined
+        };
+    },
+    created() {
+        showInfosWidget = this;
+    },
+    methods: {
+        validate() {
+            this.onValidate({});
+            this.visible = false;
+        }
+    },
+    template:
+        `<div class="plano_modal" v-show="visible" style="position:absolute; left:200px; top:50px; width:250px;">
+            <b-card>
+              <label> <h3>Infos</h3> </label>
+              <b-container fluid>
+                <b-row>
+                  <b-col sm="12"> <label>Delta version : 0.1</label> </b-col>
+                </b-row>
+              </b-container>
+              <b-button-toolbar>
+                <b-button style="margin:5px;" variant="primary" @click="validate();">Ok</b-button>
+              </b-button-toolbar>
+            </b-card>
+          </div>`
+});
+
+var showInfosWidget;
+window.showInfos = function showInfos(data, onValidate) {
+    showInfosWidget.onValidate = onValidate;
+    showInfosWidget.visible = true;
+};
+
 Vue.component('edit-position', {
     data() {
         return {
@@ -501,6 +539,7 @@ new Vue({
     	<rename></rename>
     	<comment></comment>
     	<edit-position></edit-position>
+    	<show-infos></show-infos>
     	<generate-ladders></generate-ladders>
     	<generate-fixings></generate-fixings>
     	<generate-hooks></generate-hooks>

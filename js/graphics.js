@@ -1292,6 +1292,10 @@ export class Svg extends SVGElement {
         this.add(this.defs);
     }
 
+    get globalMatrix() {
+        return new Matrix();
+    }
+
     // Testé
     attach(node) {
         matrixOp++;
@@ -1413,7 +1417,8 @@ export class SVGCoreElement extends SVGElement {
 
     get globalMatrix() {
         if (!this._globalMatrix || this._globalMatrix.op!==matrixOp) {
-            let globalMatrix = dom.getCTM(this._node);
+            //let globalMatrix = dom.getCTM(this._node);
+            let globalMatrix = this._parent ? this._matrix ? this._parent.globalMatrix.mult(this._matrix) : this._parent.globalMatrix : this.matrix;
             this._globalMatrix = new Matrix(
                 globalMatrix.a, globalMatrix.b,
                 globalMatrix.c, globalMatrix.d,

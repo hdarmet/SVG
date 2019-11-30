@@ -77,6 +77,12 @@ export const Events = {
     SCROLL_END : "scroll-end",
     ADD_DECORATION : "add-decoration",
     REMOVE_DECORATION : "remove-decoration",
+    ADD_FOLLOWER : "add-follower",
+    MOVE_FOLLOWER : "move-follower",
+    REMOVE_FOLLOWER : "remove-follower",
+    ADD_FOLLOWED : "add-followed",
+    MOVE_FOLLOWED : "move-followed",
+    REMOVE_FOLLOWED : "remove-followed",
     ADD_CARRIED : "add-carried",
     MOVE_CARRIED : "move-carried",
     REMOVE_CARRIED : "remove-carried",
@@ -453,7 +459,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             };
             let support = selectedElement.parent;
             Canvas.instance.putElementOnGlass(selectedElement, support, x, y);
-            selectedElement._draggedFrom && selectedElement._draggedFrom(support, this._dragSet);
+            selectedElement._draggedFrom(support, this._dragSet);
             selectedElement._fire(Events.DRAG_START);
         }
         this._drag = {
@@ -712,8 +718,9 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 }
                 else {
                     // ... when drop failed
+                    // Do it BEFORE element is reinserted in the DOM tree !!
                     selectedElement._revert(selectedElement._drag.origin);
-                    selectedElement._recover && selectedElement._recover(selectedElement._drag.origin);
+                    // Reinsert element in DOM tree
                     if (selectedElement._drag.origin._parent._add) {
                         selectedElement._drag.origin._parent._add(selectedElement);
                     }
@@ -721,6 +728,8 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                         selectedElement._root.detach();
                         selectedElement._parent = null;
                     }
+                    // Do it AFTER element is reinserted in the DOM tree !!
+                    selectedElement._recover && selectedElement._recover(selectedElement._drag.origin);
                 }
                 delete selectedElement._drag;
             }
@@ -734,14 +743,14 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                     let target = selectedElement.parent;
                     target._receiveDrop && target._receiveDrop(selectedElement, this._dragSet);
                     target._fire(Events.RECEIVE_DROP, selectedElement);
-                    selectedElement._droppedIn && !selectedElement._droppedIn(target, this._dragSet);
+                    selectedElement._droppedIn(target, this._dragSet);
                     selectedElement._fire(Events.DROPPED, target);
                 }
                 else {
                     let parent = selectedElement.parent;
                     parent._revertDrop && parent._revertDrop(selectedElement);
                     parent._fire(Events.REVERT_DROP, selectedElement);
-                    selectedElement._revertDroppedIn && !selectedElement._revertDroppedIn(parent);
+                    selectedElement._revertDroppedIn(parent);
                     selectedElement._fire(Events.REVERT_DROPPED, parent);
                 }
             }
@@ -1101,22 +1110,54 @@ export class ParentDragOperation extends DragOperation {
 makeNotCloneable(ParentDragOperation);
 makeSingleton(ParentDragOperation);
 
-export function ifWheelButton(element, x, y, event) {
+export function ifWheelButton() {
     return event.button === Buttons.WHEEL_BUTTON;
 }
 
-export function ifRightButton(element, x, y, event) {
+export function ifRightButton() {
     return event.button === Buttons.RIGHT_BUTTON;
 }
 
+export const StandardDragMode = {
+    SCROLL : "scroll",
+    SELECT_AREA : "select-area",
+    ELEMENT_DRAG : "element-drag"
+};
+Object.defineProperty(StandardDragMode, "mode", {
+    get() {
+        return Context.dragMode ? Context.dragMode : StandardDragMode.ELEMENT_DRAG;
+    },
+    set(mode) {
+        Context.dragMode = mode;
+    }
+});
+
+export function ifStandardDragMode(mode) {
+    return StandardDragMode.mode === mode;
+}
+
+export function ifScrollRequested() {
+    return ifStandardDragMode(StandardDragMode.SCROLL) ||
+        ifStandardDragMode(StandardDragMode.ELEMENT_DRAG) && ifWheelButton();
+}
+
+export function ifSelectAreaRequested() {
+    return ifStandardDragMode(StandardDragMode.SELECT_AREA) ||
+        ifStandardDragMode(StandardDragMode.ELEMENT_DRAG) && ifRightButton();
+}
+
+export function ifElementDragRequested() {
+    return ifStandardDragMode(StandardDragMode.ELEMENT_DRAG);
+}
+
 export let standardDrag = new DragSwitchOperation()
-    .add(ifWheelButton, DragScrollOperation.instance)
-    .add(ifRightButton, DragSelectAreaOperation.instance)
-    .add(always, new DragMoveSelectionOperation());
+    .add(ifScrollRequested, DragScrollOperation.instance)
+    .add(ifSelectAreaRequested, DragSelectAreaOperation.instance)
+    .add(ifElementDragRequested, new DragMoveSelectionOperation());
 
 export let areaDrag = new DragSwitchOperation()
-    .add(ifWheelButton, DragScrollOperation.instance)
-    .add(ifRightButton, DragSelectAreaOperation.instance);
+    .add(ifScrollRequested, DragScrollOperation.instance)
+    .add(always, DragSelectAreaOperation.instance);
 
 export class CanvasLayer {
 
@@ -1124,7 +1165,47 @@ export class CanvasLayer {
         this._canvas = canvas;
         this._root = new Group();
         this._root._owner = this;
+        this._mutationsObserver = this._createMutationObserver();
+        this.mutationsObserve();
         canvas.addObserver(this);
+    }
+
+    _processMutations(mutations) {
+        this.mutationsDisconnect();
+        this._adjustMutations(mutations);
+        this.mutationsObserve();
+    }
+
+    _createMutationObserver() {
+        let config = { childList: true, attributes: true, characterData: true, subtree:true };
+        return new MutationObserver((mutations)=>{
+            this._processMutations((mutations)=this._processMutations(mutations));
+        });
+    }
+
+    mutationsDisconnect() {
+        this._mutationsObserver.disconnect();
+    }
+
+    mutationsObserve() {
+        let config = { childList: true, attributes: true, characterData: true, subtree:true };
+        this._mutationsObserver.observe(this._root._node, config);
+    }
+
+    _adjustMutations(mutations) {
+        if (this._mutationsCallbacks) {
+            for (let callback of this._mutationsCallbacks) {
+                callback.call(this, mutations);
+            }
+        }
+    }
+
+    addMutationsCallback(callback) {
+        if (!this._mutationsCallbacks) {
+            this._mutationsCallbacks = new ESet();
+        }
+        this._mutationsCallbacks.add(callback);
+        return this;
     }
 
     _notified(source, type, ...values) {
@@ -1150,6 +1231,26 @@ export class CanvasLayer {
 
     global2local(x, y) {
         return this._root.global2local(x, y);
+    }
+
+    get clientWidth() {
+        return this._canvas.clientWidth;
+    }
+
+    get clientHeight() {
+        return this._canvas.clientHeight;
+    }
+
+    get matrix() {
+        return this._root.matrix.clone();
+    }
+
+    set matrix(matrix) {
+        this._root.matrix = matrix.clone();
+    }
+
+    get globalMatrix() {
+        return this._root.globalMatrix.clone();
     }
 
 }
@@ -1189,22 +1290,6 @@ export class BaseLayer extends CanvasLayer {
         this._root.matrix = matrix;
     }
 
-    get clientWidth() {
-        return this._canvas.clientWidth;
-    }
-
-    get clientHeight() {
-        return this._canvas.clientHeight;
-    }
-
-    get matrix() {
-        return this._root.matrix;
-    }
-
-    get globalMatrix() {
-        return this._root.globalMatrix;
-    }
-
     setSize(width, height) {
         this.width = width;
         this.height = height;
@@ -1240,10 +1325,6 @@ export class BaseLayer extends CanvasLayer {
         let newMatrix = Matrix.scale(scale, scale, x, y);
         this._adjustGeometry(newMatrix);
         this._fire(Events.ZOOM, newMatrix.scalex, newMatrix.x, newMatrix.y);
-    }
-
-    get matrix() {
-        return this._root.matrix.clone();
     }
 
     get zoom() {
@@ -1314,10 +1395,6 @@ export class ToolsLayer extends CanvasLayer {
         this._root.add(artifact);
     }
 
-    get matrix() {
-        return this._root.matrix.clone();
-    }
-
     bbox(artifact) {
         let parent = artifact.parent;
         this._root.add(artifact);
@@ -1338,9 +1415,13 @@ class GlassPedestal {
         this._support = support;
         this._root = new Group();
         if (support._root.id) this._root.id = support._root.id;
-        this._root.matrix = support._root.globalMatrix.multLeft(this._glass._root.globalMatrix.invert());
-        this._pedestals = new Map();
+        this._elementPedestals = new Map();
         this._initContent();
+    }
+
+    _addPedestal(pedestal) {
+        this._root.add(pedestal._root);
+        pedestal._root.matrix = pedestal._support._root.globalMatrix.multLeft(this._root.globalMatrix.invert());
     }
 
     get support() {
@@ -1353,15 +1434,15 @@ class GlassPedestal {
     }
 
     has(element) {
-        return !!this._pedestals.get(element);
+        return !!this._elementPedestals.get(element);
     }
 
     get empty() {
-        return this._pedestals.size === 0;
+        return this._elementPedestals.size === 0;
     }
 
     get elements() {
-        return new List(...this._pedestals.keys());
+        return new List(...this._elementPedestals.keys());
     }
 
     putElement(element, x, y) {
@@ -1369,7 +1450,7 @@ class GlassPedestal {
         let ematrix = this._root.globalMatrix;
         let dmatrix = ematrix.multLeft(this._root.globalMatrix.invert());
         let pedestal = new Group(dmatrix);
-        this._pedestals.set(element, pedestal);
+        this._elementPedestals.set(element, pedestal);
         this.putArtifact(pedestal, element);
         let invertedMatrix = pedestal.globalMatrix.invert();
         element.rotate && element.rotate(element.globalAngle+invertedMatrix.angle);
@@ -1386,7 +1467,7 @@ class GlassPedestal {
 
     moveElement(element, x, y) {
         let zoom = Canvas.instance.zoom;
-        let pedestal = this._pedestals.get(element);
+        let pedestal = this._elementPedestals.get(element);
         let invertedMatrix = pedestal.globalMatrix.invert();
         let fx = x-element._drag.dragX*zoom;
         let fy = y-element._drag.dragY*zoom;
@@ -1396,12 +1477,12 @@ class GlassPedestal {
     }
 
     removeElement(element) {
-        let pedestal = this._pedestals.get(element);
+        let pedestal = this._elementPedestals.get(element);
         let invertedMatrix = pedestal.globalMatrix.invert();
         element.rotate && element.rotate(element.globalAngle);
-        this._pedestals.delete(element);
+        this._elementPedestals.delete(element);
         this.removeArtifact(pedestal, element);
-        this.putArtifact(element._root, element);
+        //this.putArtifact(element._root, element);
     }
 
     putArtifact(artifact, element) {
@@ -1420,23 +1501,35 @@ export function makeMultiLayeredGlass(superClass, {layers}) {
 
     superClass.prototype._initContent = function() {
         this._content = new Group();
+        this._layers = {};
         for (let layer of layers) {
-            this[layer] = new Group();
-            this._content.add(this[layer]);
+            this._layers[layer] = new Group();
+            this._content.add(this._layers[layer]);
         }
         this._root.add(this._content);
     };
 
+    superClass.prototype._getLayer = function (element) {
+        let layer = element.getLayer && element.getLayer(this);
+        if (!layer) layer = defaultLayer;
+        if (!this._layers[layer]) layer = defaultLayer;
+        return layer;
+    };
+
+    superClass.prototype._addPedestal = function(pedestal) {
+        let layer = this._getLayer(pedestal._support);
+        this._layers[layer].add(pedestal._root);
+        this._root.matrix = this._support._root.globalMatrix.multLeft(pedestal._root.globalMatrix.invert());
+    };
+
     superClass.prototype.putArtifact = function(artifact, element) {
-        let layer = element && element.getLayer ? element.getLayer(this._support) : defaultLayer;
-        if (!this[layer]) layer = defaultLayer;
-        this[layer].add(artifact);
+        let layer = this._getLayer(element);
+        this._layers[layer].add(artifact);
     };
 
     superClass.prototype.removeArtifact = function(artifact, element) {
-        let layer = element && element.getLayer ? element.getLayer(this._support) : defaultLayer;
-        if (!this[layer]) layer = defaultLayer;
-        this[layer].remove(artifact);
+        let layer = this._getLayer(element);
+        this._layers[layer].remove(artifact);
     };
 
 }
@@ -1448,14 +1541,6 @@ export class GlassLayer extends CanvasLayer {
         this._initContent();
         this._elements = new Map();
         this._pedestals = new Map();
-    }
-
-    get matrix() {
-        return this._root.matrix;
-    }
-
-    set matrix(matrix) {
-        this._root.matrix = matrix;
     }
 
     _notified(source, type, ...values) {
@@ -1479,7 +1564,7 @@ export class GlassLayer extends CanvasLayer {
             return null;
         }
 
-        if (!support.canvasLayer || !(support.canvasLayer instanceof BaseLayer)) {
+        if (!support || !support.canvasLayer || !(support.canvasLayer instanceof BaseLayer)) {
             support = this._canvas._baseLayer;
         }
         let pedestal = this._pedestals.get(support);
@@ -1488,7 +1573,17 @@ export class GlassLayer extends CanvasLayer {
             if (!pedestalClass) pedestalClass = GlassPedestal;
             pedestal = new pedestalClass(this, support);
             this._pedestals.set(support, pedestal);
-            this._content.add(pedestal._root);
+            //////
+            let parentSupport = support.support;
+            let parentPedestal = parentSupport ? this._getPedestal(parentSupport) : null;
+            if (parentPedestal) {
+                parentPedestal._addPedestal(pedestal);
+            }
+            else {
+                this._content.add(pedestal._root);
+                pedestal._root.matrix = support._root.globalMatrix.multLeft(this._root.globalMatrix.invert());
+            }
+            //this._content.add(pedestal._root);
         }
         return pedestal;
     }
@@ -2033,6 +2128,11 @@ export class CopyPaste {
         }
     }
 
+    duplicateElement(element) {
+        let result = this.duplicateForCopy([element]);
+        return result[0];
+    }
+
     duplicateForPaste(elements) {
         let pasted = new ESet();
         let duplicata = new Map();
@@ -2046,6 +2146,7 @@ export class CopyPaste {
     }
 
     pasteModel() {
+        Memento.instance.open();
         let pasted = this.duplicateForPaste(this._models);
         Selection.instance.selectOnly(...pasted);
         let matrix = Canvas.instance.baseGlobalMatrix.invert();
@@ -2228,7 +2329,22 @@ export class Memento {
         this._undoTrx = new List();
         this._undoTrx.push(new Map());
         this._redoTrx = new List();
+        this._before = new List();
+        this._after = new List();
+        this._finalizer = new List();
         this._keyboardCommands();
+    }
+
+    addBefore(beforeFunction) {
+        this._before.add(beforeFunction);
+    }
+
+    addAfter(afterFunction) {
+        this._before.add(afterFunction);
+    }
+
+    addFinalizer(afterFunction) {
+        this._before.add(afterFunction);
     }
 
     _keyboardCommands() {
@@ -2293,6 +2409,33 @@ export class Memento {
         element._revert(memento);
     }
 
+    _rollback(trx) {
+        this.opened = false;
+        MutationObservers.instance.stop();
+        for (let before of this._before) {
+            before();
+        }
+        let inverse = new Map();
+        for (let element of trx.keys()) {
+            inverse.set(element, this.__memento(element));
+        }
+        for (let element of trx.keys()) {
+            this.__revert(element, trx.get(element));
+        }
+        for (let element of trx.keys()) {
+            element._recover && element._recover(trx.get(element));
+        }
+        for (let finalizer of this._finalizer) {
+            finalizer();
+        }
+        for (let after of this._before) {
+            after();
+        }
+        MutationObservers.instance.restart();
+        this.opened = true;
+        return inverse;
+    }
+
     undo() {
         if (!Context.isReadOnly()) {
             let current = this._undoTrx.pop();
@@ -2300,20 +2443,7 @@ export class Memento {
                 current = this._undoTrx.pop();
             }
             if (current) {
-                this.opened = false;
-                MutationObservers.instance.stop();
-                let redo = new Map();
-                for (let element of current.keys()) {
-                    redo.set(element, this.__memento(element));
-                }
-                for (let element of current.keys()) {
-                    this.__revert(element, current.get(element));
-                }
-                for (let element of current.keys()) {
-                    element._recover && element._recover(current.get(element));
-                }
-                this.opened = true;
-                MutationObservers.instance.restart();
+                let redo = this._rollback(current);
                 this._redoTrx.push(redo);
                 this._fire(Memento.events.UNDO);
             }
@@ -2326,23 +2456,10 @@ export class Memento {
         if (!Context.isReadOnly()) {
             let current = this._redoTrx.pop();
             if (current) {
-                this.opened = false;
-                MutationObservers.instance.stop();
-                let undo = new Map();
-                for (let element of current.keys()) {
-                    undo.set(element, this.__memento(element));
-                }
-                for (let element of current.keys()) {
-                    this.__revert(element, current.get(element));
-                }
-                for (let element of current.keys()) {
-                    element._recover && element._recover(current.get(element));
-                }
+                let undo = this._rollback(current);
                 if (this._current().size === 0) {
                     this._undoTrx.pop();
                 }
-                this.opened = true;
-                MutationObservers.instance.restart();
                 this._undoTrx.push(undo);
                 this._fire(Memento.events.REDO);
             }

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <title> selection </title>
+  <g id="icon">
+    <rect width="40" height="40" rx="1.6" fill="#a3a3a3"/>
+    <polygon points="28.57 11.43 11.43 18.3 17.25 21.21 13.18 25.28 15 27.1 18.98 23.13 21.7 28.57 28.57 11.43" fill="#fff"/>
+  </g>
+</svg>

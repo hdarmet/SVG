@@ -2,13 +2,13 @@ import {
     ColorChooserMenuOption, TextToggleMenuOption, Tools
 } from "./tools.js";
 import {
-    AlignmentBaseline, Attrs, collectProperties, Colors, Group, Rect, Text, TextAnchor, Translation, Visibility
+    AlignmentBaseline, Attrs, collectProperties, Colors, Group, Rect, Text, TextAnchor, Translation, Visibility, win
 } from "./graphics.js";
 import {
-    Memento
+    Memento, CloneableObject, Events, Canvas, CopyPaste
 } from "./toolkit.js";
 import {
-    isNumber
+    isNumber, getPropertyDescriptor
 } from "./misc.js";
 import {
     Matrix
@@ -320,14 +320,12 @@ export function makeHighlightable(superClass) {
         return this;
     };
 
-//    if (!superClass.prototype.hasOwnProperty("highlightable")) {
-        Object.defineProperty(superClass.prototype, "highlightable", {
-            configurable: true,
-            get() {
-                return true;
-            }
-        });
-//    }
+    Object.defineProperty(superClass.prototype, "highlightable", {
+        configurable: true,
+        get() {
+            return true;
+        }
+    });
 
     superClass.prototype.showHighlight = function () {
         this._highlightShape._root.visibility = null;
@@ -581,3 +579,379 @@ MarksDecoration.RIGHT = "right";
 MarksDecoration.TOP = "top";
 MarksDecoration.BOTTOM = "bottom";
 
+function adjustFollowers(canvasLayer) {
+    let followers = canvasLayer._followers;
+    if (followers) {
+        for (let follower of followers) {
+            let record = follower._followed.record;
+            let followed = follower._followed.element;
+            let targetGlobal = followed.global.mult(record.matrix);
+            let matrix = follower.support.global.invert().mult(targetGlobal);
+            if (!matrix.equals(follower.matrix)) {
+                follower._matrix = matrix;
+            }
+        }
+    }
+}
+
+function adjustAllFollowers() {
+    adjustFollowers(Canvas.instance.baseLayer);
+    adjustFollowers(Canvas.instance.glassLayer);
+}
+
+function updateFollowers(canvasLayer) {
+    let followers = canvasLayer._followers;
+    if (followers) {
+        for (let follower of followers) {
+            let record = follower._followed.record;
+            let followed = follower._followed.element;
+            let targetGlobal = followed.global.mult(record.matrix);
+            let matrix = follower.support.global.invert().mult(targetGlobal);
+            if (!matrix.equals(follower.matrix)) {
+                follower.matrix = matrix;
+            }
+        }
+    }
+}
+
+function baseFollowersUpdater() {
+    updateFollowers(Canvas.instance.baseLayer);
+}
+
+function glassFollowersUpdater() {
+    updateFollowers(Canvas.instance.glassLayer);
+}
+
+export function makeFollowed(superClass) {
+
+    Object.defineProperty(superClass.prototype, "isFollowed", {
+        configurable:true,
+        get() {
+            return true;
+        }
+    });
+
+    Object.defineProperty(superClass.prototype, "followers", {
+        configurable:true,
+        get() {
+            return this._followers ? this._followers.keys() : [];
+        }
+    });
+
+    superClass.prototype.addFollower = function(element) {
+        if (element.isFollower) {
+            Memento.register(this);
+            Memento.register(element);
+            if (element.followed) {
+                Memento.register(element.followed);
+            }
+            this._addFollower(element);
+            this._fire(Events.ADD_FOLLOWER, element);
+            element._fire(Events.ADD_FOLLOWER, this);
+        }
+    };
+
+    superClass.prototype.moveFollower = function(element) {
+        if (element.isFollower) {
+            Memento.register(this);
+            Memento.register(element);
+            this._moveFollower(element);
+            this._fire(Events.MOVE_FOLLOWER, element);
+            element._fire(Events.MOVE_FOLLOWER, this);
+        }
+    };
+
+    superClass.prototype.removeFollower = function(element) {
+        if (element.isFollower) {
+            Memento.register(this);
+            Memento.register(element);
+            this._removeFollower(element);
+            this._fire(Events.REMOVE_FOLLOWER, element);
+            element._fire(Events.REMOVE_FOLLOWER, this);
+        }
+    };
+
+    superClass.prototype.__addFollower = function(element, record) {
+        if (!this._followers) {
+            this._followers = new Map();
+        }
+        this._followers.set(element, record);
+    };
+
+    superClass.prototype.__moveFollower = function(element, record) {
+        this._followers.set(element, record);
+    };
+
+    superClass.prototype.__removeFollower = function(element) {
+        if (this._followers) {
+            this._followers.delete(element);
+            if (!this._followers.size) {
+                delete this._followers;
+            }
+        }
+    };
+
+    superClass.prototype.isFollowedBy = function(element) {
+        return this._followers && this._followers.has(element);
+    };
+
+    superClass.prototype._addFollower = function(element) {
+        let record = new CloneableObject({
+            matrix: this.global.invert().mult(element.global)
+        });
+        this.__addFollower(element, record);
+        if (element.followed) {
+            element.followed.__removeFollower(element);
+        }
+        element.__setFollowed(this, record);
+    };
+
+    superClass.prototype._moveFollower = function(element) {
+        let record = new CloneableObject({
+            matrix: this.global.invert().mult(element.global)
+        });
+        this.__moveFollower(element, record);
+        element.__moveFollowed(this, record);
+    };
+
+    superClass.prototype._removeFollower = function(element) {
+        this.__removeFollower(element);
+        element.__setFollowed(null);
+    };
+
+    superClass.prototype._clearFollowers = function() {
+        delete this._followers;
+    };
+
+    let getExtension = superClass.prototype.getExtension;
+    superClass.prototype.getExtension = function(extension) {
+        let elemExtension = getExtension ? getExtension.call(this, extension) : new ESet();
+        extension = extension ? extension.merge(elemExtension) : elemExtension;
+        if (this._followers) {
+            for (let element of this._followers.keys()) {
+                if (!extension.has(element)) {
+                    extension.add(element);
+                    if (element.getExtension) {
+                        for (let child of element.getExtension(extension)) {
+                            extension.add(child);
+                        }
+                    }
+                }
+            }
+        }
+        return extension
+    };
+
+    let cancelDrop = superClass.prototype._cancelDrop;
+    superClass.prototype._cancelDrop = function(dragOperation) {
+        cancelDrop && cancelDrop.call(this, dragOperation);
+        if (this._followers) {
+            for (let element of this._followers.keys()) {
+                if (!dragOperation.dropCancelled(element)) {
+                    dragOperation.cancelDrop(element);
+                }
+            }
+        }
+    };
+
+    let cloned = superClass.prototype._cloned;
+    superClass.prototype._cloned = function (copy, duplicata) {
+        cloned && cloned.call(this, copy, duplicata);
+        if (this._followers) {
+            for (let element of this._followers.keys()) {
+                let childCopy = duplicata.get(element);
+                let record = this._followers.get(element);
+                copy.__addFollower(childCopy, record);
+            }
+        }
+    };
+
+    let revertDroppedIn = superClass.prototype._revertDroppedIn;
+    superClass.prototype._revertDroppedIn = function () {
+        revertDroppedIn && revertDroppedIn.call(this);
+        if (this._followers) {
+            for (let element of this._followers.keys()) {
+                let record = this._followers.get(element);
+                element.__setFollowed(this, record);
+            }
+        }
+    };
+
+    let superDelete = superClass.prototype.delete;
+    superClass.prototype.delete = function() {
+        let result = superDelete.call(this);
+        if (this._followers) {
+            for (let element of this._followers.keys()) {
+                this.removeFollower(element);
+            }
+        }
+        return result;
+    };
+
+    let superMemento = superClass.prototype._memento;
+    superClass.prototype._memento = function () {
+        let memento = superMemento.call(this);
+        if (this._followers) {
+            memento._followers = new Map(this._followers);
+        }
+        return memento;
+    };
+
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function (memento) {
+        superRevert.call(this, memento);
+        if (memento._followers) {
+            this._followers = new Map(memento._followers);
+        }
+        else {
+            delete this._followers;
+        }
+        return this;
+    };
+
+    win.setTimeout(()=>{
+        Memento.instance.addFinalizer(adjustAllFollowers);
+        Canvas.instance.baseLayer.addMutationsCallback(baseFollowersUpdater);
+        Canvas.instance.glassLayer.addMutationsCallback(glassFollowersUpdater);
+    }, 0);
+
+    return superClass;
+}
+
+export function makeFollower(superClass) {
+
+    Object.defineProperty(superClass.prototype, "isFollower", {
+        configurable:true,
+        get() {
+            return true;
+        }
+    });
+
+    Object.defineProperty(superClass.prototype, "followed", {
+        configurable:true,
+        get() {
+            return this._followed ? this._followed.element : undefined;
+        }
+    });
+
+    superClass.prototype._registerFollower = function(canvasLayer) {
+        this._unregisterFollower();
+        if (!canvasLayer._followers) {
+            canvasLayer._followers = new ESet();
+        }
+        canvasLayer._followers.add(this);
+        this._followed.layer = canvasLayer;
+    };
+
+    superClass.prototype.__unregisterFollower = function(canvasLayer) {
+        if (canvasLayer && canvasLayer._followers) {
+            canvasLayer._followers.delete(this);
+            if (canvasLayer._followers.size===0) {
+                delete canvasLayer._followers;
+            }
+            delete this._followed.layer;
+        }
+    };
+
+    superClass.prototype._unregisterFollower = function() {
+        let canvasLayer = this._followed ? this._followed.layer : null;
+        this.__unregisterFollower(canvasLayer);
+    };
+
+    superClass.prototype.__setFollowed = function(element, record) {
+        if (element) {
+            this._followed = new CloneableObject({element, record});
+            this._registerFollower(this.canvasLayer);
+        }
+        else if (this._followed) {
+            this._unregisterFollower();
+            delete this._followed;
+        }
+    };
+
+    superClass.prototype.__moveFollowed = function(element, record) {
+        this._followed = new CloneableObject({element:this.follow, record});
+    };
+
+    superClass.prototype.follow = function(support) {
+        return this._followed.element === support;
+    };
+
+    let draggedFrom = superClass.prototype._draggedFrom;
+    superClass.prototype._draggedFrom = function(support, dragSet) {
+        draggedFrom.call(this, support, dragSet);
+        if (this._followed) {
+            if (!dragSet.has(this._followed.element)) {
+                this._followed.element.removeFollower(this);
+            }
+            else {
+                this._registerFollower(Canvas.instance.glassLayer);
+            }
+        }
+    };
+
+    let droppedIn = superClass.prototype._droppedIn;
+    superClass.prototype._droppedIn = function(support, dragSet) {
+        droppedIn.call(this, support, dragSet);
+        if (this._followed) {
+            this._registerFollower(Canvas.instance.baseLayer);
+        }
+    };
+
+    let revertDroppedIn = superClass.prototype._revertDroppedIn;
+    superClass.prototype._revertDroppedIn = function () {
+        revertDroppedIn.call(this);
+        if (this._followed) {
+            this._followed.element.__addFollower(this, this._followed.record);
+        }
+    };
+
+    let cloned = superClass.prototype._cloned;
+    superClass.prototype._cloned = function (copy, duplicata) {
+        cloned && cloned.call(this, copy, duplicata);
+        if (this._followed) {
+            let childCopy = duplicata.get(this._followed.element);
+            let record = CopyPaste.clone(this._followed.record, duplicata);
+            copy.__addFollower(childCopy, record);
+        }
+    };
+
+    let superDelete = superClass.prototype.delete;
+    superClass.prototype.delete = function() {
+        let result = superDelete.call(this);
+        if (this._followed) {
+            this._followed.element.removeFollower(this);
+        }
+        return result;
+    };
+
+    let superMemento = superClass.prototype._memento;
+    superClass.prototype._memento = function () {
+        let memento = superMemento.call(this);
+        if (this._followed) {
+            memento._followed = this._followed;
+        }
+        return memento;
+    };
+
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function (memento) {
+        superRevert.call(this, memento);
+        if (this._followed) {
+            this.__unregisterFollower(Canvas.instance.baseLayer);
+        }
+        this._followed = memento._followed;
+        return this;
+    };
+
+    let superRecover = superClass.prototype._recover;
+    superClass.prototype._recover = function (memento) {
+        superRecover.call(this, memento);
+        if (this.parent && memento._followed) {
+            this._registerFollower(Canvas.instance.baseLayer);
+        }
+        return this;
+    };
+
+    return superClass;
+}
