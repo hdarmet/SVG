@@ -91,7 +91,6 @@ export let win = {
     }
 };
 
-
 export function localOffset(svgNode) {
     let box = dom.getBoundingClientRect(svgNode._node);
     let body = doc.body;
@@ -823,7 +822,6 @@ let ref = 0;
 
 export class SVGElement {
 
-    // Testé
     constructor(type) {
         this.node(type);
         this._ref = ref++;
@@ -936,6 +934,56 @@ export class SVGElement {
         return this._parent && this._parent.inDOM;
     }
 
+    _add(element) {
+        this._node.appendChild(element._node);
+    }
+
+    _reset(element) {
+        this._node.replaceChild(element._node, element._old);
+    }
+
+    _replace(oldElement, element) {
+        this._node.replaceChild(element._node, oldElement._node);
+    }
+
+    _insert(beforeElement, element) {
+        this._node.insertBefore(element._node, beforeElement._node);
+    }
+
+    _remove(element) {
+        this._node.removeChild(element._node);
+    }
+
+    _clear() {
+        this._node.innerHTML = '';
+    }
+
+    _register() {
+        if (this._svg !== this._parent._svg) {
+            this._svg = this._parent._svg;
+            if (this._children) {
+                for (let child of this._children) {
+                    child._register();
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    _unregister() {
+        if (this._svg) {
+            delete this._svg;
+            if (this._children) {
+                for (let child of this._children) {
+                    child._unregister();
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
     add(element) {
         element.detach();
         if (!this._children) {
@@ -943,8 +991,9 @@ export class SVGElement {
         }
         this._children.add(element);
         matrixOp++;
-        this._node.appendChild(element._node);
+        this._add(element);
         element._parent = this;
+        element._register();
         return this;
     }
 
@@ -953,7 +1002,7 @@ export class SVGElement {
             throw "Not a child."
         }
         matrixOp++;
-        this._node.replaceChild(element._node, element._old);
+        this._reset(element);
         return this;
     }
 
@@ -965,9 +1014,11 @@ export class SVGElement {
             element.detach();
             this._children.replace(oldElement, element);
             matrixOp++;
-            this._node.replaceChild(element._node, oldElement._node);
+            this._replace(oldElement, element);
             oldElement._parent = null;
             element._parent = this;
+            oldElement._unregister();
+            element._register();
         }
         return this;
     }
@@ -980,8 +1031,9 @@ export class SVGElement {
             element.detach();
             this._children.insert(beforeElement, element);
             matrixOp++;
-            this._node.insertBefore(element._node, beforeElement._node);
+            this._insert(beforeElement, element);
             element._parent = this;
+            element._register(this);
         }
         return this;
     }
@@ -990,8 +1042,9 @@ export class SVGElement {
         if (this._children) {
             this._children.remove(element);
             matrixOp++;
-            this._node.removeChild(element._node);
+            this._remove(element);
             element._parent = null;
+            element._unregister();
         }
         return this;
     }
@@ -1004,10 +1057,11 @@ export class SVGElement {
         if (this._children) {
             for (let child of this._children) {
                 child._parent = null;
+                child._unregister();
             }
             this._children.clear();
             matrixOp++;
-            this._node.innerHTML = '';
+            this._clear();
         }
         return this;
     }
@@ -1142,6 +1196,7 @@ export class SVGElement {
 
     detach() {
         if (this._parent) {
+            this._unregister();
             return this._parent.remove(this);
         }
         return null;
@@ -1154,6 +1209,7 @@ export class SVGElement {
 
     memento() {
         let memento = {_attrs:{}};
+        memento._svg = this._svg;
         memento._target = this;
         for (let property in this._attrs) {
             if (this._attrs.hasOwnProperty(property)) {
@@ -1178,11 +1234,27 @@ export class SVGElement {
 
     revert(memento) {
         this.attrs(memento._attrs);
+        this._svg = memento._svg;
         if (memento._children) {
             this.clear();
             for (let record of memento._children) {
-                this.add(record._target);
-                record._target.revert(record);
+                let element = record._target;
+                element.revert(record);
+                let parentNode = element._node.parentNode;
+                if (parentNode) parentNode.removeChild(element._node);
+                if (!this._children) {
+                    this._children = new List();
+                }
+                this._children.add(element);
+                let z_index = element.z_index;
+                if (this._svg && element._zOrder !== this._zOrder) {
+                    this._svg._putOnLayer(element, element._zOrder);
+                }
+                else {
+                    this._add(element);
+                }
+                matrixOp++;
+                element._parent = this;
             }
         }
         this._dnd = memento._dnd;
@@ -1280,23 +1352,133 @@ export class Defs extends SVGElement {
     }
 }
 
+class ZLayer {
+
+    constructor(index, svg, beforeLayer) {
+        this._index = index;
+        this._node = doc.createElementNS(SVG_NS, "g");
+        this._node._owner = svg;
+        if (beforeLayer) {
+            svg._node.insertBefore(this._node, beforeLayer._node);
+        }
+        else {
+            svg._node.appendChild(this._node);
+        }
+        this._children = new List();
+    }
+
+    update() {
+        if (this._index) {
+            for (let element of this._children) {
+                if (element._parent) {
+                    element._zMatrix = element._parent.globalMatrix;
+                }
+            }
+        }
+    }
+
+    add(element) {
+        this._node.appendChild(element._node);
+        this._children.add(element);
+    }
+
+    reset(element) {
+        this._node.replaceChild(element._node, element._old);
+    }
+
+    replace(oldElement, element) {
+        this._node.replaceChild(element.node, oldElement._node);
+        this._children.replace(oldElement, element);
+    }
+
+    insert(beforeElement, element) {
+        this._node.insertChildBefore(element.node, beforeElement._node);
+        this._children.insert(beforeElement, element);
+    }
+
+    remove(element) {
+        this._node.removeChild(element._node);
+        this._children.remove(element);
+    }
+
+    get empty() {
+        return !this._children.length;
+    }
+
+}
+
 export class Svg extends SVGElement {
-    // Testé
+
     constructor(width, height) {
         super("svg");
         this.attr("xmlns", SVG_NS);
         this.attr("xmlns:xlink", XLINK_NS);
         width && (this.width = width);
         height && (this.height = height);
+        this._layers = new List();
+        this._createZLayer(0);
         this.defs = new Defs();
-        this.add(this.defs);
+        this._node.appendChild(this.defs._node);
+        this.defs._parent = this;
+        this._svg = this;
+        this._mutationObserver = new MutationObserver(()=>this._updateLayers());
+        this._mutationConfig = { childList: true, attributes: true, subtree:true };
+        this._mutationObserver.observe(this._node, this._mutationConfig);
     }
 
-    get globalMatrix() {
-        return new Matrix();
+    _updateLayers() {
+        this._mutationObserver.disconnect();
+        for (let layer of this._layers) {
+            layer.update();
+        }
+        this._mutationObserver.observe(this._node, this._mutationConfig);
     }
 
-    // Testé
+    _createZLayer(index) {
+        let beforeLayer;
+        if (index<this._layers.length) {
+            for (let next in this._layers) {
+                if (next > index) {
+                    beforeLayer = this._layers[next];
+                }
+            }
+        }
+        let layer = new ZLayer(index, this, beforeLayer);
+        layer._parent = this;
+        this._layers[index] = layer;
+    }
+
+    get _zOrder() {
+        return 0;
+    }
+
+    _putOnLayer(element, index) {
+        if (!this._layers[index]) {
+            this._createZLayer(index);
+        }
+        this._layers[index].add(element);
+        element._zMatrix = element._parent ? element._parent.globalMatrix : null;
+    }
+
+    _removeFromLayer(element, index) {
+        console.assert(this._layers[index]);
+        this._layers[index].remove(element);
+        if (element._parent) {
+            element._parent._node.appendChild(element._node); // TODO reestablish natural order
+        }
+        console.assert(this._layers[index]);
+        if (this._layers[index].empty) {
+            delete this._layers[index];
+        }
+        element._zMatrix = null;
+    }
+
+        /*
+        get globalMatrix() {
+            return new Matrix();
+        }
+        */
+
     attach(node) {
         matrixOp++;
         node.appendChild(this._node);
@@ -1307,7 +1489,6 @@ export class Svg extends SVGElement {
         return true;
     }
 
-    // Testé
     addDef(element) {
         this.defs.add(element);
         return this;
@@ -1318,19 +1499,36 @@ export class Svg extends SVGElement {
         return this;
     }
 
-    // Testé
-    clear() {
-        super.clear();
-        this.add(this.defs);
-        return this;
-    }
-
     get clientWidth() {
         return dom.clientWidth(this._node);
     }
 
     get clientHeight() {
         return dom.clientHeight(this._node);
+    }
+
+    _add(element) {
+        this._layers[0].add(element);
+    }
+
+    _reset(element) {
+        this._layers[0].reset(element, element);
+    }
+
+    _replace(oldElement, element) {
+        this._layers[0].replace(element, oldElement);
+    }
+
+    _insert(beforeElement, element) {
+        this._layers[0].insert(element, beforeElement);
+    }
+
+    _remove(element) {
+        this._layers[0].remove(element);
+    }
+
+    _clear() {
+        this._layers[0]._node.innerHTML = '';
     }
 
 }
@@ -1399,15 +1597,34 @@ export class SVGCoreElement extends SVGElement {
         return matrix;
     }
 
+    set _zMatrix(zMatrix) {
+        matrixOp++;
+        if (zMatrix) {
+            this.__zMatrix = zMatrix;
+        }
+        else {
+            delete this.__zMatrix;
+        }
+        let matrix = this._matrix;
+        if (matrix) {
+            let fMatrix = this.__zMatrix ? this.__zMatrix.mult(matrix) : matrix;
+            this.attr(Attrs.TRANSFORM, fMatrix.toString());
+        }
+        else {
+            this.attr(Attrs.TRANSFORM, this.__zMatrix);
+        }
+    }
+
     set _matrix(matrix) {
         matrixOp++;
         if (matrix) {
             this._attrs.matrix = matrix;
-            this.attr(Attrs.TRANSFORM, matrix.toString());
+            let fMatrix = this.__zMatrix ? this.__zMatrix.mult(matrix) : matrix;
+            this.attr(Attrs.TRANSFORM, fMatrix.toString());
         }
         else {
             delete this._attrs.matrix;
-            this.attr(Attrs.TRANSFORM, null);
+            this.attr(Attrs.TRANSFORM, this.__zMatrix);
         }
     }
 
@@ -1417,8 +1634,8 @@ export class SVGCoreElement extends SVGElement {
 
     get globalMatrix() {
         if (!this._globalMatrix || this._globalMatrix.op!==matrixOp) {
-            //let globalMatrix = dom.getCTM(this._node);
-            let globalMatrix = this._parent ? this._matrix ? this._parent.globalMatrix.mult(this._matrix) : this._parent.globalMatrix : this.matrix;
+            let globalMatrix = dom.getCTM(this._node);
+            //let globalMatrix = this._parent ? this._matrix ? this._parent.globalMatrix.mult(this._matrix) : this._parent.globalMatrix : this.matrix;
             this._globalMatrix = new Matrix(
                 globalMatrix.a, globalMatrix.b,
                 globalMatrix.c, globalMatrix.d,
@@ -1426,6 +1643,47 @@ export class SVGCoreElement extends SVGElement {
             this._globalMatrix.op = matrixOp;
         }
         return this._globalMatrix;
+    }
+
+    get z_index() {
+        return this._attrs.z_index;
+    }
+
+    set z_index(zIndex) {
+        let zOrder = this._zOrder;
+        if (this._zOrder !== zIndex) {
+            // detach from z layer
+        }
+        return this._attrs.z_index = zIndex;
+
+    }
+
+    _register() {
+        if (this._svg !== this._parent._svg) {
+            let z_index = this.z_index;
+            this._zOrder = z_index !== undefined ? z_index : this._parent._zOrder;
+            if (this._parent._svg && this._parent && this._zOrder !== this._parent._zOrder) {
+                this._parent._node.removeChild(this._node);
+                this._parent._svg._putOnLayer(this, this._zOrder);
+            }
+            super._register();
+            return true;
+        }
+        return false;
+    }
+
+    _unregister() {
+        if (this._svg) {
+            let svg = this._svg;
+            super._unregister();
+            if (svg && this._parent && this._zOrder !== this._parent._zOrder) {
+                svg._removeFromLayer(this, this._zOrder);
+                this._parent._node.appendChild(this._node);
+            }
+            delete this._zOrder;
+            return true;
+        }
+        return false;
     }
 
     get bbox() {
@@ -1472,6 +1730,22 @@ export class SVGCoreElement extends SVGElement {
 
     set cursor(cursor) {
         this._node.style.cursor = cursor;
+    }
+
+    memento() {
+        let memento = super.memento();
+        memento._zOrder = this._zOrder;
+        return memento;
+    }
+
+    revert(memento) {
+        if (memento._zOrder!==undefined) {
+            this._zOrder = memento._zOrder;
+        }
+        else {
+            delete this._zOrder;
+        }
+        super.revert(memento);
     }
 }
 

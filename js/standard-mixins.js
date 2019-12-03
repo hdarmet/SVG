@@ -5,7 +5,7 @@ import {
     AlignmentBaseline, Attrs, collectProperties, Colors, Group, Rect, Text, TextAnchor, Translation, Visibility, win
 } from "./graphics.js";
 import {
-    Memento, CloneableObject, Events, Canvas, CopyPaste
+    Context, Memento, CloneableObject, Events, Canvas, CopyPaste
 } from "./toolkit.js";
 import {
     isNumber, getPropertyDescriptor
@@ -809,11 +809,11 @@ export function makeFollowed(superClass) {
         return this;
     };
 
-    win.setTimeout(()=>{
+    Context.addStarter(()=>{
         Memento.instance.addFinalizer(adjustAllFollowers);
         Canvas.instance.baseLayer.addMutationsCallback(baseFollowersUpdater);
         Canvas.instance.glassLayer.addMutationsCallback(glassFollowersUpdater);
-    }, 0);
+    });
 
     return superClass;
 }

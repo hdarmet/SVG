@@ -281,24 +281,13 @@ class DIAMItem extends BoardElement {
 
     getDropTarget(target) {
         if (FreePositioningMode.mode || this.followed) {
-            this.__free = target.selectable;
             return Context.table;
         }
         return target;
     }
 
-    _droppedIn(...args) {
-        super._droppedIn(...args);
-        delete this.__free;
-    }
-
-    _revertDroppedIn(...args) {
-        super._revertDroppedIn(...args);
-        delete this.__free;
-    }
-
     getLayer() {
-        if (this.__free || this.followed) return DIAMLayers.FREE;
+        if (FreePositioningMode.mode || this.followed) return DIAMLayers.FREE;
     }
 }
 makePartsOwner(DIAMItem);
@@ -323,6 +312,12 @@ class DIAMSupport extends BoardElement {
     }
 
     _createContextMenu() {}
+
+    /*
+    _acceptDrop(element, dragSet) {
+        if (FreePositioningMode.mode) return true;
+    }
+    */
 
 }
 makeFramed(DIAMSupport);
@@ -538,7 +533,7 @@ class DIAMCover extends DIAMSupport {
     }
 
     _acceptDrop(element, dragSet) {
-        return this._acceptElement(element);
+        return /*super._acceptDrop(element, dragSet) ||*/ this._acceptElement(element);
     }
 
     showRealistic() {
@@ -854,9 +849,9 @@ class DIAMFixing extends DIAMItem {
         base.add(new Rect(-DIAMFixing.WIDTH / 2, -DIAMFixing.HEIGHT / 2, DIAMFixing.WIDTH, DIAMFixing.HEIGHT)
             .attrs({ stroke: Colors.INHERIT, fill: Colors.WHITE }));
         base.add(new Circle(-DIAMFixing.WIDTH / 4, 0, DIAMFixing.DEVICE_RADIUS)
-            .attrs({ stroke: Colors.BLACK, fill: Colors.WHITE }));
+            .attrs({ stroke: Colors.BLACK, fill: Colors.WHITE,  z_index: 1 }));
         base.add(new Circle(DIAMFixing.WIDTH / 4, 0, DIAMFixing.DEVICE_RADIUS)
-            .attrs({ stroke: Colors.BLACK, fill: Colors.WHITE }));
+            .attrs({ stroke: Colors.BLACK, fill: Colors.WHITE, z_index: 1 }));
         return base;
     }
 }
@@ -1784,7 +1779,7 @@ class DIAMCell extends BoardElement {
     }
 
     _acceptDrop(element, dragSet) {
-        return this._acceptElement(element);
+        return /*super._acceptDrop(element, dragSet) ||*/ this._acceptElement(element);
     }
 
     _receiveDrop(element) {
@@ -1948,13 +1943,19 @@ class DIAMTable extends BoardTable {
         super(width, height, backgroundColor);
     }
 
-    _receiveDrop(element) {
-        if (element.__free) {
-            element.__free.addFollower(element);
+    _receiveDrop(element, dragSet, initialTarget) {
+        if (FreePositioningMode.mode) {
+            if (initialTarget.selectable && initialTarget.selectable.addFollower) {
+                initialTarget.selectable.addFollower(element);
+            }
+            else {
+                this.addFollower(element);
+            }
         }
     }
 }
 makeContainerMultiLayered(DIAMTable, TABLE_LAYERS_DEFINITION);
+makeFollowed(DIAMTable);
 
 function createTable() {
     setLayeredGlassStrategy(BoardTable, TABLE_LAYERS_DEFINITION);
@@ -2457,6 +2458,7 @@ function main() {
     setShortcuts();
     defineLayers();
     Context.memento.opened = true;
+    Context.start();
 }
 
 main();

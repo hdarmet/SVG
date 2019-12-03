@@ -19,20 +19,38 @@ import {
 } from "./svgtools.js";
 
 export const Context = {
-    canvas : null,
+    //canvas : null,
     selectPredicate : null,
-    memento : null,
-    selection : null,
+    //memento : null,
+    //selection : null,
     readOnly : 0,
     freezed : 0,
+
     isReadOnly() {
         return this.readOnly;
+    },
+    _starters : new List(),
+    addStarter(starter) {
+        this._starters.add(starter);
+    },
+    start() {
+        for (let starter of this._starters) {
+            starter.call(this);
+        }
+    },
+    _stoppers : new List(),
+    addStopper(starter) {
+        this._stoppers.add(starter);
+    },
+    stop() {
+        for (let stopper of this.stoppers) {
+            stopper.call(this);
+        }
     }
 };
 
 export const Cloning = {
-    // Default value, used even if not defined :)
-    DEEP:0,
+    DEEP:0, // Default value, used even if not defined :)
     SHALLOW:1,
     NONE:2
 };
@@ -458,8 +476,9 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 validY: gy
             };
             let support = selectedElement.parent;
-            Canvas.instance.putElementOnGlass(selectedElement, support, x, y);
             selectedElement._draggedFrom(support, this._dragSet);
+            // IMPORTANT ! Puts element on Glass AFTER eventual updates made by _draggedFrom
+            Canvas.instance.putElementOnGlass(selectedElement, support, x, y);
             selectedElement._fire(Events.DRAG_START);
         }
         this._drag = {
@@ -512,8 +531,9 @@ export class DragMoveSelectionOperation extends DragElementOperation {
      * Move an element still in the glass.
      * <p> The main problem solved here is the fact that an element can "switch" support. Each time an element hovers
      * another one (not dragged), it have to change support.
-     * <p> targets and supports are the same objects : before becoming a support, an element on the board is a target
+     * <p> Targets and supports are the same objects : before becoming a support, an element on the board is a target
      * (target to be support :) ).
+     * <p> Dragged element may react by implementing the _hoverOn method.
      * @param element element to drag
      * @param x mouse coordinate on X
      * @param y mouse coordinate on Y
@@ -535,11 +555,15 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             if (!target) {
                 Canvas.instance.moveElementOnGlass(selectedElement, null,
                     selectedElement._drag.lastX, selectedElement._drag.lastY);
-            } else /* support changed */ if (target!==selectedElement.parent) {
-                Canvas.instance.moveElementOnGlass(selectedElement, target, x, y);
+            } else /* support changed */ if (target.effective!==selectedElement.parent) {
+                Canvas.instance.moveElementOnGlass(selectedElement, target.effective, x, y);
                 selectedElement._drag.lastX = selectedElement.gx;
                 selectedElement._drag.lastY = selectedElement.gy;
             }
+        }
+        for (let selectedElement of this._dragSet) {
+            let target = targets.get(selectedElement);
+            selectedElement._hoverOn && selectedElement._hoverOn(target.effective, dragSet, target.initial);
             selectedElement._fire(Events.DRAG_MOVE);
         }
         this._drag.lastX = x;
@@ -563,7 +587,11 @@ export class DragMoveSelectionOperation extends DragElementOperation {
      * correctly processed). The second pass is much, much less efficient (x10 at least).
      * <p> Positions are computed before glass layer is hidden in order to get targets when elements are on glass
      * (dragMove)
-     * @param elements set of elements on the glass
+     * @param elements set of elements on the glass. Note that a target record is an object containing two refences:
+     * <ul>
+     *     <li> the "effective" target : the one selected after all processing.
+     *     <li> the "initial" target : the one the is pointed by the mouse.
+     * </ul>
      */
     getTargets(elements) {
 
@@ -609,7 +637,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 outside.set(element, {gx, gy});
             }
             else {
-                targets.set(element, getTarget(element, target.owner));
+                targets.set(element, {initial:target.owner, effective:getTarget(element, target.owner)});
             }
         }
         // For those elements which positions are not on the visible area we have to move viewport position so the
@@ -619,7 +647,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             Canvas.instance._adjustContent(-gx, -gy);
             let target = Canvas.instance.getElementFromPoint(0, 0);
             if (target && target.owner) {
-                targets.set(element, getTarget(element, target.owner));
+                targets.set(element, {initial:target.owner, effective:getTarget(element, target.owner)});
             }
         }
         // Revert viewport and glass
@@ -672,10 +700,10 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 let target = targets.get(selectedElement);
                 // Can be cancelled before processed due to another element action
                 if (!this.dropCancelled(selectedElement)) {
-                    if (target && target.content && getCanvasLayer(target._root) instanceof BaseLayer) {
-                        let { x, y } = computePosition(selectedElement._root, target.content);
+                    if (target && target.effective.content && getCanvasLayer(target.effective._root) instanceof BaseLayer) {
+                        let { x, y } = computePosition(selectedElement._root, target.effective.content);
                         selectedElement.setLocation(x, y);
-                        selectedElement._drag.target = target;
+                        selectedElement._drag.target = target.effective;
                     } else {
                         this.cancelDrop(selectedElement);
                     }
@@ -689,11 +717,13 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 let target = targets.get(selectedElement);
                 // Can be cancelled before processed due to another element action
                 if (!this.dropCancelled(selectedElement)) {
-                    if (target && target.content && getCanvasLayer(target._root) instanceof BaseLayer) {
+                    if (target && target.effective.content && getCanvasLayer(target.effective._root) instanceof BaseLayer) {
                         // Ask target if it "accepts" the drop
-                        if ((!target._acceptDrop || !target._acceptDrop(selectedElement, this._dragSet)) ||
+                        if ((!target.effective._acceptDrop ||
+                             !target.effective._acceptDrop(selectedElement, this._dragSet, target.initial)) ||
                             // Ask dropped element if it "accepts" the drop.
-                            selectedElement._acceptDropped && !selectedElement._acceptDropped(target, this._dragSet)) {
+                            selectedElement._acceptDropped &&
+                                !selectedElement._acceptDropped(target.effective, this._dragSet, target.initial)) {
                             this.cancelDrop(selectedElement);
                         }
                     }
@@ -737,14 +767,15 @@ export class DragMoveSelectionOperation extends DragElementOperation {
         }
 
         // Call final elements callbacks and emit drop events
-        function finalizeAndFireEvents(dragSet, dropped) {
+        function finalizeAndFireEvents(dragSet, dropped, targets) {
             for (let selectedElement of dragSet) {
+                let target = targets.get(selectedElement);
                 if (dropped.has(selectedElement)) {
-                    let target = selectedElement.parent;
-                    target._receiveDrop && target._receiveDrop(selectedElement, this._dragSet);
-                    target._fire(Events.RECEIVE_DROP, selectedElement);
-                    selectedElement._droppedIn(target, this._dragSet);
-                    selectedElement._fire(Events.DROPPED, target);
+                    let effectiveTarget = selectedElement.parent;
+                    effectiveTarget._receiveDrop && effectiveTarget._receiveDrop(selectedElement, this._dragSet, target.initial);
+                    effectiveTarget._fire(Events.RECEIVE_DROP, selectedElement);
+                    selectedElement._droppedIn(effectiveTarget, this._dragSet, target.initial);
+                    selectedElement._fire(Events.DROPPED, effectiveTarget);
                 }
                 else {
                     let parent = selectedElement.parent;
@@ -766,7 +797,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
         // Starting from here, drop decision is done : accepted or cancelled
         let dropped = executeDrop.call(this, dragSet);
         if (dropped.size!==0) {
-            finalizeAndFireEvents.call(this, dragSet, dropped);
+            finalizeAndFireEvents.call(this, dragSet, dropped, targets);
         }
         else {
             Memento.instance.cancel();
@@ -1165,29 +1196,33 @@ export class CanvasLayer {
         this._canvas = canvas;
         this._root = new Group();
         this._root._owner = this;
-        this._mutationsObserver = this._createMutationObserver();
-        this.mutationsObserve();
+        this._mutationsObserver = this._createMutationsObserver();
+        Context.addStarter(()=>{
+            Memento.instance.addBefore(()=>this.stopMutationsObserver());
+            Memento.instance.addAfter(()=>this.restartMutationsObserver());
+        });
+        this.restartMutationsObserver();
         canvas.addObserver(this);
     }
 
     _processMutations(mutations) {
-        this.mutationsDisconnect();
+        this.stopMutationsObserver();
         this._adjustMutations(mutations);
-        this.mutationsObserve();
+        this.restartMutationsObserver();
     }
 
-    _createMutationObserver() {
+    _createMutationsObserver() {
         let config = { childList: true, attributes: true, characterData: true, subtree:true };
         return new MutationObserver((mutations)=>{
             this._processMutations((mutations)=this._processMutations(mutations));
         });
     }
 
-    mutationsDisconnect() {
+    stopMutationsObserver() {
         this._mutationsObserver.disconnect();
     }
 
-    mutationsObserve() {
+    restartMutationsObserver() {
         let config = { childList: true, attributes: true, characterData: true, subtree:true };
         this._mutationsObserver.observe(this._root._node, config);
     }
@@ -2000,6 +2035,10 @@ makeSingleton(Canvas, false);
 export class MutationObservers {
     constructor() {
         this._mutations = new Map();
+        Context.addStarter(()=>{
+            Memento.instance.addBefore(()=>MutationObservers.instance.stop());
+            Memento.instance.addAfter(()=>MutationObservers.instance.restart());
+        });
     }
 
     observe(element, action, node, config) {
@@ -2411,7 +2450,6 @@ export class Memento {
 
     _rollback(trx) {
         this.opened = false;
-        MutationObservers.instance.stop();
         for (let before of this._before) {
             before();
         }
@@ -2431,7 +2469,6 @@ export class Memento {
         for (let after of this._before) {
             after();
         }
-        MutationObservers.instance.restart();
         this.opened = true;
         return inverse;
     }

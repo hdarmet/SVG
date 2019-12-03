@@ -906,6 +906,7 @@ export function makeContainerMultiLayered(superClass, {layers}) {
 
     superClass.prototype.__add = function (element) {
         let layer = this._getLayer(element);
+        console.log("Add Container", layer, element)
         this._layers[layer].add(element._root);
     };
 
@@ -964,6 +965,7 @@ export function makeContainerMultiLayered(superClass, {layers}) {
 
     superClass.prototype.__remove = function (element) {
         let layer = this._getLayer(element);
+        console.log("Remove Container", layer, element)
         this._layers[layer].remove(element._root);
     };
 
