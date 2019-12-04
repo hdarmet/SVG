@@ -20,10 +20,10 @@ import {
     Decoration,
     makeDeletable, makeDraggable, makeFramed, makeSelectable, makeContainer,
     makeMovable, makeSupport, makePart, makeClickable, makeShaped, makeContainerMultiLayered, makeLayered,
-    makeGentleDropTarget, makePartsOwner, makeDecorationsOwner, makeMultiImaged
+    makeGentleDropTarget, makePartsOwner, makeDecorationsOwner, makeMultiImaged, makeFloatingContainer
 } from "../../js/core-mixins.js";
 import {
-    makeLockable, makeHighlightable, makeGroupable, TextDecoration, Mark, MarksDecoration, makeFollowed, makeFollower
+    makeLockable, makeHighlightable, makeGroupable, TextDecoration, Mark, MarksDecoration
 } from "../../js/standard-mixins.js";
 import {
     Colors, Group, Line, Rect, Circle, Path, Text, RasterImage, M, Q, L, C, Attrs, AlignmentBaseline, FontWeight, TextAnchor,
@@ -51,7 +51,6 @@ const DIAMLayers = {
     PDF : "p"
 };
 const LAYERS_DEFINITION = {layers:[DIAMLayers.DOWN,  DIAMLayers.MIDDLE, DIAMLayers.UP]};
-const TABLE_LAYERS_DEFINITION = {layers:[DIAMLayers.DOWN,  DIAMLayers.MIDDLE, DIAMLayers.UP, DIAMLayers.FREE, DIAMLayers.PDF]};
 
 export const FreePositioningMode = {};
 Object.defineProperty(FreePositioningMode, "mode", {
@@ -227,6 +226,23 @@ class DIAMMarksSupport extends BoardElement {
 makeDecorationsOwner(DIAMMarksSupport);
 DIAMMarksSupport.SIZE = 10;
 
+function makeFreePositioningOwner(superClass) {
+
+    makeFloatingContainer(superClass);
+
+    superClass.prototype._acceptDrop = function(element, dragSet, initialTarget) {
+        return FreePositioningMode.mode;
+    };
+
+    superClass.prototype._executeDrop = function(element, dragSet, initialTarget) {
+        if (FreePositioningMode.mode) {
+            this.addFloating(element);
+            return true;
+        }
+        return false;
+    };
+}
+
 class DIAMItem extends BoardElement {
     constructor({width, height, ...args}) {
         super(width, height, args);
@@ -279,15 +295,18 @@ class DIAMItem extends BoardElement {
         return this;
     }
 
-    getDropTarget(target) {
-        if (FreePositioningMode.mode || this.followed) {
-            return Context.table;
-        }
-        return target;
+    get freeTarget() {
+        return this;
     }
 
-    getLayer() {
-        if (FreePositioningMode.mode || this.followed) return DIAMLayers.FREE;
+    getDropTarget(target) {
+        if (FreePositioningMode.mode) {
+            return target.freeTarget;
+        }
+        return target;
+    };
+
+    _receiveDrop(element, dragSet, initialTarget) {
     }
 }
 makePartsOwner(DIAMItem);
@@ -301,8 +320,7 @@ makeMenuOwner(DIAMItem);
 makeGroupable(DIAMItem);
 makeCommentOwner(DIAMItem);
 makeHighlightable(DIAMItem);
-makeFollowed(DIAMItem);
-makeFollower(DIAMItem);
+makeFreePositioningOwner(DIAMItem);
 
 class DIAMSupport extends BoardElement {
     constructor({width, height, strokeColor, backgroundColor}) {
@@ -313,12 +331,9 @@ class DIAMSupport extends BoardElement {
 
     _createContextMenu() {}
 
-    /*
-    _acceptDrop(element, dragSet) {
-        if (FreePositioningMode.mode) return true;
+    get freeTarget() {
+        return this.selectable;
     }
-    */
-
 }
 makeFramed(DIAMSupport);
 makeHighlightable(DIAMSupport);
@@ -401,6 +416,9 @@ class DIAMKnob extends BoardElement {
         return this.target.selectable;
     }
 
+    get freeTarget() {
+        return this.selectable;
+    }
 }
 DIAMKnob.CLASS = "handle";
 makeShaped(DIAMKnob);
@@ -533,7 +551,7 @@ class DIAMCover extends DIAMSupport {
     }
 
     _acceptDrop(element, dragSet) {
-        return /*super._acceptDrop(element, dragSet) ||*/ this._acceptElement(element);
+        return this._acceptElement(element);
     }
 
     showRealistic() {
@@ -849,9 +867,9 @@ class DIAMFixing extends DIAMItem {
         base.add(new Rect(-DIAMFixing.WIDTH / 2, -DIAMFixing.HEIGHT / 2, DIAMFixing.WIDTH, DIAMFixing.HEIGHT)
             .attrs({ stroke: Colors.INHERIT, fill: Colors.WHITE }));
         base.add(new Circle(-DIAMFixing.WIDTH / 4, 0, DIAMFixing.DEVICE_RADIUS)
-            .attrs({ stroke: Colors.BLACK, fill: Colors.WHITE,  z_index: 1 }));
+            .attrs({ stroke: Colors.BLACK, fill: Colors.WHITE }));
         base.add(new Circle(DIAMFixing.WIDTH / 4, 0, DIAMFixing.DEVICE_RADIUS)
-            .attrs({ stroke: Colors.BLACK, fill: Colors.WHITE, z_index: 1 }));
+            .attrs({ stroke: Colors.BLACK, fill: Colors.WHITE }));
         return base;
     }
 }
@@ -1913,6 +1931,7 @@ class BoardPaper extends BoardArea {
     constructor(width, height, backgroundColor) {
         super(width, height, backgroundColor);
     }
+
 }
 makePart(BoardPaper);
 
@@ -1920,21 +1939,33 @@ class DIAMPaperContent extends DIAMSupport {
     constructor({width, height}) {
         super({width, height, strokeColor:Colors.NONE, backgroundColor:Colors.WHITE});
     }
+
+    get freeTarget() {
+        return this.parent;
+    }
 }
 makeGravitationContainer(DIAMPaperContent, {
     predicate: is(DIAMPane, DIAMAbstractModule, DIAMBox),
     carryingPredicate: always,
     bordersCollide:{all:true}
 });
+makePart(DIAMPaperContent);
 makeContainerMultiLayered(DIAMPaperContent, LAYERS_DEFINITION);
 
 class DIAMPaper extends BoardPaper {
     constructor({width, height}) {
         super(width, height, Colors.WHITE);
         this._contentPane = new DIAMPaperContent({width:width-DIAMPaper.MARGIN*2, height:height-DIAMPaper.MARGIN*2});
-        this.add(this._contentPane);
+        this._addPart(this._contentPane);
     }
+
+    get freeTarget() {
+        return this;
+    }
+
 }
+makePartsOwner(DIAMPaper);
+makeFreePositioningOwner(DIAMPaper);
 DIAMPaper.MARGIN = 10;
 
 class DIAMTable extends BoardTable {
@@ -1943,22 +1974,15 @@ class DIAMTable extends BoardTable {
         super(width, height, backgroundColor);
     }
 
-    _receiveDrop(element, dragSet, initialTarget) {
-        if (FreePositioningMode.mode) {
-            if (initialTarget.selectable && initialTarget.selectable.addFollower) {
-                initialTarget.selectable.addFollower(element);
-            }
-            else {
-                this.addFollower(element);
-            }
-        }
+    get freeTarget() {
+        return this;
     }
 }
-makeContainerMultiLayered(DIAMTable, TABLE_LAYERS_DEFINITION);
-makeFollowed(DIAMTable);
+makeContainerMultiLayered(DIAMTable, LAYERS_DEFINITION);
+makeFreePositioningOwner(DIAMTable);
 
 function createTable() {
-    setLayeredGlassStrategy(BoardTable, TABLE_LAYERS_DEFINITION);
+    setLayeredGlassStrategy(BoardTable, LAYERS_DEFINITION);
     Context.table = new DIAMTable({width:4000, height:3000, backgroundColor:"#A0A0A0"});
     Canvas.instance.putOnBase(Context.table);
 }

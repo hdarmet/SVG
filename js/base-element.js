@@ -258,15 +258,20 @@ export class BoardElement {
         Memento.register(this.parent);
     }
 
+    /*
     attach(parent) {
         this.detach();
         parent && parent.add(this);
         return this;
     }
+    */
 
     detach() {
         let parent = this.parent;
-        parent && parent.remove(this);
+        if (parent) {
+            console.assert(parent.detachChild);
+            parent.detachChild(this);
+        }
         return this;
     }
 
@@ -304,14 +309,18 @@ export class BoardElement {
         this._cloneObservers(duplicata);
     }
 
-    _draggedFrom(dragged, dragSet) {
+    _draggedFrom(support, dragSet, initialTarget) {
     }
 
-    _droppedIn(dragged, dragSet) {
+    _droppedIn(support, dragSet, initialTarget) {
     }
 
     _revertDroppedIn(parent) {
     }
+
+    _receiveDrop(dragged, dragSet, initialTarget) {
+    }
+
 }
 makeObservable(BoardElement, Cloning.NONE);
 
@@ -367,7 +376,7 @@ export class BoardTable extends BoardArea {
         super._notified(source, type, value);
         if (type === CopyPaste.events.PASTE_MODEL) {
             for (let copy of value) {
-                this.add(copy);
+                this.addChild(copy);
             }
         }
     }

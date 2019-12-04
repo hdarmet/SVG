@@ -233,7 +233,7 @@ export function makeShaped(superClass) {
     }
 
     superClass.prototype._addShapeToTray = function () {
-        let next = this._partsSupport || this._decorationsSupport || this._content;
+        let next = this._partsSupport || this._decorationsSupport || this._content || this._floatingContent;
         next ? this._tray.insert(next, this._shape) : this._tray.add(this._shape);
     };
 
@@ -289,7 +289,7 @@ export function makePartsOwner(superClass) {
         };
 
         superClass.prototype._addPartsToTray = function () {
-            let next = this._decorationsSupport || this._content;
+            let next = this._decorationsSupport || this._content || this._floatingContent;
             next ? this._tray.insert(next, this._partsSupport) : this._tray.add(this._partsSupport);
         };
 
@@ -370,7 +370,8 @@ export function makeContainer(superClass) {
     };
 
     superClass.prototype._addContentToTray = function () {
-        this._tray.add(this._content);
+        let next = this._floatingContent;
+        next ? this._tray.insert(next, this._content) : this._tray.add(this._content);
     };
 
     superClass.prototype._initContent = function () {
@@ -389,70 +390,70 @@ export function makeContainer(superClass) {
         }
     };
 
-    superClass.prototype.__clear = function () {
+    superClass.prototype.__clearChildren = function () {
         this._content.clear()
     };
 
-    superClass.prototype.__add = function (element) {
+    superClass.prototype.__addChild = function (element) {
         this._content.add(element._root);
     };
 
-    superClass.prototype.__insert = function (previous, element) {
+    superClass.prototype.__insertChild = function (previous, element) {
         this._content.insert(previous._root, element._root);
     };
 
-    superClass.prototype.__replace = function (previous, element) {
+    superClass.prototype.__replaceChild = function (previous, element) {
         this._content.replace(previous._root, element._root);
     };
 
-    superClass.prototype.__remove = function (element) {
+    superClass.prototype.__removeChild = function (element) {
         this._content.remove(element._root);
     };
 
-    superClass.prototype._add = function (element) {
+    superClass.prototype._addChild = function (element) {
         if (!this._children) {
             this._children = new List();
             this._children.cloning = Cloning.NONE;
         }
         // IMPORTANT : DOM update before this._children update !
-        this.__add(element);
+        this.__addChild(element);
         this._children.add(element);
         element._parent = this;
     };
 
-    superClass.prototype.add = function (element) {
+    superClass.prototype.addChild = function (element) {
         if (element.parent !== this) {
             if (element.parent) {
-                element.parent.remove(element);
+                element.detach();
             }
             Memento.register(this);
             Memento.register(element);
-            this._add(element);
+            this._addChild(element);
             this._fire(Events.ADD, element);
             element._fire(Events.ATTACH, this);
         }
         return this;
     };
 
-    superClass.prototype._insert = function (previous, element) {
+    superClass.prototype._insertChild = function (previous, element) {
         if (this._children) {
-            this.__insert(previous, element);
+            this.__insertChild(previous, element);
             // IMPORTANT : DOM update before this._children update !
             this._children.insert(previous, element);
             element._parent = this;
         }
     };
 
-    superClass.prototype.insert = function (previous, element) {
+    superClass.prototype.insertChild = function (previous, element) {
         if (previous.parent === this) {
             let added = false;
             if (element.parent && element.parent !== this) {
-                element.parent.remove(element);
+                element.detach();
                 added = true;
             }
             Memento.register(this);
             Memento.register(element);
-            this._insert(previous, element);
+            this._insertChild(previous, element);
             if (added) {
                 this._fire(Events.ADD, element);
                 element._fire(Events.ATTACH, this);
@@ -465,28 +466,28 @@ export function makeContainer(superClass) {
         return this;
     };
 
-    superClass.prototype._replace = function (previous, element) {
+    superClass.prototype._replaceChild = function (previous, element) {
         if (!this._children) {
             this._children = new List();
         }
         // IMPORTANT : DOM update before this._children update !
-        this.__replace(previous, element);
+        this.__replaceChild(previous, element);
         this._children.replace(previous, element);
         previous._parent = null;
         element._parent = this;
     };
 
-    superClass.prototype.replace = function (previous, element) {
+    superClass.prototype.replaceChild = function (previous, element) {
         if (previous.parent === this) {
             let added = false;
             if (element.parent && element.parent !== this) {
-                element.parent.remove(element);
+                element.detach();
                 added = true;
             }
             Memento.register(this);
             Memento.register(previous);
             Memento.register(element);
-            this._replace(previous, element);
+            this._replaceChild(previous, element);
             this._fire(Events.REMOVE, previous);
             previous._fire(Events.DETACH, this);
             if (added) {
@@ -501,10 +502,10 @@ export function makeContainer(superClass) {
         return this;
     };
 
-    superClass.prototype._remove = function (element) {
+    superClass.prototype._removeChild = function (element) {
         if (this._children) {
             // IMPORTANT : DOM update before this._children update !
-            this.__remove(element);
+            this.__removeChild(element);
             this._children.remove(element);
             element._parent = null;
             if (this._children.size === 0) {
@@ -513,21 +514,21 @@ export function makeContainer(superClass) {
         }
     };
 
-    superClass.prototype.remove = function (element) {
+    superClass.prototype.removeChild = function (element) {
         if (element.parent === this) {
             Memento.register(this);
             Memento.register(element);
-            this._remove(element);
+            this._removeChild(element);
             this._fire(Events.REMOVE, element);
             element._fire(Events.DETACH, this);
         }
         return this;
     };
 
-    superClass.prototype._clear = function (element) {
+    superClass.prototype._clearChildren = function (element) {
         if (this._children) {
             // IMPORTANT : DOM update before this._children update !
-            this.__clear();
+            this.__clearChildren();
             for (let element of this._children) {
                 element._parent = null;
             }
@@ -535,7 +536,7 @@ export function makeContainer(superClass) {
         }
     };
 
-    superClass.prototype.clear = function () {
+    superClass.prototype.clearChildren = function () {
         if (this._children) {
             Memento.register(this);
             let children = this._children;
@@ -551,10 +552,26 @@ export function makeContainer(superClass) {
         return this;
     };
 
-    superClass.prototype._shift = function (element, x, y) {
+    let detachChild = superClass.prototype.detachChild;
+    superClass.prototype.detachChild = function(element) {
+        if (detachChild && detachChild.call(this, element)) return true;
+        if (!this.containsChild(element)) return false;
+        this.removeChild(element);
+        return true;
     };
 
-    superClass.prototype.contains = function (element) {
+    superClass.prototype._shiftChild = function (element, x, y) {
+    };
+
+    let shift = superClass.prototype.shift;
+    superClass.prototype.shift = function(element, x, y) {
+        if (shift && shift.call(this, element, x, y)) return true;
+        if (!this.containsChild(element)) return false;
+        this._shiftChild(element, x, y);
+        return true;
+    };
+
+    superClass.prototype.containsChild = function (element) {
         return this._children && this._children.contains(element);
     };
 
@@ -635,6 +652,295 @@ export function makeContainer(superClass) {
     return superClass;
 }
 
+export function makeFloatingContainer(superClass) {
+
+    let init = superClass.prototype._init;
+    superClass.prototype._init = function (...args) {
+        init.call(this, ...args);
+        this._floatingContent = this._initFloatingContent();
+        this._addFloatingToTray();
+    };
+
+    superClass.prototype._addFloatingToTray = function () {
+        this._tray.add(this._floatingContent);
+    };
+
+    superClass.prototype._initFloatingContent = function () {
+        let content = new Group();
+        content.cloning = Cloning.NONE;
+        return content;
+    };
+
+    let finalize = superClass.prototype.finalize;
+    superClass.prototype.finalize = function () {
+        finalize.call(this);
+        if (this._floatingChildren) {
+            for (let child of this._floatingChildren) {
+                child.finalize();
+            }
+        }
+    };
+
+    superClass.prototype.__clearFloating = function () {
+        this._floatingContent.clear()
+    };
+
+    superClass.prototype.__addFloating = function (element) {
+        this._floatingContent.add(element._root);
+    };
+
+    superClass.prototype.__insertFloating = function (previous, element) {
+        this._floatingContent.insert(previous._root, element._root);
+    };
+
+    superClass.prototype.__replaceFloating = function (previous, element) {
+        this._floatingContent.replace(previous._root, element._root);
+    };
+
+    superClass.prototype.__removeFloating = function (element) {
+        this._floatingContent.remove(element._root);
+    };
+
+    superClass.prototype._addFloating = function (element) {
+        if (!this._floatingChildren) {
+            this._floatingChildren = new List();
+            this._floatingChildren.cloning = Cloning.NONE;
+        }
+        // IMPORTANT : DOM update before this._floatingChildren update !
+        this.__addFloating(element);
+        this._floatingChildren.add(element);
+        element._parent = this;
+    };
+
+    superClass.prototype.addFloating = function (element) {
+        if (element.parent !== this) {
+            if (element.parent) {
+                element.detach();
+            }
+            Memento.register(this);
+            Memento.register(element);
+            this._addFloating(element);
+            this._fire(Events.ADD_FLOATING, element);
+            element._fire(Events.ATTACH, this);
+        }
+        return this;
+    };
+
+    superClass.prototype._insertFloating = function (previous, element) {
+        if (this._floatingChildren) {
+            this.__insertFloating(previous, element);
+            // IMPORTANT : DOM update before this._children update !
+            this._floatingChildren.insert(previous, element);
+            element._parent = this;
+        }
+    };
+
+    superClass.prototype.insertFloating = function (previous, element) {
+        if (previous.parent === this) {
+            let added = false;
+            if (element.parent && element.parent !== this) {
+                element.detach();
+                added = true;
+            }
+            Memento.register(this);
+            Memento.register(element);
+            this._insertFloating(previous, element);
+            if (added) {
+                this._fire(Events.ADD_FLOATING, element);
+                element._fire(Events.ATTACH, this);
+            }
+            else {
+                this._fire(Events.DISPLACE_FLOATING, element);
+                element._fire(Events.DISPLACED, this);
+            }
+        }
+        return this;
+    };
+
+    superClass.prototype._replaceFloating = function (previous, element) {
+        if (!this._floatingChildren) {
+            this._floatingChildren = new List();
+        }
+        // IMPORTANT : DOM update before this._children update !
+        this.__replaceFloating(previous, element);
+        this._floatingChildren.replace(previous, element);
+        previous._parent = null;
+        element._parent = this;
+    };
+
+    superClass.prototype.replaceFloating = function (previous, element) {
+        if (previous.parent === this) {
+            let added = false;
+            if (element.parent && element.parent !== this) {
+                element.detach();
+                added = true;
+            }
+            Memento.register(this);
+            Memento.register(previous);
+            Memento.register(element);
+            this._replaceFloating(previous, element);
+            this._fire(Events.REMOVE_FLOATING, previous);
+            previous._fire(Events.DETACH, this);
+            if (added) {
+                this._fire(Events.ADD_FLOATING, element);
+                element._fire(Events.ATTACH, this);
+            }
+            else {
+                this._fire(Events.DISPLACE_FLOATING, element);
+                element._fire(Events.DISPLACED, this);
+            }
+        }
+        return this;
+    };
+
+    superClass.prototype._removeFloating = function (element) {
+        if (this._floatingChildren) {
+            // IMPORTANT : DOM update before this._children update !
+            this.__removeFloating(element);
+            this._floatingChildren.remove(element);
+            element._parent = null;
+            if (this._floatingChildren.size === 0) {
+                delete this._floatingChildren;
+            }
+        }
+    };
+
+    superClass.prototype.removeFloating = function (element) {
+        if (element.parent === this) {
+            Memento.register(this);
+            Memento.register(element);
+            this._removeFloating(element);
+            this._fire(Events.REMOVE_FLOATING, element);
+            element._fire(Events.DETACH, this);
+        }
+        return this;
+    };
+
+    superClass.prototype._clearFloating = function (element) {
+        if (this._floatingChildren) {
+            // IMPORTANT : DOM update before this._children update !
+            this.__clearFloating();
+            for (let element of this._floatingChildren) {
+                element._parent = null;
+            }
+            delete this._floatingChildren;
+        }
+    };
+
+    superClass.prototype.clearFloating = function () {
+        if (this._floatingChildren) {
+            Memento.register(this);
+            let children = this._floatingChildren;
+            for (let element of children) {
+                Memento.register(element);
+            }
+            this._clear();
+            for (let element of children) {
+                this._fire(Events.REMOVE_FLOATING, element);
+                element._fire(Events.DETACH, this);
+            }
+        }
+        return this;
+    };
+
+    let detachChild = superClass.prototype.detachChild;
+    superClass.prototype.detachChild = function(element) {
+        if (detachChild && detachChild.call(this, element)) return true;
+        if (!this.containsFloating(element)) return false;
+        this.removeFloating(element);
+        return true;
+    };
+
+    superClass.prototype._shiftFloating = function (element, x, y) {
+    };
+
+    let shift = superClass.prototype.shift;
+    superClass.prototype.shift = function(element, x, y) {
+        if (shift && shift.call(this, element, x, y)) return true;
+        if (!this.containsFloating(element)) return false;
+        this._shiftFloating(element, x, y);
+        return true;
+    };
+
+    superClass.prototype.containsFloating = function (element) {
+        return this._floatingChildren && this._floatingChildren.contains(element);
+    };
+
+    Object.defineProperty(superClass.prototype, "floatingContent", {
+        configurable: true,
+        get: function () {
+            return this._floatingContent;
+        }
+    });
+
+    Object.defineProperty(superClass.prototype, "floatingChildren", {
+        configurable: true,
+        get: function () {
+            return this._floatingChildren ? new List(...this._floatingChildren) : new List();
+        }
+    });
+
+    superClass.prototype._memorizeFloatingContent = function (memento) {
+        if (this._floatingChildren) {
+            memento._floatingChildren = new List(...this._floatingChildren);
+        }
+    };
+
+    superClass.prototype._revertFloatingContent = function (memento) {
+        this.__clearFloating();
+        if (memento._floatingChildren) {
+            this._floatingChildren = new List(...memento._floatingChildren);
+            for (let child of this._floatingChildren) {
+                this.__addFloating(child);
+            }
+        }
+        else {
+            delete this._floatingChildren;
+        }
+    };
+
+    let superMemento = superClass.prototype._memento;
+    superClass.prototype._memento = function () {
+        let memento = superMemento.call(this);
+        this._memorizeFloatingContent(memento);
+        return memento;
+    };
+
+    let superRevert = superClass.prototype._revert;
+    superClass.prototype._revert = function (memento) {
+        superRevert.call(this, memento);
+        this._revertFloatingContent(memento);
+        return this;
+    };
+
+    let cloning = superClass.prototype._cloning;
+    superClass.prototype._cloning = function (duplicata) {
+        let copy = cloning.call(this, duplicata);
+        for (let child of this.floatingChildren) {
+            copy._addFloating(child.duplicate(duplicata));
+        }
+        return copy;
+    };
+
+    Object.defineProperty(superClass.prototype, "isFloatingContainer", {
+        configurable: true,
+        get() {
+            return true;
+        }
+    });
+
+    let accept = superClass.prototype.accept;
+    superClass.prototype.accept = function (visitor) {
+        accept.call(this, visitor);
+        for (let child of this.floatingChildren) {
+            visitor.visit(child);
+        }
+        return this;
+    };
+
+    return superClass;
+}
+
 export class Decoration {
 
     constructor() {
@@ -671,7 +977,7 @@ export function makeDecorationsOwner(superClass) {
     };
 
     superClass.prototype._addDecorationsToTray = function () {
-        let next = this._content;
+        let next = this._content || this._floatingContent;
         next ? this._tray.insert(next, this._decorationsSupport) : this._tray.add(this._decorationsSupport);
     };
 
@@ -806,14 +1112,12 @@ export function makeDecorationsOwner(superClass) {
         return this;
     };
 
-//    if (!superClass.prototype.hasOwnProperty("hasDecorations")) {
-        Object.defineProperty(superClass.prototype, "hasDecorations", {
-            configurable: true,
-            get() {
-                return true;
-            }
-        });
-//    }
+    Object.defineProperty(superClass.prototype, "hasDecorations", {
+        configurable: true,
+        get() {
+            return true;
+        }
+    });
 
     return superClass;
 }
@@ -840,7 +1144,29 @@ export function makeContainerASupport(superClass) {
 
     superClass.prototype._dropTarget = function (element) {
         return this;
-    }
+    };
+
+    let executeDrop = superClass.prototype._executeDrop;
+    superClass.prototype._executeDrop = function(element, dragSet, initialTarget) {
+        if (!executeDrop || !executeDrop.call(this, element, dragSet, initialTarget)) {
+            this.addChild(element);
+        }
+        return true;
+    };
+
+    let unexecuteDrop = superClass.prototype._unexecuteDrop;
+    superClass.prototype._unexecuteDrop = function(element) {
+        if (!unexecuteDrop || !unexecuteDrop.call(this, element)) {
+            this._addChild(element);
+        }
+        return true;
+    };
+
+    superClass.prototype._receiveDrop = function (element, dragSet, initialTarget) {
+    };
+
+    superClass.prototype._revertDrop = function (element) {
+    };
 }
 
 /**
@@ -898,15 +1224,14 @@ export function makeContainerMultiLayered(superClass, {layers}) {
         return content;
     };
 
-    superClass.prototype.__clear = function () {
+    superClass.prototype.__clearChildren = function () {
         for (let layer of layers) {
             this._layers[layer].clear();
         }
     };
 
-    superClass.prototype.__add = function (element) {
+    superClass.prototype.__addChild = function (element) {
         let layer = this._getLayer(element);
-        console.log("Add Container", layer, element)
         this._layers[layer].add(element._root);
     };
 
@@ -928,7 +1253,7 @@ export function makeContainerMultiLayered(superClass, {layers}) {
         return null;
     };
 
-    superClass.prototype.__insert = function (previous, element) {
+    superClass.prototype.__insertChild = function (previous, element) {
         let previousLayer = this._getLayer(previous);
         let layer = this._getLayer(element);
         if (layer === previousLayer) {
@@ -945,7 +1270,7 @@ export function makeContainerMultiLayered(superClass, {layers}) {
         }
     };
 
-    superClass.prototype.__replace = function (previous, element) {
+    superClass.prototype.__replaceChild = function (previous, element) {
         let previousLayer = this._getLayer(previous);
         let layer = this._getLayer(element);
         if (layer === previousLayer) {
@@ -963,9 +1288,8 @@ export function makeContainerMultiLayered(superClass, {layers}) {
         }
     };
 
-    superClass.prototype.__remove = function (element) {
+    superClass.prototype.__removeChild = function (element) {
         let layer = this._getLayer(element);
-        console.log("Remove Container", layer, element)
         this._layers[layer].remove(element._root);
     };
 
@@ -1006,7 +1330,7 @@ export function makeLayersWithContainers(superClass, {layersBuilder}) {
     };
 
     superClass.prototype._addContentToTray = function () {
-        let next = this._decorationsSupport;
+        let next = this._decorationsSupport || this._floatingContent;
         next ? this._tray.insert(next, this._content) : this._tray.add(this._content);
     };
 
@@ -1031,20 +1355,20 @@ export function makeLayersWithContainers(superClass, {layersBuilder}) {
         }
     };
 
-    superClass.prototype.clear = function () {
+    superClass.prototype.clearChildren = function () {
         for (let layer in layers) {
             this._layers[layer].clear();
         }
         return this;
     };
 
-    superClass.prototype.add = function (element) {
+    superClass.prototype.addChild = function (element) {
         let layer = this._getLayer(element);
         this._layers[layer].add(element);
         return this;
     };
 
-    superClass.prototype.insert = function (previous, element) {
+    superClass.prototype.insertChild = function (previous, element) {
         let previousLayer = this._getLayer(previous);
         let layer = this._getLayer(element);
         if (layer === previousLayer) {
@@ -1056,7 +1380,7 @@ export function makeLayersWithContainers(superClass, {layersBuilder}) {
         return this;
     };
 
-    superClass.prototype.replace = function (previous, element) {
+    superClass.prototype.replaceChild = function (previous, element) {
         let previousLayer = this._getLayer(previous);
         let layer = this._getLayer(element);
         if (layer === previousLayer) {
@@ -1069,15 +1393,26 @@ export function makeLayersWithContainers(superClass, {layersBuilder}) {
         return this;
     };
 
-    superClass.prototype.remove = function (element) {
+    superClass.prototype.removeChild = function (element) {
         let layer = this._getLayer(element);
         this._layers[layer].remove(element);
         return this;
     };
 
-    superClass.prototype.contains = function (element) {
+    superClass.prototype.containsChild = function (element) {
         let layer = this._getLayer(element);
         return this._layers[layer].contains(element);
+    };
+
+    superClass.prototype._shiftChild = function (element, x, y) {
+    };
+
+    let shift = superClass.prototype.shift;
+    superClass.prototype.shift = function(element, x, y) {
+        if (shift && shift.call(this, element, x, y)) return true;
+        if (!this.containsChild(element)) return false;
+        this._shiftChild(element, x, y);
+        return true;
     };
 
     superClass.prototype.getElementsInLayers = function (elements) {
@@ -1226,67 +1561,67 @@ export class Pedestal {
         let that = this;
         let pedestal = that._support._pedestal(container, that._element, that._zIndex);
         container.__proto__ = {
-            add(element) {
+            addChild(element) {
                 that._support._memorizeElementContent(element);
-                proto.add.call(this, element);
+                proto.add.callChild(this, element);
             },
-            insert(previous, element) {
+            insertChild(previous, element) {
                 that._support._memorizeElementContent(element);
-                proto.insert.call(this, previous, element);
+                proto.insertChild.call(this, previous, element);
             },
-            replace(previous, element) {
+            replaceChild(previous, element) {
                 that._support._memorizeElementContent(element);
-                proto.replace.call(this, previous, element);
+                proto.replaceChild.call(this, previous, element);
             },
-            remove(element) {
+            removeChild(element) {
                 that._support._memorizeElementContent(element);
-                proto.remove.call(this, element);
+                proto.removeChild.call(this, element);
             },
-            clear() {
+            clearChildren() {
                 for (let element of that.elements) {
                     that._support._memorizeElementContent(element);
                 }
-                proto.clear.call(this);
+                proto.clearChildren.call(this);
             },
-            _add(element) {
-                proto._add.call(this, element);
+            _addChild(element) {
+                proto._addChild.call(this, element);
                 that._support._takeInElementContent(element, this, that._zIndex + 1);
             },
-            _insert(previous, element) {
-                proto._insert.call(this, previous, element);
+            _insertChild(previous, element) {
+                proto._insertChild.call(this, previous, element);
                 that._support._takeInElementContent(element, this, that._zIndex + 1);
             },
-            _replace(previous, element) {
+            _replaceChild(previous, element) {
                 that._support._takeOutElementContent(previous);
                 that._support._removeEmptyLevels();
-                proto._replace.call(this, previous, element);
+                proto._replaceChild.call(this, previous, element);
                 that._support._takeInElementContent(element, this, that._zIndex + 1);
             },
-            _remove(element) {
+            _removeChild(element) {
                 that._support._takeOutElementContent(element);
                 that._support._removeEmptyLevels();
-                proto._remove.call(this, element);
+                proto._removeChild.call(this, element);
             },
-            _clear() {
+            _clearChildren() {
                 for (let element of pedestal.elements) {
                     that._support._takeOutElementContent(element);
                 }
                 that._support._removeEmptyLevels();
-                proto._clear.call(this);
+                proto._clearChildren.call(this);
             },
-            __add(element) {
+            __addChild(element) {
                 pedestal.add(element);
             },
-            __insert(previous, element) {
+            __insertChild(previous, element) {
                 pedestal.insert(previous, element);
             },
-            __replace(previous, element) {
+            __replaceChild(previous, element) {
                 pedestal.replace(previous, element);
             },
-            __remove(element) {
+            __removeChild(element) {
                 pedestal.remove(element);
             },
-            __clear() {
+            __clearChildren() {
                 pedestal.clear();
             },
             _setLocation(x, y) {

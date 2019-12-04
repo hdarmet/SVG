@@ -301,34 +301,34 @@ export function addPhysicToContainer(superClass, {physicBuilder}) {
             return this._physic;
         }
     });
-    let add = superClass.prototype._add;
-    superClass.prototype._add = function(element) {
-        add.call(this, element);
+    let addChild = superClass.prototype._addChild;
+    superClass.prototype._addChild = function(element) {
+        addChild.call(this, element);
         this.physic.add(element);
     };
 
-    let shift = superClass.prototype._shift;
-    superClass.prototype._shift = function(element, x, y) {
-        shift.call(this, element, x, y);
+    let shiftChild = superClass.prototype._shiftChild;
+    superClass.prototype._shiftChild = function(element, x, y) {
+        shiftChild.call(this, element, x, y);
         this.physic.move(element);
     };
 
-    let insert = superClass.prototype._insert;
-    superClass.prototype._insert = function(previous, element) {
-        insert.call(this, previous, element);
+    let insertChild = superClass.prototype._insertChild;
+    superClass.prototype._insertChild = function(previous, element) {
+        insertChild.call(this, previous, element);
         this.physic.add(element);
     };
 
-    let replace = superClass.prototype._replace;
-    superClass.prototype._replace = function(previous, element) {
-        replace.call(this, previous, element);
+    let replaceChild = superClass.prototype._replaceChild;
+    superClass.prototype._replaceChild = function(previous, element) {
+        replaceChild.call(this, previous, element);
         this.physic.add(element);
         this.physic.remove(element);
     };
 
-    let remove = superClass.prototype._remove;
-    superClass.prototype._remove = function(element) {
-        remove.call(this, element);
+    let removeChild = superClass.prototype._removeChild;
+    superClass.prototype._removeChild = function(element) {
+        removeChild.call(this, element);
         this.physic.remove(element);
     };
 

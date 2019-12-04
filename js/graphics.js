@@ -1056,8 +1056,8 @@ export class SVGElement {
     clear() {
         if (this._children) {
             for (let child of this._children) {
-                child._parent = null;
                 child._unregister();
+                child._parent = null;
             }
             this._children.clear();
             matrixOp++;
@@ -1209,7 +1209,6 @@ export class SVGElement {
 
     memento() {
         let memento = {_attrs:{}};
-        memento._svg = this._svg;
         memento._target = this;
         for (let property in this._attrs) {
             if (this._attrs.hasOwnProperty(property)) {
@@ -1234,28 +1233,11 @@ export class SVGElement {
 
     revert(memento) {
         this.attrs(memento._attrs);
-        this._svg = memento._svg;
-        if (memento._children) {
-            this.clear();
-            for (let record of memento._children) {
-                let element = record._target;
-                element.revert(record);
-                let parentNode = element._node.parentNode;
-                if (parentNode) parentNode.removeChild(element._node);
-                if (!this._children) {
-                    this._children = new List();
-                }
-                this._children.add(element);
-                let z_index = element.z_index;
-                if (this._svg && element._zOrder !== this._zOrder) {
-                    this._svg._putOnLayer(element, element._zOrder);
-                }
-                else {
-                    this._add(element);
-                }
-                matrixOp++;
-                element._parent = this;
-            }
+        for (let child of [...this._children]) {
+            this.remove(child);
+        }
+        for (let record of memento._children) {
+            this.add(record._target);
         }
         this._dnd = memento._dnd;
         if (this._events) {
@@ -1428,8 +1410,8 @@ export class Svg extends SVGElement {
 
     _updateLayers() {
         this._mutationObserver.disconnect();
-        for (let layer of this._layers) {
-            layer.update();
+        for (let index in this._layers) {
+            this._layers[index].update();
         }
         this._mutationObserver.observe(this._node, this._mutationConfig);
     }
@@ -1652,14 +1634,16 @@ export class SVGCoreElement extends SVGElement {
     set z_index(zIndex) {
         let zOrder = this._zOrder;
         if (this._zOrder !== zIndex) {
-            // detach from z layer
+            this._unregister();
         }
-        return this._attrs.z_index = zIndex;
-
+        this._attrs.z_index = zIndex;
+        if (this._zOrder !== zIndex) {
+            this._register();
+        }
     }
 
     _register() {
-        if (this._svg !== this._parent._svg) {
+        if (this._parent && this._svg !== this._parent._svg) {
             let z_index = this.z_index;
             this._zOrder = z_index !== undefined ? z_index : this._parent._zOrder;
             if (this._parent._svg && this._parent && this._zOrder !== this._parent._zOrder) {
@@ -1732,21 +1716,6 @@ export class SVGCoreElement extends SVGElement {
         this._node.style.cursor = cursor;
     }
 
-    memento() {
-        let memento = super.memento();
-        memento._zOrder = this._zOrder;
-        return memento;
-    }
-
-    revert(memento) {
-        if (memento._zOrder!==undefined) {
-            this._zOrder = memento._zOrder;
-        }
-        else {
-            delete this._zOrder;
-        }
-        super.revert(memento);
-    }
 }
 
 export class Group extends SVGCoreElement {

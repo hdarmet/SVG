@@ -1240,7 +1240,7 @@ export class BoardItemBuilder extends ToolCell {
 
     add(element) {}
 
-    remove(element) {
+    detachChild(element) {
         this._support.remove(element._root);
         element._parent = null;
     }
@@ -1286,6 +1286,10 @@ export class BoardItemBuilder extends ToolCell {
         return false;
     }
 
+    _unexecuteDrop(element) {
+        element._root.detach();
+        element._parent = null;
+    }
 }
 BoardItemBuilder.MARGIN = 4;
 

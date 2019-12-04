@@ -66,6 +66,8 @@ export function html(item) {
 export const Events = {
     ADD : "add",
     REMOVE : "remove",
+    ADD_FLOATING : "add",
+    REMOVE_FLOATING : "remove",
     ATTACH : "attach",
     DETACH : "detach",
     DELETED : "deleted",
@@ -671,7 +673,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
      * <p>From now, it is NOT possible to cancel drop. Verrry important, okay ?
      * <p>BUT, protocol is not finished !
      * <p>First case : drop is accepted :
-     * <ul><li> target._receiveDrop(element) is invoked
+     * <ul><li> target._receiveDrop(element, dragSet, initialTarget) is invoked
      * </li><li> target emits "receive-drop" event.
      * </li><li> element._dropped(target) is invoked.
      * </li><li> element emits "dropped" event.
@@ -688,8 +690,6 @@ export class DragMoveSelectionOperation extends DragElementOperation {
      * - _XXX method is a predicate, if is defaulted to "true" (accept op) : e._XXX() => true
      * - _XXX method is an element finder, it is defaulted to the element itself e._XXX() => e
      * - _XXX is a procedure, it is defaulted to no op (do nothing).
-     * <p>IMPORTANT : In ALL cases, the element.attach(parent) is invoked to put element into target or to revert to
-     * previous parent. So even in case of cancelDrop, attach (and associated events...) are activated.
      * @param element the element to be dropped
      */
     doDrop(element, x, y, event) {
@@ -700,8 +700,8 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 let target = targets.get(selectedElement);
                 // Can be cancelled before processed due to another element action
                 if (!this.dropCancelled(selectedElement)) {
-                    if (target && target.effective.content && getCanvasLayer(target.effective._root) instanceof BaseLayer) {
-                        let { x, y } = computePosition(selectedElement._root, target.effective.content);
+                    if (target && getCanvasLayer(target.effective._root) instanceof BaseLayer) {
+                        let { x, y } = computePosition(selectedElement._root, target.effective._root);
                         selectedElement.setLocation(x, y);
                         selectedElement._drag.target = target.effective;
                     } else {
@@ -723,7 +723,8 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                              !target.effective._acceptDrop(selectedElement, this._dragSet, target.initial)) ||
                             // Ask dropped element if it "accepts" the drop.
                             selectedElement._acceptDropped &&
-                                !selectedElement._acceptDropped(target.effective, this._dragSet, target.initial)) {
+                            !selectedElement._acceptDropped(target.effective, this._dragSet, target.initial))
+                        {
                             this.cancelDrop(selectedElement);
                         }
                     }
@@ -732,9 +733,10 @@ export class DragMoveSelectionOperation extends DragElementOperation {
         }
 
         // Execute drop (or execute drop cancellation).
-        function executeDrop(dragSet) {
+        function executeDrop(dragSet, targets) {
             let dropped = new ESet();
             for (let selectedElement of dragSet) {
+                let target = targets.get(selectedElement);
                 Canvas.instance.removeElementFromGlass(selectedElement);
                 if (!this.dropCancelled(selectedElement)) {
                     // ... when drop succeeded
@@ -744,20 +746,16 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                         let angle = computeAngle(selectedElement._hinge, selectedElement._drag.target.content);
                         selectedElement.rotate(angle);
                     }
-                    selectedElement.attach(selectedElement._drag.target);
+                    console.assert(selectedElement._drag.target._executeDrop);
+                    selectedElement._drag.target._executeDrop(selectedElement, dragSet, target.initial);
                 }
                 else {
                     // ... when drop failed
                     // Do it BEFORE element is reinserted in the DOM tree !!
                     selectedElement._revert(selectedElement._drag.origin);
                     // Reinsert element in DOM tree
-                    if (selectedElement._drag.origin._parent._add) {
-                        selectedElement._drag.origin._parent._add(selectedElement);
-                    }
-                    else {
-                        selectedElement._root.detach();
-                        selectedElement._parent = null;
-                    }
+                    console.assert(selectedElement._drag.origin._parent._unexecuteDrop);
+                    selectedElement._drag.origin._parent._unexecuteDrop(selectedElement);
                     // Do it AFTER element is reinserted in the DOM tree !!
                     selectedElement._recover && selectedElement._recover(selectedElement._drag.origin);
                 }
@@ -772,14 +770,16 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 let target = targets.get(selectedElement);
                 if (dropped.has(selectedElement)) {
                     let effectiveTarget = selectedElement.parent;
-                    effectiveTarget._receiveDrop && effectiveTarget._receiveDrop(selectedElement, this._dragSet, target.initial);
+                    console.assert(effectiveTarget._receiveDrop);
+                    effectiveTarget._receiveDrop(selectedElement, this._dragSet, target.initial);
                     effectiveTarget._fire(Events.RECEIVE_DROP, selectedElement);
                     selectedElement._droppedIn(effectiveTarget, this._dragSet, target.initial);
                     selectedElement._fire(Events.DROPPED, effectiveTarget);
                 }
                 else {
                     let parent = selectedElement.parent;
-                    parent._revertDrop && parent._revertDrop(selectedElement);
+                    console.assert(parent._revertDrop);
+                    parent._revertDrop(selectedElement);
                     parent._fire(Events.REVERT_DROP, selectedElement);
                     selectedElement._revertDroppedIn(parent);
                     selectedElement._fire(Events.REVERT_DROPPED, parent);
@@ -795,7 +795,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
         placeDroppedElements.call(this, dragSet, targets);
         checkDropAcceptance.call(this, dragSet, targets);
         // Starting from here, drop decision is done : accepted or cancelled
-        let dropped = executeDrop.call(this, dragSet);
+        let dropped = executeDrop.call(this, dragSet, targets);
         if (dropped.size!==0) {
             finalizeAndFireEvents.call(this, dragSet, dropped, targets);
         }
@@ -1192,10 +1192,11 @@ export let areaDrag = new DragSwitchOperation()
 
 export class CanvasLayer {
 
-    constructor(canvas) {
+    constructor(canvas, zIndex) {
         this._canvas = canvas;
         this._root = new Group();
         this._root._owner = this;
+        this._root.z_index = zIndex;
         this._mutationsObserver = this._createMutationsObserver();
         Context.addStarter(()=>{
             Memento.instance.addBefore(()=>this.stopMutationsObserver());
@@ -1294,7 +1295,7 @@ makeNotCloneable(CanvasLayer);
 export class BaseLayer extends CanvasLayer {
 
     constructor(canvas) {
-        super(canvas);
+        super(canvas, BaseLayer.Z_INDEX);
     }
 
     _adjustGeometry(matrix = this._root.matrix) {
@@ -1419,11 +1420,12 @@ export class BaseLayer extends CanvasLayer {
 }
 BaseLayer.ZOOM_STEP = 1.2;
 BaseLayer.ZOOM_MAX = 50;
+BaseLayer.Z_INDEX = 0;
 
 export class ToolsLayer extends CanvasLayer {
 
     constructor(canvas) {
-        super(canvas);
+        super(canvas, ToolsLayer.Z_INDEX);
     }
 
     putArtifact(artifact) {
@@ -1442,10 +1444,14 @@ export class ToolsLayer extends CanvasLayer {
     }
 
 }
+ToolsLayer.Z_INDEX = 999;
+
+let gpi = 0;
 
 class GlassPedestal {
 
     constructor(glass, support) {
+        this._id = gpi++;
         this._glass = glass;
         this._support = support;
         this._root = new Group();
@@ -1554,7 +1560,7 @@ export function makeMultiLayeredGlass(superClass, {layers}) {
     superClass.prototype._addPedestal = function(pedestal) {
         let layer = this._getLayer(pedestal._support);
         this._layers[layer].add(pedestal._root);
-        this._root.matrix = this._support._root.globalMatrix.multLeft(pedestal._root.globalMatrix.invert());
+        pedestal._root.matrix = pedestal._support._root.globalMatrix.multLeft(this._root.globalMatrix.invert());
     };
 
     superClass.prototype.putArtifact = function(artifact, element) {
@@ -1572,7 +1578,7 @@ export function makeMultiLayeredGlass(superClass, {layers}) {
 export class GlassLayer extends CanvasLayer {
 
     constructor(canvas) {
-        super(canvas);
+        super(canvas, GlassLayer.Z_INDEX);
         this._initContent();
         this._elements = new Map();
         this._pedestals = new Map();
@@ -1608,7 +1614,6 @@ export class GlassLayer extends CanvasLayer {
             if (!pedestalClass) pedestalClass = GlassPedestal;
             pedestal = new pedestalClass(this, support);
             this._pedestals.set(support, pedestal);
-            //////
             let parentSupport = support.support;
             let parentPedestal = parentSupport ? this._getPedestal(parentSupport) : null;
             if (parentPedestal) {
@@ -1687,6 +1692,7 @@ export class GlassLayer extends CanvasLayer {
     }
 
 }
+GlassLayer.Z_INDEX = 1000;
 
 export function setGlassStrategy(superClass, {glassStrategy}) {
 
@@ -1713,7 +1719,7 @@ export function setLayeredGlassStrategy(superClass, {layers}) {
 export class ModalsLayer extends CanvasLayer {
 
     constructor(canvas) {
-        super(canvas);
+        super(canvas, ModalsLayer.Z_INDEX);
         this._curtain = new Rect(-canvas.width/2, -canvas.height/2, canvas.width, canvas.height)
             .attrs({fill: Colors.BLACK, opacity: 0.5, visibility: Visibility.HIDDEN});
         this._root.add(this._curtain);
@@ -1763,6 +1769,7 @@ export class ModalsLayer extends CanvasLayer {
     }
 
 }
+ModalsLayer.Z_INDEX = 999;
 
 export class Anchor {
     constructor() {
