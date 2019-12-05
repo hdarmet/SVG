@@ -1086,7 +1086,6 @@ export class ToolGridPanelContent extends ToolPanelContent {
     }
 
     _refresh() {
-        this._dirty = false;
         this._clipRect.attrs({ y: -this.height / 2 + 5, height: this.height - 10 });
         this._background.y = -this.height / 2;
         if (this._cellsLayer) {
@@ -1133,14 +1132,18 @@ export class ToolGridPanelContent extends ToolPanelContent {
     }
 
     _askForRefresh() {
-        let shownCells = this._getCellsToShow();
-        if (!shownCells.same(this._shownCells)) {
-            this._shownCells = shownCells;
-            if (!this._dirty) {
-                win.setTimeout(() => this._refresh(), 0);
-            }
-            this._dirty = true;
+        if (!this._dirty) {
+            win.setTimeout(
+                () => {
+                    this._dirty = false;
+                    let shownCells = this._getCellsToShow();
+                    if (!shownCells.same(this._shownCells)) {
+                        this._shownCells = shownCells;
+                        this._refresh()
+                    }
+                }, 0);
         }
+        this._dirty = true;
     }
 
     accept(visitor) {

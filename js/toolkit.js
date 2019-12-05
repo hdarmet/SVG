@@ -2200,8 +2200,8 @@ export class CopyPaste {
     }
 
     duplicateElement(element) {
-        let result = this.duplicateForCopy([element]);
-        return result[0];
+        let result = this.duplicateForCopy(new List(element));
+        return result.pick();
     }
 
     duplicateForPaste(elements) {

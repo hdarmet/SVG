@@ -171,14 +171,12 @@ export function makeSelectable(superClass) {
         }
     });
 
-    if (!superClass.prototype.hasOwnProperty("selectable")) {
-        Object.defineProperty(superClass.prototype, "selectable", {
-            configurable: true,
-            get() {
-                return this;
-            }
-        });
-    }
+    Object.defineProperty(superClass.prototype, "selectable", {
+        configurable: true,
+        get() {
+            return this;
+        }
+    });
 
     let superMemento = superClass.prototype._memento;
     superClass.prototype._memento = function () {
@@ -543,7 +541,7 @@ export function makeContainer(superClass) {
             for (let element of children) {
                 Memento.register(element);
             }
-            this._clear();
+            this._clearChildren();
             for (let element of children) {
                 this._fire(Events.REMOVE, element);
                 element._fire(Events.DETACH, this);
@@ -1162,10 +1160,14 @@ export function makeContainerASupport(superClass) {
         return true;
     };
 
+    let receiveDrop = superClass.prototype._receiveDrop;
     superClass.prototype._receiveDrop = function (element, dragSet, initialTarget) {
+        receiveDrop && receiveDrop.call(this, element, dragSet, initialTarget);
     };
 
+    let revertDrop = superClass.prototype._revertDrop;
     superClass.prototype._revertDrop = function (element) {
+        revertDrop && revertDrop.call(this, element);
     };
 }
 

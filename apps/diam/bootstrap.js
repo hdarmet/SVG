@@ -1882,13 +1882,13 @@ makeHeaderOwner(DIAMRichCaddyModule);
 makeFooterOwner(DIAMRichCaddyModule);
 makeFasciaSupport(DIAMRichCaddyModule);
 
-class DIAMCell extends BoardElement {
-    constructor({width, height, x, y, shape, compatibilities, family}) {
+class DIAMAbstractCell extends BoardElement {
+
+    constructor({width, height, x, y, shape, compatibilities}) {
         super(width, height);
         this._initShape(shape.clone());
         this._setLocation(x, y);
         this._compatibilities = new ESet(compatibilities);
-        this._family = family;
     }
 
     get compatibilities() {
@@ -1901,20 +1901,13 @@ class DIAMCell extends BoardElement {
     }
 
     _acceptDrop(element, dragSet) {
-        return /*super._acceptDrop(element, dragSet) ||*/ this._acceptElement(element);
+        return this._acceptElement(element);
     }
 
-    _receiveDrop(element) {
-        if (this._family) {
-            this.parent.dispatchOnFamily(this, element);
-        }
+    _revertDrop(element) {
     }
 
-    get family() {
-        return this._family;
-    }
-
-    allCompatibilities() {
+    cellCompatibilities() {
         let result = new ESet(this.compatibilities);
         for (let option of this.children) {
             for (let compatibility of option.cellCompatibilities()) {
@@ -1925,18 +1918,47 @@ class DIAMCell extends BoardElement {
     }
 
 }
-makeShaped(DIAMCell);
-makeSupport(DIAMCell);
-makePositioningContainer(DIAMCell, {
-        predicate: function(element) {
-            return this.host._acceptElement(element);
-        },
-        positionsBuilder: element=>{return [{x:0, y:0}]}
-    });
-makePart(DIAMCell);
-makeGentleDropTarget(DIAMCell);
+makeShaped(DIAMAbstractCell);
+makeSupport(DIAMAbstractCell);
+makePositioningContainer(DIAMAbstractCell, {
+    predicate: function(element) {
+        return this.host._acceptElement(element);
+    },
+    positionsBuilder: element=>{return [{x:0, y:0}]}
+});
+makePart(DIAMAbstractCell);
+makeSelectable(DIAMAbstractCell);
+makeGentleDropTarget(DIAMAbstractCell);
+
+class DIAMCell extends DIAMAbstractCell {
+
+    constructor({width, height, x, y, shape, compatibilities, family}) {
+        super({width, height, x, y, shape, compatibilities});
+        this._family = family;
+    }
+
+    addChild(element) {
+        this.clearChildren();
+        super.addChild(element);
+    }
+
+    _receiveDrop(element, dragSet, initialTarget) {
+        if (this._family) {
+            this.parent.dispatchOnFamily(this, element);
+        }
+    }
+
+    _revertDrop(element) {
+    }
+
+    get family() {
+        return this._family;
+    }
+
+}
 
 class DIAMOption extends DIAMItem {
+
     _improve({shape, compatibilities}) {
         super._improve();
         console.assert(compatibilities);
@@ -1999,7 +2021,7 @@ function makeCellsOwner(superClass) {
     superClass.prototype.cellCompatibilities = function() {
         let result = new ESet();
         for (let cell of this.cells) {
-            for (let compatibility of cell.allCompatibilities()) {
+            for (let compatibility of cell.cellCompatibilities()) {
                 result.add(compatibility);
             }
         }
@@ -2008,9 +2030,9 @@ function makeCellsOwner(superClass) {
 
     superClass.prototype.dispatchOnFamily = function(cell, option) {
         for (let aCell of this.cells) {
-            if (aCell !== cell && aCell.family === cell.familty) {
+            if (aCell !== cell && aCell.family === cell.family) {
                 let anOption = CopyPaste.instance.duplicateElement(option);
-                aCell.add(anOption);
+                aCell.addChild(anOption);
             }
         }
     };
