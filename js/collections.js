@@ -75,6 +75,14 @@ export class List extends Array {
     duplicate() {
         return this.slice(0);
     }
+
+    indexes() {
+        let result = [];
+        for (let index in this) {
+            result.push(index);
+        }
+        return result.sort((i1, i2)=>i1-i2);
+    }
 }
 
 /**

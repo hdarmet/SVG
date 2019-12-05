@@ -11,7 +11,7 @@ import {
 } from "../../js/geometry.js";
 import {
     Context, Events, Canvas, Groups, DragOperation, Memento, makeNotCloneable, setLayeredGlassStrategy, standardDrag,
-    Layer, Layers, Selection, CopyPaste
+    Layer, Layers, Selection, CopyPaste, GlassLayer
 } from "../../js/toolkit.js";
 import {
     BoardElement, BoardTable, BoardArea, Visitor
@@ -241,6 +241,15 @@ function makeFreePositioningOwner(superClass) {
         }
         return false;
     };
+
+    superClass.prototype._unexecuteDrop = function(element) {
+        if (FreePositioningMode.mode) {
+            this._addFloating(element);
+            return true;
+        }
+        return false;
+    };
+
 }
 
 class DIAMItem extends BoardElement {
@@ -308,6 +317,95 @@ class DIAMItem extends BoardElement {
 
     _receiveDrop(element, dragSet, initialTarget) {
     }
+
+    _revertDrop(element) {
+    }
+
+    get zIndex() {
+        return this._zIndex ? this._zIndex : 0;
+    }
+
+    _setZIndex(zIndex) {
+        if (zIndex) {
+            this._zIndex = zIndex;
+            this._root.z_index = zIndex;
+        }
+        else {
+            delete this._zIndex;
+            this._root.z_index = undefined;
+        }
+    }
+
+    set zIndex(zIndex) {
+        if (this.zIndex !== zIndex) {
+            Memento.register(this);
+            this._setZIndex(zIndex);
+        }
+    }
+
+    get zOrder() {
+        if (this.zIndex) return this.zIndex;
+        if (this.parent) return this.parent.zOrder;
+        return 0;
+    }
+
+    _draggedFrom() {
+        if (this.zIndex) {
+            let zIndex = this.zIndex;
+            this.visit({}, function(context) {
+                if (this.zIndex>0) {
+                    this.zIndex -= zIndex;
+                }
+            });
+        }
+    }
+
+    _droppedIn(target, dragSet, initialTarget) {
+        console.assert(!this.z_index);
+        if (FreePositioningMode.mode) {
+            this.visit({element:this}, function(context) {
+                if (this===context.element) {
+                    this.zIndex = 1;
+                }
+                else if (this.zIndex) {
+                    this.zIndex ++;
+                }
+            });
+        }
+        let zIndex = target.zOrder;
+        if (zIndex) {
+            this.visit({}, function() {
+                if (this.zIndex) this.zIndex += zIndex;
+            });
+        }
+    }
+
+    _revertDroppedIn(parent) {
+        if (FreePositioningMode.mode) {
+            this.visit({element:this}, function(context) {
+                if (this===context.element) {
+                    this._setZIndex(1);
+                }
+                else if (this.zIndex) {
+                    this._setZIndex(this.zIndex+1);
+                }
+            });
+        }
+    }
+
+    _memento() {
+        let memento = super._memento();
+        memento._zIndex = this._zIndex;
+        return memento;
+    }
+
+    _revert(memento) {
+        super._revert(memento);
+        if (memento._zIndex !== this.zIndex) {
+            this._setZIndex(memento._zIndex);
+        }
+        return this;
+    }
 }
 makePartsOwner(DIAMItem);
 makeSelectable(DIAMItem);
@@ -333,6 +431,11 @@ class DIAMSupport extends BoardElement {
 
     get freeTarget() {
         return this.selectable;
+    }
+
+    get zOrder() {
+        if (this.parent) return this.parent.zOrder;
+        return 0;
     }
 }
 makeFramed(DIAMSupport);
@@ -854,6 +957,7 @@ class DIAMFixing extends DIAMItem {
 
     constructor() {
         super({width: DIAMFixing.WIDTH, height: DIAMFixing.HEIGHT});
+        this._root._node.style["z-index"] = 10;
     }
 
     _improve() {
@@ -1343,7 +1447,7 @@ function applyGenerateLadders(container, data) {
             slotInterval: data.slotInterval
         });
         leftLadder.setLocation( data.left + (data.ladderWidth) / 2, data.y);
-        container.add(leftLadder);
+        container.addChild(leftLadder);
         let rightLadder = new DIAMLadder({
             width: data.ladderWidth,
             height: data.ladderHeight,
@@ -1352,7 +1456,7 @@ function applyGenerateLadders(container, data) {
             slotInterval: data.slotInterval
         });
         rightLadder.setLocation( data.right - (data.ladderWidth) / 2, data.y);
-        container.add(rightLadder);
+        container.addChild(rightLadder);
         let width = data.right - data.left;
         for (let index = 1; index <= data.intermediateLaddersCount; index++) {
             let x = (width * index) / (data.intermediateLaddersCount + 1) + data.left;
@@ -1364,7 +1468,7 @@ function applyGenerateLadders(container, data) {
                 slotInterval: data.slotInterval
             });
             ladder.setLocation(x, data.y);
-            container.add(ladder);
+            container.addChild(ladder);
         }
     }
 }
@@ -1388,7 +1492,7 @@ function applyGenerateFixings(container, data) {
             for (let y = data.top; y <= data.bottom ; y += data.boxHeight) {
                 let fixing = new DIAMFixing();
                 fixing.setLocation(x, y);
-                container.add(fixing);
+                container.addChild(fixing);
             }
         }
     }
@@ -1413,7 +1517,7 @@ function applyGenerateHooks(container, data) {
             for (let y = data.top; y <= data.bottom ; y += data.blisterHeight) {
                 let fixing = new DIAMHook();
                 fixing.setLocation(x, y);
-                container.add(fixing);
+                container.addChild(fixing);
             }
         }
     }
@@ -1963,6 +2067,14 @@ class DIAMPaper extends BoardPaper {
         return this;
     }
 
+    get zOrder() {
+        if (this.parent) return this.parent.zOrder;
+        return 0;
+    }
+
+    _revertDrop(element) {
+    }
+
 }
 makePartsOwner(DIAMPaper);
 makeFreePositioningOwner(DIAMPaper);
@@ -1974,9 +2086,15 @@ class DIAMTable extends BoardTable {
         super(width, height, backgroundColor);
     }
 
+    get zOrder() {
+        if (this.parent) return this.parent.zOrder;
+        return 0;
+    }
+
     get freeTarget() {
         return this;
     }
+
 }
 makeContainerMultiLayered(DIAMTable, LAYERS_DEFINITION);
 makeFreePositioningOwner(DIAMTable);

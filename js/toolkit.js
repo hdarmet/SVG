@@ -19,10 +19,7 @@ import {
 } from "./svgtools.js";
 
 export const Context = {
-    //canvas : null,
     selectPredicate : null,
-    //memento : null,
-    //selection : null,
     readOnly : 0,
     freezed : 0,
 
@@ -700,7 +697,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 let target = targets.get(selectedElement);
                 // Can be cancelled before processed due to another element action
                 if (!this.dropCancelled(selectedElement)) {
-                    if (target && getCanvasLayer(target.effective._root) instanceof BaseLayer) {
+                    if (target && target.effective && getCanvasLayer(target.effective._root) instanceof BaseLayer) {
                         let { x, y } = computePosition(selectedElement._root, target.effective._root);
                         selectedElement.setLocation(x, y);
                         selectedElement._drag.target = target.effective;
@@ -778,9 +775,11 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 }
                 else {
                     let parent = selectedElement.parent;
-                    console.assert(parent._revertDrop);
-                    parent._revertDrop(selectedElement);
-                    parent._fire(Events.REVERT_DROP, selectedElement);
+                    if (parent) {
+                        console.assert(parent._revertDrop);
+                        parent._revertDrop(selectedElement);
+                        parent._fire(Events.REVERT_DROP, selectedElement);
+                    }
                     selectedElement._revertDroppedIn(parent);
                     selectedElement._fire(Events.REVERT_DROPPED, parent);
                 }
@@ -796,10 +795,8 @@ export class DragMoveSelectionOperation extends DragElementOperation {
         checkDropAcceptance.call(this, dragSet, targets);
         // Starting from here, drop decision is done : accepted or cancelled
         let dropped = executeDrop.call(this, dragSet, targets);
-        if (dropped.size!==0) {
-            finalizeAndFireEvents.call(this, dragSet, dropped, targets);
-        }
-        else {
+        finalizeAndFireEvents.call(this, dragSet, dropped, targets);
+        if (dropped.size===0) {
             Memento.instance.cancel();
         }
         this._doHover(dx, dy);
@@ -1486,6 +1483,22 @@ class GlassPedestal {
         return new List(...this._elementPedestals.keys());
     }
 
+    setGlassZIndexes(element) {
+        element.visit({element}, function(context) {
+            if (this._root.z_index!==undefined) {
+                this._root.z_index += GlassLayer.Z_INDEX;
+            }
+        });
+    }
+
+    unsetGlassZIndexes(element) {
+        element.visit({element}, function(context) {
+            if (this._root.z_index !== undefined) {
+                this._root.z_index -= GlassLayer.Z_INDEX;
+            }
+        });
+    }
+
     putElement(element, x, y) {
         let zoom = Canvas.instance.zoom;
         let ematrix = this._root.globalMatrix;
@@ -1504,6 +1517,7 @@ class GlassPedestal {
         let dX = invertedMatrix.x(fx, fy);
         let dY = invertedMatrix.y(fx, fy);
         element._setLocation(dX, dY);
+        this.setGlassZIndexes(element);
     }
 
     moveElement(element, x, y) {
@@ -1523,6 +1537,7 @@ class GlassPedestal {
         element.rotate && element.rotate(element.globalAngle);
         this._elementPedestals.delete(element);
         this.removeArtifact(pedestal, element);
+        this.unsetGlassZIndexes(element);
         //this.putArtifact(element._root, element);
     }
 
@@ -1593,6 +1608,16 @@ export class GlassLayer extends CanvasLayer {
     _initContent() {
         this._content = new Group();
         this._root.add(this._content);
+    }
+
+    hide() {
+        this._root.remove(this._content);
+        return true;
+    }
+
+    show() {
+        this._root.add(this._content);
+        return true;
     }
 
     _getPedestal(support) {
@@ -2512,9 +2537,17 @@ export class Memento {
     }
 
     cancel() {
-        this._undoTrx.pop();
-        this._undoTrx.push(new Map());
-        this._fire(Memento.events.CANCEL);
+        if (!Context.isReadOnly()) {
+            let current = this._undoTrx.pop();
+            if (current.size === 0) {
+                current = this._undoTrx.pop();
+            }
+            if (current) {
+                this._rollback(current);
+                this._fire(Memento.events.UNDO);
+            }
+            this._undoTrx.push(new Map());
+        }
         return this;
     }
 

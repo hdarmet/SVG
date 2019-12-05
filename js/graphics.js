@@ -1042,9 +1042,9 @@ export class SVGElement {
         if (this._children) {
             this._children.remove(element);
             matrixOp++;
+            element._unregister();
             this._remove(element);
             element._parent = null;
-            element._unregister();
         }
         return this;
     }
@@ -1280,14 +1280,11 @@ defineStringProperty(SVGElement, Attrs.STROKE_LINEJOIN);
 defineIntegerProperty(SVGElement, Attrs.STROKE_MITERLIMIT);
 defineFloatProperty(SVGElement, Attrs.STROKE_OPACITY);
 defineFloatProperty(SVGElement, Attrs.STROKE_WIDTH);
-// Testé
 defineStringProperty(SVGElement, Attrs.FILL);
-// Testé
 defineFloatProperty(SVGElement, Attrs.FILL_OPACITY);
-// Testé
 defineElementProperty(SVGElement, Attrs.CLIP_PATH, "url(#ELEMENT)");
 defineElementProperty(SVGElement, Attrs.MASK, "url(#ELEMENT)");
-// Partiel
+
 SVGElement.elementOn = function(node) {
     while (node) {
         if (node._owner) return node._owner;
@@ -1295,7 +1292,7 @@ SVGElement.elementOn = function(node) {
     }
     return null;
 };
-// Testé
+
 SVGElement.getElementFromPoint = function(x, y) {
     let node = doc.elementFromPoint(x, y);
     return SVGElement.elementOn(node);
@@ -1349,11 +1346,28 @@ class ZLayer {
         this._children = new List();
     }
 
+    _getInheritedAttribute(element, attrName) {
+        while (element) {
+            let attr = element._attrs[attrName];
+            if (attr) {
+                return attr;
+            }
+            element = element._parent;
+        }
+        return null;
+    }
+
     update() {
         if (this._index) {
             for (let element of this._children) {
                 if (element._parent) {
                     element._zMatrix = element._parent.globalMatrix;
+                    //let style = window.getComputedStyle(element._parent._node);
+                    if (element._attrs.visibility===null || element._attrs.visibility===undefined) {
+                        let visibility = this._getInheritedAttribute(element._parent, Attrs.VISIBILITY);
+                        if (visibility) console.log(Attrs.VISIBILITY, visibility);
+                        element._node.setAttribute(Attrs.VISIBILITY, visibility);
+                    }
                 }
             }
         }
@@ -1410,8 +1424,8 @@ export class Svg extends SVGElement {
 
     _updateLayers() {
         this._mutationObserver.disconnect();
-        for (let index in this._layers) {
-            this._layers[index].update();
+        for (let index of this._layers.indexes()) {
+            this._layers[parseInt(index)].update();
         }
         this._mutationObserver.observe(this._node, this._mutationConfig);
     }
@@ -1419,9 +1433,11 @@ export class Svg extends SVGElement {
     _createZLayer(index) {
         let beforeLayer;
         if (index<this._layers.length) {
-            for (let next in this._layers) {
-                if (next > index) {
-                    beforeLayer = this._layers[next];
+            for (let next of this._layers.indexes()) {
+                let nextIndex = parseInt(next);
+                if (nextIndex > index) {
+                    beforeLayer = this._layers[nextIndex];
+                    break;
                 }
             }
         }
@@ -1632,11 +1648,17 @@ export class SVGCoreElement extends SVGElement {
     }
 
     set z_index(zIndex) {
+        console.assert(zIndex===undefined || zIndex>=0);
         let zOrder = this._zOrder;
         if (this._zOrder !== zIndex) {
             this._unregister();
         }
-        this._attrs.z_index = zIndex;
+        if (zIndex!==undefined) {
+            this._attrs.z_index = zIndex;
+        }
+        else {
+            delete this._attrs.z_index;
+        }
         if (this._zOrder !== zIndex) {
             this._register();
         }
@@ -1646,7 +1668,7 @@ export class SVGCoreElement extends SVGElement {
         if (this._parent && this._svg !== this._parent._svg) {
             let z_index = this.z_index;
             this._zOrder = z_index !== undefined ? z_index : this._parent._zOrder;
-            if (this._parent._svg && this._parent && this._zOrder !== this._parent._zOrder) {
+            if (z_index!==undefined && this._parent._svg && this._zOrder !== this._parent._zOrder) {
                 this._parent._node.removeChild(this._node);
                 this._parent._svg._putOnLayer(this, this._zOrder);
             }

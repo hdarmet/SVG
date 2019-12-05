@@ -596,11 +596,11 @@ export function makeContainer(superClass) {
     };
 
     superClass.prototype._revertContent = function (memento) {
-        this.__clear();
+        this.__clearChildren();
         if (memento._children) {
             this._children = new List(...memento._children);
             for (let child of this._children) {
-                this.__add(child);
+                this.__addChild(child);
             }
         }
         else {
@@ -626,7 +626,7 @@ export function makeContainer(superClass) {
     superClass.prototype._cloning = function (duplicata) {
         let copy = cloning.call(this, duplicata);
         for (let child of this.children) {
-            copy._add(child.duplicate(duplicata));
+            copy._addChild(child.duplicate(duplicata));
         }
         return copy;
     };
@@ -1819,7 +1819,7 @@ class ZIndexSupport {
                 }
                 this._pedestals.get(parent)._proto(element);
                 for (let child of children) {
-                    element._add(child);
+                    element._addChild(child);
                 }
             }
             else {
@@ -1841,7 +1841,7 @@ class ZIndexSupport {
                     }
                     pedestal._unproto(element);
                     for (let child of elements) {
-                        element._add(child);
+                        element._addChild(child);
                     }
                 }
             }
@@ -1969,87 +1969,87 @@ export function makeContainerZindex(superClass) {
         return this._content;
     };
 
-    let add = superClass.prototype.add;
-    superClass.prototype.add = function (element) {
+    let addChild = superClass.prototype.addChild;
+    superClass.prototype.addChild = function (element) {
         Memento.register(this._zIndexSupport);
         this._zIndexSupport._memorizeElementContent(element);
-        return add.call(this, element);
+        return addChild.call(this, element);
     };
 
-    let insert = superClass.prototype.insert;
-    superClass.prototype.insert = function (previous, element) {
+    let insertChild = superClass.prototype.insertChild;
+    superClass.prototype.insertChild = function (previous, element) {
         Memento.register(this._zIndexSupport);
         this._zIndexSupport._memorizeElementContent(element);
-        return insert.call(this, previous, element);
+        return insertChild.call(this, previous, element);
     };
 
-    let replace = superClass.prototype.replace;
-    superClass.prototype.replace = function (previous, element) {
+    let replaceChild = superClass.prototype.replaceChild;
+    superClass.prototype.replaceChild = function (previous, element) {
         Memento.register(this._zIndexSupport);
         this._zIndexSupport._memorizeElementContent(element);
-        return replace.call(this, previous, element);
+        return replaceChild.call(this, previous, element);
     };
 
-    let remove = superClass.prototype.remove;
-    superClass.prototype.remove = function (element) {
+    let removeChild = superClass.prototype.removeChild;
+    superClass.prototype.removeChild = function (element) {
         Memento.register(this._zIndexSupport);
         this._zIndexSupport._memorizeElementContent(element);
-        return remove.call(this, element);
+        return removeChild.call(this, element);
     };
 
-    let clear = superClass.prototype.clear;
-    superClass.prototype.clear = function () {
+    let clearChildren = superClass.prototype.clearChildren;
+    superClass.prototype.clearChildren = function () {
         Memento.register(this._zIndexSupport);
         for (let element of this._children) {
             this._zIndexSupport._memorizeElementContent(element);
         }
-        return clear.call(this);
+        return clearChildren.call(this);
     };
 
-    let _add = superClass.prototype._add;
-    superClass.prototype._add = function (element) {
-        this._zIndexSupport._add(_add, element);
+    let _addChild = superClass.prototype._addChild;
+    superClass.prototype._addChild = function (element) {
+        this._zIndexSupport._addChild(_addChild, element);
     };
 
-    let _insert = superClass.prototype._insert;
-    superClass.prototype._insert = function (previous, element) {
-        this._zIndexSupport._insert(_insert, previous, element);
+    let _insertChild = superClass.prototype._insertChild;
+    superClass.prototype._insertChild = function (previous, element) {
+        this._zIndexSupport._insertChild(_insertChild, previous, element);
     };
 
-    let _replace = superClass.prototype._replace;
-    superClass.prototype._replace = function (previous, element) {
-        this._zIndexSupport._replace(_replace, previous, element);
+    let _replaceChild = superClass.prototype._replaceChild;
+    superClass.prototype._replaceChild = function (previous, element) {
+        this._zIndexSupport._replaceChild(_replaceChild, previous, element);
     };
 
-    let _remove = superClass.prototype._remove;
-    superClass.prototype._remove = function (element) {
-        this._zIndexSupport._remove(_remove, element);
+    let _removeChild = superClass.prototype._removeChild;
+    superClass.prototype._removeChild = function (element) {
+        this._zIndexSupport._removeChild(_removeChild, element);
     };
 
-    let _clear = superClass.prototype._clear;
-    superClass.prototype._clear = function () {
-        this._zIndexSupport._clear(_clear);
+    let _clearChildren = superClass.prototype._clearChildren;
+    superClass.prototype._clearChildren = function () {
+        this._zIndexSupport._clearChildren(_clearChildren);
     };
 
-    superClass.prototype.__add = function (element) {
-        this._zIndexSupport.__add(element);
+    superClass.prototype.__addChild = function (element) {
+        this._zIndexSupport.__addChild(element);
     };
 
-    superClass.prototype.__insert = function (previous, element) {
-        this._zIndexSupport.__insert(previous, element);
+    superClass.prototype.__insertChild = function (previous, element) {
+        this._zIndexSupport.__insertChild(previous, element);
     };
 
-    superClass.prototype.__replace = function (previous, element) {
-        this._zIndexSupport.__replace(previous, element);
+    superClass.prototype.__replaceChild = function (previous, element) {
+        this._zIndexSupport.__replacechild(previous, element);
     };
 
-    superClass.prototype.__remove = function (element) {
-        this._zIndexSupport.__remove(element);
+    superClass.prototype.__removeChild = function (element) {
+        this._zIndexSupport.__removeChild(element);
     };
 
-    superClass.prototype.__clear = function () {
-        this._content.clear();
-        this._zIndexSupport.__clear();
+    superClass.prototype.__clearChildren = function () {
+        this._content.clearChildren();
+        this._zIndexSupport.__clearChildren();
     };
 
     superClass.prototype._memorizeContent = function (memento) {

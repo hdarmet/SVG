@@ -280,6 +280,11 @@ export class BoardElement {
         return this;
     }
 
+    visit(context, action) {
+        new Visitor([this], context, action);
+        return this;
+    }
+
     get canvasLayer() {
         return getCanvasLayer(this._root);
     }

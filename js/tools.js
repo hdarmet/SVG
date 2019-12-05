@@ -116,6 +116,7 @@ Canvas.prototype.manageMenus = function() {
         let {x:mx, y:my} = this._toolsLayer.global2local(x, y);
         this._menu = new Menu(mx, my, menuOptions, closeOnSelect);
         this.putArtifactOnToolsLayer(this._menu._root);
+        console.log("tools:", this._menu._root._zOrder);
     };
 
     //FIXME May I use one day ?
