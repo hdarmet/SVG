@@ -49,7 +49,8 @@ export const Context = {
 export const Cloning = {
     DEEP:0, // Default value, used even if not defined :)
     SHALLOW:1,
-    NONE:2
+    NONE:2,
+    IGNORE:3
 };
 
 export function setRef(item, reference) {
@@ -418,7 +419,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
      * method.
      * @returns {Set}
      */
-    dragSet() {
+    dragSet(element) {
         /**
          * Check if an ancestor of an element is already selected
          * @param parent parent of the checked element
@@ -434,11 +435,15 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             }
             return false;
         }
-        let dragSet = getExtension(Selection.instance.selection(element=>true));
+        let canvasLayer = element.canvasLayer;
+        let dragSet = getExtension([element, ...Selection.instance.selection(element=>element.canvasLayer === canvasLayer)]);
         for (let element of [...dragSet]) {
-            if (!element.movable ||
-                element._acceptDrag && !element._acceptDrag() ||
-                inSelection(element.parent, dragSet)) {
+            if (!element.movable || element._acceptDrag && !element._acceptDrag()) {
+                dragSet.delete(element);
+            }
+        }
+        for (let element of [...dragSet]) {
+            if (inSelection(element.parent, dragSet)) {
                 dragSet.delete(element);
             }
         }
@@ -451,7 +456,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             Selection.instance.adjustSelection(element, event);
         }
         Canvas.instance.clearGlass();
-        this._dragSet = this.dragSet();
+        this._dragSet = this.dragSet(element);
         for (let selectedElement of this._dragSet.values()) {
             Memento.register(selectedElement);
             let zoom = selectedElement.global.scalex;
@@ -472,7 +477,8 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 lastY: gy,
                 // Last valid position occupied by the element
                 validX: gx,
-                validY: gy
+                validY: gy,
+                cloning: Cloning.IGNORE
             };
             let support = selectedElement.parent;
             selectedElement._draggedFrom(support, this._dragSet);
@@ -482,9 +488,11 @@ export class DragMoveSelectionOperation extends DragElementOperation {
         }
         this._drag = {
             lastX : x,
-            lastY : y
+            lastY : y,
+            cloning: Cloning.IGNORE
         };
-        this._fire(Events.DRAG_START, new ESet(this._dragSet));
+        Selection.instance.unselectAll(onCanvasLayer(Canvas.instance.baseLayer));
+        Canvas.instance._fire(DragMoveSelectionOperation.DRAG_MOVE_START, new ESet(this._dragSet));
     }
 
     /**
@@ -562,13 +570,13 @@ export class DragMoveSelectionOperation extends DragElementOperation {
         }
         for (let selectedElement of this._dragSet) {
             let target = targets.get(selectedElement);
-            selectedElement._hoverOn && selectedElement._hoverOn(target.effective, dragSet, target.initial);
+            selectedElement._hoverOn(target.effective, this._dragSet, target.initial);
             selectedElement._fire(Events.DRAG_MOVE);
         }
         this._drag.lastX = x;
         this._drag.lastY = y;
         this._doHover(dx, dy);
-        this._fire(Events.DRAG_MOVE, this._dragSet);
+        Canvas.instance._fire(DragMoveSelectionOperation.DRAG_MOVE_MOVE, this._dragSet);
         for (let selectedElement of this._dragSet) {
             selectedElement._drag.validX = selectedElement.gx;
             selectedElement._drag.validY = selectedElement.gy;
@@ -784,7 +792,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                     selectedElement._fire(Events.REVERT_DROPPED, parent);
                 }
             }
-            this._fire(Events.DRAG_DROP, new ESet(dropped.keys()));
+            Canvas.instance._fire(DragMoveSelectionOperation.DRAG_MOVE_DROP, new ESet(dropped.keys()));
         }
 
         let dx = x - this._drag.lastX;
@@ -802,6 +810,10 @@ export class DragMoveSelectionOperation extends DragElementOperation {
         this._doHover(dx, dy);
     }
 }
+
+DragMoveSelectionOperation.DRAG_MOVE_START = "drag-move-start";
+DragMoveSelectionOperation.DRAG_MOVE_MOVE = "drag-move-move";
+DragMoveSelectionOperation.DRAG_MOVE_DROP = "drag-move-drop";
 makeNotCloneable(DragMoveSelectionOperation);
 makeSingleton(DragMoveSelectionOperation);
 
@@ -1027,7 +1039,7 @@ export class DragSelectAreaOperation extends DragOperation {
             }
         }
         if (!event.ctrlKey && !event.metaKey && !event.shiftKey) {
-            Selection.instance.unselectAll();
+            Selection.instance.unselectAll(onCanvasLayer(Canvas.instance.baseLayer));
         }
         for (let child of Canvas.instance.baseChildren) {
             _doSelection(child);
@@ -2332,6 +2344,7 @@ CopyPaste.clone = function(source, duplicata) {
             return copy;
         }
 
+        if (source.cloning === Cloning.IGNORE) return null;
         if (duplicata.has(source)) return duplicata.get(source);
         if (source.notCloneable) {
             return source;
@@ -2361,7 +2374,7 @@ CopyPaste.clone = function(source, duplicata) {
         }
     }
 
-    if (source === null || source === undefined) return null;
+    if (source === null || source === undefined || source.cloning === Cloning.IGNORE) return null;
     if (duplicata.has(source)) return duplicata.get(source);
     let copy = {};
     duplicata.set(source, copy);
@@ -2589,6 +2602,12 @@ export function glassSelectionPredicate(element) {
 }
 Context.selectPredicate = baseSelectionPredicate;
 
+export function onCanvasLayer(canvasLayer) {
+    return function(element) {
+        return element.canvasLayer === canvasLayer;
+    }
+}
+
 export class Selection {
 
     constructor() {
@@ -2620,7 +2639,7 @@ export class Selection {
     }
 
     selectOnly(...elements) {
-        this.unselectAll();
+        this.unselectAll(onCanvasLayer(Canvas.instance.baseLayer));
         let result = false;
         for (let element of elements) {
             if (this.select(element)) {
@@ -2672,9 +2691,12 @@ export class Selection {
         return false;
     }
 
-    unselectAll() {
+    unselectAll(predicate) {
+        console.assert(predicate)
         for (let element of this._selection) {
-            this._unselect(element);
+            if (predicate(element)) {
+                this._unselect(element);
+            }
         }
     }
 
@@ -2697,7 +2719,7 @@ export class Selection {
         }
         else {
             if (unselectAllowed) {
-                this.unselectAll();
+                this.unselectAll(onCanvasLayer(element.canvasLayer));
             }
         }
     }
@@ -2768,7 +2790,7 @@ export class Groups extends Selection {
 
     _revert(memento) {
         this._elements = new Map(memento._elements);
-        this.unselectAll();
+        this.unselectAll(onCanvasLayer(Canvas.instance.baseLayer));
     }
 
     getGroup(element) {

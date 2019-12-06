@@ -15,7 +15,8 @@ import {
 } from "./misc.js";
 import {
     Context, Events, l2lBoundingBox, l2pBoundingBox, DragOperation, Memento, Canvas, makeObservable, makeNotCloneable,
-    getExtension, Layers, makeSingleton, CopyPaste, Selection, Anchor, StandardDragMode
+    getExtension, Layers, makeSingleton, CopyPaste, Selection, Anchor, StandardDragMode, onCanvasLayer,
+    DragMoveSelectionOperation
 } from "./toolkit.js";
 import {
     BoardElement
@@ -811,7 +812,7 @@ export class ToolExpandablePanel {
     _refresh() {
         if (this._opened) {
             this._title.matrix = Matrix.translate(0, -this.height / 2 + ToolExpandablePanel.PANEL_MIN_HEIGHT / 2);
-            this._content._refresh();
+            this._content._askForRefresh();
             this._content._root.matrix = Matrix.translate(0, ToolExpandablePanel.PANEL_MIN_HEIGHT * 0.5)
         } else {
             this._title.matrix = new Matrix();
@@ -1086,6 +1087,14 @@ export class ToolGridPanelContent extends ToolPanelContent {
     }
 
     _refresh() {
+        let shownCells = this._getCellsToShow();
+        if (!shownCells.same(this._shownCells)) {
+            this._shownCells = shownCells;
+            this._buildContent();
+        }
+    }
+
+    _buildContent() {
         this._clipRect.attrs({ y: -this.height / 2 + 5, height: this.height - 10 });
         this._background.y = -this.height / 2;
         if (this._cellsLayer) {
@@ -1136,11 +1145,7 @@ export class ToolGridPanelContent extends ToolPanelContent {
             win.setTimeout(
                 () => {
                     this._dirty = false;
-                    let shownCells = this._getCellsToShow();
-                    if (!shownCells.same(this._shownCells)) {
-                        this._shownCells = shownCells;
-                        this._refresh()
-                    }
+                    this._refresh()
                 }, 0);
         }
         this._dirty = true;
@@ -1172,13 +1177,32 @@ export class ToolGridExpandablePanel extends ToolExpandablePanel {
 
 }
 
+export function getPanelContent(artifact) {
+    let svgElement = artifact._root;
+    while (svgElement) {
+        if (svgElement._owner instanceof ToolPanelContent) {
+            return svgElement;
+        }
+        svgElement = svgElement.parent;
+    }
+    return null;
+}
+
+export function onToolPanelContent(panelContent) {
+    return function(element) {
+        return getPanelContent(element) === panelContent;
+    }
+}
+
 export class BoardItemBuilder extends ToolCell {
 
-    constructor(proto) {
+    constructor(proto, action) {
         super();
         this._proto = proto;
         this._support = new Group();
         this._root.add(this._support);
+        this._action = action;
+        Canvas.instance.addObserver(this);
     }
 
     get gx() {
@@ -1208,12 +1232,12 @@ export class BoardItemBuilder extends ToolCell {
         this._root.add(this._glass);
         this._glass.on(MouseEvents.MOUSE_DOWN, event=>{
             event.stopPropagation();
+            event.preventDefault();
             this.select();
             let anchor = [...this._currentItems][0];
-            let eventSpecs = {bubbles:true, clientX:event.clientX, clientY:event.clientY};
+            let eventSpecs = {bubbles: true, clientX: event.clientX, clientY: event.clientY};
             let dragEvent = new MouseEvent(MouseEvents.MOUSE_DOWN, eventSpecs);
             anchor._root._node.dispatchEvent(dragEvent);
-            this._makeItems();
         });
         this._glass.on(MouseEvents.CONTEXT_MENU, event=>{
             event.preventDefault();
@@ -1221,18 +1245,41 @@ export class BoardItemBuilder extends ToolCell {
                 Canvas.instance.openMenu(this.gx, this.gy, this._menuOptions);
             }
         });
+        this._glass.on(MouseEvents.CLICK, event=>{
+            if (this._action) {
+                this._action.call(this, this._currentItems);
+            }
+        });
         return this;
     }
 
+    selected() {
+        return  Selection.instance.selected(this._currentItems.pick());
+    }
+
     select() {
-        Selection.instance.unselectAll();
+        Selection.instance.unselectAll(onToolPanelContent(getPanelContent(this)));
         for (let element of this._currentItems) {
             Selection.instance.select(element);
         }
     }
 
+    unselect() {
+        for (let element of this._currentItems) {
+            Selection.instance.unselect(element);
+        }
+    }
+
+    _notified(source, event) {
+        if (source === Canvas.instance && event === DragMoveSelectionOperation.DRAG_MOVE_START) {
+            if (this._support.children.length===0) {
+                this._makeItems();
+                this.select();
+            }
+        }
+    }
+
     _makeItems() {
-        //let mementoOpened = Memento.instance.opened;
         this._currentItems = CopyPaste.instance.duplicateForPaste(this._proto);
         for (let item of this._currentItems) {
             item._parent = this;

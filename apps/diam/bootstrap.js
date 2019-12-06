@@ -11,7 +11,7 @@ import {
 } from "../../js/geometry.js";
 import {
     Context, Events, Canvas, Groups, DragOperation, Memento, makeNotCloneable, setLayeredGlassStrategy, standardDrag,
-    Layer, Layers, Selection, CopyPaste, GlassLayer
+    Layer, Layers, Selection, CopyPaste, onCanvasLayer
 } from "../../js/toolkit.js";
 import {
     BoardElement, BoardTable, BoardArea, Visitor
@@ -1895,13 +1895,13 @@ class DIAMAbstractCell extends BoardElement {
         return this._compatibilities;
     }
 
-    _acceptElement(element) {
+    acceptElement(element) {
         if (!is(DIAMOption)(element) || !element.compatibilities) return false;
         return element.isCompatible(this.compatibilities);
     }
 
     _acceptDrop(element, dragSet) {
-        return this._acceptElement(element);
+        return this.acceptElement(element);
     }
 
     _revertDrop(element) {
@@ -1922,7 +1922,7 @@ makeShaped(DIAMAbstractCell);
 makeSupport(DIAMAbstractCell);
 makePositioningContainer(DIAMAbstractCell, {
     predicate: function(element) {
-        return this.host._acceptElement(element);
+        return this.host.acceptElement(element);
     },
     positionsBuilder: element=>{return [{x:0, y:0}]}
 });
@@ -1935,17 +1935,70 @@ class DIAMCell extends DIAMAbstractCell {
     constructor({width, height, x, y, shape, compatibilities, family}) {
         super({width, height, x, y, shape, compatibilities});
         this._family = family;
+        this._clickHandler(function() {
+            return event=>{
+                this.fill();
+            }
+        });
+    }
+
+    fill() {
+        let selection = Selection.instance.selection(onCanvasLayer(Canvas.instance.toolsLayer));
+        if (selection.size===1) {
+            let element = selection.pick();
+            if (this.acceptElement(element)) {
+                let anOption = CopyPaste.instance.duplicateElement(element);
+                this.addChild(anOption);
+            }
+        }
     }
 
     addChild(element) {
+        this.option = element;
+        if (this._family) {
+            this.parent.dispatchAddOnFamily(this, element);
+        }
+    }
+
+    removeChild(element) {
+        this.option = null;
+        if (this._family) {
+            this.parent.dispatchRemoveOnFamily(this);
+        }
+    }
+
+    get option() {
+        return this.children[0];
+    }
+
+    set option(element) {
         this.clearChildren();
-        super.addChild(element);
+        if (element) {
+            super.addChild(element);
+        }
+    }
+
+    get deletable() {
+        return this.option && this.option.deletable;
+    }
+
+    delete() {
+        this.option && this.option.delete();
+    }
+
+    select() {
+        if (this._family) {
+            this.parent.dispatchSelectOnFamily(this);
+        }
+    }
+
+    unselect() {
+        if (this._family) {
+            this.parent.dispatchUnselectOnFamily(this);
+        }
     }
 
     _receiveDrop(element, dragSet, initialTarget) {
-        if (this._family) {
-            this.parent.dispatchOnFamily(this, element);
-        }
     }
 
     _revertDrop(element) {
@@ -1956,6 +2009,7 @@ class DIAMCell extends DIAMAbstractCell {
     }
 
 }
+makeClickable(DIAMCell);
 
 class DIAMOption extends DIAMItem {
 
@@ -1965,6 +2019,13 @@ class DIAMOption extends DIAMItem {
         this._initShape(shape.clone());
         this._compatibilities = new ESet(compatibilities);
         this._addObserver(this);
+        this._clickHandler(function() {
+            return event=>{
+                if (this.parent && this.parent.fill) {
+                    this.parent.fill();
+                }
+            }
+        });
     }
 
     get compatibilities() {
@@ -1989,6 +2050,20 @@ class DIAMOption extends DIAMItem {
 
     cellCompatibilities() {
         return new ESet();
+    }
+
+    select() {
+        if (this.parent && this.parent instanceof DIAMCell) {
+            Selection.instance.select(this.parent);
+            Selection.instance.unselect(this);
+        }
+    }
+
+    _draggedFrom(parent) {
+        Selection.instance.select(this);
+        if (parent instanceof DIAMCell) {
+            Selection.instance.unselect(this.parent);
+        }
     }
 
 }
@@ -2018,6 +2093,43 @@ function makeCellsOwner(superClass) {
         }
     });
 
+    Object.defineProperty(superClass.prototype, "isCellsOwner", {
+        configurable: true,
+        get() {
+            return true;
+        }
+    });
+
+    let select = superClass.prototype.select;
+    superClass.prototype.select = function() {
+        select && select.call(this);
+        this.selectNextEmptyCell();
+    };
+
+    superClass.prototype.selectNextEmptyCell = function(cell) {
+
+        function _deselectCells(owner) {
+            for (let aCell of [...owner.cells]) {
+                if (Selection.instance.selected(aCell)) {
+                    Selection.instance.unselect(aCell);
+                }
+            }
+        }
+
+        for (let aCell of [...this.cells, ...this.cells]) {
+            if (aCell === cell) {
+                cell = null;
+            }
+            else if (!cell) {
+                if (aCell.children.length === 0) {
+                    _deselectCells(this);
+                    Selection.instance.select(aCell);
+                    break;
+                }
+            }
+        }
+    };
+
     superClass.prototype.cellCompatibilities = function() {
         let result = new ESet();
         for (let cell of this.cells) {
@@ -2028,11 +2140,39 @@ function makeCellsOwner(superClass) {
         return result;
     };
 
-    superClass.prototype.dispatchOnFamily = function(cell, option) {
+    superClass.prototype.dispatchAddOnFamily = function(cell, option) {
         for (let aCell of this.cells) {
             if (aCell !== cell && aCell.family === cell.family) {
                 let anOption = CopyPaste.instance.duplicateElement(option);
-                aCell.addChild(anOption);
+                aCell.option = anOption;
+            }
+        }
+    };
+
+    superClass.prototype.dispatchRemoveOnFamily = function(cell) {
+        for (let aCell of this.cells) {
+            if (aCell !== cell && aCell.family === cell.family) {
+                aCell.option = null;
+            }
+        }
+    };
+
+    superClass.prototype.dispatchSelectOnFamily = function(cell) {
+        for (let aCell of this.cells) {
+            if (aCell !== cell && aCell.family === cell.family) {
+                if (!Selection.instance.selected(aCell)) {
+                    Selection.instance.select(aCell);
+                }
+            }
+        }
+    };
+
+    superClass.prototype.dispatchUnselectOnFamily = function(cell) {
+        for (let aCell of this.cells) {
+            if (aCell !== cell && aCell.family === cell.family) {
+                if (Selection.instance.selected(aCell)) {
+                    Selection.instance.unselect(aCell);
+                }
             }
         }
     };
@@ -2283,6 +2423,9 @@ class OptionsExpandablePanel extends ToolGridExpandablePanel {
 
     open() {
         Selection.instance.addObserver(this);
+        if (!this._previousCompatibilitySet) {
+            this._previousCompatibilitySet = new ESet();
+        }
         this._compatibilitySet = null;
         super.open();
     }
@@ -2295,7 +2438,9 @@ class OptionsExpandablePanel extends ToolGridExpandablePanel {
     _notified(source, event, value) {
         if (source === Selection.instance) {
             if (Selection.instance.selection().size) {
-                this._compatibilitySet = null;
+                if (this._compatibilitySet) {
+                    this._previousCompatibilitySet = this._compatibilitySet;
+                }
                 this._refresh();
             }
         }
@@ -2311,6 +2456,10 @@ class OptionsExpandablePanel extends ToolGridExpandablePanel {
                     }
                 }
             }
+            console.log(this._compatibilitySet, this._previousCompatibilitySet)
+            if (!this._compatibilitySet.size) {
+                this._compatibilitySet = this._previousCompatibilitySet;
+            }
         }
         return this._compatibilitySet;
     }
@@ -2322,6 +2471,23 @@ class OptionsExpandablePanel extends ToolGridExpandablePanel {
     }
 
 
+}
+
+class OptionItemBuilder extends BoardItemBuilder {
+    constructor(proto) {
+        super(proto, function(items) {
+            let selection = Selection.instance.selection(onCanvasLayer(Canvas.instance.baseLayer));
+            for (let element of selection) {
+                if (element instanceof DIAMCell && !element.option) {
+                    let anOption = CopyPaste.instance.duplicateElement(items.pick());
+                    element.addChild(anOption);
+                    if (element.parent.isCellsOwner) {
+                        element.parent.selectNextEmptyCell(element);
+                    }
+                }
+            }
+        });
+    }
 }
 
 function createPalettePopup() {
@@ -2530,27 +2696,27 @@ function createPalettePopup() {
     paletteContent.addCell(new BoardItemBuilder([new DIAMFascia({
         width:120, height:60, color:"#FF00FF"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:4,
+    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#FF0000"}),
         compatibilities:["C"]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:4,
+    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#F00000"}),
         compatibilities:["C"]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:4,
+    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#FF0F0F"}),
         compatibilities:["C"]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:4,
+    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#F00F0F"}),
         compatibilities:["C"]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:4,
+    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#AA0000"}),
         compatibilities:["C"]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMConfigurableOption({width:4, height:20,
+    paletteContent.addCell(new OptionItemBuilder([new DIAMConfigurableOption({width:4, height:20,
         shape:new Rect(-2, -10, 4, 20).attrs({stroke_width:0.25, stroke:Colors.GREY, fill:Colors.WHITE}),
         compatibilities:["O"],
         cells:[
@@ -2560,7 +2726,7 @@ function createPalettePopup() {
             })
         ]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMConfigurableOption({width:4, height:20,
+    paletteContent.addCell(new OptionItemBuilder([new DIAMConfigurableOption({width:4, height:20,
         shape:new Rect(-2, -6, 4, 16).attrs({stroke_width:0.25, stroke:Colors.GREY, fill:Colors.WHITE}),
         compatibilities:["O"],
         cells:[
@@ -2570,7 +2736,7 @@ function createPalettePopup() {
             })
         ]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMConfigurableOption({width:4, height:20,
+    paletteContent.addCell(new OptionItemBuilder([new DIAMConfigurableOption({width:4, height:20,
         shape:new Rect(-2, -2, 4, 12).attrs({stroke_width:0.25, stroke:Colors.GREY, fill:Colors.WHITE}),
         compatibilities:["O"],
         cells:[
@@ -2580,23 +2746,23 @@ function createPalettePopup() {
             })
         ]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:6,
+    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#FF0000"}),
         compatibilities:["R"]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:6,
+    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#F00000"}),
         compatibilities:["R"]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:6,
+    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#FF0F0F"}),
         compatibilities:["R"]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:6,
+    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#F00F0F"}),
         compatibilities:["R"]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMColorOption({width:4, height:6,
+    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#AA0000"}),
         compatibilities:["R"]
     })]));

@@ -159,6 +159,10 @@ export class ESet extends Set {
     }
 
     pick() {
+        return this.values().next().value;
+    }
+
+    take() {
         let element = this.values().next().value;
         this.delete(element);
         return element;

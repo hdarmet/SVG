@@ -13,7 +13,8 @@ import {
     Group, l2l, l2m, Rect, Translation, Visibility
 } from "./graphics.js";
 import {
-    areaDrag, Cloning, Context, CopyPaste, Events, getCanvasLayer, makeNotCloneable, makeObservable, Memento, Canvas
+    areaDrag, Cloning, Context, Selection, CopyPaste, Events, getCanvasLayer, makeNotCloneable, makeObservable,
+    Memento, Canvas
 } from "./toolkit.js";
 import {
     makeClickable, makeContainer, makeDraggable, makePartsOwner, makeShaped, makeSupport,
@@ -315,6 +316,10 @@ export class BoardElement {
     }
 
     _draggedFrom(support, dragSet, initialTarget) {
+    }
+
+    _hoverOn(support) {
+        Selection.instance.select(this);
     }
 
     _droppedIn(support, dragSet, initialTarget) {
