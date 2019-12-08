@@ -1,4 +1,7 @@
 'use strict';
+import {
+    assert
+} from "./misc.js";
 
 export function distanceToSegment(p, s1, s2) {
     return Math.sqrt(distanceToSegmentSquared(p, s1, s2));
@@ -117,7 +120,7 @@ export class Matrix {
 
     _check() {
         if (isNaN(this.a+this.b+this.c+this.d+this.e+this.f)) {
-            console.assert("Invalid matrix:", this);
+            assert("Invalid matrix:", this);
         }
     }
 

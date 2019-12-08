@@ -18,6 +18,10 @@ export function evaluate(label, code) {
     return result;
 }
 
+export function assert(assertion) {
+    console.assert(assertion);
+}
+
 export function getPropertyDescriptor(prototype, property) {
     let descriptor = Object.getOwnPropertyDescriptor(prototype, property);
     while (!descriptor && prototype) {

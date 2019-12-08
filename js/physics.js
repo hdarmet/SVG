@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    evaluate, same, always
+    evaluate, same, always, assert
 } from "./misc.js";
 import {
     List, AVLTree, ESet, EMap, SpatialLocator
@@ -281,7 +281,7 @@ export function makePhysicExclusive(superClass) {
 
 export function addPhysicToContainer(superClass, {physicBuilder}) {
 
-    console.assert(superClass.prototype._initContent);
+    assert(superClass.prototype._initContent);
 
     let initContent = superClass.prototype._initContent;
     superClass.prototype._initContent = function(...args) {
@@ -309,6 +309,7 @@ export function addPhysicToContainer(superClass, {physicBuilder}) {
 
     let shiftChild = superClass.prototype._shiftChild;
     superClass.prototype._shiftChild = function(element, x, y) {
+        console.log("shift")
         shiftChild.call(this, element, x, y);
         this.physic.move(element);
     };
@@ -409,7 +410,7 @@ export function makePositioningPhysic(superClass, {
     }
 }) {
 
-    console.assert(positionsBuilder);
+    assert(positionsBuilder);
     makeAbstractPositioningPhysic(superClass);
 
     superClass.prototype._elementPosition = function(element) {
@@ -1492,7 +1493,7 @@ export class RulesDecoration extends Decoration {
 
     constructor(rulesPhysic) {
         super();
-        console.assert(rulesPhysic.rules);
+        assert(rulesPhysic.rules);
         this._physic = rulesPhysic;
         this._rules = new Group();
         this._arrows = new Group();

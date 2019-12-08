@@ -1177,15 +1177,20 @@ export class ToolGridExpandablePanel extends ToolExpandablePanel {
 
 }
 
-export function getPanelContent(artifact) {
+export function getItemBuilder(artifact) {
     let svgElement = artifact._root;
     while (svgElement) {
-        if (svgElement._owner instanceof ToolPanelContent) {
-            return svgElement;
+        if (svgElement._owner instanceof BoardItemBuilder) {
+            return svgElement._owner;
         }
         svgElement = svgElement.parent;
     }
     return null;
+}
+
+export function getPanelContent(artifact) {
+    let itemBuilder =  getItemBuilder(artifact);
+    return itemBuilder ? itemBuilder.owner : null;
 }
 
 export function onToolPanelContent(panelContent) {
@@ -1234,7 +1239,7 @@ export class BoardItemBuilder extends ToolCell {
             event.stopPropagation();
             event.preventDefault();
             this.select();
-            let anchor = [...this._currentItems][0];
+            let anchor = this._currentItems.pick();
             let eventSpecs = {bubbles: true, clientX: event.clientX, clientY: event.clientY};
             let dragEvent = new MouseEvent(MouseEvents.MOUSE_DOWN, eventSpecs);
             anchor._root._node.dispatchEvent(dragEvent);

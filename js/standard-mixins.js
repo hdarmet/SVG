@@ -8,7 +8,7 @@ import {
     Context, Memento, CloneableObject, Events, Canvas, CopyPaste
 } from "./toolkit.js";
 import {
-    isNumber, getPropertyDescriptor
+    isNumber, assert
 } from "./misc.js";
 import {
     Matrix
@@ -158,7 +158,7 @@ export class TextDecoration extends Decoration {
                 x = 0;
                 textAnchor = TextAnchor.MIDDLE;
             } else {
-                console.assert(isNumber(x));
+                assert(isNumber(x));
             }
             return {x, textAnchor};
         }
@@ -176,7 +176,7 @@ export class TextDecoration extends Decoration {
                 y = 0;
                 alignmentBaseline = AlignmentBaseline.MIDDLE;
             } else {
-                console.assert(isNumber(y));
+                assert(isNumber(y));
             }
             return {y, alignmentBaseline};
         }
@@ -528,7 +528,7 @@ export class MarksDecoration extends Decoration {
                 x = this._element.width / 2 - MarksDecoration.MARGIN;
                 markWidth = -markWidth;
             } else {
-                console.assert(isNumber(x));
+                assert(isNumber(x));
             }
             return {x, markWidth};
         }
@@ -541,7 +541,7 @@ export class MarksDecoration extends Decoration {
                 y = this._element.height / 2 - MarksDecoration.MARGIN;
                 markHeight = -markHeight;
             } else {
-                console.assert(isNumber(y));
+                assert(isNumber(y));
             }
             return {y, markHeight};
         }

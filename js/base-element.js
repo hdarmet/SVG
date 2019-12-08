@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    createUUID, same
+    createUUID, same, assert
 } from "./misc.js";
 import {
     ESet
@@ -26,7 +26,7 @@ export class BoardElement {
     constructor(width, height, ...args) {
         this._width = width;
         this._height = height;
-        console.assert(this._width!==undefined&&this._height!==undefined);
+        assert(this._width!==undefined&&this._height!==undefined);
         this._id = createUUID();
         this._createStructure();
         this._init(...args);
@@ -270,7 +270,7 @@ export class BoardElement {
     detach() {
         let parent = this.parent;
         if (parent) {
-            console.assert(parent.detachChild);
+            assert(parent.detachChild);
             parent.detachChild(this);
         }
         return this;

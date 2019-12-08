@@ -1,4 +1,7 @@
 'use strict';
+import {
+    assert
+} from "./misc.js";
 
 /**
  * Arrays with standardized API (add, insert, size, delete...)
@@ -278,7 +281,7 @@ class AVLNode {
 
     print(stringifier, parent) {
         if (this._parent !== parent) {
-            console.assert(false);
+            assert(false);
         }
         if (this._left) {
             this._left.print(stringifier, this);

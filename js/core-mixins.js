@@ -9,7 +9,7 @@ import {
     ESet, List
 } from "./collections.js";
 import {
-    createUUID
+    createUUID, assert
 } from "./misc.js";
 
 export function makeDeletable(superClass) {
@@ -202,6 +202,7 @@ export function makeSelectable(superClass) {
             }.bind(copy);
             copy._root.on(MouseEvents.CLICK, copy._clickHdlImpl);
         }
+        copy.selectFrame.filter = null;
     };
 
 }
@@ -358,7 +359,7 @@ export function makePartsOwner(superClass) {
 
 export function makeContainer(superClass) {
 
-    console.assert(!superClass.prototype._initContent);
+    assert(!superClass.prototype._initContent);
 
     let init = superClass.prototype._init;
     superClass.prototype._init = function (...args) {
@@ -561,8 +562,8 @@ export function makeContainer(superClass) {
     superClass.prototype._shiftChild = function (element, x, y) {
     };
 
-    let shift = superClass.prototype.shift;
-    superClass.prototype.shift = function(element, x, y) {
+    let shift = superClass.prototype._shift;
+    superClass.prototype._shift = function(element, x, y) {
         if (shift && shift.call(this, element, x, y)) return true;
         if (!this.containsChild(element)) return false;
         this._shiftChild(element, x, y);
@@ -965,7 +966,7 @@ export class Decoration {
 
 export function makeDecorationsOwner(superClass) {
 
-    console.assert(!superClass.prototype._initDecorations);
+    assert(!superClass.prototype._initDecorations);
 
     let init = superClass.prototype._init;
     superClass.prototype._init = function (...args) {
@@ -996,7 +997,7 @@ export function makeDecorationsOwner(superClass) {
     };
 
     superClass.prototype.addDecoration = function (decoration) {
-        console.assert(!decoration.element);
+        assert(!decoration.element);
         Memento.register(this);
         Memento.register(decoration);
         this._addDecoration(decoration);
@@ -1017,7 +1018,7 @@ export function makeDecorationsOwner(superClass) {
     };
 
     superClass.prototype.removeDecoration = function (decoration) {
-        console.assert(decoration.element === this);
+        assert(decoration.element === this);
         Memento.register(this);
         Memento.register(decoration);
         this._removeDecoration(decoration);
@@ -1319,7 +1320,7 @@ export function makeMultiLayeredContainer(superClass, {layers}) {
 
 export function makeLayersWithContainers(superClass, {layersBuilder}) {
 
-    console.assert(layersBuilder);
+    assert(layersBuilder);
 
     let defaultLayer;
     let layers = layersBuilder();
@@ -1409,8 +1410,8 @@ export function makeLayersWithContainers(superClass, {layersBuilder}) {
     superClass.prototype._shiftChild = function (element, x, y) {
     };
 
-    let shift = superClass.prototype.shift;
-    superClass.prototype.shift = function(element, x, y) {
+    let shift = superClass.prototype._shift;
+    superClass.prototype._shift = function(element, x, y) {
         if (shift && shift.call(this, element, x, y)) return true;
         if (!this.containsChild(element)) return false;
         this._shiftChild(element, x, y);
@@ -2405,7 +2406,7 @@ export function makeImaged(superClass) {
             return new SvgRasterImage(url.svg, -width / 2, -height / 2, width, height);
         }
         else {
-            console.assert(typeof(url) === 'string');
+            assert(typeof(url) === 'string');
             return new RasterImage(url, -width / 2, -height / 2, width, height);
         }
     };

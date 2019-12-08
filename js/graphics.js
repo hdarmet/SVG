@@ -1,6 +1,9 @@
 'use strict';
 
 import {
+    assert
+} from "./misc.js";
+import {
     List
 } from "./collections.js";
 import {
@@ -1454,17 +1457,34 @@ export class Svg extends SVGElement {
         if (!this._layers[index]) {
             this._createZLayer(index);
         }
-        this._layers[index].add(element);
+        this._layers[index].add(element); // TODO ? Manage order ?
         element._zMatrix = element._parent ? element._parent.globalMatrix : null;
     }
 
     _removeFromLayer(element, index) {
-        console.assert(this._layers[index]);
-        this._layers[index].remove(element);
-        if (element._parent) {
-            element._parent._node.appendChild(element._node); // TODO reestablish natural order
+
+        function reinsertInRightLocation(element) {
+            if (element._parent) {
+                let index = element._parent._children.indexOf(element);
+                while(element._parent._children[index].parentNode !== element._parent._node
+                && index<element._parent._children.length - 1) {
+                    index++;
+                }
+                if (index === element._parent._children.length - 1) {
+                    element._parent._node.appendChild(element._node);
+                }
+                else {
+                    let before = element._parent._children[index];
+                    element._parent._node.insertBefore(element._node, before._node);
+                }
+            }
         }
-        console.assert(this._layers[index]);
+
+        assert(this._layers[index]);
+        this._layers[index].remove(element);
+        // To re-insert in the right place.
+        reinsertInRightLocation(element);
+        assert(this._layers[index]);
         if (this._layers[index].empty) {
             delete this._layers[index];
         }
@@ -1648,7 +1668,7 @@ export class SVGCoreElement extends SVGElement {
     }
 
     set z_index(zIndex) {
-        console.assert(zIndex===undefined || zIndex>=0);
+        assert(zIndex===undefined || zIndex>=0);
         let zOrder = this._zOrder;
         if (this._zOrder !== zIndex) {
             this._unregister();

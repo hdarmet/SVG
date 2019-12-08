@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    evaluate, always
+    evaluate, always, assert
 } from "./misc.js";
 import {
     List, ESet
@@ -300,11 +300,11 @@ export function makeSingleton(Clazz, create=true) {
     Object.defineProperty(Clazz, "instance", {
         configurable:true,
         get() {
-            console.assert(Context[instanceName]);
+            assert(Context[instanceName]);
             return Context[instanceName];
         },
         set(instance) {
-            console.assert(!Context[instanceName]);
+            assert(!Context[instanceName]);
             Context[instanceName] = instance;
         }
     });
@@ -491,7 +491,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             lastY : y,
             cloning: Cloning.IGNORE
         };
-        Selection.instance.unselectAll(onCanvasLayer(Canvas.instance.baseLayer));
+        Selection.instance.unselectAll();
         Canvas.instance._fire(DragMoveSelectionOperation.DRAG_MOVE_START, new ESet(this._dragSet));
     }
 
@@ -612,7 +612,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
          * @returns {*} the definitive target
          */
         function getTarget(element, target) {
-            console.assert(target != null);
+            assert(target != null);
             if (target && target._dropTarget) {
                 target = target._dropTarget(element);
             }
@@ -722,7 +722,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 let target = targets.get(selectedElement);
                 // Can be cancelled before processed due to another element action
                 if (!this.dropCancelled(selectedElement)) {
-                    if (target && target.effective.content && getCanvasLayer(target.effective._root) instanceof BaseLayer) {
+                    if (target && getCanvasLayer(target.effective._root) instanceof BaseLayer) {
                         // Ask target if it "accepts" the drop
                         if ((!target.effective._acceptDrop ||
                              !target.effective._acceptDrop(selectedElement, this._dragSet, target.initial)) ||
@@ -732,6 +732,9 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                         {
                             this.cancelDrop(selectedElement);
                         }
+                    }
+                    else {
+                        this.cancelDrop(selectedElement);
                     }
                 }
             }
@@ -751,7 +754,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                         let angle = computeAngle(selectedElement._hinge, selectedElement._drag.target.content);
                         selectedElement.rotate(angle);
                     }
-                    console.assert(selectedElement._drag.target._executeDrop);
+                    assert(selectedElement._drag.target._executeDrop);
                     selectedElement._drag.target._executeDrop(selectedElement, dragSet, target.initial);
                 }
                 else {
@@ -759,7 +762,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                     // Do it BEFORE element is reinserted in the DOM tree !!
                     selectedElement._revert(selectedElement._drag.origin);
                     // Reinsert element in DOM tree
-                    console.assert(selectedElement._drag.origin._parent._unexecuteDrop);
+                    assert(selectedElement._drag.origin._parent._unexecuteDrop);
                     selectedElement._drag.origin._parent._unexecuteDrop(selectedElement);
                     // Do it AFTER element is reinserted in the DOM tree !!
                     selectedElement._recover && selectedElement._recover(selectedElement._drag.origin);
@@ -775,7 +778,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 let target = targets.get(selectedElement);
                 if (dropped.has(selectedElement)) {
                     let effectiveTarget = selectedElement.parent;
-                    console.assert(effectiveTarget._receiveDrop);
+                    assert(effectiveTarget._receiveDrop);
                     effectiveTarget._receiveDrop(selectedElement, this._dragSet, target.initial);
                     effectiveTarget._fire(Events.RECEIVE_DROP, selectedElement);
                     selectedElement._droppedIn(effectiveTarget, this._dragSet, target.initial);
@@ -784,7 +787,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 else {
                     let parent = selectedElement.parent;
                     if (parent) {
-                        console.assert(parent._revertDrop);
+                        assert(parent._revertDrop);
                         parent._revertDrop(selectedElement);
                         parent._fire(Events.REVERT_DROP, selectedElement);
                     }
@@ -1039,7 +1042,7 @@ export class DragSelectAreaOperation extends DragOperation {
             }
         }
         if (!event.ctrlKey && !event.metaKey && !event.shiftKey) {
-            Selection.instance.unselectAll(onCanvasLayer(Canvas.instance.baseLayer));
+            Selection.instance.unselectAll();
         }
         for (let child of Canvas.instance.baseChildren) {
             _doSelection(child);
@@ -1687,7 +1690,7 @@ export class GlassLayer extends CanvasLayer {
     putElement(element, support, x, y) {
         let supportPedestal = this._getPedestal(support);
         let elementPedestal = this._elements.get(element);
-        console.assert(!elementPedestal);
+        assert(!elementPedestal);
         supportPedestal.putElement(element, x, y);
         this._elements.set(element, supportPedestal);
     }
@@ -2654,10 +2657,12 @@ export class Selection {
     }
 
     _select(element) {
-        this._selection.add(element);
-        this._setSelectionMark(element);
-        element.select && element.select();
-        this._fire(Events.SELECT, element);
+        if (!this._selection.has(element)) {
+            this._selection.add(element);
+            this._setSelectionMark(element);
+            element.select && element.select();
+            this._fire(Events.SELECT, element);
+        }
         return true;
     }
 
@@ -2691,9 +2696,9 @@ export class Selection {
         return false;
     }
 
-    unselectAll(predicate) {
-        console.assert(predicate)
-        for (let element of this._selection) {
+    unselectAll(predicate=onCanvasLayer(Canvas.instance.baseLayer)) {
+        console.assert(predicate);
+        for (let element of [...this._selection]) {
             if (predicate(element)) {
                 this._unselect(element);
             }
@@ -2790,7 +2795,7 @@ export class Groups extends Selection {
 
     _revert(memento) {
         this._elements = new Map(memento._elements);
-        this.unselectAll(onCanvasLayer(Canvas.instance.baseLayer));
+        this.unselectAll();
     }
 
     getGroup(element) {

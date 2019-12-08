@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    always, is
+    always, is, assert
 } from "../../js/misc.js";
 import {
     ESet, List
@@ -361,7 +361,7 @@ class DIAMItem extends BoardElement {
     }
 
     _droppedIn(target, dragSet, initialTarget) {
-        console.assert(!this.z_index);
+        assert(!this.z_index);
         if (FreePositioningMode.mode) {
             this.visit({element:this}, function(context) {
                 if (this===context.element) {
@@ -1973,7 +1973,7 @@ class DIAMCell extends DIAMAbstractCell {
 
     set option(element) {
         this.clearChildren();
-        if (element) {
+        if (element && this.acceptElement(element)) {
             super.addChild(element);
         }
     }
@@ -2015,7 +2015,7 @@ class DIAMOption extends DIAMItem {
 
     _improve({shape, compatibilities}) {
         super._improve();
-        console.assert(compatibilities);
+        assert(compatibilities);
         this._initShape(shape.clone());
         this._compatibilities = new ESet(compatibilities);
         this._addObserver(this);
@@ -2437,10 +2437,11 @@ class OptionsExpandablePanel extends ToolGridExpandablePanel {
 
     _notified(source, event, value) {
         if (source === Selection.instance) {
-            if (Selection.instance.selection().size) {
+            if (Selection.instance.selection(onCanvasLayer(Canvas.instance.baseLayer)).size) {
                 if (this._compatibilitySet) {
                     this._previousCompatibilitySet = this._compatibilitySet;
                 }
+                this._compatibilitySet = null;
                 this._refresh();
             }
         }
@@ -2456,7 +2457,6 @@ class OptionsExpandablePanel extends ToolGridExpandablePanel {
                     }
                 }
             }
-            console.log(this._compatibilitySet, this._previousCompatibilitySet)
             if (!this._compatibilitySet.size) {
                 this._compatibilitySet = this._previousCompatibilitySet;
             }
