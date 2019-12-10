@@ -22,6 +22,11 @@ export class List extends Array {
         return this.length-1;
     }
 
+    addFirst(val) {
+        this.unshift(val);
+        return 0;
+    }
+
     replace(oldVal, val) {
         let i = this.indexOf(oldVal);
         if (i===-1) return undefined;

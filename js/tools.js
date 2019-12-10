@@ -19,11 +19,11 @@ import {
     DragMoveSelectionOperation
 } from "./toolkit.js";
 import {
-    BoardElement
-} from "./base-element.js";
-import {
-    makeContainer, makeDraggable
+    makeDraggable
 } from "./core-mixins.js";
+import {
+    defineShadow
+} from "./svgtools.js";
 
 export class Menu {
 
@@ -222,7 +222,14 @@ export function makeMenuOwner(superClass) {
     superClass.prototype._cloned = function(copy, duplicata) {
         superCloned && superCloned.call(this, copy, duplicata);
         copy._triggerContextMenu();
-    }
+    };
+
+    Object.defineProperty(superClass.prototype, "isMenuOwner", {
+        configurable: true,
+        get() {
+            return true;
+        }
+    });
 }
 
 export class MenuOption {
@@ -975,6 +982,7 @@ export class ToolCell {
 
     constructor() {
         this._root = new Group();
+        this._id = ToolCell.count++;
         this._root._owner = this;
     }
 
@@ -1005,6 +1013,7 @@ export class ToolCell {
     }
 
 }
+ToolCell.count = 0;
 
 export function all() {
     return true;
@@ -1229,6 +1238,7 @@ export class BoardItemBuilder extends ToolCell {
     activate(owner, width, height) {
         super.activate(owner, width, height);
         this._makeItems();
+        this._adjustSize();
         this._glass = new Rect(
             -width/2-BoardItemBuilder.MARGIN, -height/2-BoardItemBuilder.MARGIN,
             width+BoardItemBuilder.MARGIN*2, height+BoardItemBuilder.MARGIN*2).attrs({
@@ -1290,7 +1300,6 @@ export class BoardItemBuilder extends ToolCell {
             item._parent = this;
             this._support.add(item._root);
         }
-        this._adjustSize();
         return this._currentItems;
     }
 
@@ -1305,8 +1314,8 @@ export class BoardItemBuilder extends ToolCell {
         let bbox = l2pBoundingBox(this._currentItems);
         let sizeWidthFactor = this.width / bbox.width;
         let sizeHeightFactor = this.height / bbox.height;
-        let sizeFactor = Math.min(sizeWidthFactor, sizeHeightFactor, 10);
-        this._support.matrix = Matrix.scale(sizeFactor, sizeFactor, 0, 0).translate(-bbox.cx, -bbox.cy)
+        this._zoom = Math.min(sizeWidthFactor, sizeHeightFactor, 10);
+        this._support.matrix = Matrix.scale(this._zoom, this._zoom, 0, 0).translate(-bbox.cx, -bbox.cy)
     }
 
     applyOr(predicate) {
@@ -1346,6 +1355,18 @@ export class BoardItemBuilder extends ToolCell {
         element._root.detach();
         element._parent = null;
     }
+
+    get selectionMark() {
+        if (!this._selectionMark) {
+            this._selectionMark = defineShadow(`_s${this._id}_`, Colors.RED);
+            console.log(this._zoom)
+            this._selectionMark.feDropShadow.stdDeviation = [5/this._zoom, 5/this._zoom];
+            Canvas.instance.addFilter(this._selectionMark);
+        }
+        return this._selectionMark;
+        //return Selection.instance.selectFilter;
+    }
+
 }
 BoardItemBuilder.MARGIN = 4;
 
@@ -1356,361 +1377,4 @@ export class FavoriteItemBuilder extends BoardItemBuilder {
         this._addMenuOption({that:this, line:new TextMenuOption("Remove", ()=>{this.owner.removeCell(this);})});
     }
 
-}
-
-export const Tools = {
-    _selection(element, predicate) {
-        let selection = Selection.instance.selection(predicate);
-        element && selection.add(element);
-        return selection;
-    },
-    isMaxZoom() {
-        return Canvas.instance.maxZoom <= Canvas.instance.zoom;
-    },
-    isMinZoom() {
-        return Canvas.instance.minZoom >= Canvas.instance.zoom;
-    },
-    zoomInSelect() {
-        if (!this.isMaxZoom()) {
-            let bbox = l2lBoundingBox(Selection.instance.selection(), Canvas.instance.globalMatrix);
-            if (bbox !== null) {
-                let px = (bbox.left + bbox.right) / 2;
-                let py = (bbox.top + bbox.bottom) / 2;
-                Canvas.instance.zoomIn(px, py);
-            } else {
-                let matrix = Canvas.instance.globalMatrix.invert();
-                let cx = Canvas.instance.clientWidth / 2;
-                let cy = Canvas.instance.clientHeight / 2;
-                let px = matrix.x(cx, cy);
-                let py = matrix.y(cx, cy);
-                Canvas.instance.zoomIn(px, py);
-            }
-        }
-    },
-    zoomOutSelect() {
-        if (!this.isMinZoom()) {
-            let bbox = l2lBoundingBox(Selection.instance.selection(), Canvas.instance.globalMatrix);
-            if (bbox !== null) {
-                let px = (bbox.left + bbox.right) / 2;
-                let py = (bbox.top + bbox.bottom) / 2;
-                Canvas.instance.zoomOut(px, py);
-            } else {
-                let matrix = Canvas.instance.globalMatrix.invert();
-                let cx = Canvas.instance.clientWidth / 2;
-                let cy = Canvas.instance.clientHeight / 2;
-                let px = matrix.x(cx, cy);
-                let py = matrix.y(cx, cy);
-                Canvas.instance.zoomOut(px, py);
-            }
-        }
-    },
-    zoomFit(elements) {
-        let bbox = l2lBoundingBox(elements, Canvas.instance.baseGlobalMatrix);
-        if (bbox !== null) {
-            let width = bbox.right - bbox.left;
-            let height = bbox.bottom - bbox.top;
-            let scale = Math.min(Canvas.instance.clientWidth / width, Canvas.instance.clientHeight / height) * 0.9;
-            Canvas.instance.zoomSet(scale, 0, 0);
-            let px = (bbox.left + bbox.right) / 2;
-            let py = (bbox.top + bbox.bottom) / 2;
-            Canvas.instance.scrollTo(px, py);
-        }
-    },
-    zoomExtent() {
-        this.zoomFit(Canvas.instance.baseChildren);
-    },
-    zoomSelection() {
-        this.zoomFit(Selection.instance.selection());
-    },
-    selectionEmpty() {
-        return Selection.instance.selection().size === 0;
-    },
-    copy() {
-        CopyPaste.instance.copyModel(Selection.instance.selection());
-    },
-    pastable() {
-        return CopyPaste.instance.pastable;
-    },
-    paste() {
-        CopyPaste.instance.pasteModel();
-    },
-    undoable() {
-        return Memento.instance.undoable();
-    },
-    undo() {
-        Memento.instance.undo();
-    },
-    redoable() {
-        return Memento.instance.redoable();
-    },
-    redo() {
-        Memento.instance.redo();
-    },
-    regroup(element) {
-        Memento.instance.open();
-        Selection.instance.regroup(element);
-    },
-    ungroup(element) {
-        Memento.instance.open();
-        Selection.instance.ungroup(element);
-    },
-    groupable(element) {
-        return Selection.instance.groupable(element);
-    },
-    ungroupable(element) {
-        return Selection.instance.ungroupable(element);
-    },
-    lock(element) {
-        Memento.instance.open();
-        let selection = this._selection(element);
-        for (let element of selection) {
-            if (element.lockable && !element.lock) {
-                element.lock = true;
-            }
-        }
-    },
-    unlock(element) {
-        Memento.instance.open();
-        let selection = this._selection(element);
-        for (let element of selection) {
-            if (element.lockable && element.lock) {
-                element.lock = false;
-            }
-        }
-    },
-    lockable(element) {
-        let selection = this._selection(element);
-        let result = false;
-        for (let element of selection) {
-            if (!element.lockable) return false;
-            if (!element.lock) result = true;
-        }
-        return result;
-    },
-    unlockable(element) {
-        let selection = this._selection(element);
-        let result = true;
-        for (let element of selection) {
-            if (!element.lockable) return false;
-            if (!element.lock) result = false;
-        }
-        return result;
-    },
-    deleteSelection() {
-        Memento.instance.open();
-        for (let child of [...Selection.instance.selection()]) {
-            if (child.deletable) {
-                child.delete();
-            }
-        }
-    },
-    allowElementDeletion() {
-        Anchor.instance.addEventListener(KeyboardEvents.KEY_UP, event => {
-                if (!Context.freezed) {
-                    if (event.key === "Delete" || event.key === "Backspace")
-                        Tools.deleteSelection();
-                }
-            }
-        );
-    },
-    selectionDeletable() {
-        let selection = [...Selection.instance.selection()];
-        if (!selection.length) return false;
-        for (let child of selection) {
-            if (!child.deletable) return false;
-        }
-        return true;
-    },
-    addToFavorites(paletteContent) {
-        let favorites = getExtension(Selection.instance.selection());
-        let models = CopyPaste.instance.duplicateForCopy(favorites);
-        let builder = new FavoriteItemBuilder(models);
-        paletteContent.addCell(builder);
-    },
-    mayAddToFavorites() {
-        return Selection.instance.selection().size>0;
-    },
-    addLayer(layer) {
-        Layers.instance.addLayer(layer);
-    },
-    manageLayers(x, y, elements) {
-        let menuOptions = new List();
-        for (let layer of Layers.instance.layers) {
-            menuOptions.add({line:new CheckMenuOption(
-                layer.title, layer.checked,
-                function(checked) {
-                    layer.action(checked, elements);
-                }
-            )})
-        }
-        Canvas.instance.openMenu(x, y, menuOptions, false);
-    },
-    showInfos() {
-        Canvas.instance.openModal(
-            showInfos,
-            {},
-            data => {});
-    }
-};
-
-export function normalModeCommand(toolPopup) {
-    toolPopup.add(new ToolToggleCommand("./images/icons/selection_on.svg", "./images/icons/selection_off.svg",
-        () => {
-            StandardDragMode.mode = StandardDragMode.ELEMENT_DRAG;
-        }, () => StandardDragMode.mode === StandardDragMode.ELEMENT_DRAG)
-    );
-}
-
-export function selectAreaModeCommand(toolPopup) {
-    toolPopup.add(new ToolToggleCommand("./images/icons/select_many_on.svg", "./images/icons/select_many_off.svg",
-        () => {
-            StandardDragMode.mode = StandardDragMode.SELECT_AREA;
-        }, () => StandardDragMode.mode === StandardDragMode.SELECT_AREA)
-    );
-}
-
-export function scrollModeCommand(toolPopup) {
-    toolPopup.add(new ToolToggleCommand("./images/icons/pan_on.svg", "./images/icons/pan_off.svg",
-        () => {
-            StandardDragMode.mode = StandardDragMode.SCROLL;
-        }, () => StandardDragMode.mode === StandardDragMode.SCROLL)
-    );
-}
-
-export function pdfModeCommand(toolPopup) {
-    toolPopup.add(new ToolToggleCommand("./images/icons/pdf_on.svg", "./images/icons/pdf_off.svg",
-        () => {
-            Tools.zoomInSelect();
-        }, () => !Tools.isMaxZoom())
-    );
-}
-
-export function zoomInCommand(toolPopup) {
-    toolPopup.add(new ToolToggleCommand("./images/icons/zoom-in_on.svg", "./images/icons/zoom-in_off.svg",
-        () => {
-            Tools.zoomInSelect();
-        }, () => !Tools.isMaxZoom())
-    );
-}
-
-export function zoomOutCommand(toolPopup) {
-    toolPopup.add(new ToolToggleCommand("./images/icons/zoom-out_on.svg", "./images/icons/zoom-out_off.svg",
-        () => {
-            Tools.zoomOutSelect();
-        }, () => !Tools.isMinZoom())
-    );
-}
-
-export function zoomExtentCommand(toolPopup) {
-    toolPopup.add(new ToolToggleCommand("./images/icons/zoom-extent_on.svg", "./images/icons/zoom-extent_off.svg",
-        () => {
-            Tools.zoomExtent();
-        }, () => !Tools.isMinZoom())
-    );
-}
-
-export function zoomSelectionCommand(toolPopup) {
-    toolPopup.add(new ToolToggleCommand("./images/icons/zoom-selection_on.svg", "./images/icons/zoom-selection_off.svg",
-        () => {
-            Tools.zoomSelection();
-        }, () => !Tools.selectionEmpty())
-    );
-}
-
-export function copyCommand(toolPopup) {
-    toolPopup.add(new ToolToggleCommand("./images/icons/copy_on.svg", "./images/icons/copy_off.svg",
-        () => {
-            Tools.copy();
-        }, () => !Tools.selectionEmpty())
-    );
-}
-
-export function pasteCommand(toolPopup) {
-    toolPopup.add(new ToolToggleCommand("./images/icons/paste_on.svg", "./images/icons/paste_off.svg",
-        () => {
-            Tools.paste();
-        }, () => Tools.pastable())
-    );
-}
-
-export function undoCommand(toolPopup) {
-    toolPopup.add(new ToolToggleCommand("./images/icons/undo_on.svg", "./images/icons/undo_off.svg",
-        () => {
-            Tools.undo();
-        }, () => Tools.undoable())
-    );
-}
-
-export function redoCommand(toolPopup) {
-    toolPopup.add(new ToolToggleCommand("./images/icons/redo_on.svg", "./images/icons/redo_off.svg",
-        () => {
-            Tools.redo();
-        }, () => Tools.redoable())
-    );
-}
-
-export function deleteCommand(toolPopup) {
-    toolPopup.add(new ToolToggleCommand("./images/icons/trash_on.svg", "./images/icons/trash_off.svg",
-        () => {
-            Tools.deleteSelection();
-        }, () => Tools.selectionDeletable(), 66)
-    );
-}
-
-export function regroupCommand(toolPopup) {
-    toolPopup.add(new ToolToggleCommand("./images/icons/group_on.svg", "./images/icons/group_off.svg",
-        () => {
-            Tools.regroup();
-        }, () => Tools.groupable())
-    );
-}
-
-export function ungroupCommand(toolPopup) {
-    toolPopup.add(new ToolToggleCommand("./images/icons/ungroup_on.svg", "./images/icons/ungroup_off.svg",
-        () => {
-            Tools.ungroup();
-        }, () => Tools.ungroupable())
-    );
-}
-
-export function lockCommand(toolPopup) {
-    toolPopup.add(new ToolToggleCommand("./images/icons/lock_on.svg", "./images/icons/lock_off.svg",
-        () => {
-            Tools.lock();
-        }, () => Tools.lockable())
-    );
-}
-
-export function unlockCommand(toolPopup) {
-    toolPopup.add(new ToolToggleCommand("./images/icons/unlock_on.svg", "./images/icons/unlock_off.svg",
-        () => {
-            Tools.unlock();
-        }, () => Tools.unlockable())
-    );
-}
-
-export function favoritesCommand(toolPopup, paletteContent) {
-    toolPopup.add(new ToolToggleCommand("./images/icons/favorites_on.svg", "./images/icons/favorites_off.svg",
-        () => {
-            Tools.addToFavorites(paletteContent);
-        }, () => Tools.mayAddToFavorites())
-    );
-}
-
-export function layersCommand(toolPopup) {
-    toolPopup.add(new ToolToggleCommand("./images/icons/layers_on.svg", "./images/icons/layers_off.svg",
-        function() {
-            let x = this._root.globalMatrix.x(0, 0);
-            let y = this._root.globalMatrix.y(0, 0);
-            Tools.manageLayers(x, y, [Context.table, Context.palettePopup]);
-        }, always)
-    );
-}
-
-export function showInfosCommand(toolPopup) {
-    toolPopup.add(new ToolCommand("./images/icons/info_on.svg",
-        function() {
-            Tools.showInfos();
-        })
-    );
 }

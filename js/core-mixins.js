@@ -1296,9 +1296,13 @@ export function makeContainerMultiLayered(superClass, {layers}) {
         this._layers[layer].remove(element._root);
     };
 
+    let getLayer = superClass.prototype._getLayer;
     superClass.prototype._getLayer = function (element) {
-        let layer = element.getLayer && element.getLayer(this);
-        if (!layer) layer = defaultLayer;
+        let layer = getLayer ? getLayer.call(this, element) : null;
+        if (!layer) {
+            layer = element.getLayer && element.getLayer(this);
+            if (!layer) layer = defaultLayer;
+        }
         if (!this._layers[layer]) layer = defaultLayer;
         return layer;
     };
@@ -1311,6 +1315,12 @@ export function makeContainerMultiLayered(superClass, {layers}) {
         }
         return copy;
     };
+
+    superClass.prototype.getLayerNode = function(layer) {
+        return this._layers[layer];
+    };
+
+    return superClass;
 }
 
 export function makeMultiLayeredContainer(superClass, {layers}) {
@@ -1475,9 +1485,13 @@ export function makeLayersWithContainers(superClass, {layersBuilder}) {
         return this._layers[layer]._acceptDrop(element);
     };
 
+    let getLayer = superClass.prototype._getLayer;
     superClass.prototype._getLayer = function (element) {
-        let layer = element.getLayer && element.getLayer(this);
-        if (!layer) layer = defaultLayer;
+        let layer = getLayer ? getLayer.call(this, element) : null;
+        if (!layer) {
+            layer = element.getLayer && element.getLayer(this);
+            if (!layer) layer = defaultLayer;
+        }
         if (!this._layers[layer]) layer = defaultLayer;
         return layer;
     };
@@ -2324,6 +2338,15 @@ export function makeFramed(superClass) {
         background.fill = backgroundColor;
         attrs && background.attrs(attrs);
         return this._initShape(background);
+    };
+
+    let setSize = superClass.prototype._setSize;
+    superClass.prototype._setSize = function(width, height) {
+        setSize.call(this, width, height);
+        this.shape.x = -width/2;
+        this.shape.y = -height/2;
+        this.shape.width = width;
+        this.shape.height = height;
     };
 
     if (!superClass.prototype.hasOwnProperty("framed")) {

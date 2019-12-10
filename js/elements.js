@@ -1,29 +1,37 @@
 'use strict';
 
+
+import {
+    List
+} from "./collections.js";
 import {
     Box
 } from "./geometry.js";
 import {
-    Group, Rect, Fill, Visibility, win, Colors, Circle, Line
+    Group, Rect, Fill, Stroke, Visibility, win, Colors, Circle, Line
 } from "./graphics.js";
 import {
     Memento, Context, Events, DragSwitchOperation, DragOperation, makeNotCloneable,
-    DragMoveSelectionOperation, DragRotateSelectionOperation
+    DragMoveSelectionOperation, DragRotateSelectionOperation, Canvas, DragAreaOperation, makeSingleton,
+    ifStandardDragMode, standardDrag, areaDrag, StandardDragMode, Selection
 } from "./toolkit.js";
 import {
     BoardElement, BoardSupport, BoardLayer, BoardZindexLayer
 } from "./base-element.js";
 import {
-    makeContainer, makeSupport, makeDraggable, makeSelectable, makeMoveable, makeRotatable, makeClickable,
+    makeContainer, makeSupport, makeDraggable, makeSelectable, makeMovable, makeRotatable, makeClickable,
     makePart, makeFramed, makeSingleImaged, makeMultiImaged, makeClipImaged, makeShaped,
-    makeLayersWithContainers, makeLayered, makeStrokeUpdatable, makeContainerASandBox, makeContainerASupport
+    makeLayersWithContainers, makeLayered, makeContainerASandBox, makeContainerASupport, makeDeletable
 } from "./core-mixins.js";
 import {
-    TextMenuOption, TextToggleMenuOption, makeMenuOwner
+    TextMenuOption, TextToggleMenuOption, makeMenuOwner, ToolToggleCommand
 } from "./tools.js";
 import {
     makePositioningContainer
 } from "./physics.js";
+import {
+    makeStrokeUpdatable
+} from "./standard-mixins.js";
 
 Context.itemDrag = new DragSwitchOperation()
     .add(()=>true, DragRotateSelectionOperation.instance)
@@ -171,8 +179,8 @@ export class AbstractBoardBox extends BoardElement {
         this._dragOperation(function() {return Context.itemDrag;});
         this._boxContent = this.initBoxContent(width, height,...args);
         this._boxCover = this.initBoxCover(width, height,...args);
-        this._add(this._boxContent);
-        this._add(this._boxCover);
+        this._addChild(this._boxContent);
+        this._addChild(this._boxCover);
         this.addMenuOption(new TextToggleMenuOption("Hide cover", "Show cover",
             function() {
                 Memento.instance.open();
@@ -216,7 +224,7 @@ export class AbstractBoardBox extends BoardElement {
 
 }
 makeSelectable(AbstractBoardBox);
-makeMoveable(AbstractBoardBox);
+makeMovable(AbstractBoardBox);
 makeRotatable(AbstractBoardBox);
 makeContainer(AbstractBoardBox);
 makeDraggable(AbstractBoardBox);
@@ -324,7 +332,7 @@ export class AbstractBoardCounter extends BoardElement {
     }
 }
 makeSelectable(AbstractBoardCounter);
-makeMoveable(AbstractBoardCounter);
+makeMovable(AbstractBoardCounter);
 makeRotatable(AbstractBoardCounter);
 makeDraggable(AbstractBoardCounter);
 makeClickable(AbstractBoardCounter);
@@ -374,7 +382,7 @@ export class AbstractBoardDie extends BoardElement {
     }
 }
 makeSelectable(AbstractBoardDie);
-makeMoveable(AbstractBoardDie);
+makeMovable(AbstractBoardDie);
 makeDraggable(AbstractBoardDie);
 makeClickable(AbstractBoardDie);
 makeMenuOwner(AbstractBoardDie);
@@ -398,7 +406,7 @@ export class AbstractBoardMap extends BoardElement {
 
     constructor(width, height, ...args) {
         super(width, height);
-        this._root.add(this._initRotatable()
+        this._root.add(this._initRotatable() // TODO problem
             .add(this.initShape(width, height, ...args))
         );
         this._dragOperation(function() {return Context.itemDrag;});
@@ -410,7 +418,7 @@ export class AbstractBoardMap extends BoardElement {
 
 }
 makeSelectable(AbstractBoardMap);
-makeMoveable(AbstractBoardMap);
+makeMovable(AbstractBoardMap);
 makeRotatable(AbstractBoardMap);
 makeDraggable(AbstractBoardMap);
 makeMenuOwner(AbstractBoardMap);
@@ -435,7 +443,7 @@ export class DragHandleOperation extends DragOperation {
     }
 
     accept(element, x, y, event) {
-        return (!Context.isReadOnly() && element.moveable && super.accept(element, x, y, event));
+        return (!Context.isReadOnly() && element.movable && super.accept(element, x, y, event));
     }
 
     doDragStart(element, x, y, event) {
@@ -464,10 +472,10 @@ DragHandleOperation.instance = new DragHandleOperation();
 
 export class BoardHandle extends BoardElement {
 
-    constructor() {
+    constructor(color = BoardHandle.COLOR) {
         let zoom = Canvas.instance.zoom;
         super(0, 0);
-        this._root.add(this.initShape(BoardHandle.SIZE/zoom, BoardHandle.SIZE/zoom, BoardHandle.COLOR, zoom));
+        this.initShape(BoardHandle.SIZE/zoom, BoardHandle.SIZE/zoom, color, zoom);
         this._dragOperation(function() {return DragHandleOperation.instance;});
         this._observe(Canvas.instance);
     }
@@ -495,7 +503,7 @@ export class BoardHandle extends BoardElement {
         copy._observe(Canvas.instance);
     }
 }
-makeMoveable(BoardHandle);
+makeMovable(BoardHandle);
 makeShaped(BoardHandle);
 makeDraggable(BoardHandle);
 BoardHandle.SIZE = 8;
@@ -503,40 +511,75 @@ BoardHandle.COLOR = Colors.RED;
 
 export function makeResizeable(superClass) {
 
-    superClass.prototype._initResize = function() {
-        this._leftTopHandle = this._createHandle();
-        this._topHandle = this._createHandle();
-        this._rightTopHandle = this._createHandle();
-        this._rightHandle = this._createHandle();
-        this._rightBottomHandle = this._createHandle();
-        this._bottomHandle = this._createHandle();
-        this._leftBottomHandle = this._createHandle();
-        this._leftHandle = this._createHandle();
+    superClass.prototype._initResize = function(color) {
+        this._handles = new List();
+        this._leftTopHandle = this._createHandle(color);
+        this._topHandle = this._createHandle(color);
+        this._rightTopHandle = this._createHandle(color);
+        this._rightHandle = this._createHandle(color);
+        this._rightBottomHandle = this._createHandle(color);
+        this._bottomHandle = this._createHandle(color);
+        this._leftBottomHandle = this._createHandle(color);
+        this._leftHandle = this._createHandle(color);
+    };
+
+    superClass.prototype._putHandles = function() {
+        for (let handle of this._handles) {
+            this._root.add(handle._root);
+            handle._parent = this;
+        }
         this._placeHandles();
     };
 
-    superClass.prototype._placeHandles = function() {
-
-        function setPosition(handle, x, y) {
+    superClass.prototype.putHandles = function() {
+        for (let handle of this._handles) {
             Memento.register(handle);
-            handle._setLocation(x, y);
         }
-
-        setPosition(this._leftTopHandle, -this.width/2, -this.height/2);
-        setPosition(this._topHandle, 0, -this.height/2);
-        setPosition(this._rightTopHandle, this.width/2, -this.height/2);
-        setPosition(this._rightHandle, this.width/2, 0);
-        setPosition(this._rightBottomHandle, this.width/2, this.height/2);
-        setPosition(this._bottomHandle, 0, this.height/2);
-        setPosition(this._leftBottomHandle, -this.width/2, this.height/2);
-        setPosition(this._leftHandle, -this.width/2, 0);
+        this._putHandles();
     };
 
-    superClass.prototype._createHandle = function() {
-        let handle = new BoardHandle();
-        this._root.add(handle._root);
+    superClass.prototype._removeHandles = function() {
+        for (let handle of this._handles) {
+            this._root.remove(handle._root);
+            handle._parent = null;
+        }
+    };
+
+    superClass.prototype.removeHandles = function() {
+        for (let handle of this._handles) {
+            Memento.register(handle);
+        }
+        this._removeHandles();
+    };
+
+    superClass.prototype._placeHandles = function() {
+        this._leftTopHandle._setLocation(-this.width/2, -this.height/2);
+        this._topHandle._setLocation(0, -this.height/2);
+        this._rightTopHandle._setLocation(this.width/2, -this.height/2);
+        this._rightHandle._setLocation(this.width/2, 0);
+        this._rightBottomHandle._setLocation(this.width/2, this.height/2);
+        this._bottomHandle._setLocation(0, this.height/2);
+        this._leftBottomHandle._setLocation(-this.width/2, this.height/2);
+        this._leftHandle._setLocation(-this.width/2, 0);
+    };
+
+    superClass.prototype.placeHandles = function() {
+        for (let handle of this._handles) {
+            Memento.register(handle);
+        }
+        this._placeHandles();
+    };
+
+    superClass.prototype._createHandle = function(color) {
+        let handle = new BoardHandle(color);
+        this._handles.add(handle);
         handle._parent = this;
         return handle;
+    };
+
+    superClass.prototype.resize = function(width, height) {
+        this._setSize(width, height);
+        return this;
     };
 
     /**
@@ -620,9 +663,9 @@ export function makeResizeable(superClass) {
             }
             // Geometry update
             Memento.register(this);
-            this._setLocation(lx, ly);
-            this._setSize(width, height);
-            this._placeHandles();
+            this.setLocation(lx, ly);
+            this.resize(width, height);
+            this.placeHandles();
         }
     }
 }
@@ -631,8 +674,9 @@ export class BoardFrame extends BoardElement {
 
     constructor(width, height) {
         super(width, height);
-        this._root.add(this.initShape(width, height, BoardFrame.COLOR));
+        this.initShape(width, height, BoardFrame.COLOR);
         this._initResize();
+        this._putHandles();
         this._observe(Canvas.instance);
     }
 
@@ -671,7 +715,7 @@ export class BoardTarget extends BoardElement {
 
     constructor(size, strokeColor) {
         super(size, size);
-        this._root.add(this.initShape(size, strokeColor));
+        this.initShape(size, strokeColor);
         this._dragOperation(function() {return DragMoveSelectionOperation.instance;});
         this._observe(Canvas.instance);
         this.addMenuOption(new TextMenuOption("Edit Target",
@@ -726,7 +770,7 @@ export class BoardTarget extends BoardElement {
 
 makeShaped(BoardTarget);
 makeSelectable(BoardTarget);
-makeMoveable(BoardTarget);
+makeMovable(BoardTarget);
 makeDraggable(BoardTarget);
 makeMenuOwner(BoardTarget);
 makeLayered(BoardTarget, {layer:"configuration"});
@@ -870,4 +914,102 @@ export function makeConfigurableMap(superClass, predicate, positionsFct) {
         }
         else return getLayer.call(this, element);
     }
+}
+
+export class DragPrintAreaOperation extends DragAreaOperation {
+
+    constructor() {
+        super();
+    }
+
+    setBackgroundParameters(area, zoom) {
+        area.attrs({
+            fill: Colors.GREEN,
+            stroke: Stroke.NONE,
+            fill_opacity: 0.1,
+            stroke_width : 1/zoom
+        });
+    }
+
+    setFrameParameters(area, zoom) {
+        area.attrs({
+            fill: Fill.NONE,
+            stroke: Colors.GREEN,
+            stroke_opacity: 0.5,
+            stroke_width : 1/zoom
+        });
+    }
+
+    _doSelection(event, area) {
+        let width = area.width;
+        let height = area.height;
+        let x = area.x + area.width/2;
+        let y = area.y + area.height/2;
+        if (width > BoardPrintArea.MIN_SIZE &&
+            height > BoardPrintArea.MIN_SIZE) {
+            Canvas.instance._fire(BoardPrintArea.events.NEW_AREA, {x, y, width, height});
+        }
+    }
+
+}
+makeSingleton(DragPrintAreaOperation);
+
+export class BoardPrintArea extends BoardElement {
+
+    constructor(width, height) {
+        super(width, height);
+        this._initFrame(width, height, Colors.GREEN, Colors.GREEN, {
+            fill_opacity: 0.1,
+            stroke_opacity: 0.5,
+        });
+        this._initResize(Colors.GREEN);
+        this._dragOperation(()=>DragMoveSelectionOperation.instance);
+        this._createContextMenu();
+    }
+
+    select() {
+        this.putHandles();
+    }
+
+    unselect() {
+        this.removeHandles();
+    }
+
+    get selectionMark() {
+        return null;
+    }
+
+    _createContextMenu() {}
+
+}
+makeContainer(BoardPrintArea);
+makeFramed(BoardPrintArea);
+makeMenuOwner(BoardPrintArea);
+makeResizeable(BoardPrintArea);
+makeSelectable(BoardPrintArea);
+makeDraggable(BoardPrintArea);
+makeMovable(BoardPrintArea);
+makeDeletable(BoardPrintArea);
+BoardPrintArea.MIN_SIZE = 10;
+BoardPrintArea.events = {
+    NEW_AREA : "new-area"
+};
+
+export function ifPrintRequested() {
+    return ifStandardDragMode(StandardDragMode.PRINT);
+}
+
+Canvas.prototype.enablePrint = function() {
+    StandardDragMode.PRINT = "print";
+    standardDrag.addFirst(ifPrintRequested, DragPrintAreaOperation.instance);
+    areaDrag.addFirst(ifPrintRequested, DragPrintAreaOperation.instance);
+};
+
+export function pdfModeCommand(toolPopup) {
+    toolPopup.add(new ToolToggleCommand("./images/icons/pdf_on.svg", "./images/icons/pdf_off.svg",
+        () => {
+            StandardDragMode.mode = StandardDragMode.PRINT;
+            Canvas.instance._fire(StandardDragMode.events.SWITCH_MODE, StandardDragMode.PRINT);
+        }, () => StandardDragMode.mode === StandardDragMode.PRINT)
+    );
 }

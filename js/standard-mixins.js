@@ -1,6 +1,4 @@
-import {
-    ColorChooserMenuOption, TextToggleMenuOption, Tools
-} from "./tools.js";
+
 import {
     AlignmentBaseline, Attrs, collectProperties, Colors, Group, Rect, Text, TextAnchor, Translation, Visibility, win
 } from "./graphics.js";
@@ -286,18 +284,6 @@ export function makeHighlightable(superClass) {
         }
     });
 
-    let createContextMenu = superClass.prototype._createContextMenu;
-    superClass.prototype._createContextMenu = function () {
-        this._addMenuOption(new ColorChooserMenuOption("highlight",
-            ["#000000", "#FF0000", "#00FF00", "#0000FF",
-                "#00FFFF", "#FF00FF", "#FFFF00", "#FFFFFF"],
-            function (highlight) {
-                this.highlight = highlight;
-            })
-        );
-        createContextMenu && createContextMenu.call(this);
-    };
-
     let setHighlight = superClass.prototype._setHighlight;
     superClass.prototype._setHighlight = function (highlight) {
         this._highlight = highlight;
@@ -341,25 +327,6 @@ export function makeHighlightable(superClass) {
 }
 
 export function makeGroupable(superClass) {
-
-    let createContextMenu = superClass.prototype._createContextMenu;
-    superClass.prototype._createContextMenu = function () {
-        this._addMenuOption(new TextToggleMenuOption("Group", "Ungroup",
-            function () {
-                Tools.regroup(this);
-            },
-            function () {
-                Tools.ungroup(this);
-            },
-            function () {
-                return Tools.ungroupable(this);
-            },
-            function () {
-                return Tools.groupable(this) || Tools.ungroupable(this);
-            })
-        );
-        createContextMenu && createContextMenu.call(this);
-    };
 
     Object.defineProperty(superClass.prototype, "group", {
         configurable: true,
@@ -405,25 +372,6 @@ export function makeLockable(superClass) {
     superClass.prototype._init = function (...args) {
         superInit.call(this, ...args);
         this._showLocking();
-    };
-
-    let createContextMenu = superClass.prototype._createContextMenu;
-    superClass.prototype._createContextMenu = function () {
-        this._addMenuOption(new TextToggleMenuOption("Lock", "Unlock",
-            function () {
-                Tools.lock(this);
-            },
-            function () {
-                Tools.unlock(this);
-            },
-            function () {
-                return Tools.unlockable(this);
-            },
-            function () {
-                return Tools.lockable(this) || Tools.unlockable(this);
-            })
-        );
-        createContextMenu && createContextMenu.call(this);
     };
 
     superClass.prototype._showLocking = function () {

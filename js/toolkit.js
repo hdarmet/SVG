@@ -930,7 +930,7 @@ export class DragRotateSelectionOperation extends DragElementOperation {
 makeNotCloneable(DragRotateSelectionOperation);
 makeSingleton(DragRotateSelectionOperation);
 
-export class DragSelectAreaOperation extends DragOperation {
+export class DragAreaOperation extends DragOperation {
 
     constructor() {
         super();
@@ -938,36 +938,22 @@ export class DragSelectAreaOperation extends DragOperation {
 
     doDragStart(element, x, y, event) {
         Canvas.instance.addObserver(this);
-        let zoom = Canvas.instance.zoom;
         this._start = Canvas.instance.getPointOnGlass(x, y);
-        this._selectBackground = new Rect(this._start.x, this._start.y, 1, 1)
-            .attrs({
-                fill: Fill.NONE,
-                stroke: Colors.CRIMSON,
-                stroke_opacity: 0.01,
-            });
-        this._selectArea = new Rect(this._start.x, this._start.y, 1, 1)
-            .attrs({
-                fill: Fill.NONE,
-                stroke: Colors.CRIMSON,
-                stroke_opacity: 0.9,
-            });
-        this._setStrokeParametersAccordingToZoom();
+        let zoom = Canvas.instance.zoom;
+        this._selectBackground = new Rect(this._start.x, this._start.y, 1, 1);
+        this.setBackgroundParameters(this._selectBackground, zoom);
         Canvas.instance.putArtifactOnGlass(this._selectBackground);
+        this._selectArea = new Rect(this._start.x, this._start.y, 1, 1);
+        this.setFrameParameters(this._selectArea, zoom);
         Canvas.instance.putArtifactOnGlass(this._selectArea);
         this.doDragMove(element, x, y, event);
     }
 
-    _setStrokeParametersAccordingToZoom() {
-        let zoom = Canvas.instance.zoom;
-        this._selectBackground.stroke_width =2/zoom;
-        this._selectArea.stroke_width =2/zoom;
-        this._selectArea.stroke_dasharray=  [5/zoom, 5/zoom];
-    }
-
     _notified(source, type, ...values) {
         if (source === Canvas.instance && type === Events.ZOOM) {
-            this._setStrokeParametersAccordingToZoom();
+            let zoom = Canvas.instance.zoom;
+            this.setBackgroundParameters(this._selectBackground, zoom);
+            this.setFrameParameters(this._selectArea, zoom);
         }
     }
 
@@ -990,25 +976,47 @@ export class DragSelectAreaOperation extends DragOperation {
     }
 
     doDrop(element, x, y, event) {
-        this._doSelection(event);
+        this._doSelection(event, this._selectArea);
         win.setTimeout(()=>{
             Canvas.instance.removeArtifactFromGlass(this._selectBackground);
+            Canvas.instance.removeArtifactFromGlass(this._selectArea);
         }, 1);
-        Canvas.instance.removeArtifactFromGlass(this._selectArea);
         Canvas.instance.removeObserver(this);
     }
 
-    _doSelection(event) {
-        let selectArea = {
-            left: this._selectArea.globalMatrix.x(this._selectArea.x, 0),
-            top: this._selectArea.globalMatrix.y(0, this._selectArea.y),
-            right: this._selectArea.globalMatrix.x(this._selectArea.x+this._selectArea.width, 0),
-            bottom: this._selectArea.globalMatrix.y(0, this._selectArea.y+this._selectArea.height)
-        };
+}
+makeNotCloneable(DragAreaOperation);
+
+export class DragSelectAreaOperation extends DragAreaOperation {
+
+    constructor() {
+        super();
+    }
+
+    setBackgroundParameters(area, zoom) {
+        area.attrs({
+            fill: Fill.NONE,
+            stroke: Colors.CRIMSON,
+            stroke_opacity: 0.01,
+            stroke_width : 2/zoom
+        });
+    }
+
+    setFrameParameters(area, zoom) {
+        area.attrs({
+            fill: Fill.NONE,
+            stroke: Colors.CRIMSON,
+            stroke_opacity: 0.5,
+            stroke_width : 2/zoom,
+            stroke_dasharray : [5/zoom, 5/zoom]
+        });
+    }
+
+    _doSelection(event, area) {
         function _inside(x, y, area) {
             return area.left <= x && area.right >= x && area.top <= y && area.bottom >= y;
         }
-        function _isSelected(element) {
+        function _isSelected(area, element) {
             let x0 = element.global.x(element.left, element.top);
             let y0 = element.global.y(element.left, element.top);
             let x1 = element.global.x(element.left, element.bottom);
@@ -1018,39 +1026,45 @@ export class DragSelectAreaOperation extends DragOperation {
             let x3 = element.global.x(element.right, element.bottom);
             let y3 = element.global.y(element.right, element.bottom);
             return (
-                _inside(x0, y0, selectArea) ||
-                _inside(x1, y1, selectArea) ||
-                _inside(x2, y2, selectArea) ||
-                _inside(x3, y3, selectArea)
+                _inside(x0, y0, area) ||
+                _inside(x1, y1, area) ||
+                _inside(x2, y2, area) ||
+                _inside(x3, y3, area)
             );
         }
-        function _doSelection(element) {
+        function _doSelection(area, element) {
             let selement = element.selectable;
-            if (selement && _isSelected(selement)) {
+            if (selement && _isSelected(area, selement)) {
                 Selection.instance.select(selement);
             } else {
                 if (element.parts) {
                     for (let part of element.parts) {
-                        _doSelection(part);
+                        _doSelection(area, part);
                     }
                 }
                 if (element.children) {
                     for (let child of element.children) {
-                        _doSelection(child);
+                        _doSelection(area, child);
                     }
                 }
             }
         }
+
+        let selectArea = {
+            left: area.globalMatrix.x(area.x, 0),
+            top: area.globalMatrix.y(0, area.y),
+            right: area.globalMatrix.x(area.x+area.width, 0),
+            bottom: area.globalMatrix.y(0, area.y+area.height)
+        };
         if (!event.ctrlKey && !event.metaKey && !event.shiftKey) {
             Selection.instance.unselectAll();
         }
         for (let child of Canvas.instance.baseChildren) {
-            _doSelection(child);
+            _doSelection(area, child);
         }
     }
 
 }
-makeNotCloneable(DragSelectAreaOperation);
 makeSingleton(DragSelectAreaOperation);
 
 export class DragScrollOperation extends DragOperation {
@@ -1084,6 +1098,11 @@ export class DragSwitchOperation extends DragOperation {
     constructor() {
         super();
         this._operations = new List();
+    }
+
+    addFirst(predicate, operation) {
+        this._operations.addFirst({predicate, operation});
+        return this;
     }
 
     add(predicate, operation) {
@@ -1164,7 +1183,10 @@ export function ifRightButton() {
 export const StandardDragMode = {
     SCROLL : "scroll",
     SELECT_AREA : "select-area",
-    ELEMENT_DRAG : "element-drag"
+    ELEMENT_DRAG : "element-drag",
+    events: {
+        SWITCH_MODE : "switch-mode"
+    }
 };
 Object.defineProperty(StandardDragMode, "mode", {
     get() {
@@ -1429,6 +1451,9 @@ export class BaseLayer extends CanvasLayer {
         return this;
     }
 
+    get selectionMark() {
+        return Selection.instance.selectFilter;
+    }
 }
 BaseLayer.ZOOM_STEP = 1.2;
 BaseLayer.ZOOM_MAX = 50;
@@ -1687,12 +1712,20 @@ export class GlassLayer extends CanvasLayer {
         this._content.clear();
     }
 
+    updateSelectionMark(element) {
+        // All the times, I presume... but... if one day...
+        if (Selection.instance.selected(element)) {
+            Selection.instance._setSelectionMark(element, Selection.instance.selectFilter);
+        }
+    }
+
     putElement(element, support, x, y) {
         let supportPedestal = this._getPedestal(support);
         let elementPedestal = this._elements.get(element);
         assert(!elementPedestal);
         supportPedestal.putElement(element, x, y);
         this._elements.set(element, supportPedestal);
+        this.updateSelectionMark(element);
     }
 
     moveElement(element, support, x, y) {
@@ -2652,8 +2685,22 @@ export class Selection {
         return result;
     }
 
-    _setSelectionMark(element) {
-        element.selectFrame && (element.selectFrame.filter = this.selectFilter);
+    selectionMark(element) {
+        while (element) {
+            let selectionMark = element.selectionMark;
+            if (selectionMark!==undefined) return selectionMark;
+            element = element.support;
+        }
+        return null;
+    }
+
+    /**
+     * Changes selection mark in an authoritarian way (used when element comes in glass for example).
+     * @param element element to update.
+     * @param selectFilter selection mark to set.
+     */
+    _setSelectionMark(element, selectFilter) {
+        element.selectFrame && (element.selectFrame.filter = this.selectionMark(element));
     }
 
     _select(element) {

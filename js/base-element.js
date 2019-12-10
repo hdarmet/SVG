@@ -391,6 +391,9 @@ export class BoardTable extends BoardArea {
         }
     }
 
+    get support() {
+        return Canvas.instance.baseLayer;
+    }
 }
 makePartsOwner(BoardTable);
 
