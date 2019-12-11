@@ -11,12 +11,8 @@ import {
     Colors, MouseEvents, TextAnchor, win, Cursor, KeyboardEvents
 } from "./graphics.js";
 import {
-    always
-} from "./misc.js";
-import {
-    Context, Events, l2lBoundingBox, l2pBoundingBox, DragOperation, Memento, Canvas, makeObservable, makeNotCloneable,
-    getExtension, Layers, makeSingleton, CopyPaste, Selection, Anchor, StandardDragMode, onCanvasLayer,
-    DragMoveSelectionOperation
+    Context, Events, l2pBoundingBox, DragOperation, Memento, Canvas, makeObservable, makeNotCloneable,
+    Layers, makeSingleton, CopyPaste, Selection, DragMoveSelectionOperation
 } from "./toolkit.js";
 import {
     makeDraggable

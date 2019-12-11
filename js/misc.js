@@ -65,3 +65,80 @@ export function isString(value) {
 export function isBoolean(value) {
     return value===true || value===false;
 }
+
+function _name(artifact) {
+    let name = artifact.name;
+    if (name.endsWith("_")) name = name.substring(0, name.length-1);
+    return name;
+}
+
+export function defineMethod(superClass, methodImpl) {
+    let name = _name(methodImpl);
+    console.assert(!superClass.prototype[name]);
+    superClass.prototype[name] = methodImpl;
+}
+
+export function extendMethod(superClass, builder) {
+    let fun = builder();
+    let name = _name(fun);
+    let previousImpl = superClass.prototype[name];
+    assert(superClass.prototype[name]);
+    superClass.prototype[name] = builder(previousImpl);
+}
+
+export function proposeGetProperty(superClass, propImpl) {
+    let name = _name(propImpl);
+    if (!superClass.prototype.hasOwnProperty(name)) {
+        Object.defineProperty(superClass.prototype, name, {
+            configurable: true,
+            get: propImpl
+        });
+    }
+}
+
+export function proposeProperty(superClass, getPropImpl, setPropImpl) {
+    let name = _name(getPropImpl);
+    if (!superClass.prototype.hasOwnProperty(name)) {
+        Object.defineProperty(superClass.prototype, name, {
+            configurable: true,
+            get: getPropImpl,
+            set: setPropImpl
+        });
+    }
+}
+
+export function defineGetProperty(superClass, propImpl) {
+    let name = _name(propImpl);
+    assert(!superClass.prototype.hasOwnProperty(name));
+    Object.defineProperty(superClass.prototype, name, {
+        configurable: true,
+        get: propImpl
+    });
+}
+
+export function defineProperty(superClass, getPropImpl, setPropImpl) {
+    let name = _name(getPropImpl);
+    assert(!superClass.prototype.hasOwnProperty(name));
+    Object.defineProperty(superClass.prototype, name, {
+        configurable: true,
+        get: getPropImpl,
+        set: setPropImpl
+    });
+}
+
+export function replaceGetProperty(superClass, propImpl) {
+    let name = _name(propImpl);
+    Object.defineProperty(superClass.prototype, name, {
+        configurable: true,
+        get: propImpl
+    });
+}
+
+export function replaceProperty(superClass, getPropImpl, setPropImpl) {
+    let name = _name(getPropImpl);
+    Object.defineProperty(superClass.prototype, name, {
+        configurable: true,
+        get: getPropImpl,
+        set: setPropImpl
+    });
+}

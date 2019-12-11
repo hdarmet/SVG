@@ -19,10 +19,13 @@ import {
     BoardElement, BoardSupport, BoardLayer, BoardZindexLayer
 } from "./base-element.js";
 import {
-    makeContainer, makeSupport, makeDraggable, makeSelectable, makeMovable, makeRotatable, makeClickable,
-    makePart, makeFramed, makeSingleImaged, makeMultiImaged, makeClipImaged, makeShaped,
-    makeLayersWithContainers, makeLayered, makeContainerASandBox, makeContainerASupport, makeDeletable
+    makeDraggable, makeSelectable, makeMovable, makeRotatable, makeClickable, makeFramed, makeSingleImaged,
+    makeMultiImaged, makeClipImaged, makeShaped, makeDeletable
 } from "./core-mixins.js";
+import {
+    makeContainer, makeSupport, makePart, makeLayersWithContainers, makeLayered, makeContainerASandBox,
+    makeContainerASupport
+} from "./container-mixins.js";
 import {
     TextMenuOption, TextToggleMenuOption, makeMenuOwner, ToolToggleCommand
 } from "./tools.js";

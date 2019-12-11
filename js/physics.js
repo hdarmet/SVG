@@ -13,7 +13,7 @@ import {
     win, Colors, Line, computePosition, Group, Fill
 } from "./graphics.js";
 import {
-    Canvas, Memento, CopyPaste, CloneableObject, Events, makeObservable, Context, glassSelectionPredicate
+    Canvas, Memento, CloneableObject, Events, makeObservable
 } from "./toolkit.js";
 import {
     TextDecoration

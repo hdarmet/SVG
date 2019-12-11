@@ -17,9 +17,11 @@ import {
     Memento, Canvas
 } from "./toolkit.js";
 import {
-    makeClickable, makeContainer, makeDraggable, makePartsOwner, makeShaped, makeSupport,
-    makeZindexContainer
+    makeClickable, makeDraggable, makeShaped
 } from "./core-mixins.js";
+import {
+    makeContainer, makeSupport, makeZindexContainer, makePartsOwner
+} from "./container-mixins.js";
 
 export class BoardElement {
 

@@ -17,13 +17,14 @@ import {
     BoardElement, BoardTable, BoardArea, Visitor
 } from "../../js/base-element.js";
 import {
-    Decoration,
-    makeDraggable, makeFramed, makeSelectable, makeContainer,
-    makeMovable, makeSupport, makePart, makeClickable, makeShaped, makeContainerMultiLayered, makeLayered,
-    makeGentleDropTarget, makePartsOwner, makeDecorationsOwner, makeMultiImaged, makeFloatingContainer
+    Decoration, makeDraggable, makeFramed, makeSelectable, makeMovable, makeClickable, makeShaped,
+    makeGentleDropTarget, makeDecorationsOwner, makeMultiImaged
 } from "../../js/core-mixins.js";
 import {
-    makeLockable, makeHighlightable, makeGroupable, TextDecoration, Mark, MarksDecoration
+    makeContainer, makeSupport, makePart, makeContainerMultiLayered, makeLayered, makeFloatingContainer, makePartsOwner
+} from "../../js/container-mixins.js";
+import {
+    makeHighlightable, TextDecoration, Mark, MarksDecoration
 } from "../../js/standard-mixins.js";
 import {
     win, Colors, Group, Line, Rect, Circle, Path, Text, RasterImage, M, Q, L, C, Attrs, AlignmentBaseline, FontWeight,

@@ -64,8 +64,9 @@ export function html(item) {
 export const Events = {
     ADD : "add",
     REMOVE : "remove",
-    ADD_FLOATING : "add",
-    REMOVE_FLOATING : "remove",
+    ADD_FLOATING : "add-floating",
+    DISPLACE_FLOATING : "displace-floating",
+    REMOVE_FLOATING : "remove-floating",
     ATTACH : "attach",
     DETACH : "detach",
     DELETED : "deleted",
