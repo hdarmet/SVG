@@ -1,5 +1,5 @@
 import {
-    assert
+    assert, defineGetProperty, defineMethod, extendMethod
 } from "./misc.js";
 import {
     Cloning, Events, Memento, makeCloneable, MutationObservers, CloneableObject
@@ -17,81 +17,87 @@ import {
 export function makePartsOwner(superClass) {
 
     if (!superClass.prototype._initParts) {
-        let init = superClass.prototype._init;
-        superClass.prototype._init = function (...args) {
-            init.call(this, ...args);
-            this._partsSupport = this._initParts();
-            this._addPartsToTray();
-        };
 
-        superClass.prototype._addPartsToTray = function () {
-            let next = this._decorationsSupport || this._content || this._floatingContent;
-            next ? this._tray.insert(next, this._partsSupport) : this._tray.add(this._partsSupport);
-        };
+        extendMethod(superClass, $init=>
+            function _init(...args) {
+                $init.call(this, ...args);
+                this._partsSupport = this._initParts();
+                this._addPartsToTray();
+            }
+        );
 
-        superClass.prototype._initParts = function () {
-            let partsSupport = new Group();
-            partsSupport.cloning = Cloning.NONE;
-            return partsSupport;
-        };
+        defineMethod(superClass,
+            function _addPartsToTray() {
+                let next = this._decorationsSupport || this._content || this._floatingContent;
+                next ? this._tray.insert(next, this._partsSupport) : this._tray.add(this._partsSupport);
+            }
+        );
 
-        let finalize = superClass.prototype.finalize;
-        superClass.prototype.finalize = function () {
-            finalize.call(this);
-            if (this._parts) {
-                for (let child of this._parts) {
-                    child.finalize();
+        defineMethod(superClass,
+            function _initParts() {
+                let partsSupport = new Group();
+                partsSupport.cloning = Cloning.NONE;
+                return partsSupport;
+            }
+        );
+
+        extendMethod(superClass, $finalize=>
+            function finalize() {
+                $finalize.call(this);
+                if (this._parts) {
+                    for (let child of this._parts) {
+                        child.finalize();
+                    }
                 }
             }
-        };
+        );
 
-        superClass.prototype._addPart = function (element) {
-            if (!this._parts) {
-                this._parts = new List();
-                this._parts.cloning = Cloning.NONE;
+        defineMethod(superClass,
+            function _addPart(element) {
+                if (!this._parts) {
+                    this._parts = new List();
+                    this._parts.cloning = Cloning.NONE;
+                }
+                // IMPORTANT : DOM update before this._children update !
+                this._partsSupport.add(element._root);
+                this._parts.add(element);
+                element._parent = this;
             }
-            // IMPORTANT : DOM update before this._children update !
-            this._partsSupport.add(element._root);
-            this._parts.add(element);
-            element._parent = this;
-        };
+        );
 
-        Object.defineProperty(superClass.prototype, "parts", {
-            configurable: true,
-            get: function () {
+        defineGetProperty(superClass,
+            function parts() {
                 return this._parts ? new List(...this._parts) : new List();
             }
-        });
+        );
 
-        let cloning = superClass.prototype._cloning;
-        superClass.prototype._cloning = function (duplicata) {
-            let copy = cloning.call(this, duplicata);
-            for (let child of this.parts) {
-                copy._addPart(child.duplicate(duplicata));
-            }
-            return copy;
-        };
-
-        if (!superClass.prototype.hasOwnProperty("hasParts")) {
-            Object.defineProperty(superClass.prototype, "hasParts", {
-                configurable: true,
-                get() {
-                    return true;
+        extendMethod(superClass, $cloning=>
+            function _cloning(duplicata) {
+                let copy = $cloning.call(this, duplicata);
+                for (let child of this.parts) {
+                    copy._addPart(child.duplicate(duplicata));
                 }
-            });
-        }
-
-        let accept = superClass.prototype.accept;
-        superClass.prototype.accept = function (visitor) {
-            accept.call(this, visitor);
-            for (let child of this.parts) {
-                visitor.visit(child);
+                return copy;
             }
-            return this;
-        };
+        );
+
+        defineGetProperty(superClass,
+            function hasParts() {
+                return true;
+            }
+        );
+
+        extendMethod(superClass, $accept=>
+            function accept(visitor) {
+                $accept.call(this, visitor);
+                for (let child of this.parts) {
+                    visitor.visit(child);
+                }
+                return this;
+            }
+        );
     }
 
-    return superClass;
 }
 
 export function makePart(superClass) {

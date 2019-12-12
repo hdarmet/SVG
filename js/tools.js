@@ -537,7 +537,7 @@ export class ToolPopup {
         let imatrix = this._root.parent.matrix.invert();
         let fx = imatrix.x(x, y);
         let fy = imatrix.y(x, y);
-        this._root.matrix = Matrix.translate(fx, fy);
+        this.move(fx, fy);
     }
 
     add(something) {
@@ -545,24 +545,38 @@ export class ToolPopup {
         return this;
     }
 
-    move(x, y) {
-        this._root.matrix = Matrix.translate(x, y);
-        return this;
-    }
-
     _notified(source, type, value) {
         if (source === Canvas.instance && type === Events.GEOMETRY) {
-            this._adjustPosition();
+            this.display(this._xAnchorage, this._yAnchorage);
         }
+    }
+
+    move(x, y) {
+        let clientWidth = Canvas.instance.clientWidth;
+        let clientHeight = Canvas.instance.clientHeight;
+        this._root.matrix = Matrix.translate(x, y);
+        if (x<=0) {
+            this._xAnchorage = clientWidth/2+x;
+        }
+        else {
+            this._xAnchorage = -clientWidth/2+x;
+        }
+        if (y<=0) {
+            this._yAnchorage = clientHeight/2+y;
+        }
+        else {
+            this._yAnchorage = -clientHeight/2+y;
+        }
+        return this;
     }
 
     display(x, y) {
         let clientWidth = Canvas.instance.clientWidth;
         let clientHeight = Canvas.instance.clientHeight;
-        let fx = x>=0 ? -clientWidth/2+x : clientWidth/2-x;
-        let fy = y>=0 ? -clientHeight/2+y : clientHeight/2-y;
-        this._root.matrix = Matrix.translate(fx, fy);
-        this._adjustPosition();
+        let fx = x>=0 ? -clientWidth/2+x : clientWidth/2+x;
+        let fy = y>=0 ? -clientHeight/2+y : clientHeight/2+y;
+        this.move(fx, fy);
+        //this._adjustPosition();
         return this;
     }
 }
@@ -606,7 +620,7 @@ export class DragPopupOperation extends DragOperation {
     doDrop(popup, x, y, event) {
         let pedestal = popup._root.parent;
         let { x:fx, y:fy } = computePosition(popup._root, Canvas.instance._toolsLayer._root);
-        popup._root.matrix = Matrix.translate(fx, fy);
+        popup.move(fx, fy);
         Canvas.instance.putArtifactOnToolsLayer(popup._root);
         pedestal.detach();
     }
