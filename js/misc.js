@@ -78,12 +78,25 @@ export function defineMethod(superClass, methodImpl) {
     superClass.prototype[name] = methodImpl;
 }
 
+export function replaceMethod(superClass, methodImpl) {
+    let name = _name(methodImpl);
+    superClass.prototype[name] = methodImpl;
+}
+
 export function extendMethod(superClass, builder) {
     let fun = builder();
     let name = _name(fun);
     let previousImpl = superClass.prototype[name];
-    assert(superClass.prototype[name]);
     superClass.prototype[name] = builder(previousImpl);
+}
+
+export function extendIfMethod(superClass, builder) {
+    let fun = builder();
+    let name = _name(fun);
+    let previousImpl = superClass.prototype[name];
+    if (superClass.prototype[name]) {
+        superClass.prototype[name] = builder(previousImpl);
+    }
 }
 
 export function proposeGetProperty(superClass, propImpl) {

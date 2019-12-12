@@ -8,8 +8,11 @@ import {
     TextMenuOption
 } from "./tools.js";
 import {
-    Canvas, CopyPaste, l2lBoundingBox, Memento, Selection, Anchor, getExtension, StandardDragMode, Context
+    Canvas, CopyPaste, l2lBoundingBox, Memento, Selection, Anchor, getExtension, Context
 } from "./toolkit.js";
+import {
+    StandardDragMode
+} from "./drag-and-drop.js";
 import {
     always
 } from "./misc.js";

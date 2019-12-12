@@ -5,11 +5,11 @@ import {
     Cloning, Events, Memento, Selection
 } from "./toolkit.js";
 import {
-    ESet, List
+    List
 } from "./collections.js";
 import {
     createUUID, assert, defineMethod, proposeGetProperty, extendMethod, defineProperty, defineGetProperty,
-    replaceGetProperty, replaceProperty
+    replaceGetProperty, replaceProperty, extendIfMethod, replaceMethod
 } from "./misc.js";
 
 export function makeDeletable(superClass) {
@@ -314,157 +314,180 @@ export function makeDecorationsOwner(superClass) {
 
     assert(!superClass.prototype._initDecorations);
 
-    let init = superClass.prototype._init;
-    superClass.prototype._init = function (...args) {
-        init.call(this, ...args);
-        this._initDecorations();
-        this._addDecorationsToTray()
-    };
-
-    superClass.prototype._addDecorationsToTray = function () {
-        let next = this._content || this._floatingContent;
-        next ? this._tray.insert(next, this._decorationsSupport) : this._tray.add(this._decorationsSupport);
-    };
-
-    superClass.prototype._initDecorations = function () {
-        this._decorationsSupport = new Group();
-        this._decorationsSupport.cloning = Cloning.NONE;
-        return this._decorationsSupport;
-    };
-
-    superClass.prototype._addDecoration = function (decoration) {
-        if (!this._decorations) {
-            this._decorations = new List();
-            this._decorations.cloning = Cloning.NONE;
+    extendMethod(superClass, $init=>
+        function _init(...args) {
+            $init.call(this, ...args);
+            this._initDecorations();
+            this._addDecorationsToTray()
         }
-        this._decorationsSupport.add(decoration._root);
-        this._decorations.add(decoration);
-        decoration._setElement(this);
-    };
+    );
 
-    superClass.prototype.addDecoration = function (decoration) {
-        assert(!decoration.element);
-        Memento.register(this);
-        Memento.register(decoration);
-        this._addDecoration(decoration);
-        this._fire(Events.ADD_DECORATION, decoration);
-        return this;
-    };
+    defineMethod(superClass,
+        function _addDecorationsToTray() {
+            let next = this._content || this._floatingContent;
+            next ? this._tray.insert(next, this._decorationsSupport) : this._tray.add(this._decorationsSupport);
+        }
+    );
 
-    superClass.prototype._removeDecoration = function (decoration) {
-        if (this._decorations) {
-            // IMPORTANT : DOM update before this._children update !
-            this._decorationsSupport.remove(decoration._root);
-            this._decorations.remove(decoration);
-            decoration._setElement(null);
-            if (this._decorations.size === 0) {
+    defineMethod(superClass,
+        function _initDecorations() {
+            this._decorationsSupport = new Group();
+            this._decorationsSupport.cloning = Cloning.NONE;
+            return this._decorationsSupport;
+        }
+    );
+
+    defineMethod(superClass,
+        function _addDecoration(decoration) {
+            if (!this._decorations) {
+                this._decorations = new List();
+                this._decorations.cloning = Cloning.NONE;
+            }
+            this._decorationsSupport.add(decoration._root);
+            this._decorations.add(decoration);
+            decoration._setElement(this);
+        }
+    );
+
+    defineMethod(superClass,
+        function addDecoration(decoration) {
+            assert(!decoration.element);
+            Memento.register(this);
+            Memento.register(decoration);
+            this._addDecoration(decoration);
+            this._fire(Events.ADD_DECORATION, decoration);
+            return this;
+        }
+    );
+
+    defineMethod(superClass,
+        function _removeDecoration(decoration) {
+            if (this._decorations) {
+                // IMPORTANT : DOM update before this._children update !
+                this._decorationsSupport.remove(decoration._root);
+                this._decorations.remove(decoration);
+                decoration._setElement(null);
+                if (this._decorations.size === 0) {
+                    delete this._decorations;
+                }
+            }
+        }
+    );
+
+    defineMethod(superClass,
+        function removeDecoration(decoration) {
+            assert(decoration.element === this);
+            Memento.register(this);
+            Memento.register(decoration);
+            this._removeDecoration(decoration);
+            this._fire(Events.REMOVE_DECORATION, decoration);
+            return this;
+        }
+    );
+
+    defineMethod(superClass,
+        function _clearDecorations() {
+            if (this._decorations) {
+                this._decorationsSupport.clear();
+                for (let decoration of this._decorations) {
+                    decoration._setElement(null);
+                }
                 delete this._decorations;
             }
         }
-    };
+    );
 
-    superClass.prototype.removeDecoration = function (decoration) {
-        assert(decoration.element === this);
-        Memento.register(this);
-        Memento.register(decoration);
-        this._removeDecoration(decoration);
-        this._fire(Events.REMOVE_DECORATION, decoration);
-        return this;
-    };
-
-    superClass.prototype._clearDecorations = function () {
-        if (this._decorations) {
-            this._decorationsSupport.clear();
-            for (let decoration of this._decorations) {
-                decoration._setElement(null);
+    defineMethod(superClass,
+        function clearDecorations() {
+            if (this._decorations) {
+                Memento.register(this);
+                let decorations = this._decorations;
+                for (let decoration of decorations) {
+                    Memento.register(decoration);
+                }
+                this._clearDecorations();
+                for (let decoration of decorations) {
+                    this._fire(Events.REMOVE_DECORATION, decoration);
+                }
             }
-            delete this._decorations;
+            return this;
         }
-    };
+    );
 
-    superClass.prototype.clearDecorations = function () {
-        if (this._decorations) {
-            Memento.register(this);
-            let decorations = this._decorations;
-            for (let decoration of decorations) {
-                Memento.register(decoration);
-            }
-            this._clearDecorations();
-            for (let decoration of decorations) {
-                this._fire(Events.REMOVE_DECORATION, decoration);
-            }
+    defineMethod(superClass,
+        function containsDecoration(decoration) {
+            return this._decorations && this._decorations.contains(decoration);
         }
-        return this;
-    };
+    );
 
-    superClass.prototype.containsDecoration = function (decoration) {
-        return this._decorations && this._decorations.contains(decoration);
-    };
-
-    Object.defineProperty(superClass.prototype, "decorations", {
-        configurable: true,
-        get: function () {
+    defineGetProperty(superClass,
+        function decorations() {
             return this._decorations ? new List(...this._decorations) : new List();
         }
-    });
+    );
 
-    let superMemento = superClass.prototype._memento;
-    superClass.prototype._memento = function () {
-        let memento = superMemento.call(this);
-        if (this._decorations) {
-            memento._decorations = new List(...this._decorations);
-        }
-        return memento;
-    };
-
-    let superRevert = superClass.prototype._revert;
-    superClass.prototype._revert = function (memento) {
-        superRevert.call(this, memento);
-        this._decorationsSupport.clear();
-        if (memento._decorations) {
-            this._decorations = new List(...memento._decorations);
-            this._decorations.cloning = Cloning.NONE;
-            for (let decoration of this._decorations) {
-                this._decorationsSupport.add(decoration._root);
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            if (this._decorations) {
+                memento._decorations = new List(...this._decorations);
             }
+            return memento;
         }
-        else {
-            delete this._decorations;
-        }
-        return this;
-    };
+    );
 
-    let cloned = superClass.prototype._cloned;
-    superClass.prototype._cloned = function (copy, duplicata) {
-        cloned.call(this, copy, duplicata);
-        for (let decoration of this.decorations) {
-            let decorationCopy = duplicata.get(decoration);
-            if (!decorationCopy) {
-                decorationCopy = decoration.clone(duplicata);
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            this._decorationsSupport.clear();
+            if (memento._decorations) {
+                this._decorations = new List(...memento._decorations);
+                this._decorations.cloning = Cloning.NONE;
+                for (let decoration of this._decorations) {
+                    this._decorationsSupport.add(decoration._root);
+                }
             }
-            copy._addDecoration(decorationCopy);
+            else {
+                delete this._decorations;
+            }
+            return this;
         }
-        return copy;
-    };
+    );
 
-    superClass.prototype.showDecorations = function () {
-        this._decorationsSupport.visibility = null;
-        return this;
-    };
+    extendMethod(superClass, $cloned=>
+        function _cloned(copy, duplicata) {
+            $cloned.call(this, copy, duplicata);
+            for (let decoration of this.decorations) {
+                let decorationCopy = duplicata.get(decoration);
+                if (!decorationCopy) {
+                    decorationCopy = decoration.clone(duplicata);
+                }
+                copy._addDecoration(decorationCopy);
+            }
+            return copy;
+        }
+    );
 
-    superClass.prototype.hideDecorations = function () {
-        this._decorationsSupport.visibility = Visibility.HIDDEN;
-        return this;
-    };
+    defineMethod(superClass,
+        function showDecorations() {
+            this._decorationsSupport.visibility = null;
+            return this;
+        }
+    );
 
-    Object.defineProperty(superClass.prototype, "hasDecorations", {
-        configurable: true,
-        get() {
+    defineMethod(superClass,
+        function hideDecorations() {
+            this._decorationsSupport.visibility = Visibility.HIDDEN;
+            return this;
+        }
+    );
+
+    defineMethod(superClass,
+        function hasDecorations() {
             return true;
         }
-    });
+    );
 
-    return superClass;
 }
 
 /**
@@ -493,79 +516,77 @@ export function makeDecorationsOwner(superClass) {
  */
 export function makeDraggable(superClass) {
 
-    Object.defineProperty(superClass.prototype, "dragOperation", {
-        configurable: true,
-        get: function () {
+    defineProperty(superClass,
+        function dragOperation() {
             return this._dragOp;
         },
-        set: function (operation) {
+        function dragOperation(operation) {
             Memento.register(this);
             this._dragOperation(operation);
         }
-    });
+    );
 
-    let superMemento = superClass.prototype._memento;
-    if (superMemento) {
-        superClass.prototype._memento = function () {
-            let memento = superMemento.call(this);
+    extendIfMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
             memento._dragOp = this._dragOp;
             return memento;
-        };
+        }
+    );
 
-        let superRevert = superClass.prototype._revert;
-        superClass.prototype._revert = function (memento) {
-            superRevert.call(this, memento);
+    extendIfMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
             this._dragOperation(memento._dragOp);
         }
-    }
+    );
 
-    superClass.prototype._dragOperation = function (operation) {
-        this._dragOp = operation;
-        if (operation) {
-            let accepted = false;
-            this.__dragOp = operation.call(this);
-            let dragStart = event => {
-                accepted = this.__dragOp._accept(this, event.pageX, event.pageY, event);
-                if (accepted) {
-                    this.__dragOp._onDragStart(this, event.pageX, event.pageY, event);
-                }
-            };
-            let dragMove = event => {
-                if (accepted) {
-                    this.__dragOp._onDragMove(this, event.pageX, event.pageY, event);
-                }
-            };
-            let dragDrop = event => {
-                if (accepted) {
-                    this.__dragOp._onDrop(this, event.pageX, event.pageY, event);
-                }
-            };
-            this._root.onDrag(dragStart, dragMove, dragDrop);
-        }
-        else {
-            delete this.__dragOp;
-            this._root.offDrag();
-        }
-    };
-
-    let superCloned = superClass.prototype._cloned;
-    superClass.prototype._cloned = function (copy, duplicata) {
-        superCloned && superCloned.call(this, copy, duplicata);
-        if (this._dragOp) {
-            copy._dragOperation(this._dragOp);
-        }
-    };
-
-    if (!superClass.prototype.hasOwnProperty("draggable")) {
-        Object.defineProperty(superClass.prototype, "draggable", {
-            configurable: true,
-            get() {
-                return true;
+    defineMethod(superClass,
+        function _dragOperation(operation) {
+            this._dragOp = operation;
+            if (operation) {
+                let accepted = false;
+                this.__dragOp = operation.call(this);
+                let dragStart = event => {
+                    accepted = this.__dragOp._accept(this, event.pageX, event.pageY, event);
+                    if (accepted) {
+                        this.__dragOp._onDragStart(this, event.pageX, event.pageY, event);
+                    }
+                };
+                let dragMove = event => {
+                    if (accepted) {
+                        this.__dragOp._onDragMove(this, event.pageX, event.pageY, event);
+                    }
+                };
+                let dragDrop = event => {
+                    if (accepted) {
+                        this.__dragOp._onDrop(this, event.pageX, event.pageY, event);
+                    }
+                };
+                this._root.onDrag(dragStart, dragMove, dragDrop);
             }
-        });
-    }
+            else {
+                delete this.__dragOp;
+                this._root.offDrag();
+            }
+        }
+    );
 
-    return superClass;
+    extendMethod(superClass, $cloned =>
+        function _cloned(copy, duplicata) {
+            $cloned && $cloned.call(this, copy, duplicata);
+            if (this._dragOp) {
+                copy._dragOperation(this._dragOp);
+            }
+        }
+    );
+
+    proposeGetProperty(superClass,
+        function draggable() {
+            return true;
+        }
+    );
+
 }
 
 /**
@@ -599,92 +620,91 @@ export function makeDraggable(superClass) {
  */
 export function makeClickable(superClass) {
 
-    Object.defineProperty(superClass.prototype, "clickHandler", {
-        configurable: true,
-        get: function () {
+    defineProperty(superClass,
+        function clickHandler() {
             return this._clickHdl;
         },
-        set: function (handler) {
+        function clickHandler(handler) {
             Memento.register(this);
             this._clickHandler(handler);
         }
-    });
+    );
 
-    Object.defineProperty(superClass.prototype, "doubleClickHandler", {
-        configurable: true,
-        get: function () {
+    defineProperty(superClass,
+        function doubleClickHandler() {
             return this._doubleClickHdl;
         },
-        set: function (handler) {
+        function doubleClickHandler(handler) {
             Memento.register(this);
             this._doubleClickHandler(handler);
         }
-    });
+    );
 
-    let superMemento = superClass.prototype._memento;
-    if (superMemento) {
-        superClass.prototype._memento = function () {
-            let memento = superMemento.call(this);
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
             memento._clickHdl = this._clickHdl;
             memento._doubleClickHdl = this._doubleClickHdl;
             return memento;
-        };
+        }
+    );
 
-        let superRevert = superClass.prototype._revert;
-        superClass.prototype._revert = function (memento) {
-            superRevert.call(this, memento);
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
             this._clickHandler(memento._clickHdl);
             this._doubleClickHandler(memento._doubleClickHdl);
         }
-    }
+    );
 
-    superClass.prototype._clickHandler = function (handler) {
-        this._clickHdl = handler;
-        if (this._clickHdlImpl) {
-            this._root.off(MouseEvents.CLICK, this._clickHdlImpl);
-        }
-        this._clickHdlImpl = event => {
-            Selection.instance.adjustSelection(this, event, true);
-            handler && handler.call(this)(event);
-            event.stopPropagation();
-        };
-        this._root.on(MouseEvents.CLICK, this._clickHdlImpl);
-    };
-
-    superClass.prototype._doubleClickHandler = function (handler) {
-        this._doubleClickHdl = handler;
-        if (this._doubleClickHdlImpl) {
-            this._root.off(Events.DOUBLE_CLICK, this._doubleClickHdlImpl);
-        }
-        this._doubleClickHdlImpl = event => {
-            Selection.instance.adjustSelection(this, event, true);
-            handler && handler.call(this)(event);
-            event.stopPropagation();
-        };
-        this._root.on(MouseEvents.DOUBLE_CLICK, this._doubleClickHdlImpl);
-    };
-
-    let superCloned = superClass.prototype._cloned;
-    superClass.prototype._cloned = function (copy, duplicata) {
-        superCloned && superCloned.call(this, copy, duplicata);
-        if (this._clickHdl) {
-            copy._clickHandler(this._clickHdl);
-        }
-        if (this._doubleClickHdl) {
-            copy._doubleClickHandler(this._doubleClickHdl);
-        }
-    };
-
-    if (!superClass.prototype.hasOwnProperty("clickable")) {
-        Object.defineProperty(superClass.prototype, "clickable", {
-            configurable: true,
-            get() {
-                return true;
+    defineMethod(superClass,
+        function _clickHandler(handler) {
+            this._clickHdl = handler;
+            if (this._clickHdlImpl) {
+                this._root.off(MouseEvents.CLICK, this._clickHdlImpl);
             }
-        });
-    }
+            this._clickHdlImpl = event => {
+                Selection.instance.adjustSelection(this, event, true);
+                handler && handler.call(this)(event);
+                event.stopPropagation();
+            };
+            this._root.on(MouseEvents.CLICK, this._clickHdlImpl);
+        }
+    );
 
-    return superClass;
+    defineMethod(superClass,
+        function _doubleClickHandler(handler) {
+            this._doubleClickHdl = handler;
+            if (this._doubleClickHdlImpl) {
+                this._root.off(Events.DOUBLE_CLICK, this._doubleClickHdlImpl);
+            }
+            this._doubleClickHdlImpl = event => {
+                Selection.instance.adjustSelection(this, event, true);
+                handler && handler.call(this)(event);
+                event.stopPropagation();
+            };
+            this._root.on(MouseEvents.DOUBLE_CLICK, this._doubleClickHdlImpl);
+        }
+    );
+
+    extendMethod(superClass, $cloned=>
+        function _cloned(copy, duplicata) {
+            $cloned && $cloned.call(this, copy, duplicata);
+            if (this._clickHdl) {
+                copy._clickHandler(this._clickHdl);
+            }
+            if (this._doubleClickHdl) {
+                copy._doubleClickHandler(this._doubleClickHdl);
+            }
+        }
+    );
+
+    defineGetProperty(superClass,
+        function clickable() {
+            return true;
+        }
+    );
+
 }
 
 /**
@@ -703,116 +723,112 @@ export function makeFramed(superClass) {
 
     makeShaped(superClass);
 
-    superClass.prototype._initFrame = function (width, height, strokeColor, backgroundColor, attrs) {
-        let background = new Rect(-width / 2, -height / 2, width, height);
-        background.stroke = strokeColor;
-        background.fill = backgroundColor;
-        attrs && background.attrs(attrs);
-        return this._initShape(background);
-    };
+    defineMethod(superClass,
+        function _initFrame(width, height, strokeColor, backgroundColor, attrs) {
+            let background = new Rect(-width / 2, -height / 2, width, height);
+            background.stroke = strokeColor;
+            background.fill = backgroundColor;
+            attrs && background.attrs(attrs);
+            return this._initShape(background);
+        }
+    );
 
-    let setSize = superClass.prototype._setSize;
-    superClass.prototype._setSize = function(width, height) {
-        setSize.call(this, width, height);
-        this.shape.x = -width/2;
-        this.shape.y = -height/2;
-        this.shape.width = width;
-        this.shape.height = height;
-    };
+    extendMethod(superClass, $setSize=>
+        function _setSize(width, height) {
+            $setSize.call(this, width, height);
+            this.shape.x = -width/2;
+            this.shape.y = -height/2;
+            this.shape.width = width;
+            this.shape.height = height;
+        }
+    );
 
-    if (!superClass.prototype.hasOwnProperty("framed")) {
-        Object.defineProperty(superClass.prototype, "framed", {
-            configurable: true,
-            get() {
-                return true;
-            }
-        });
-    }
+    defineGetProperty(superClass,
+        function framed() {
+            return true;
+        }
+    );
+
 }
 
 export function makeImaged(superClass) {
 
     makeShaped(superClass);
 
-    superClass.prototype._initBackground = function (width, height, strokeColor, image) {
-        let background = new Group();
-        background.add(image);
-        if (strokeColor) {
-            background.add(new Rect(-width / 2, -height / 2, width, height).attrs({
-                fill: Fill.NONE,
-                stroke: strokeColor
-            }));
+    defineMethod(superClass,
+        function _initBackground(width, height, strokeColor, image) {
+            let background = new Group();
+            background.add(image);
+            if (strokeColor) {
+                background.add(new Rect(-width / 2, -height / 2, width, height).attrs({
+                    fill: Fill.NONE,
+                    stroke: strokeColor
+                }));
+            }
+            return this._initShape(background);
         }
-        return this._initShape(background);
-    };
+    );
 
-    Object.defineProperty(superClass.prototype, "background", {
-        configurable: true,
-        get: function () {
+    defineGetProperty(superClass,
+        function background () {
             return this._shapeContent.child._children[0];
         }
-    });
+    );
 
-    Object.defineProperty(superClass.prototype, "frame", {
-        configurable: true,
-        get: function () {
+    defineGetProperty(superClass,
+        function frame() {
             return this._shapeContent.child._children[1];
         }
-    });
+    );
 
-    Object.defineProperty(superClass.prototype, "url", {
-        configurable: true,
-        get: function () {
+    defineGetProperty(superClass,
+        function url() {
             return this.background.href;
         }
-    });
+    );
 
-    Object.defineProperty(superClass.prototype, "width", {
-        configurable: true,
-        get: function () {
-            //return this.background.width;
+    defineProperty(superClass,
+        function width() {
             return this._width;
         },
-        set: function (width) {
+        function width(width) {
             Memento.register(this);
             this._width = width;
             this.background.attrs({width: width, x: -width / 2});
             this.frame.attrs({width: width, x: -width / 2});
         }
-    });
+    );
 
-    Object.defineProperty(superClass.prototype, "height", {
-        configurable: true,
-        get: function () {
-            //return this.background.height;
+    defineProperty(superClass,
+        function height() {
             return this._height;
         },
-        set: function (height) {
+        function height(height) {
             Memento.register(this);
             this._height = height;
             this.background.attrs({height: height, y: -height / 2});
             this.frame.attrs({height: height, y: -height / 2});
         }
-    });
+    );
 
-    superClass.prototype._loadImage = function (width, height, url) {
-        if (url.rasterized) {
-            return new SvgRasterImage(url.svg, -width / 2, -height / 2, width, height);
-        }
-        else {
-            assert(typeof(url) === 'string');
-            return new RasterImage(url, -width / 2, -height / 2, width, height);
-        }
-    };
-
-    if (!superClass.prototype.hasOwnProperty("imaged")) {
-        Object.defineProperty(superClass.prototype, "imaged", {
-            configurable: true,
-            get() {
-                return true;
+    defineMethod(superClass,
+        function _loadImage(width, height, url) {
+            if (url.rasterized) {
+                return new SvgRasterImage(url.svg, -width / 2, -height / 2, width, height);
             }
-        });
-    }
+            else {
+                assert(typeof(url) === 'string');
+                return new RasterImage(url, -width / 2, -height / 2, width, height);
+            }
+        }
+    );
+
+    defineGetProperty(superClass,
+        function imaged() {
+            return true;
+        }
+    );
+
 }
 
 /**
@@ -832,112 +848,120 @@ export function makeSingleImaged(superClass) {
 
     makeImaged(superClass);
 
-    superClass.prototype._initImage = function (width, height, strokeColor, backgroundURL) {
-        return this._initBackground(width, height, strokeColor, this._loadImage(width, height, backgroundURL));
-    };
+    defineMethod(superClass,
+        function _initImage(width, height, strokeColor, backgroundURL) {
+            return this._initBackground(width, height, strokeColor, this._loadImage(width, height, backgroundURL));
+        }
+    );
 
-    return superClass;
 }
 
 export function makeMultiImaged(superClass) {
 
     makeImaged(superClass);
 
-    superClass.prototype._initImages = function (width, height, strokeColor, ...backgroundURLs) {
-        return this._initBackground(width, height, strokeColor,
-            this._loadImages(width, height, backgroundURLs));
-    };
-
-    superClass.prototype._loadImages = function (width, height, backgroundURLs) {
-        this._images = new List();
-        for (let backgroundURL of backgroundURLs) {
-            this._images.add(this._loadImage(width, height, backgroundURL));
+    defineMethod(superClass,
+        function _initImages(width, height, strokeColor, ...backgroundURLs) {
+            return this._initBackground(width, height, strokeColor,
+                this._loadImages(width, height, backgroundURLs));
         }
-        return this._images[0];
-    };
+    );
 
-    superClass.prototype._setImageIndex = function (index) {
-        let idx = index % this._images.length;
-        if (this.background !== this._images[idx]) {
-            this.shape.replace(this.background, this._images[idx]);
+    defineMethod(superClass,
+        function _loadImages(width, height, backgroundURLs) {
+            this._images = new List();
+            for (let backgroundURL of backgroundURLs) {
+                this._images.add(this._loadImage(width, height, backgroundURL));
+            }
+            return this._images[0];
         }
-        return this;
-    };
+    );
 
-    Object.defineProperty(superClass.prototype, "imageIndex", {
-        configurable: true,
-        get: function () {
+    defineMethod(superClass,
+        function _setImageIndex(index) {
+            let idx = index % this._images.length;
+            if (this.background !== this._images[idx]) {
+                this.shape.replace(this.background, this._images[idx]);
+            }
+            return this;
+        }
+    );
+
+    defineProperty(superClass,
+        function imageIndex() {
             return this._images.indexOf(this.background);
         },
-        set: function (index) {
+        function imageIndex(index) {
             Memento.register(this);
             this._setImageIndex(index);
         }
-    });
+    );
 
-    let superMemento = superClass.prototype._memento;
-    superClass.prototype._memento = function () {
-        let memento = superMemento.call(this);
-        memento._images = new List(...this._images);
-        return memento;
-    };
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            memento._images = new List(...this._images);
+            return memento;
+        }
+    );
 
-    let superRevert = superClass.prototype._revert;
-    superClass.prototype._revert = function (memento) {
-        superRevert.call(this, memento);
-        this._images = new List(...memento._images);
-        return this;
-    };
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            this._images = new List(...memento._images);
+            return this;
+        }
+    );
 
-    if (!superClass.prototype.hasOwnProperty("singleImaged")) {
-        Object.defineProperty(superClass.prototype, "singleImaged", {
-            configurable: true,
-            get() {
-                return true;
-            }
-        });
-    }
+    defineGetProperty(superClass,
+        function singleImaged() {
+            return true;
+        }
+    );
 
-    return superClass;
 }
 
 export function makeClipImaged(superClass) {
 
     makeMultiImaged(superClass);
 
-    superClass.prototype._initImages = function (width, height, strokeColor, imageURL, ...clipped) {
-        return this._initBackground(width, height, strokeColor,
-            this._loadImages(width, height, imageURL, ...clipped));
-    };
-
-    superClass.prototype._loadImages = function (width, height, imageURL, ...clipped) {
-        this._images = new List();
-        for (let clip of clipped) {
-            this._images.add(new ClippedRasterImage(imageURL, clip.x, clip.y, clip.width, clip.height, -width / 2, -height / 2, width, height));
+    replaceMethod(superClass,
+        function _initImages(width, height, strokeColor, imageURL, ...clipped) {
+            return this._initBackground(width, height, strokeColor,
+                this._loadImages(width, height, imageURL, ...clipped));
         }
-        return this._images[0];
-    };
+    );
 
-    if (!superClass.prototype.hasOwnProperty("clipImaged")) {
-        Object.defineProperty(superClass.prototype, "clipImaged", {
-            configurable: true,
-            get() {
-                return true;
+    replaceMethod(superClass,
+        function _loadImages(width, height, imageURL, ...clipped) {
+            this._images = new List();
+            for (let clip of clipped) {
+                this._images.add(
+                    new ClippedRasterImage(imageURL,
+                        clip.x, clip.y, clip.width, clip.height, -width / 2, -height / 2, width, height)
+                );
             }
-        });
-    }
+            return this._images[0];
+        }
+    );
 
-    return superClass;
+    defineGetProperty(superClass,
+        function clipImaged() {
+            return true;
+        }
+    );
+
 }
 
 export function makeGentleDropTarget(superClass) {
 
-    superClass.prototype._dropTarget = function (element) {
-        if (this.support && this.support._dropTarget && (!this._acceptDrop || !this._acceptDrop(element))) {
-            return this.support._dropTarget(element);
+    replaceMethod(superClass,
+        function _dropTarget(element) {
+            if (this.support && this.support._dropTarget && (!this._acceptDrop || !this._acceptDrop(element))) {
+                return this.support._dropTarget(element);
+            }
+            return this;
         }
-        return this;
-    };
+    );
 
-    return superClass;
 }

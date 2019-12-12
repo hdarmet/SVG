@@ -11,10 +11,12 @@ import {
     Group, Rect, Fill, Stroke, Visibility, win, Colors, Circle, Line
 } from "./graphics.js";
 import {
-    Memento, Context, Events, DragSwitchOperation, DragOperation, makeNotCloneable,
-    DragMoveSelectionOperation, DragRotateSelectionOperation, Canvas, DragAreaOperation, makeSingleton,
-    ifStandardDragMode, standardDrag, areaDrag, StandardDragMode, Selection
+    Memento, Context, Events, makeNotCloneable, Canvas, makeSingleton, Selection
 } from "./toolkit.js";
+import {
+    DragSwitchOperation, DragOperation, DragMoveSelectionOperation, DragRotateSelectionOperation, DragAreaOperation,
+    ifStandardDragMode, standardDrag, areaDrag, StandardDragMode
+} from "./drag-and-drop.js";
 import {
     BoardElement, BoardSupport, BoardLayer, BoardZindexLayer
 } from "./base-element.js";

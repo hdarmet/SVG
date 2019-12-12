@@ -13,9 +13,12 @@ import {
     Group, l2l, l2m, Rect, Translation, Visibility
 } from "./graphics.js";
 import {
-    areaDrag, Cloning, Context, Selection, CopyPaste, Events, getCanvasLayer, makeNotCloneable, makeObservable,
+    Cloning, Context, Selection, CopyPaste, Events, getCanvasLayer, makeNotCloneable, makeObservable,
     Memento, Canvas
 } from "./toolkit.js";
+import {
+    areaDrag
+} from "./drag-and-drop.js";
 import {
     makeClickable, makeDraggable, makeShaped
 } from "./core-mixins.js";
@@ -260,14 +263,6 @@ export class BoardElement {
     _registerParent() {
         Memento.register(this.parent);
     }
-
-    /*
-    attach(parent) {
-        this.detach();
-        parent && parent.add(this);
-        return this;
-    }
-    */
 
     detach() {
         let parent = this.parent;

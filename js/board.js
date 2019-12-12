@@ -4,23 +4,29 @@ import {
     Rect, Colors
 } from "./graphics.js";
 import {
-    Context, Memento, Selection, Canvas, DragSwitchOperation,
-    setLayeredGlassStrategy, DragMoveSelectionOperation, DragRotateSelectionOperation
+    Context, Memento, Selection, Canvas, setLayeredGlassStrategy
 } from "./toolkit.js";
+import {
+    DragSwitchOperation, DragMoveSelectionOperation, DragRotateSelectionOperation
+} from "./drag-and-drop.js";
 import {
     BoardElement, BoardTable,
 } from "./base-element.js";
 import {
-    makeRotatable, makeShaped, makeDraggable, makeClickable, makeSelectable,
-    makeContainerMultiLayered, makeLayered, makeDeletable, makeZindexSupport
+    makeRotatable, makeShaped, makeDraggable, makeClickable, makeSelectable, makeDeletable
 } from "./core-mixins.js";
+import {
+    makeContainerMultiLayered, makeLayered, makeZindexSupport
+} from "./container-mixins.js";
 import {
     ToolCommandPopup, ToolExpandablePopup, ToolExpandablePanel,
     ToolGridPanelContent, ToolCell,
     makeMenuOwner, TextMenuOption, TextToggleMenuOption, CheckMenuOption, ColorChooserMenuOption, BoardItemBuilder,
+} from "./tools.js";
+import {
     zoomInCommand, zoomOutCommand, zoomExtentCommand, zoomSelectionCommand,
     copyCommand, pasteCommand, redoCommand, undoCommand, deleteCommand
-} from "./tools.js";
+} from "./standard-facilities.js";
 import {
     BoardBox, BoardImageBox, BoardCounter, BoardDie, BoardMap, BoardHandle, BoardTarget, makeConfigurableMap,
     BoardContent

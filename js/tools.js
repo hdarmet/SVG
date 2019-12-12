@@ -11,9 +11,12 @@ import {
     Colors, MouseEvents, TextAnchor, win, Cursor, KeyboardEvents
 } from "./graphics.js";
 import {
-    Context, Events, l2pBoundingBox, DragOperation, Memento, Canvas, makeObservable, makeNotCloneable,
-    Layers, makeSingleton, CopyPaste, Selection, DragMoveSelectionOperation
+    Context, Events, l2pBoundingBox, Memento, Canvas, makeObservable, makeNotCloneable,
+    Layers, makeSingleton, CopyPaste, Selection
 } from "./toolkit.js";
+import {
+    DragOperation, DragMoveSelectionOperation
+} from "./drag-and-drop.js";
 import {
     makeDraggable
 } from "./core-mixins.js";
@@ -113,7 +116,6 @@ Canvas.prototype.manageMenus = function() {
         let {x:mx, y:my} = this._toolsLayer.global2local(x, y);
         this._menu = new Menu(mx, my, menuOptions, closeOnSelect);
         this.putArtifactOnToolsLayer(this._menu._root);
-        console.log("tools:", this._menu._root._zOrder);
     };
 
     //FIXME May I use one day ?
@@ -1355,7 +1357,6 @@ export class BoardItemBuilder extends ToolCell {
     get selectionMark() {
         if (!this._selectionMark) {
             this._selectionMark = defineShadow(`_s${this._id}_`, Colors.RED);
-            console.log(this._zoom)
             this._selectionMark.feDropShadow.stdDeviation = [5/this._zoom, 5/this._zoom];
             Canvas.instance.addFilter(this._selectionMark);
         }
