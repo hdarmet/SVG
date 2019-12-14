@@ -16,7 +16,7 @@ import {
 } from "../../js/toolkit.js";
 import {
     BoardItemBuilder, ToolGridPanelContent, ToolToggleCommand, FavoriteItemBuilder, ToolExpandablePopup,
-    ToolGridExpandablePanel, ToolCommandPopup
+    ToolGridExpandablePanel, ToolCommandPopup, ToolFilterCard, ToolKeywordsCard
 } from "../../js/tools.js";
 import {
     FreePositioningMode
@@ -447,7 +447,19 @@ export function createPalettePopup() {
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#AA0000"}),
         compatibilities:["R"]
     })]));
-    let palettePopup = new ToolExpandablePopup(200, 350).display(-100, 175);
+    let filterCard = new ToolFilterCard(200, 40, input=>console.log("Input:", input));
+    let keywordsCard = new ToolKeywordsCard(200, keyword=>console.log("Keyword:", keyword))
+        .addKeyword("alpha", "A")
+        .addKeyword("beta", "B")
+        .addKeyword("gamma", "C")
+        .addKeyword("delta", "D")
+        .addKeyword("epsilon", "E")
+        .addKeyword("alpha")
+        .addKeyword("beta")
+        .addKeyword("gamma")
+        .addKeyword("delta")
+        .addKeyword("epsilon");
+    let palettePopup = new ToolExpandablePopup(210, 200, 350, [filterCard, keywordsCard]).display(-110, 240);
     palettePopup.addPanel(new ToolGridExpandablePanel("All", paletteContent));
     palettePopup.addPanel(new ToolGridExpandablePanel("Furniture", paletteContent,
         cell=>cell.applyAnd(is(DIAMPane, DIAMAbstractLadder, DIAMShelf, DIAMBox, DIAMFixing, DIAMHook))));

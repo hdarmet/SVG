@@ -8,7 +8,7 @@ import {
     TextMenuOption
 } from "./tools.js";
 import {
-    Canvas, CopyPaste, l2lBoundingBox, Memento, Selection, Anchor, getExtension, Context
+    Canvas, CopyPaste, l2lBoundingBox, Memento, Selection, Anchor, getExtension, Context, Layers
 } from "./toolkit.js";
 import {
     StandardDragMode
@@ -16,6 +16,9 @@ import {
 import {
     always
 } from "./misc.js";
+import {
+    List
+} from "./collections.js";
 import {
     KeyboardEvents
 } from "./graphics.js";

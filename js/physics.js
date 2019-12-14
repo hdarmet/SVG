@@ -1,19 +1,19 @@
 'use strict';
 
 import {
-    evaluate, same, always, assert
+    always, assert
 } from "./misc.js";
 import {
-    List, AVLTree, ESet, EMap, SpatialLocator
+    List, ESet, SpatialLocator, dichotomousSearch
 } from "./collections.js";
 import {
-    Box, Matrix
+    Matrix
 } from "./geometry.js";
 import {
     win, Colors, Line, computePosition, Group, Fill
 } from "./graphics.js";
 import {
-    Canvas, Memento, CloneableObject, Events, makeObservable
+    Canvas, Memento, Events, makeObservable
 } from "./toolkit.js";
 import {
     TextDecoration

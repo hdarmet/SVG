@@ -6,7 +6,8 @@ import {
     Context, Memento, CloneableObject, Events, Canvas, CopyPaste
 } from "./toolkit.js";
 import {
-    isNumber, assert
+    isNumber, assert, defineGetProperty, defineMethod, defineProperty, extendMethod, proposeGetProperty, replaceMethod,
+    replaceGetProperty
 } from "./misc.js";
 import {
     Matrix
@@ -20,115 +21,122 @@ import {
 
 export function makeFillUpdatable(superClass) {
 
-    superClass.prototype._initFill = function (data) {
-        this._setFillColor(data.fillColor || Colors.NONE);
-    };
+    defineMethod(superClass,
+        function _initFill(data) {
+            this._setFillColor(data.fillColor || Colors.NONE);
+        }
+    );
 
-    Object.defineProperty(superClass.prototype, "fillColor", {
-        configurable: true,
-        get: function () {
+    defineProperty(superClass,
+        function fillColor() {
             return this._fillColor;
         },
-        set: function (fillColor) {
+        function fillColor(fillColor) {
             Memento.register(this);
             this._setFillColor(fillColor);
         }
-    });
+    );
 
-    superClass.prototype._setFillColor = function (fillColor) {
-        this._fillColor = fillColor;
-        this._shape.child.attrs({fill: fillColor});
-    };
+    defineMethod(superClass,
+        function _setFillColor(fillColor) {
+            this._fillColor = fillColor;
+            this._shape.child.attrs({fill: fillColor});
+        }
+    );
 
-    let superMemento = superClass.prototype._memento;
-    superClass.prototype._memento = function () {
-        let memento = superMemento.call(this);
-        memento._fillColor = this._fillColor;
-        return memento;
-    };
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            memento._fillColor = this._fillColor;
+            return memento;
+        }
+    );
 
-    let superRevert = superClass.prototype._revert;
-    superClass.prototype._revert = function (memento) {
-        superRevert.call(this, memento);
-        this._fillColor = memento._fillColor;
-        this._shape.child.attrs({fill: this._fillColor});
-        return this;
-    };
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            this._fillColor = memento._fillColor;
+            this._shape.child.attrs({fill: this._fillColor});
+            return this;
+        }
+    );
 
-    if (!superClass.prototype.hasOwnProperty("fillUpdatable")) {
-        Object.defineProperty(superClass.prototype, "fillUpdatable", {
-            configurable: true,
-            get() {
-                return true;
-            }
-        });
-    }
+    proposeGetProperty(superClass,
+        function fillUpdatable() {
+            return true;
+        }
+    );
+
 }
 
 export function makeStrokeUpdatable(superClass) {
 
-    superClass.prototype._initStroke = function (data) {
-        this._setStrokeColor(data.strokeColor || this._strokeColor || Colors.BLACK);
-        this._setStrokeWidth(data.strokeWidth || this._strokeWidth || 1);
-    };
+    defineMethod(superClass,
+        function _initStroke(data) {
+            this._setStrokeColor(data.strokeColor || this._strokeColor || Colors.BLACK);
+            this._setStrokeWidth(data.strokeWidth || this._strokeWidth || 1);
+        }
+    );
 
-    Object.defineProperty(superClass.prototype, "strokeColor", {
-        configurable: true,
-        get: function () {
+    defineProperty(superClass,
+        function strokeColor() {
             return this._strokeColor;
         },
-        set: function (strokeColor) {
+        function strokeColor(strokeColor) {
             Memento.register(this);
             this._setStrokeColor(strokeColor);
         }
-    });
+    );
 
-    Object.defineProperty(superClass.prototype, "strokeWidth", {
-        configurable: true,
-        get: function () {
+    defineProperty(superClass,
+        function strokeWidth() {
             return this._strokeWidth;
         },
-        set: function (strokeWidth) {
+        function strokeWidth(strokeWidth) {
             Memento.register(strokeWidth);
             this._setStrokeWidth(strokeWidth);
         }
-    });
+    );
 
-    superClass.prototype._setStrokeColor = function (strokeColor) {
-        this._strokeColor = strokeColor;
-        this._shape.child.attrs({stroke: strokeColor});
-    };
+    defineMethod(superClass,
+        function _setStrokeColor(strokeColor) {
+            this._strokeColor = strokeColor;
+            this._shape.child.attrs({stroke: strokeColor});
+        }
+    );
 
-    superClass.prototype._setStrokeWidth = function (strokeWidth) {
-        this._strokeWidth = strokeWidth;
-        this._shape.child.attrs({stroke_width: strokeWidth});
-    };
+    defineMethod(superClass,
+        function _setStrokeWidth(strokeWidth) {
+            this._strokeWidth = strokeWidth;
+            this._shape.child.attrs({stroke_width: strokeWidth});
+        }
+    );
 
-    let superMemento = superClass.prototype._memento;
-    superClass.prototype._memento = function () {
-        let memento = superMemento.call(this);
-        memento._strokeColor = this._strokeColor;
-        memento._strokeWidth = this._strokeWidth;
-        return memento;
-    };
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            memento._strokeColor = this._strokeColor;
+            memento._strokeWidth = this._strokeWidth;
+            return memento;
+        }
+    );
 
-    let superRevert = superClass.prototype._revert;
-    superClass.prototype._revert = function (memento) {
-        superRevert.call(this, memento);
-        this._strokeColor = memento._strokeColor;
-        this._strokeWidth = memento._strokeWidth;
-        this._shape.child.attrs({stroke: this._strokeColor, stroke_width: this._strokeWidth});
-        return this;
-    };
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            superRevert.call(this, memento);
+            this._strokeColor = memento._strokeColor;
+            this._strokeWidth = memento._strokeWidth;
+            this._shape.child.attrs({stroke: this._strokeColor, stroke_width: this._strokeWidth});
+            return this;
+        }
+    );
 
-    if (!superClass.prototype.hasOwnProperty("strokeUpdatable")) {
-        Object.defineProperty(superClass.prototype, "strokeUpdatable", {
-            configurable: true,
-            get() {
-                return true;
-            }
-        });
-    }
+    proposeGetProperty(superClass,
+        function strokeUpdatable() {
+            return true;
+        }
+    );
+
 }
 
 export class TextDecoration extends Decoration {
@@ -246,33 +254,34 @@ HighlightShape.OPACITY = 0.2;
 
 export function makeHighlightable(superClass) {
 
-    let finish = superClass.prototype._finish;
-    superClass.prototype._finish = function (...args) {
-        finish.call(this, ...args);
-        this._highlightShape = new HighlightShape(this);
-        this._shape.add(this._highlightShape._root);
-    };
+    extendMethod(superClass, $finish=>
+        function _finish(...args) {
+            $finish.call(this, ...args);
+            this._highlightShape = new HighlightShape(this);
+            this._shape.add(this._highlightShape._root);
+        }
+    );
 
-    superClass.prototype._buildShapeStructure = function () {
-        let shape = new Group();
-        let shapeContent = new Group();
-        shape.add(shapeContent);
-        return shape;
-    };
+    replaceMethod(superClass,
+        function _buildShapeStructure() {
+            let shape = new Group();
+            let shapeContent = new Group();
+            shape.add(shapeContent);
+            return shape;
+        }
+    );
 
-    Object.defineProperty(superClass.prototype, "_shapeContent", {
-        configurable: true,
-        get() {
+    replaceGetProperty(superClass,
+        function _shapeContent() {
             return this._shape.child;
         }
-    });
+    );
 
-    Object.defineProperty(superClass.prototype, "highlight", {
-        configurable: true,
-        get() {
+    defineProperty(superClass,
+        function highlight() {
             return this._highlight;
         },
-        set(highlight) {
+        function highlight(highlight) {
             Memento.register(this);
             this._setHighlight(highlight);
             if (this.hasParts) {
@@ -282,154 +291,157 @@ export function makeHighlightable(superClass) {
             }
             return this;
         }
-    });
+    );
 
-    let setHighlight = superClass.prototype._setHighlight;
-    superClass.prototype._setHighlight = function (highlight) {
-        this._highlight = highlight;
-        this._highlightShape.refresh();
-        setHighlight && setHighlight.call(this, highlight);
-        return this;
-    };
+    extendMethod(superClass, $setHighlight=>
+        function _setHighlight(highlight) {
+            this._highlight = highlight;
+            this._highlightShape.refresh();
+            setHighlight && setHighlight.call(this, highlight);
+            return this;
+        }
+    );
 
-    let superMemento = superClass.prototype._memento;
-    superClass.prototype._memento = function () {
-        let memento = superMemento.call(this);
-        memento._highlight = this._highlight;
-        return memento;
-    };
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            memento._highlight = this._highlight;
+            return memento;
+        }
+    );
 
-    let superRevert = superClass.prototype._revert;
-    superClass.prototype._revert = function (memento) {
-        superRevert.call(this, memento);
-        this._highlight = memento._highlight;
-        return this;
-    };
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            this._highlight = memento._highlight;
+            return this;
+        }
+    );
 
-    Object.defineProperty(superClass.prototype, "highlightable", {
-        configurable: true,
-        get() {
+    defineGetProperty(superClass,
+        function highlightable() {
             return true;
         }
-    });
+    );
 
-    superClass.prototype.showHighlight = function () {
-        this._highlightShape._root.visibility = null;
-        return this;
-    };
+    defineMethod(superClass,
+        function showHighlight() {
+            this._highlightShape._root.visibility = null;
+            return this;
+        }
+    );
 
-    superClass.prototype.hideHighlight = function () {
-        this._highlightShape._root.visibility = Visibility.HIDDEN;
-        return this;
-    };
+    defineMethod(superClass,
+        function hideHighlight() {
+            this._highlightShape._root.visibility = Visibility.HIDDEN;
+            return this;
+        }
+    );
 
-    return superClass;
 }
 
 export function makeGroupable(superClass) {
 
-    Object.defineProperty(superClass.prototype, "group", {
-        configurable: true,
-        get() {
+    defineProperty(superClass,
+        function group() {
             return this._group;
         },
-        set(group) {
+        function group(group) {
             Memento.register(this);
             this._group = group;
             return this;
         }
-    });
+    );
 
-    let superMemento = superClass.prototype._memento;
-    superClass.prototype._memento = function () {
-        let memento = superMemento.call(this);
-        memento._group = this._group;
-        return memento;
-    };
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            memento._group = this._group;
+            return memento;
+        }
+    );
 
-    let superRevert = superClass.prototype._revert;
-    superClass.prototype._revert = function (memento) {
-        superRevert.call(this, memento);
-        this._group = memento._group;
-        return this;
-    };
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            this._group = memento._group;
+            return this;
+        }
+    );
 
-    if (!superClass.prototype.hasOwnProperty("groupable")) {
-        Object.defineProperty(superClass.prototype, "groupable", {
-            configurable: true,
-            get() {
-                return true;
-            }
-        });
-    }
+    proposeGetProperty(superClass,
+        function groupable() {
+            return true;
+        }
+    );
 
-    return superClass;
 }
 
 export function makeLockable(superClass) {
 
-    let superInit = superClass.prototype._init;
-    superClass.prototype._init = function (...args) {
-        superInit.call(this, ...args);
-        this._showLocking();
-    };
-
-    superClass.prototype._showLocking = function () {
-        if (this.lock) {
-            this._root.stroke = Colors.LIGHT_GREY;
+    extendMethod(superClass, $init=>
+        function _init(...args) {
+            $init.call(this, ...args);
+            this._showLocking();
         }
-        else {
-            this._root.stroke = Colors.BLACK;
-        }
-    };
+    );
 
-    Object.defineProperty(superClass.prototype, "lock", {
-        configurable: true,
-        get() {
+    defineMethod(superClass,
+        function _showLocking() {
+            if (this.lock) {
+                this._root.stroke = Colors.LIGHT_GREY;
+            }
+            else {
+                this._root.stroke = Colors.BLACK;
+            }
+        }
+    );
+
+    defineProperty(superClass,
+        function lock() {
             return this._lock;
         },
-        set(lock) {
+        function lock(lock) {
             Memento.register(this);
             this._lock = lock;
             this._showLocking();
             return this;
         }
-    });
+    );
 
-    let superMemento = superClass.prototype._memento;
-    superClass.prototype._memento = function () {
-        let memento = superMemento.call(this);
-        memento._lock = this._lock;
-        return memento;
-    };
-
-    let superRevert = superClass.prototype._revert;
-    superClass.prototype._revert = function (memento) {
-        superRevert.call(this, memento);
-        this._lock = memento._lock;
-        this._showLocking();
-        return this;
-    };
-
-    if (!superClass.prototype.hasOwnProperty("lockable")) {
-        Object.defineProperty(superClass.prototype, "lockable", {
-            configurable: true,
-            get() {
-                return true;
-            }
-        });
-    }
-
-    let superCloned = superClass.prototype._cloned;
-    superClass.prototype._cloned = function (copy, duplicata) {
-        superCloned && superCloned.call(this, copy, duplicata);
-        if (!duplicata.get(this.parent)) {
-            copy._lock = false;
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            memento._lock = this._lock;
+            return memento;
         }
-        this._showLocking();
-    };
+    );
 
-    return superClass;
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            this._lock = memento._lock;
+            this._showLocking();
+            return this;
+        }
+    );
+
+    proposeGetProperty(superClass,
+        function lockable() {
+            return true;
+        }
+    );
+
+    extendMethod(superClass, $cloned=>
+        function _cloned(copy, duplicata) {
+            $cloned && $cloned.call(this, copy, duplicata);
+            if (!duplicata.get(this.parent)) {
+                copy._lock = false;
+            }
+            this._showLocking();
+        }
+    );
+
 }
 
 export class Mark {

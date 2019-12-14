@@ -526,20 +526,22 @@ export function makeDraggable(superClass) {
         }
     );
 
-    extendIfMethod(superClass, $memento=>
-        function _memento() {
-            let memento = $memento.call(this);
-            memento._dragOp = this._dragOp;
-            return memento;
-        }
-    );
+    if (superClass.prototype._memento) {
+        extendIfMethod(superClass, $memento =>
+            function _memento() {
+                let memento = $memento.call(this);
+                memento._dragOp = this._dragOp;
+                return memento;
+            }
+        );
 
-    extendIfMethod(superClass, $revert=>
-        function _revert(memento) {
-            $revert.call(this, memento);
-            this._dragOperation(memento._dragOp);
-        }
-    );
+        extendIfMethod(superClass, $revert =>
+            function _revert(memento) {
+                $revert.call(this, memento);
+                this._dragOperation(memento._dragOp);
+            }
+        );
+    }
 
     defineMethod(superClass,
         function _dragOperation(operation) {
@@ -572,14 +574,16 @@ export function makeDraggable(superClass) {
         }
     );
 
-    extendMethod(superClass, $cloned =>
-        function _cloned(copy, duplicata) {
-            $cloned && $cloned.call(this, copy, duplicata);
-            if (this._dragOp) {
-                copy._dragOperation(this._dragOp);
+    if (superClass.prototype.clone) {
+        extendMethod(superClass, $cloned =>
+            function _cloned(copy, duplicata) {
+                $cloned && $cloned.call(this, copy, duplicata);
+                if (this._dragOp) {
+                    copy._dragOperation(this._dragOp);
+                }
             }
-        }
-    );
+        );
+    }
 
     proposeGetProperty(superClass,
         function draggable() {

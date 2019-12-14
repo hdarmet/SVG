@@ -3,7 +3,7 @@ import {
     same, evaluate
 } from "./misc.js";
 import {
-    AVLTree, ESet, List, EMap
+    AVLTree, ESet, List, EMap, dichotomousSearch, insertionSort
 } from "./collections.js";
 import {
     addPhysicToContainer, Physic
@@ -14,38 +14,6 @@ import {
 import {
     Box, Matrix
 } from "./geometry.js";
-
-export function dichotomousSearch(array, value, comparator = (a, b) => a - b) {
-    let start = 0;
-    let end = array.length - 1;
-
-    while (start <= end) {
-        let half = Math.floor((start + end) / 2);
-        let cmp = comparator(value, array[half]);
-        if (cmp === 0) return half;
-        else if (cmp > 0) start = half + 1;
-        else end = half - 1;
-    }
-    return start;
-}
-
-export function insertionSort(array, comparator = (a, b) => a - b) {
-    let delta = array.length && array[0].removed ? 1 : 0;
-    for (let index = 1; index < array.length; index++) {
-        let tmp = array[index];
-        if (tmp.removed) {
-            delta++;
-        } else {
-            let idx2 = index - delta;
-            while (idx2 > 0 && comparator(array[idx2 - 1], tmp) > 0) {
-                array[idx2] = array[idx2 - 1];
-                idx2 = idx2 - 1;
-            }
-            array[idx2] = tmp;
-        }
-    }
-    array.length -= delta;
-}
 
 export class SAPRecord {
 

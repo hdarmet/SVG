@@ -166,7 +166,8 @@ export let MouseEvents = {
 
 export let KeyboardEvents = {
     KEY_DOWN : "keydown",
-    KEY_UP : "keyup"
+    KEY_UP : "keyup",
+    INPUT : "input"
 };
 
 export let Buttons = {
@@ -823,7 +824,7 @@ export const Visibility = {
 
 let ref = 0;
 
-export class SVGElement {
+export class DOMElement {
 
     constructor(type) {
         this.node(type);
@@ -1071,7 +1072,7 @@ export class SVGElement {
 
     node(type) {
         if (type) {
-            this._node = doc.createElementNS(SVG_NS, type);
+            this._node = doc.createElement(type);
             this._node._owner = this;
         }
         return this._node;
@@ -1120,62 +1121,6 @@ export class SVGElement {
         return this;
     }
 
-    onDrag(dragStart, dragMove, dragDrop) {
-        if (this._dnd) this.offDrag();
-        let dndMove;
-        let dndDrop;
-        this._dnd = {
-            dragStart : dragStart,
-            dragMove : dragMove,
-            dragDrop : dragDrop,
-            event: null,
-            start : event=> {
-                if (!event._drag) {
-                    this._dnd.event = event;
-                    dndMove = this._dnd.move;
-                    dndDrop = this._dnd.drop;
-                    if (this._node.setCapture) {
-                        this._node.setCapture(true);
-                    }
-                    else {
-                        doc.addEventListener(MouseEvents.MOUSE_MOVE, dndMove);
-                        doc.addEventListener(MouseEvents.MOUSE_UP, dndDrop);
-                    }
-                    this.off(MouseEvents.MOUSE_DOWN, this._dnd.start);
-                    this.on(MouseEvents.MOUSE_MOVE, dndMove);
-                    this.on(MouseEvents.MOUSE_UP, dndDrop);
-                    dragStart.call(this, event);
-                    event.preventDefault();
-                    event._drag = true;
-                }
-            },
-            move : event=> {
-                if (event.pageX!==this._dnd.event.pageX||event.pageY!==this._dnd.event.pageY) {
-                    this._dnd.event = event;
-                    dragMove.call(this, event);
-                    event.preventDefault();
-                }
-            },
-            drop : event=> {
-                dragDrop.call(this, event);
-                this._dnd && this.on(MouseEvents.MOUSE_DOWN, this._dnd.start);
-                this.off(MouseEvents.MOUSE_MOVE, dndMove);
-                this.off(MouseEvents.MOUSE_UP, dndDrop);
-                doc.removeEventListener(MouseEvents.MOUSE_MOVE, dndMove);
-                doc.removeEventListener(MouseEvents.MOUSE_UP, dndDrop);
-                event.preventDefault();
-            }
-        };
-        this.on(MouseEvents.MOUSE_DOWN, this._dnd.start);
-    }
-
-    offDrag() {
-        if (this._dnd) {
-            this.off(MouseEvents.MOUSE_DOWN, this._dnd.start);
-            delete this._dnd;
-        }
-    }
-
     get parent() {return this._parent;}
 
     get children() {return this._children ? new List(...this._children) : new List();}
@@ -1203,11 +1148,6 @@ export class SVGElement {
             return this._parent.remove(this);
         }
         return null;
-    }
-
-    getElementFromPoint(x, y) {
-        let offset = globalOffset(this);
-        return SVGElement.getElementFromPoint(x+offset.x, y+offset.y);
     }
 
     memento() {
@@ -1269,10 +1209,86 @@ export class SVGElement {
     };
 
 }
+defineStringProperty(DOMElement, Attrs.ID);
+defineStringProperty(DOMElement, Attrs.CLASS);
+defineStringProperty(DOMElement, Attrs.STYLE);
 
-defineStringProperty(SVGElement, Attrs.ID);
-defineStringProperty(SVGElement, Attrs.CLASS);
-defineStringProperty(SVGElement, Attrs.STYLE);
+export class SVGElement extends DOMElement {
+
+    constructor(type) {
+        super(type);
+    }
+
+    node(type) {
+        if (type) {
+            this._node = doc.createElementNS(SVG_NS, type);
+            this._node._owner = this;
+        }
+        return this._node;
+    }
+
+    onDrag(dragStart, dragMove, dragDrop) {
+        if (this._dnd) this.offDrag();
+        let dndMove;
+        let dndDrop;
+        this._dnd = {
+            dragStart : dragStart,
+            dragMove : dragMove,
+            dragDrop : dragDrop,
+            event: null,
+            start : event=> {
+                if (!event._drag) {
+                    this._dnd.event = event;
+                    dndMove = this._dnd.move;
+                    dndDrop = this._dnd.drop;
+                    if (this._node.setCapture) {
+                        this._node.setCapture(true);
+                    }
+                    else {
+                        doc.addEventListener(MouseEvents.MOUSE_MOVE, dndMove);
+                        doc.addEventListener(MouseEvents.MOUSE_UP, dndDrop);
+                    }
+                    this.off(MouseEvents.MOUSE_DOWN, this._dnd.start);
+                    this.on(MouseEvents.MOUSE_MOVE, dndMove);
+                    this.on(MouseEvents.MOUSE_UP, dndDrop);
+                    dragStart.call(this, event);
+                    event.preventDefault();
+                    event._drag = true;
+                }
+            },
+            move : event=> {
+                if (event.pageX!==this._dnd.event.pageX||event.pageY!==this._dnd.event.pageY) {
+                    this._dnd.event = event;
+                    dragMove.call(this, event);
+                    event.preventDefault();
+                }
+            },
+            drop : event=> {
+                dragDrop.call(this, event);
+                this._dnd && this.on(MouseEvents.MOUSE_DOWN, this._dnd.start);
+                this.off(MouseEvents.MOUSE_MOVE, dndMove);
+                this.off(MouseEvents.MOUSE_UP, dndDrop);
+                doc.removeEventListener(MouseEvents.MOUSE_MOVE, dndMove);
+                doc.removeEventListener(MouseEvents.MOUSE_UP, dndDrop);
+                event.preventDefault();
+            }
+        };
+        this.on(MouseEvents.MOUSE_DOWN, this._dnd.start);
+    }
+
+    offDrag() {
+        if (this._dnd) {
+            this.off(MouseEvents.MOUSE_DOWN, this._dnd.start);
+            delete this._dnd;
+        }
+    }
+
+    getElementFromPoint(x, y) {
+        let offset = globalOffset(this);
+        return SVGElement.getElementFromPoint(x+offset.x, y+offset.y);
+    }
+
+}
 defineFloatProperty(SVGElement, Attrs.OPACITY);
 defineStringProperty(SVGElement, Attrs.VISIBILITY);
 defineStringProperty(SVGElement, Attrs.STROKE);
@@ -1642,7 +1658,7 @@ export class SVGCoreElement extends SVGElement {
         }
         else {
             delete this._attrs.matrix;
-            this.attr(Attrs.TRANSFORM, this.__zMatrix);
+            this.attr(Attrs.TRANSFORM, this.__zMatrix?this.__zMatrix:null);
         }
     }
 
@@ -3219,7 +3235,7 @@ export class ForeignObject extends SVGElement {
         this._node.innerHTML = innerHTML;
     }
 
-    add(node) {
+    addNode(node) {
         matrixOp++;
         this._node.appendChild(node);
         return this;

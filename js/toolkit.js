@@ -160,6 +160,17 @@ export function getCanvasLayer(artifact) {
     return null;
 }
 
+export function getOwner(artifact) {
+    let parent = artifact.parent;
+    while (parent) {
+        if (parent._owner) {
+            return parent._owner;
+        }
+        parent = parent.parent;
+    }
+    return null;
+}
+
 /**
  * Extend the current selection by adding any element "associated" to already selected elements (for exemple,
  * element that are 'carried' or 'sticked' to the selected element.
