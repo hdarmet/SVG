@@ -8,7 +8,8 @@ import {
 } from "./geometry.js";
 import {
     Visibility, computePosition, RasterImage, SvgRasterImage, Group, ClipPath, Rect, Text, AlignmentBaseline,
-    Colors, MouseEvents, TextAnchor, win, Cursor, ForeignObject, DOMElement, Translation, KeyboardEvents
+    Colors, MouseEvents, TextAnchor, win, Cursor, ForeignObject, DOMElement, Translation, KeyboardEvents,
+    M, Path, Z, Q, L
 } from "./graphics.js";
 import {
     Context, Events, l2pBoundingBox, Memento, Canvas, makeObservable, makeNotCloneable,
@@ -852,166 +853,6 @@ export class ToolCommandPopup extends ToolPopup {
     }
 }
 
-export class ToolPanelContent {
-
-    constructor(width, height) {
-        this._root = new Group();
-        this._root._owner = this;
-        this._width = width;
-        this._height = height;
-    }
-
-    _refresh() {
-    }
-
-    get width() {
-        return this._width;
-    }
-
-    _setWidth(width) {
-        this._width = width;
-    }
-
-    set width(width) {
-        this._setWidth(width);
-    }
-
-    get height() {
-        return this._height;
-    }
-
-    _setHeight(height) {
-        this._height = height;
-    }
-
-    set height(height) {
-        this._setHeight(height);
-    }
-
-}
-
-export class ToolExpandableTitle {
-
-    constructor(panel, titleText) {
-        this._panel = panel;
-        this._root = new Translation();
-        this._root.cursor = Cursor.DEFAULT;
-        this._background = new Rect(
-            0, -ToolExpandablePanel.PANEL_TITLE_HEIGHT / 2,
-            10, ToolExpandablePanel.PANEL_TITLE_HEIGHT);
-        this._root.add(this._background);
-        this.text = titleText;
-    }
-
-    set text(titleText) {
-        this._label && this._label.detach();
-        this._label = new Text(
-            0, ToolExpandablePanel.PANEL_TITLE_TEXT_MARGIN / 2, titleText)
-            .attrs({ fill: Colors.WHITE, font_size:ToolExpandablePanel.FONT_SIZE, text_anchor: TextAnchor.MIDDLE });
-        this._root.add(this._label);
-        return this;
-    }
-
-    action(action) {
-        this._root.on(MouseEvents.CLICK, () => {
-            action(this._panel);
-        });
-    }
-
-    setLocation(x, y) {
-        this._root.set(x, y);
-    }
-
-    set width(width) {
-        this._background.attrs({ width, x: -width / 2 });
-    }
-}
-
-export class ToolExpandablePanel {
-
-    constructor(titleText, content) {
-        this._content = content;
-        this._root = new Group();
-        this._root._owner = this;
-        this._width = 1;
-        this._background = new Rect(0, 0, 1, 1).attrs({fill:Colors.WHITE});
-        this._root.add(this._background);
-        this._title = new ToolExpandableTitle(this, titleText);
-        this._opened = false;
-    }
-
-    get title() {
-        return this._title;
-    }
-
-    action(action) {
-        this._title.action(action);
-        return this;
-    }
-
-    open() {
-        this._opened = true;
-        this._root.add(this._content._root);
-    }
-
-    close() {
-        if (this._opened) {
-            this._opened = false;
-        }
-    }
-
-    get opened() {
-        return this._opened;
-    }
-
-    _refresh() {
-        if (this._opened) {
-            this._content._refresh();
-            this._content._root.matrix = Matrix.translate(0, 0)
-        }
-    }
-
-    get height() {
-        return this._content.height;
-    }
-
-    set height(height) {
-        this._content.height = height;
-        this._background.attrs({y : -height/2, height});
-    }
-
-    get width() {
-        return this._width;
-    }
-
-    set width(width) {
-        this._width = width;
-        this._title.width = width;
-        this._background.attrs({x : -width/2, width});
-        this._content.width = width;
-    }
-
-    get height() {
-        return this.opened ? this._content.height : 0;
-    }
-
-    accept(visitor) {
-        visitor.visit(this._content);
-        return this;
-    }
-
-    setLocation(x, y) {
-        this._root.matrix = Matrix.translate(x, y);
-        return this;
-    }
-
-}
-ToolExpandablePanel.PANEL_TITLE_HEIGHT = 15;
-ToolExpandablePanel.PANEL_MIN_HEIGHT = 16;
-ToolExpandablePanel.PANEL_TITLE_MARGIN = ToolExpandablePanel.PANEL_MIN_HEIGHT-ToolExpandablePanel.PANEL_TITLE_HEIGHT;
-ToolExpandablePanel.PANEL_TITLE_TEXT_MARGIN = 8;
-ToolExpandablePanel.FONT_SIZE = 12;
-
 export class ToolCard {
 
     constructor(width, height) {
@@ -1138,7 +979,45 @@ export class ToolCardStack extends ToolCard {
     }
 }
 
-export class ToolExpandablePanelCard extends ToolCard {
+export class ToolPanelContent {
+
+    constructor(width, height) {
+        this._root = new Group();
+        this._root._owner = this;
+        this._width = width;
+        this._height = height;
+    }
+
+    _refresh() {
+    }
+
+    get width() {
+        return this._width;
+    }
+
+    _setWidth(width) {
+        this._width = width;
+    }
+
+    set width(width) {
+        this._setWidth(width);
+    }
+
+    get height() {
+        return this._height;
+    }
+
+    _setHeight(height) {
+        this._height = height;
+    }
+
+    set height(height) {
+        this._setHeight(height);
+    }
+
+}
+
+export class ToolPanelCard extends ToolCard {
 
     constructor(width, height) {
         super(width, height);
@@ -1147,24 +1026,7 @@ export class ToolExpandablePanelCard extends ToolCard {
 
     _refresh() {
         this._root.clear();
-        let contentHeight = this.height -
-            this._panels.length * ToolExpandablePanel.PANEL_TITLE_HEIGHT;
-        if (this.currentPanel) {
-            this.currentPanel.height = contentHeight;
-        }
-        let height = -this._height / 2;
-        for (let panel of this._panels) {
-            panel.width = this.width;
-            this._root.add(panel.title._root);
-            panel.title.setLocation(0, height+ToolExpandablePanel.PANEL_TITLE_HEIGHT/2);
-            height += ToolExpandablePanel.PANEL_TITLE_HEIGHT;
-            if (panel.opened) {
-                this._root.add(panel._root);
-                panel._refresh();
-                panel.setLocation(0, height + contentHeight / 2);
-                height += contentHeight;
-            }
-        }
+        this._build();
         return this;
     }
 
@@ -1217,6 +1079,281 @@ export class ToolExpandablePanelCard extends ToolCard {
     }
 
 }
+
+export class ToolPanelTitle {
+
+    constructor(panel, titleText) {
+        this._panel = panel;
+        this._root = new Translation();
+        this._root.cursor = Cursor.DEFAULT;
+        this._background = new Rect(
+            0, -ToolPanel.PANEL_TITLE_HEIGHT / 2,
+            10, ToolPanel.PANEL_TITLE_HEIGHT);
+        this._shape = new Group();
+        this._root.add(this._background);
+        this._root.add(this._shape);
+        this.text = titleText;
+    }
+
+    set text(titleText) {
+        this._label && this._label.detach();
+        this._label = new Text(
+            0, ToolPanel.PANEL_TITLE_TEXT_MARGIN / 2, titleText)
+            .attrs({ fill: Colors.WHITE, font_size:ToolPanel.FONT_SIZE, text_anchor: TextAnchor.MIDDLE });
+        this._root.add(this._label);
+        return this;
+    }
+
+    get textWidth() {
+        return this._label.bbox.width;
+    }
+
+    _reshape(width) {
+        let w = this.width/2;
+        let h = this.height/2;
+        let mh = this.height/2 - ToolPanelTitle.SHAPE_HIGHT_MARGIN;
+        let m = ToolPanelTitle.SHAPE_MARGIN;
+        this._shape.clear();
+        this._shape.add(new Path(M(-w, h),
+            Q(-w+m, h, -w+m, 0),
+            Q(-w+m, -mh, -w+2*m, -mh),
+            L(w-2*m, -mh),
+            Q(w-m, -mh, w-m, 0),
+            Q(w-m, h, w, h),
+            Z()).attrs({fill:Colors.WHITE}))
+    }
+
+    highlight() {
+        this._highlighted = true;
+        this._reshape(this.width);
+        this._label.fill = Colors.BLACK;
+    }
+
+    unhighlight() {
+        delete this._highlighted;
+        this._shape.clear();
+        this._label.fill = Colors.WHITE;
+    }
+
+    action(action) {
+        this._root.on(MouseEvents.CLICK, () => {
+            action(this._panel);
+        });
+    }
+
+    setLocation(x, y) {
+        this._root.set(x, y);
+    }
+
+    set width(width) {
+        this._background.attrs({ width, x: -width / 2 });
+        if (this._highlighted) {
+            this._reshape(width);
+        }
+    }
+
+    get width() {
+        return this._background.width;
+    }
+
+    get height() {
+        return ToolPanel.PANEL_TITLE_HEIGHT;
+    }
+}
+ToolPanelTitle.SHAPE_MARGIN = 5;
+ToolPanelTitle.SHAPE_HIGHT_MARGIN = 2;
+
+export class ToolPanel {
+
+    constructor(titleText, content) {
+        this._content = content;
+        this._root = new Group();
+        this._root._owner = this;
+        this._width = 1;
+        this._background = new Rect(0, 0, 1, 1).attrs({fill:Colors.WHITE});
+        this._root.add(this._background);
+        this._title = new ToolPanelTitle(this, titleText);
+        this._opened = false;
+    }
+
+    get title() {
+        return this._title;
+    }
+
+    action(action) {
+        this._title.action(action);
+        return this;
+    }
+
+    open() {
+        this._opened = true;
+        this._root.add(this._content._root);
+    }
+
+    close() {
+        if (this._opened) {
+            this._opened = false;
+        }
+    }
+
+    get opened() {
+        return this._opened;
+    }
+
+    _refresh() {
+        if (this._opened) {
+            this._content._refresh();
+            this._content._root.matrix = Matrix.translate(0, 0)
+        }
+    }
+
+    get height() {
+        return this._content.height;
+    }
+
+    set height(height) {
+        this._content.height = height;
+        this._background.attrs({y : -height/2, height});
+    }
+
+    get width() {
+        return this._width;
+    }
+
+    set width(width) {
+        this._width = width;
+        this._background.attrs({x : -width/2, width});
+        this._content.width = width;
+    }
+
+    get height() {
+        return this.opened ? this._content.height : 0;
+    }
+
+    accept(visitor) {
+        visitor.visit(this._content);
+        return this;
+    }
+
+    setLocation(x, y) {
+        this._root.matrix = Matrix.translate(x, y);
+        return this;
+    }
+
+}
+ToolPanel.PANEL_TITLE_HEIGHT = 20;
+ToolPanel.PANEL_MIN_HEIGHT = 16;
+ToolPanel.PANEL_TITLE_MARGIN = ToolPanel.PANEL_MIN_HEIGHT-ToolPanel.PANEL_TITLE_HEIGHT;
+ToolPanel.PANEL_TITLE_TEXT_MARGIN = 12;
+ToolPanel.FONT_SIZE = 12;
+
+export class ToolExpandablePanelCard extends ToolPanelCard {
+
+    constructor(width, height) {
+        super(width, height);
+    }
+
+    _build() {
+        let contentHeight = this.height -
+            this._panels.length * ToolPanel.PANEL_TITLE_HEIGHT;
+        if (this.currentPanel) {
+            this.currentPanel.height = contentHeight;
+            this.currentPanel.width = this.width;
+        }
+        let height = -this._height / 2;
+        for (let panel of this._panels) {
+            this._root.add(panel.title._root);
+            panel.title.width = this.width;
+            panel.title.setLocation(0, height+ToolPanel.PANEL_TITLE_HEIGHT/2);
+            height += ToolPanel.PANEL_TITLE_HEIGHT;
+            if (panel.opened) {
+                this._root.add(panel._root);
+                panel._refresh();
+                panel.setLocation(0, height + contentHeight / 2);
+                height += contentHeight;
+            }
+        }
+    }
+
+}
+
+export class ToolTabsetPanelCard extends ToolPanelCard {
+
+    constructor(width, height) {
+        super(width, height);
+    }
+
+    _getTitleLines(panels) {
+
+        function makeATry() {
+            let width = -this._width / 2;
+            let lines = new List();
+            let currentLine = {titles: new List(), width: 0};
+            lines.add(currentLine);
+            for (let panel of panels) {
+                this._root.add(panel.title._root);
+                let titleWidth = panel.title.textWidth + ToolTabsetPanelCard.TITLE_MARGIN * 2;
+                if (width + titleWidth > this.width / 2) {
+                    width = -this.width / 2;
+                    currentLine = {titles: new List(), width: 0};
+                    lines.add(currentLine);
+                }
+                width += titleWidth;
+                currentLine.titles.add(panel.title);
+                currentLine.width += titleWidth;
+            }
+            return lines;
+        }
+
+        let lines = makeATry.call(this, panels);
+        let lastLineTitles = lines[lines.length-1].titles;
+        if (lines.length>1 && !lastLineTitles.contains(this.currentPanel.title)) {
+            panels.remove(this.currentPanel);
+            panels.add(this.currentPanel);
+            lines = makeATry.call(this, panels);
+            lastLineTitles = lines[lines.length-1].titles;
+            if (lastLineTitles.length>1) {
+                lastLineTitles.remove(this.currentPanel.title);
+                lastLineTitles.unshift(this.currentPanel.title);
+            }
+        }
+        return lines;
+    }
+
+    _build() {
+        let panels = new List(...this._panels);
+        let lines = this._getTitleLines(panels);
+        let height = -this._height / 2;
+        let width = -this._width / 2;
+        for (let line of lines) {
+            for (let title of line.titles) {
+                let margin = (this.width-line.width)/line.titles.length;
+                let titleWidth = title.textWidth+ToolTabsetPanelCard.TITLE_MARGIN*2+margin;
+                title.width = titleWidth;
+                title.setLocation(width + titleWidth/2, height+ToolPanel.PANEL_TITLE_HEIGHT/2);
+                width += titleWidth;
+                if (this.currentPanel && title===this.currentPanel.title) {
+                    title.highlight();
+                }
+                else {
+                    title.unhighlight();
+                }
+            }
+            width = -this.width / 2;
+            height += ToolPanel.PANEL_TITLE_HEIGHT;
+        }
+        let contentHeight = this.height - ToolPanel.PANEL_TITLE_HEIGHT*lines.length;
+        if (this.currentPanel) {
+            this.currentPanel.width = this.width;
+            this.currentPanel.height = contentHeight;
+            this._root.add(this.currentPanel._root);
+            this.currentPanel._refresh();
+            this.currentPanel.setLocation(0, height + contentHeight / 2);
+        }
+    }
+
+}
+ToolTabsetPanelCard.TITLE_MARGIN = 20;
 
 export class ToolCardPopup extends ToolPopup {
 
@@ -1433,7 +1570,7 @@ ToolKeywordsCard.MARGIN = 5;
 ToolKeywordsCard.KEYWORD_SELECTED_CLASS = "keyword-selected";
 ToolKeywordsCard.KEYWORD_UNSELECTED_CLASS = "keyword-unselected";
 
-export class ToolExpandablePopup extends ToolCardPopup {
+export class ToolPanelPopup extends ToolCardPopup {
 
     constructor(width, panelWidth, panelHeight, cards) {
         let rootCard = new ToolCardStack();
@@ -1443,7 +1580,7 @@ export class ToolExpandablePopup extends ToolCardPopup {
                 rootCard.addCard(card);
             }
         }
-        this._panelSet = new ToolExpandablePanelCard(panelWidth, panelHeight);
+        this._panelSet = this._buildPanelCard(panelWidth, panelHeight);
         rootCard.addCard(this._panelSet);
         this.requestRefresh();
     }
@@ -1461,6 +1598,30 @@ export class ToolExpandablePopup extends ToolCardPopup {
     accept(visitor) {
         visitor.visit(this._panelSet);
         return this;
+    }
+
+}
+
+export class ToolExpandablePanelPopup extends ToolPanelPopup {
+
+    constructor(width, panelWidth, panelHeight, cards) {
+        super(width, panelWidth, panelHeight, cards);
+    }
+
+    _buildPanelCard(panelWidth, panelHeight) {
+        return new ToolExpandablePanelCard(panelWidth, panelHeight);
+    }
+
+}
+
+export class ToolTabsetPanelPopup extends ToolPanelPopup {
+
+    constructor(width, panelWidth, panelHeight, cards) {
+        super(width, panelWidth, panelHeight, cards);
+    }
+
+    _buildPanelCard(panelWidth, panelHeight) {
+        return new ToolTabsetPanelCard(panelWidth, panelHeight);
     }
 
 }
@@ -1605,16 +1766,23 @@ export class ToolGridPanelContent extends ToolPanelContent {
         }
         this._cellsLayer = new Group();
         this._content.add(this._cellsLayer);
-        let startX = this._cellWidth / 2;
+
+        let cellsByLine = Math.floor(this.width/this._cellWidth);
+        let cellWidth = this.width/cellsByLine;
+
+        let startX = cellWidth / 2;
         let startY = this._cellHeight / 2;
+        let index=0;
         for (let cell of this._shownCells) {
             if (this._accept(cell)) {
-                if (startX+this._cellWidth > this.width) {
-                    startX = this._cellWidth / 2;
+                if (index>=cellsByLine) {
+                    index = 0;
+                    startX = cellWidth / 2;
                     startY += this._cellHeight;
                 }
+                index++;
                 cell._root.matrix = Matrix.translate(startX - this.width / 2, startY - this.height / 2);
-                startX += this._cellWidth;
+                startX += cellWidth;
                 this._cellsLayer.add(cell._root);
             }
         }
@@ -1666,7 +1834,7 @@ makeObservable(ToolGridPanelContent);
 ToolGridPanelContent.SCROLL_WHEEL_STEP = 50;
 ToolGridPanelContent.CELL_MARGIN = 20;
 
-export class ToolGridExpandablePanel extends ToolExpandablePanel {
+export class ToolGridExpandablePanel extends ToolPanel {
 
     constructor(titleText, content, predicate = all) {
         super(titleText, content);

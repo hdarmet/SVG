@@ -1,5 +1,5 @@
 import {
-    assert, defineGetProperty, defineMethod, extendMethod
+    assert, defineGetProperty, defineMethod, extendMethod, proposeGetProperty, replaceGetProperty, proposeMethod
 } from "./misc.js";
 import {
     Cloning, Events, Memento, makeCloneable, MutationObservers, CloneableObject
@@ -102,9 +102,8 @@ export function makePartsOwner(superClass) {
 
 export function makePart(superClass) {
 
-    Object.defineProperty(superClass.prototype, "owner", {
-        configurable: true,
-        get() {
+    defineGetProperty(superClass,
+        function owner() {
             let parent = this.parent;
             if (parent) {
                 let owner = parent.owner;
@@ -112,20 +111,16 @@ export function makePart(superClass) {
             }
             return null;
         }
-    });
+    );
 
-    if (!superClass.prototype.hasOwnProperty("selectable")) {
-        Object.defineProperty(superClass.prototype, "selectable", {
-            configurable: true,
-            get() {
-                return this.owner.selectable;
-            }
-        });
-    }
+    replaceGetProperty(superClass,
+        function selectable() {
+            return this.owner.selectable;
+        }
+    );
 
-    Object.defineProperty(superClass.prototype, "menuOptions", {
-        configurable: true,
-        get: function () {
+    defineGetProperty(superClass,
+        function menuOptions () {
             let ownerMenuOptions = this.owner.menuOptions;
             if (ownerMenuOptions) {
                 if (this._menuOptions) {
@@ -137,605 +132,692 @@ export function makePart(superClass) {
                 return this._getOwnMenuOptions();
             }
         }
-    });
+    );
+
 
     if (!superClass.prototype._acceptDrop) {
         makeGentleDropTarget(superClass);
     }
 
-    if (!superClass.prototype.hasOwnProperty("isPart")) {
-        Object.defineProperty(superClass.prototype, "isPart", {
-            configurable: true,
-            get() {
-                return true;
-            }
-        });
-    }
+    proposeGetProperty(superClass,
+        function isPart() {
+            return true;
+        }
+    );
 
-    return superClass;
 }
 
 export function makeContainer(superClass) {
 
     assert(!superClass.prototype._initContent);
 
-    let init = superClass.prototype._init;
-    superClass.prototype._init = function (...args) {
-        init.call(this, ...args);
-        this._content = this._initContent();
-        this._addContentToTray();
-    };
+    extendMethod(superClass, $init=>
+        function _init(...args) {
+            $init.call(this, ...args);
+            this._content = this._initContent();
+            this._addContentToTray();
+        }
+    );
 
-    superClass.prototype._addContentToTray = function () {
-        let next = this._floatingContent;
-        next ? this._tray.insert(next, this._content) : this._tray.add(this._content);
-    };
+    defineMethod(superClass,
+        function _addContentToTray() {
+            let next = this._floatingContent;
+            next ? this._tray.insert(next, this._content) : this._tray.add(this._content);
+        }
+    );
 
-    superClass.prototype._initContent = function () {
-        let content = new Group();
-        content.cloning = Cloning.NONE;
-        return content;
-    };
+    defineMethod(superClass,
+        function _initContent() {
+            let content = new Group();
+            content.cloning = Cloning.NONE;
+            return content;
+        }
+    );
 
-    let finalize = superClass.prototype.finalize;
-    superClass.prototype.finalize = function () {
-        finalize.call(this);
-        if (this._children) {
-            for (let child of this._children) {
-                child.finalize();
+    extendMethod(superClass, $finalize=>
+        function finalize() {
+            finalize.call(this);
+            if (this._children) {
+                for (let child of this._children) {
+                    child.finalize();
+                }
             }
         }
-    };
+    );
 
-    superClass.prototype.__clearChildren = function () {
-        this._content.clear()
-    };
-
-    superClass.prototype.__addChild = function (element) {
-        this._content.add(element._root);
-    };
-
-    superClass.prototype.__insertChild = function (previous, element) {
-        this._content.insert(previous._root, element._root);
-    };
-
-    superClass.prototype.__replaceChild = function (previous, element) {
-        this._content.replace(previous._root, element._root);
-    };
-
-    superClass.prototype.__removeChild = function (element) {
-        this._content.remove(element._root);
-    };
-
-    superClass.prototype._addChild = function (element) {
-        if (!this._children) {
-            this._children = new List();
-            this._children.cloning = Cloning.NONE;
+    defineMethod(superClass,
+        function __clearChildren() {
+            this._content.clear()
         }
-        // IMPORTANT : DOM update before this._children update !
-        this.__addChild(element);
-        this._children.add(element);
-        element._parent = this;
-    };
+    );
 
-    superClass.prototype.addChild = function (element) {
-        if (element.parent !== this) {
-            if (element.parent) {
-                element.detach();
+    defineMethod(superClass,
+        function __addChild(element) {
+            this._content.add(element._root);
+        }
+    );
+
+    defineMethod(superClass,
+        function __insertChild(previous, element) {
+            this._content.insert(previous._root, element._root);
+        }
+    );
+
+    defineMethod(superClass,
+        function __replaceChild(previous, element) {
+            this._content.replace(previous._root, element._root);
+        }
+    );
+
+    defineMethod(superClass,
+        function __removeChild(element) {
+            this._content.remove(element._root);
+        }
+    );
+
+    defineMethod(superClass,
+        function _addChild(element) {
+            if (!this._children) {
+                this._children = new List();
+                this._children.cloning = Cloning.NONE;
             }
-            Memento.register(this);
-            Memento.register(element);
-            this._addChild(element);
-            this._fire(Events.ADD, element);
-            element._fire(Events.ATTACH, this);
-        }
-        return this;
-    };
-
-    superClass.prototype._insertChild = function (previous, element) {
-        if (this._children) {
-            this.__insertChild(previous, element);
             // IMPORTANT : DOM update before this._children update !
-            this._children.insert(previous, element);
+            this.__addChild(element);
+            this._children.add(element);
             element._parent = this;
         }
-    };
+    );
 
-    superClass.prototype.insertChild = function (previous, element) {
-        if (previous.parent === this) {
-            let added = false;
-            if (element.parent && element.parent !== this) {
-                element.detach();
-                added = true;
-            }
-            Memento.register(this);
-            Memento.register(element);
-            this._insertChild(previous, element);
-            if (added) {
-                this._fire(Events.ADD, element);
-                element._fire(Events.ATTACH, this);
-            }
-            else {
-                this._fire(Events.DISPLACE, element);
-                element._fire(Events.DISPLACED, this);
-            }
-        }
-        return this;
-    };
-
-    superClass.prototype._replaceChild = function (previous, element) {
-        if (!this._children) {
-            this._children = new List();
-        }
-        // IMPORTANT : DOM update before this._children update !
-        this.__replaceChild(previous, element);
-        this._children.replace(previous, element);
-        previous._parent = null;
-        element._parent = this;
-    };
-
-    superClass.prototype.replaceChild = function (previous, element) {
-        if (previous.parent === this) {
-            let added = false;
-            if (element.parent && element.parent !== this) {
-                element.detach();
-                added = true;
-            }
-            Memento.register(this);
-            Memento.register(previous);
-            Memento.register(element);
-            this._replaceChild(previous, element);
-            this._fire(Events.REMOVE, previous);
-            previous._fire(Events.DETACH, this);
-            if (added) {
-                this._fire(Events.ADD, element);
-                element._fire(Events.ATTACH, this);
-            }
-            else {
-                this._fire(Events.DISPLACE, element);
-                element._fire(Events.DISPLACED, this);
-            }
-        }
-        return this;
-    };
-
-    superClass.prototype._removeChild = function (element) {
-        if (this._children) {
-            // IMPORTANT : DOM update before this._children update !
-            this.__removeChild(element);
-            this._children.remove(element);
-            element._parent = null;
-            if (this._children.size === 0) {
-                delete this._children;
-            }
-        }
-    };
-
-    superClass.prototype.removeChild = function (element) {
-        if (element.parent === this) {
-            Memento.register(this);
-            Memento.register(element);
-            this._removeChild(element);
-            this._fire(Events.REMOVE, element);
-            element._fire(Events.DETACH, this);
-        }
-        return this;
-    };
-
-    superClass.prototype._clearChildren = function (element) {
-        if (this._children) {
-            // IMPORTANT : DOM update before this._children update !
-            this.__clearChildren();
-            for (let element of this._children) {
-                element._parent = null;
-            }
-            delete this._children;
-        }
-    };
-
-    superClass.prototype.clearChildren = function () {
-        if (this._children) {
-            Memento.register(this);
-            let children = this._children;
-            for (let element of children) {
+    defineMethod(superClass,
+        function addChild(element) {
+            if (element.parent !== this) {
+                if (element.parent) {
+                    element.detach();
+                }
+                Memento.register(this);
                 Memento.register(element);
+                this._addChild(element);
+                this._fire(Events.ADD, element);
+                element._fire(Events.ATTACH, this);
             }
-            this._clearChildren();
-            for (let element of children) {
+            return this;
+        }
+    );
+
+    defineMethod(superClass,
+        function _insertChild(previous, element) {
+            if (this._children) {
+                this.__insertChild(previous, element);
+                // IMPORTANT : DOM update before this._children update !
+                this._children.insert(previous, element);
+                element._parent = this;
+            }
+        }
+    );
+
+    defineMethod(superClass,
+        function insertChild(previous, element) {
+            if (previous.parent === this) {
+                let added = false;
+                if (element.parent && element.parent !== this) {
+                    element.detach();
+                    added = true;
+                }
+                Memento.register(this);
+                Memento.register(element);
+                this._insertChild(previous, element);
+                if (added) {
+                    this._fire(Events.ADD, element);
+                    element._fire(Events.ATTACH, this);
+                }
+                else {
+                    this._fire(Events.DISPLACE, element);
+                    element._fire(Events.DISPLACED, this);
+                }
+            }
+            return this;
+        }
+    );
+
+    defineMethod(superClass,
+        function _replaceChild(previous, element) {
+            if (!this._children) {
+                this._children = new List();
+            }
+            // IMPORTANT : DOM update before this._children update !
+            this.__replaceChild(previous, element);
+            this._children.replace(previous, element);
+            previous._parent = null;
+            element._parent = this;
+        }
+    );
+
+    defineMethod(superClass,
+        function replaceChild(previous, element) {
+            if (previous.parent === this) {
+                let added = false;
+                if (element.parent && element.parent !== this) {
+                    element.detach();
+                    added = true;
+                }
+                Memento.register(this);
+                Memento.register(previous);
+                Memento.register(element);
+                this._replaceChild(previous, element);
+                this._fire(Events.REMOVE, previous);
+                previous._fire(Events.DETACH, this);
+                if (added) {
+                    this._fire(Events.ADD, element);
+                    element._fire(Events.ATTACH, this);
+                }
+                else {
+                    this._fire(Events.DISPLACE, element);
+                    element._fire(Events.DISPLACED, this);
+                }
+            }
+            return this;
+        }
+    );
+
+    defineMethod(superClass,
+        function _removeChild(element) {
+            if (this._children) {
+                // IMPORTANT : DOM update before this._children update !
+                this.__removeChild(element);
+                this._children.remove(element);
+                element._parent = null;
+                if (this._children.size === 0) {
+                    delete this._children;
+                }
+            }
+        }
+    );
+
+    defineMethod(superClass,
+        function removeChild(element) {
+            if (element.parent === this) {
+                Memento.register(this);
+                Memento.register(element);
+                this._removeChild(element);
                 this._fire(Events.REMOVE, element);
                 element._fire(Events.DETACH, this);
             }
+            return this;
         }
-        return this;
-    };
+    );
 
-    let detachChild = superClass.prototype.detachChild;
-    superClass.prototype.detachChild = function(element) {
-        if (detachChild && detachChild.call(this, element)) return true;
-        if (!this.containsChild(element)) return false;
-        this.removeChild(element);
-        return true;
-    };
+    defineMethod(superClass,
+        function _clearChildren(element) {
+            if (this._children) {
+                // IMPORTANT : DOM update before this._children update !
+                this.__clearChildren();
+                for (let element of this._children) {
+                    element._parent = null;
+                }
+                delete this._children;
+            }
+        }
+    );
 
-    superClass.prototype._shiftChild = function (element, x, y) {
-    };
+    defineMethod(superClass,
+        function clearChildren() {
+            if (this._children) {
+                Memento.register(this);
+                let children = this._children;
+                for (let element of children) {
+                    Memento.register(element);
+                }
+                this._clearChildren();
+                for (let element of children) {
+                    this._fire(Events.REMOVE, element);
+                    element._fire(Events.DETACH, this);
+                }
+            }
+            return this;
+        }
+    );
 
-    let shift = superClass.prototype._shift;
-    superClass.prototype._shift = function(element, x, y) {
-        if (shift && shift.call(this, element, x, y)) return true;
-        if (!this.containsChild(element)) return false;
-        this._shiftChild(element, x, y);
-        return true;
-    };
+    extendMethod(superClass, $detachChild=>
+        function detachChild(element) {
+            if ($detachChild && $detachChild.call(this, element)) return true;
+            if (!this.containsChild(element)) return false;
+            this.removeChild(element);
+            return true;
+        }
+    );
 
-    superClass.prototype.containsChild = function (element) {
-        return this._children && this._children.contains(element);
-    };
+    defineMethod(superClass,
+        function (_shiftChildelement, x, y) {
+        }
+    );
 
-    Object.defineProperty(superClass.prototype, "content", {
-        configurable: true,
-        get: function () {
+    extendMethod(superClass, $shift=>
+        function _shift(element, x, y) {
+            if ($shift && $shift.call(this, element, x, y)) return true;
+            if (!this.containsChild(element)) return false;
+            this._shiftChild(element, x, y);
+            return true;
+        }
+    );
+
+    defineMethod(superClass,
+        function containsChild(element) {
+            return this._children && this._children.contains(element);
+        }
+    );
+
+    defineGetProperty(superClass,
+        function content() {
             return this._content;
         }
-    });
+    );
 
-    Object.defineProperty(superClass.prototype, "children", {
-        configurable: true,
-        get: function () {
+    defineGetProperty(superClass,
+        function children() {
             return this._children ? new List(...this._children) : new List();
         }
-    });
+    );
 
-    superClass.prototype._memorizeContent = function (memento) {
-        if (this._children) {
-            memento._children = new List(...this._children);
-        }
-    };
-
-    superClass.prototype._revertContent = function (memento) {
-        this.__clearChildren();
-        if (memento._children) {
-            this._children = new List(...memento._children);
-            for (let child of this._children) {
-                this.__addChild(child);
+    defineMethod(superClass,
+        function _memorizeContent(memento) {
+            if (this._children) {
+                memento._children = new List(...this._children);
             }
         }
-        else {
-            delete this._children;
-        }
-    };
+    );
 
-    let superMemento = superClass.prototype._memento;
-    superClass.prototype._memento = function () {
-        let memento = superMemento.call(this);
-        this._memorizeContent(memento);
-        return memento;
-    };
-
-    let superRevert = superClass.prototype._revert;
-    superClass.prototype._revert = function (memento) {
-        superRevert.call(this, memento);
-        this._revertContent(memento);
-        return this;
-    };
-
-    let cloning = superClass.prototype._cloning;
-    superClass.prototype._cloning = function (duplicata) {
-        let copy = cloning.call(this, duplicata);
-        for (let child of this.children) {
-            copy._addChild(child.duplicate(duplicata));
-        }
-        return copy;
-    };
-
-    if (!superClass.prototype.hasOwnProperty("isContainer")) {
-        Object.defineProperty(superClass.prototype, "isContainer", {
-            configurable: true,
-            get() {
-                return true;
+    defineMethod(superClass,
+        function _revertContent(memento) {
+            this.__clearChildren();
+            if (memento._children) {
+                this._children = new List(...memento._children);
+                for (let child of this._children) {
+                    this.__addChild(child);
+                }
             }
-        });
-    }
-
-    let accept = superClass.prototype.accept;
-    superClass.prototype.accept = function (visitor) {
-        accept.call(this, visitor);
-        for (let child of this.children) {
-            visitor.visit(child);
+            else {
+                delete this._children;
+            }
         }
-        return this;
-    };
+    );
 
-    return superClass;
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            this._memorizeContent(memento);
+            return memento;
+        }
+    );
+
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            this._revertContent(memento);
+            return this;
+        }
+    );
+
+    extendMethod(superClass, $cloning=>
+        function _cloning(duplicata) {
+            let copy = $cloning.call(this, duplicata);
+            for (let child of this.children) {
+                copy._addChild(child.duplicate(duplicata));
+            }
+            return copy;
+        }
+    );
+
+    defineGetProperty(superClass,
+        function isContainer() {
+            return true;
+        }
+    );
+
+    extendMethod(superClass, $accept=>
+        function accept(visitor) {
+            $accept.call(this, visitor);
+            for (let child of this.children) {
+                visitor.visit(child);
+            }
+            return this;
+        }
+    );
+
 }
 
 export function makeFloatingContainer(superClass) {
 
-    let init = superClass.prototype._init;
-    superClass.prototype._init = function (...args) {
-        init.call(this, ...args);
-        this._floatingContent = this._initFloatingContent();
-        this._addFloatingToTray();
-    };
+    extendMethod(superClass, $init=>
+        function _init(...args) {
+            $init.call(this, ...args);
+            this._floatingContent = this._initFloatingContent();
+            this._addFloatingToTray();
+        }
+    );
 
-    superClass.prototype._addFloatingToTray = function () {
-        this._tray.add(this._floatingContent);
-    };
+    defineMethod(superClass,
+        function _addFloatingToTray() {
+            this._tray.add(this._floatingContent);
+        }
+    );
 
-    superClass.prototype._initFloatingContent = function () {
-        let content = new Group();
-        content.cloning = Cloning.NONE;
-        return content;
-    };
+    defineMethod(superClass,
+        function _initFloatingContent() {
+            let content = new Group();
+            content.cloning = Cloning.NONE;
+            return content;
+        }
+    );
 
-    let finalize = superClass.prototype.finalize;
-    superClass.prototype.finalize = function () {
-        finalize.call(this);
-        if (this._floatingChildren) {
-            for (let child of this._floatingChildren) {
-                child.finalize();
+    extendMethod(superClass, $finalize=>
+        function finalize() {
+            $finalize.call(this);
+            if (this._floatingChildren) {
+                for (let child of this._floatingChildren) {
+                    child.finalize();
+                }
             }
         }
-    };
+    );
 
-    superClass.prototype.__clearFloating = function () {
-        this._floatingContent.clear()
-    };
-
-    superClass.prototype.__addFloating = function (element) {
-        this._floatingContent.add(element._root);
-    };
-
-    superClass.prototype.__insertFloating = function (previous, element) {
-        this._floatingContent.insert(previous._root, element._root);
-    };
-
-    superClass.prototype.__replaceFloating = function (previous, element) {
-        this._floatingContent.replace(previous._root, element._root);
-    };
-
-    superClass.prototype.__removeFloating = function (element) {
-        this._floatingContent.remove(element._root);
-    };
-
-    superClass.prototype._addFloating = function (element) {
-        if (!this._floatingChildren) {
-            this._floatingChildren = new List();
-            this._floatingChildren.cloning = Cloning.NONE;
+    defineMethod(superClass,
+        function __clearFloating() {
+            this._floatingContent.clear()
         }
-        // IMPORTANT : DOM update before this._floatingChildren update !
-        this.__addFloating(element);
-        this._floatingChildren.add(element);
-        element._parent = this;
-    };
+    );
 
-    superClass.prototype.addFloating = function (element) {
-        if (element.parent !== this) {
-            if (element.parent) {
-                element.detach();
+    defineMethod(superClass,
+        function __addFloating(element) {
+            this._floatingContent.add(element._root);
+        }
+    );
+
+    defineMethod(superClass,
+        function __insertFloating(previous, element) {
+            this._floatingContent.insert(previous._root, element._root);
+        }
+    );
+
+    defineMethod(superClass,
+        function __replaceFloating(previous, element) {
+            this._floatingContent.replace(previous._root, element._root);
+        }
+    );
+
+    defineMethod(superClass,
+        function __removeFloating(element) {
+            this._floatingContent.remove(element._root);
+        }
+    );
+
+    defineMethod(superClass,
+        function _addFloating(element) {
+            if (!this._floatingChildren) {
+                this._floatingChildren = new List();
+                this._floatingChildren.cloning = Cloning.NONE;
             }
-            Memento.register(this);
-            Memento.register(element);
-            this._addFloating(element);
-            this._fire(Events.ADD_FLOATING, element);
-            element._fire(Events.ATTACH, this);
-        }
-        return this;
-    };
-
-    superClass.prototype._insertFloating = function (previous, element) {
-        if (this._floatingChildren) {
-            this.__insertFloating(previous, element);
-            // IMPORTANT : DOM update before this._children update !
-            this._floatingChildren.insert(previous, element);
+            // IMPORTANT : DOM update before this._floatingChildren update !
+            this.__addFloating(element);
+            this._floatingChildren.add(element);
             element._parent = this;
         }
-    };
+    );
 
-    superClass.prototype.insertFloating = function (previous, element) {
-        if (previous.parent === this) {
-            let added = false;
-            if (element.parent && element.parent !== this) {
-                element.detach();
-                added = true;
-            }
-            Memento.register(this);
-            Memento.register(element);
-            this._insertFloating(previous, element);
-            if (added) {
-                this._fire(Events.ADD_FLOATING, element);
-                element._fire(Events.ATTACH, this);
-            }
-            else {
-                this._fire(Events.DISPLACE_FLOATING, element);
-                element._fire(Events.DISPLACED, this);
-            }
-        }
-        return this;
-    };
-
-    superClass.prototype._replaceFloating = function (previous, element) {
-        if (!this._floatingChildren) {
-            this._floatingChildren = new List();
-        }
-        // IMPORTANT : DOM update before this._children update !
-        this.__replaceFloating(previous, element);
-        this._floatingChildren.replace(previous, element);
-        previous._parent = null;
-        element._parent = this;
-    };
-
-    superClass.prototype.replaceFloating = function (previous, element) {
-        if (previous.parent === this) {
-            let added = false;
-            if (element.parent && element.parent !== this) {
-                element.detach();
-                added = true;
-            }
-            Memento.register(this);
-            Memento.register(previous);
-            Memento.register(element);
-            this._replaceFloating(previous, element);
-            this._fire(Events.REMOVE_FLOATING, previous);
-            previous._fire(Events.DETACH, this);
-            if (added) {
-                this._fire(Events.ADD_FLOATING, element);
-                element._fire(Events.ATTACH, this);
-            }
-            else {
-                this._fire(Events.DISPLACE_FLOATING, element);
-                element._fire(Events.DISPLACED, this);
-            }
-        }
-        return this;
-    };
-
-    superClass.prototype._removeFloating = function (element) {
-        if (this._floatingChildren) {
-            // IMPORTANT : DOM update before this._children update !
-            this.__removeFloating(element);
-            this._floatingChildren.remove(element);
-            element._parent = null;
-            if (this._floatingChildren.size === 0) {
-                delete this._floatingChildren;
-            }
-        }
-    };
-
-    superClass.prototype.removeFloating = function (element) {
-        if (element.parent === this) {
-            Memento.register(this);
-            Memento.register(element);
-            this._removeFloating(element);
-            this._fire(Events.REMOVE_FLOATING, element);
-            element._fire(Events.DETACH, this);
-        }
-        return this;
-    };
-
-    superClass.prototype._clearFloating = function (element) {
-        if (this._floatingChildren) {
-            // IMPORTANT : DOM update before this._children update !
-            this.__clearFloating();
-            for (let element of this._floatingChildren) {
-                element._parent = null;
-            }
-            delete this._floatingChildren;
-        }
-    };
-
-    superClass.prototype.clearFloating = function () {
-        if (this._floatingChildren) {
-            Memento.register(this);
-            let children = this._floatingChildren;
-            for (let element of children) {
+    defineMethod(superClass,
+        function addFloating(element) {
+            if (element.parent !== this) {
+                if (element.parent) {
+                    element.detach();
+                }
+                Memento.register(this);
                 Memento.register(element);
+                this._addFloating(element);
+                this._fire(Events.ADD_FLOATING, element);
+                element._fire(Events.ATTACH, this);
             }
-            this._clear();
-            for (let element of children) {
+            return this;
+        }
+    );
+
+    defineMethod(superClass,
+        function _insertFloating(previous, element) {
+            if (this._floatingChildren) {
+                this.__insertFloating(previous, element);
+                // IMPORTANT : DOM update before this._children update !
+                this._floatingChildren.insert(previous, element);
+                element._parent = this;
+            }
+        }
+    );
+
+    defineMethod(superClass,
+        function insertFloating(previous, element) {
+            if (previous.parent === this) {
+                let added = false;
+                if (element.parent && element.parent !== this) {
+                    element.detach();
+                    added = true;
+                }
+                Memento.register(this);
+                Memento.register(element);
+                this._insertFloating(previous, element);
+                if (added) {
+                    this._fire(Events.ADD_FLOATING, element);
+                    element._fire(Events.ATTACH, this);
+                }
+                else {
+                    this._fire(Events.DISPLACE_FLOATING, element);
+                    element._fire(Events.DISPLACED, this);
+                }
+            }
+            return this;
+        }
+    );
+
+    defineMethod(superClass,
+        function _replaceFloating(previous, element) {
+            if (!this._floatingChildren) {
+                this._floatingChildren = new List();
+            }
+            // IMPORTANT : DOM update before this._children update !
+            this.__replaceFloating(previous, element);
+            this._floatingChildren.replace(previous, element);
+            previous._parent = null;
+            element._parent = this;
+        }
+    );
+
+    defineMethod(superClass,
+        function replaceFloating(previous, element) {
+            if (previous.parent === this) {
+                let added = false;
+                if (element.parent && element.parent !== this) {
+                    element.detach();
+                    added = true;
+                }
+                Memento.register(this);
+                Memento.register(previous);
+                Memento.register(element);
+                this._replaceFloating(previous, element);
+                this._fire(Events.REMOVE_FLOATING, previous);
+                previous._fire(Events.DETACH, this);
+                if (added) {
+                    this._fire(Events.ADD_FLOATING, element);
+                    element._fire(Events.ATTACH, this);
+                }
+                else {
+                    this._fire(Events.DISPLACE_FLOATING, element);
+                    element._fire(Events.DISPLACED, this);
+                }
+            }
+            return this;
+        }
+    );
+
+    defineMethod(superClass,
+        function _removeFloating(element) {
+            if (this._floatingChildren) {
+                // IMPORTANT : DOM update before this._children update !
+                this.__removeFloating(element);
+                this._floatingChildren.remove(element);
+                element._parent = null;
+                if (this._floatingChildren.size === 0) {
+                    delete this._floatingChildren;
+                }
+            }
+        }
+    );
+
+    defineMethod(superClass,
+        function removeFloating(element) {
+            if (element.parent === this) {
+                Memento.register(this);
+                Memento.register(element);
+                this._removeFloating(element);
                 this._fire(Events.REMOVE_FLOATING, element);
                 element._fire(Events.DETACH, this);
             }
+            return this;
         }
-        return this;
-    };
+    );
 
-    let detachChild = superClass.prototype.detachChild;
-    superClass.prototype.detachChild = function(element) {
-        if (detachChild && detachChild.call(this, element)) return true;
-        if (!this.containsFloating(element)) return false;
-        this.removeFloating(element);
-        return true;
-    };
-
-    superClass.prototype._shiftFloating = function (element, x, y) {
-    };
-
-    let shift = superClass.prototype.shift;
-    superClass.prototype.shift = function(element, x, y) {
-        if (shift && shift.call(this, element, x, y)) return true;
-        if (!this.containsFloating(element)) return false;
-        this._shiftFloating(element, x, y);
-        return true;
-    };
-
-    superClass.prototype.containsFloating = function (element) {
-        return this._floatingChildren && this._floatingChildren.contains(element);
-    };
-
-    Object.defineProperty(superClass.prototype, "floatingContent", {
-        configurable: true,
-        get: function () {
-            return this._floatingContent;
-        }
-    });
-
-    Object.defineProperty(superClass.prototype, "floatingChildren", {
-        configurable: true,
-        get: function () {
-            return this._floatingChildren ? new List(...this._floatingChildren) : new List();
-        }
-    });
-
-    superClass.prototype._memorizeFloatingContent = function (memento) {
-        if (this._floatingChildren) {
-            memento._floatingChildren = new List(...this._floatingChildren);
-        }
-    };
-
-    superClass.prototype._revertFloatingContent = function (memento) {
-        this.__clearFloating();
-        if (memento._floatingChildren) {
-            this._floatingChildren = new List(...memento._floatingChildren);
-            for (let child of this._floatingChildren) {
-                this.__addFloating(child);
+    defineMethod(superClass,
+        function _clearFloating() {
+            if (this._floatingChildren) {
+                // IMPORTANT : DOM update before this._children update !
+                this.__clearFloating();
+                for (let element of this._floatingChildren) {
+                    element._parent = null;
+                }
+                delete this._floatingChildren;
             }
         }
-        else {
-            delete this._floatingChildren;
+    );
+
+    defineMethod(superClass,
+        function clearFloating() {
+            if (this._floatingChildren) {
+                Memento.register(this);
+                let children = this._floatingChildren;
+                for (let element of children) {
+                    Memento.register(element);
+                }
+                this._clear();
+                for (let element of children) {
+                    this._fire(Events.REMOVE_FLOATING, element);
+                    element._fire(Events.DETACH, this);
+                }
+            }
+            return this;
         }
-    };
+    );
 
-    let superMemento = superClass.prototype._memento;
-    superClass.prototype._memento = function () {
-        let memento = superMemento.call(this);
-        this._memorizeFloatingContent(memento);
-        return memento;
-    };
-
-    let superRevert = superClass.prototype._revert;
-    superClass.prototype._revert = function (memento) {
-        superRevert.call(this, memento);
-        this._revertFloatingContent(memento);
-        return this;
-    };
-
-    let cloning = superClass.prototype._cloning;
-    superClass.prototype._cloning = function (duplicata) {
-        let copy = cloning.call(this, duplicata);
-        for (let child of this.floatingChildren) {
-            copy._addFloating(child.duplicate(duplicata));
-        }
-        return copy;
-    };
-
-    Object.defineProperty(superClass.prototype, "isFloatingContainer", {
-        configurable: true,
-        get() {
+    extendMethod(superClass, $detachChild=>
+        function detachChild(element) {
+            if ($detachChild && $detachChild.call(this, element)) return true;
+            if (!this.containsFloating(element)) return false;
+            this.removeFloating(element);
             return true;
         }
-    });
+    );
 
-    let accept = superClass.prototype.accept;
-    superClass.prototype.accept = function (visitor) {
-        accept.call(this, visitor);
-        for (let child of this.floatingChildren) {
-            visitor.visit(child);
+    defineMethod(superClass,
+        function _shiftFloating(element, x, y) {
         }
-        return this;
-    };
+    );
 
-    return superClass;
+    extendMethod(superClass, $shift=>
+        function shift(element, x, y) {
+            if ($shift && $shift.call(this, element, x, y)) return true;
+            if (!this.containsFloating(element)) return false;
+            this._shiftFloating(element, x, y);
+            return true;
+        }
+    );
+
+    defineMethod(superClass,
+        function containsFloating(element) {
+            return this._floatingChildren && this._floatingChildren.contains(element);
+        }
+    );
+
+    defineGetProperty(superClass,
+        function floatingContent() {
+            return this._floatingContent;
+        }
+    );
+
+    defineGetProperty(superClass,
+        function floatingChildren() {
+            return this._floatingChildren ? new List(...this._floatingChildren) : new List();
+        }
+    );
+
+    defineMethod(superClass,
+        function _memorizeFloatingContent(memento) {
+            if (this._floatingChildren) {
+                memento._floatingChildren = new List(...this._floatingChildren);
+            }
+        }
+    );
+
+    defineMethod(superClass,
+        function _revertFloatingContent(memento) {
+            this.__clearFloating();
+            if (memento._floatingChildren) {
+                this._floatingChildren = new List(...memento._floatingChildren);
+                for (let child of this._floatingChildren) {
+                    this.__addFloating(child);
+                }
+            }
+            else {
+                delete this._floatingChildren;
+            }
+        }
+    );
+
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            this._memorizeFloatingContent(memento);
+            return memento;
+        }
+    );
+
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            this._revertFloatingContent(memento);
+            return this;
+        }
+    );
+
+    extendMethod(superClass, $cloning=>
+        function _cloning(duplicata) {
+            let copy = $cloning.call(this, duplicata);
+            for (let child of this.floatingChildren) {
+                copy._addFloating(child.duplicate(duplicata));
+            }
+            return copy;
+        }
+    );
+
+    defineGetProperty(superClass,
+        function isFloatingContainer() {
+            return true;
+        }
+    );
+
+    extendMethod(superClass, $accept=>
+        function accept(visitor) {
+            $accept.call(this, visitor);
+            for (let child of this.floatingChildren) {
+                visitor.visit(child);
+            }
+            return this;
+        }
+    );
+
 }
 
 /**
@@ -745,48 +827,54 @@ export function makeFloatingContainer(superClass) {
  */
 export function makeContainerASupport(superClass) {
 
-    Object.defineProperty(superClass.prototype, "isSupport", {
-        configurable: true,
-        get: function () {
+    defineGetProperty(superClass,
+        function isSupport() {
             return true;
         }
-    });
+    );
 
-    if (!superClass.prototype._acceptDrop) {
-        superClass.prototype._acceptDrop = function (element) {
+    proposeMethod(superClass,
+        function _acceptDrop(element) {
             return true;
         }
-    }
+    );
 
-    superClass.prototype._dropTarget = function (element) {
-        return this;
-    };
-
-    let executeDrop = superClass.prototype._executeDrop;
-    superClass.prototype._executeDrop = function(element, dragSet, initialTarget) {
-        if (!executeDrop || !executeDrop.call(this, element, dragSet, initialTarget)) {
-            this.addChild(element);
+    defineMethod(superClass,
+        function _dropTarget(element) {
+            return this;
         }
-        return true;
-    };
+    );
 
-    let unexecuteDrop = superClass.prototype._unexecuteDrop;
-    superClass.prototype._unexecuteDrop = function(element) {
-        if (!unexecuteDrop || !unexecuteDrop.call(this, element)) {
-            this._addChild(element);
+    extendMethod(superClass, $executeDrop=>
+        function _executeDrop(element, dragSet, initialTarget) {
+            if (!$executeDrop || !$executeDrop.call(this, element, dragSet, initialTarget)) {
+                this.addChild(element);
+            }
+            return true;
         }
-        return true;
-    };
+    );
 
-    let receiveDrop = superClass.prototype._receiveDrop;
-    superClass.prototype._receiveDrop = function (element, dragSet, initialTarget) {
-        receiveDrop && receiveDrop.call(this, element, dragSet, initialTarget);
-    };
+    extendMethod(superClass, $unexecuteDrop=>
+        function _unexecuteDrop(element) {
+            if (!$unexecuteDrop || !$unexecuteDrop.call(this, element)) {
+                this._addChild(element);
+            }
+            return true;
+        }
+    );
 
-    let revertDrop = superClass.prototype._revertDrop;
-    superClass.prototype._revertDrop = function (element) {
-        revertDrop && revertDrop.call(this, element);
-    };
+    extendMethod(superClass, $receiveDrop=>
+        function _receiveDrop(element, dragSet, initialTarget) {
+            $receiveDrop && $receiveDrop.call(this, element, dragSet, initialTarget);
+        }
+    );
+
+    extendMethod(superClass, $revertDrop=>
+        function _revertDrop(element) {
+            $revertDrop && $revertDrop.call(this, element);
+        }
+    );
+
 }
 
 /**
@@ -811,12 +899,11 @@ export function makeSupport(superClass) {
  */
 export function makeContainerASandBox(superClass) {
 
-    Object.defineProperty(superClass.prototype, "isSandBox", {
-        configurable: true,
-        get: function () {
+    defineGetProperty(superClass,
+        function isSandBox() {
             return true;
         }
-    });
+    );
 
 }
 

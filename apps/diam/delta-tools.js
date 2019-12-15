@@ -15,7 +15,7 @@ import {
     Layers, Context, Layer
 } from "../../js/toolkit.js";
 import {
-    BoardItemBuilder, ToolGridPanelContent, ToolToggleCommand, FavoriteItemBuilder, ToolExpandablePopup,
+    BoardItemBuilder, ToolGridPanelContent, ToolToggleCommand, FavoriteItemBuilder, ToolTabsetPanelPopup,
     ToolGridExpandablePanel, ToolCommandPopup, ToolFilterCard, ToolKeywordsCard
 } from "../../js/tools.js";
 import {
@@ -459,7 +459,7 @@ export function createPalettePopup() {
         .addKeyword("gamma")
         .addKeyword("delta")
         .addKeyword("epsilon");
-    let palettePopup = new ToolExpandablePopup(210, 200, 350, [filterCard, keywordsCard]).display(-110, 240);
+    let palettePopup = new ToolTabsetPanelPopup(210, 200, 350, [filterCard, keywordsCard]).display(-110, 240);
     palettePopup.addPanel(new ToolGridExpandablePanel("All", paletteContent));
     palettePopup.addPanel(new ToolGridExpandablePanel("Furniture", paletteContent,
         cell=>cell.applyAnd(is(DIAMPane, DIAMAbstractLadder, DIAMShelf, DIAMBox, DIAMFixing, DIAMHook))));

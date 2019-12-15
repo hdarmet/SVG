@@ -78,6 +78,13 @@ export function defineMethod(superClass, methodImpl) {
     superClass.prototype[name] = methodImpl;
 }
 
+export function proposeMethod(superClass, methodImpl) {
+    let name = _name(methodImpl);
+    if (!superClass.prototype[name]) {
+        superClass.prototype[name] = methodImpl;
+    }
+}
+
 export function replaceMethod(superClass, methodImpl) {
     let name = _name(methodImpl);
     superClass.prototype[name] = methodImpl;
