@@ -1,6 +1,6 @@
 
 import {
-    same, evaluate
+    same, evaluate, defineMethod, extendMethod, replaceMethod
 } from "./misc.js";
 import {
     AVLTree, ESet, List, EMap, dichotomousSearch, insertionSort
@@ -434,91 +434,111 @@ SweepAndPrune.ADJUST_MARGIN = 40;
 
 export function makeCollisionPhysic(superClass) {
 
-    superClass.prototype._init = function(...args) {
-        this._elements = new ESet();
-        this._supportSAP = new SweepAndPrune();
-        this._dragAndDropSAP = new SweepAndPrune();
-        this._valids = new EMap();
-    };
+    replaceMethod(superClass,
+        function _init(...args) {
+            this._elements = new ESet();
+            this._supportSAP = new SweepAndPrune();
+            this._dragAndDropSAP = new SweepAndPrune();
+            this._valids = new EMap();
+        }
+    );
 
-    superClass.prototype._refresh = function() {
-        this._avoidCollisionsForElements();
-    };
+    replaceMethod(superClass,
+        function _refresh() {
+            this._avoidCollisionsForElements();
+        }
+    );
 
-    superClass.prototype._reset = function() {
-        this._elements = this._acceptedElements(this._host.children);
-        this._supportSAP.clear();
-        this._valids.clear();
-        for (let element of this._elements) {
+    replaceMethod(superClass,
+        function _reset() {
+            this._elements = this._acceptedElements(this._host.children);
+            this._supportSAP.clear();
+            this._valids.clear();
+            for (let element of this._elements) {
+                this._supportSAP.add(element);
+                this._valids.set(element, {validX:element.lx, validY:element.ly});
+            }
+        }
+    );
+
+    replaceMethod(superClass,
+        function hover(elements) {
+            this._hover(this._managedElements(elements));
+        }
+    );
+
+    replaceMethod(superClass,
+        function _hover(elements) {
+            this._hoveredElements = new List(...elements);
+            let inSAP = this._acceptedElements(this._dragAndDropSAP.elements);
+            for (let element of this._hoveredElements) {
+                if (inSAP.has(element)) {
+                    inSAP.delete(element);
+                    this._dragAndDropSAP.update(element);
+                }
+                else {
+                    this._dragAndDropSAP.add(element);
+                }
+            }
+            for (let element of inSAP) {
+                this._dragAndDropSAP.remove(element);
+            }
+            this._dragAndDropSAP.updateInternals();
+            this._avoidCollisionsForDraggedElements(this._hoveredElements);
+        }
+    );
+
+    replaceMethod(superClass,
+        function _add(element) {
+            this._elements.add(element);
             this._supportSAP.add(element);
             this._valids.set(element, {validX:element.lx, validY:element.ly});
         }
-    };
+    );
 
-    superClass.prototype.hover = function(elements) {
-        this._hover(this._managedElements(elements));
-    };
+    replaceMethod(superClass,
+        function _remove(element) {
+            this._elements.delete(element);
+            this._supportSAP.remove(element);
+            this._valids.delete(element);
+        }
+    );
 
-    superClass.prototype._hover = function(elements) {
-        this._hoveredElements = new List(...elements);
-        let inSAP = this._acceptedElements(this._dragAndDropSAP.elements);
-        for (let element of this._hoveredElements) {
-            if (inSAP.has(element)) {
-                inSAP.delete(element);
-                this._dragAndDropSAP.update(element);
+    replaceMethod(superClass,
+        function _move(element) {
+            this._supportSAP.update(element);
+        }
+    );
+
+    defineMethod(superClass,
+        function _collideWith(element, exclude, sap) {
+            let elementBox = sap.elementBox(element);
+            let collisions = new List(
+                ...this._supportSAP.collideWith(elementBox),
+                ...this._dragAndDropSAP.collideWith(elementBox)
+            );
+            let result = new List();
+            for (let target of collisions) {
+                let sweepAndPrune = this.sweepAndPrune(target);
+                if (!exclude.has(target) &&
+                    elementBox.intersects(sweepAndPrune.elementBox(target))) {
+                    result.add(target);
+                }
+            }
+            return result;
+        }
+    );
+
+    defineMethod(superClass,
+        function sweepAndPrune(element) {
+            if (this._dragAndDropSAP.has(element)) {
+                return this._dragAndDropSAP;
             }
             else {
-                this._dragAndDropSAP.add(element);
+                return this._supportSAP;
             }
         }
-        for (let element of inSAP) {
-            this._dragAndDropSAP.remove(element);
-        }
-        this._dragAndDropSAP.updateInternals();
-        this._avoidCollisionsForDraggedElements(this._hoveredElements);
-    };
-
-    superClass.prototype._add = function(element) {
-        this._elements.add(element);
-        this._supportSAP.add(element);
-        this._valids.set(element, {validX:element.lx, validY:element.ly});
-    };
-
-    superClass.prototype._remove = function(element) {
-        this._elements.delete(element);
-        this._supportSAP.remove(element);
-        this._valids.delete(element);
-    };
-
-    superClass.prototype._move = function(element) {
-        this._supportSAP.update(element);
-    };
-
-    superClass.prototype._collideWith = function(element, exclude, sap) {
-        let elementBox = sap.elementBox(element);
-        let collisions = new List(
-            ...this._supportSAP.collideWith(elementBox),
-            ...this._dragAndDropSAP.collideWith(elementBox)
-        );
-        let result = new List();
-        for (let target of collisions) {
-            let sweepAndPrune = this.sweepAndPrune(target);
-            if (!exclude.has(target) &&
-                elementBox.intersects(sweepAndPrune.elementBox(target))) {
-                result.add(target);
-            }
-        }
-        return result;
-    };
-
-    superClass.prototype.sweepAndPrune = function(element) {
-        if (this._dragAndDropSAP.has(element)) {
-            return this._dragAndDropSAP;
-        }
-        else {
-            return this._supportSAP;
-        }
-    };
+    );
 
     /**
      * Fix the position of a MOVED element so this element (if possible...) does not collide with another one on
@@ -528,147 +548,152 @@ export function makeCollisionPhysic(superClass) {
      * their positions are not relevant).
      * @private
      */
-    superClass.prototype._avoidCollisionsForElement = function(element, exclude, sap, record, originMatrix) {
+    defineMethod(superClass,
+        function _avoidCollisionsForElement(element, exclude, sap, record, originMatrix) {
 
-        /**
-         * Set the fixed position of the element and update physics internal structures accordingly. Note that this
-         * element is ALWAYS a DnD'ed one.
-         * @param element element to displace.
-         * @param x new X ccords of the element
-         * @param y new Y coords of the element.
-         */
-        let put = (element, x, y) => {
-            // setLocation(), not move(), on order to keep the DnD fluid (floating elements not correlated).
-            element.setLocation(x, y);
-            sap.update(element);
-        };
+            /**
+             * Set the fixed position of the element and update physics internal structures accordingly. Note that this
+             * element is ALWAYS a DnD'ed one.
+             * @param element element to displace.
+             * @param x new X ccords of the element
+             * @param y new Y coords of the element.
+             */
+            let put = (element, x, y) => {
+                // setLocation(), not move(), on order to keep the DnD fluid (floating elements not correlated).
+                element.setLocation(x, y);
+                sap.update(element);
+            };
 
-        /**
-         * Get a proposition on the X axis. This proposition is the nearest position between the one given by "current"
-         * toward the "original" (= lasted valid) position of the element.
-         * @param target element to "avoid".
-         * @param ox original position
-         * @param hx the proposition.
-         * @returns {*}
-         */
-        let adjustOnX = (target, ox, hx) => {
-            let sweepAndPrune = this.sweepAndPrune(target);
-            if (ox > hx) {
-                let rx = sweepAndPrune.right(target) + element.width / 2;
-                return ox+SweepAndPrune.COLLISION_MARGIN < rx || same(rx, hx) ? null : rx;
-            } else if (ox < hx) {
-                let rx = sweepAndPrune.left(target) - element.width / 2;
-                return ox-SweepAndPrune.COLLISION_MARGIN > rx || same(rx, hx) ? null : rx;
-            } else return null;
-        };
+            /**
+             * Get a proposition on the X axis. This proposition is the nearest position between the one given by "current"
+             * toward the "original" (= lasted valid) position of the element.
+             * @param target element to "avoid".
+             * @param ox original position
+             * @param hx the proposition.
+             * @returns {*}
+             */
+            let adjustOnX = (target, ox, hx) => {
+                let sweepAndPrune = this.sweepAndPrune(target);
+                if (ox > hx) {
+                    let rx = sweepAndPrune.right(target) + element.width / 2;
+                    return ox+SweepAndPrune.COLLISION_MARGIN < rx || same(rx, hx) ? null : rx;
+                } else if (ox < hx) {
+                    let rx = sweepAndPrune.left(target) - element.width / 2;
+                    return ox-SweepAndPrune.COLLISION_MARGIN > rx || same(rx, hx) ? null : rx;
+                } else return null;
+            };
 
-        /**
-         * Get a proposition on the Y axis. This proposition is the nearest position between the one given by "current"
-         * toward the "original" (= lasted valid) position of the element.
-         * @param target element to "avoid".
-         * @param oy original position
-         * @param hy the proposition.
-         * @returns {*}
-         */
-        let adjustOnY = (target, oy, hy) => {
-            let sweepAndPrune = this.sweepAndPrune(target);
-            if (oy > hy) {
-                let ry = sweepAndPrune.bottom(target) + element.height / 2;
-                return oy < ry || same(ry, hy) ? null : ry;
-            } else if (oy+SweepAndPrune.COLLISION_MARGIN < hy) {
-                let ry = sweepAndPrune.top(target) - element.height / 2;
-                return oy-SweepAndPrune.COLLISION_MARGIN > ry || same(ry, hy) ? null : ry;
-            } else return null;
-        };
+            /**
+             * Get a proposition on the Y axis. This proposition is the nearest position between the one given by "current"
+             * toward the "original" (= lasted valid) position of the element.
+             * @param target element to "avoid".
+             * @param oy original position
+             * @param hy the proposition.
+             * @returns {*}
+             */
+            let adjustOnY = (target, oy, hy) => {
+                let sweepAndPrune = this.sweepAndPrune(target);
+                if (oy > hy) {
+                    let ry = sweepAndPrune.bottom(target) + element.height / 2;
+                    return oy < ry || same(ry, hy) ? null : ry;
+                } else if (oy+SweepAndPrune.COLLISION_MARGIN < hy) {
+                    let ry = sweepAndPrune.top(target) - element.height / 2;
+                    return oy-SweepAndPrune.COLLISION_MARGIN > ry || same(ry, hy) ? null : ry;
+                } else return null;
+            };
 
-        let adjust = function(targets) {
-            for (let target of targets) {
-                let fx = adjustOnX(target, ox, hx);
-                let fy = adjustOnY(target, oy, hy);
-                if (fx!==null || fy!==null) {
-                    return {fx, fy};
+            let adjust = function(targets) {
+                for (let target of targets) {
+                    let fx = adjustOnX(target, ox, hx);
+                    let fy = adjustOnY(target, oy, hy);
+                    if (fx!==null || fy!==null) {
+                        return {fx, fy};
+                    }
                 }
-            }
-            return { fx:null, fy:null };
-        };
+                return { fx:null, fy:null };
+            };
 
-        exclude.add(element);
-        let sx = element.lx, sy = element.ly;
-        let hx = sx, hy = sy;
-        let finished = false;
-        let invertedMatrix = originMatrix.invert();
-        // Coords of last valid position of the element (we have to "go" in this direction...)
-        let ox = invertedMatrix.x(record.validX, record.validY);
-        let oy = invertedMatrix.y(record.validX, record.validY);
-        // In order to avoid (= bug ?) infinite loop
-        let cycleCount = 0;
-        while (!finished && cycleCount < 100) {
-            cycleCount++;
-            let targets = this._collideWith(element, exclude, sap);
-            if (targets.length > 0) {
-                // Get a proposition
-                let {fx, fy} = adjust(targets);
-                // First case : we have to choice between X and Y : we get the smallest
-                if (fx !== null && fy !== null) {
-                    let dx = hx > fx ? hx - fx : fx - hx;
-                    let dy = hy > fy ? hy - fy : fy - hy;
-                    if (dx > dy) {
+            exclude.add(element);
+            let sx = element.lx, sy = element.ly;
+            let hx = sx, hy = sy;
+            let finished = false;
+            let invertedMatrix = originMatrix.invert();
+            // Coords of last valid position of the element (we have to "go" in this direction...)
+            let ox = invertedMatrix.x(record.validX, record.validY);
+            let oy = invertedMatrix.y(record.validX, record.validY);
+            // In order to avoid (= bug ?) infinite loop
+            let cycleCount = 0;
+            while (!finished && cycleCount < 100) {
+                cycleCount++;
+                let targets = this._collideWith(element, exclude, sap);
+                if (targets.length > 0) {
+                    // Get a proposition
+                    let {fx, fy} = adjust(targets);
+                    // First case : we have to choice between X and Y : we get the smallest
+                    if (fx !== null && fy !== null) {
+                        let dx = hx > fx ? hx - fx : fx - hx;
+                        let dy = hy > fy ? hy - fy : fy - hy;
+                        if (dx > dy) {
+                            hy = fy;
+                        } else {
+                            hx = fx;
+                        }
+                        // 2nd case : only one dimension is available
+                    } else if (fx !== null) {
+                        hx = fx;
+                    } else if (fy !== null) {
                         hy = fy;
                     } else {
-                        hx = fx;
+                        // Last case : no proposition is available. We revert to last valid position
+                        hx = ox;
+                        hy = oy;
+                        finished = true;
                     }
-                    // 2nd case : only one dimension is available
-                } else if (fx !== null) {
-                    hx = fx;
-                } else if (fy !== null) {
-                    hy = fy;
+                    put(element, hx, hy);
                 } else {
-                    // Last case : no proposition is available. We revert to last valid position
-                    hx = ox;
-                    hy = oy;
                     finished = true;
                 }
-                put(element, hx, hy);
+            }
+            // If final position is "too far" from "current" position, revert to current position, but mark element drag as
+            // invalid.
+            if (Math.abs(hx - sx) > SweepAndPrune.ADJUST_MARGIN || Math.abs(hy - sy) > SweepAndPrune.ADJUST_MARGIN) {
+                put(element, sx, sy, true);
+                record.invalid = true;
             } else {
-                finished = true;
+                // Fixing accepted: update drag infos.
+                record.validX = originMatrix.x(element.lx, element.ly);
+                record.validY = originMatrix.y(element.lx, element.ly);
+                delete record.invalid;
+            }
+            exclude.delete(element);
+        }
+    );
+
+    defineMethod(superClass,
+        function _avoidCollisionsForDraggedElements(elements) {
+            let exclude = new ESet(elements);
+            for (let element of elements) {
+                this._avoidCollisionsForElement(element, exclude, this._dragAndDropSAP, element._drag, this._host.global);
             }
         }
-        // If final position is "too far" from "current" position, revert to current position, but mark element drag as
-        // invalid.
-        if (Math.abs(hx - sx) > SweepAndPrune.ADJUST_MARGIN || Math.abs(hy - sy) > SweepAndPrune.ADJUST_MARGIN) {
-            put(element, sx, sy, true);
-            record.invalid = true;
-        } else {
-            // Fixing accepted: update drag infos.
-            record.validX = originMatrix.x(element.lx, element.ly);
-            record.validY = originMatrix.y(element.lx, element.ly);
-            delete record.invalid;
-        }
-        exclude.delete(element);
-    };
+    );
 
-    superClass.prototype._avoidCollisionsForDraggedElements = function(elements) {
-        let exclude = new ESet(elements);
-        for (let element of elements) {
-            this._avoidCollisionsForElement(element, exclude, this._dragAndDropSAP, element._drag, this._host.global);
-        }
-    };
-
-    superClass.prototype._avoidCollisionsForElements = function() {
-        let elements = new List();
-        for (let element of this._valids.keys()) {
-            let record = this._valids.get(element);
-            if (record.validX !== element.lx || record.validY !== element.ly) {
-                elements.add(element);
+    defineMethod(superClass,
+        function _avoidCollisionsForElements() {
+            let elements = new List();
+            for (let element of this._valids.keys()) {
+                let record = this._valids.get(element);
+                if (record.validX !== element.lx || record.validY !== element.ly) {
+                    elements.add(element);
+                }
+            }
+            let exclude = new ESet(elements);
+            for (let element of elements) {
+                this._avoidCollisionsForElement(element, exclude, this._supportSAP, this._valids.get(element), new Matrix());
             }
         }
-        let exclude = new ESet(elements);
-        for (let element of elements) {
-            this._avoidCollisionsForElement(element, exclude, this._supportSAP, this._valids.get(element), new Matrix());
-        }
-    };
+    );
 
-    return superClass;
 }
 
 export class PhysicBorder {
@@ -885,67 +910,75 @@ export function addGravitationToCollisionPhysic(superClass, {
     carryingPredicate = (carrier, carried, dx, dy)=>true
 }={}) {
 
-    superClass.prototype._setCarried = function(elements) {
-        for (let element of elements) {
-            if (element.isCarriable && element._fall.carriers) {
-                for (let support of element._fall.carriers) {
-                    let dx = element.lx - support.lx;
-                    let dy = element.ly - support.ly;
-                    if (support.isCarrier && carryingPredicate(support, element, dx, dy)) {
-                        if (!element.carriedBy(support)) {
-                            support.addCarried(element);
-                        }
-                        else {
-                            support.moveCarried(element);
+    defineMethod(superClass,
+        function _setCarried(elements) {
+            for (let element of elements) {
+                if (element.isCarriable && element._fall.carriers) {
+                    for (let support of element._fall.carriers) {
+                        let dx = element.lx - support.lx;
+                        let dy = element.ly - support.ly;
+                        if (support.isCarrier && carryingPredicate(support, element, dx, dy)) {
+                            if (!element.carriedBy(support)) {
+                                support.addCarried(element);
+                            }
+                            else {
+                                support.moveCarried(element);
+                            }
                         }
                     }
                 }
-            }
-            if (element.isCarrier) {
-                for (let child of element.carried) {
-                    if (!element._fall.carried || !element._fall.carried.has(child)) {
-                        element.removeCarried(child);
+                if (element.isCarrier) {
+                    for (let child of element.carried) {
+                        if (!element._fall.carried || !element._fall.carried.has(child)) {
+                            element.removeCarried(child);
+                        }
                     }
                 }
+                delete element._fall;
             }
-            delete element._fall;
         }
-    };
+    );
 
-    superClass.prototype._canFall = function(element) {
-        return gravitationPredicate.call(this, element);
-    };
-
-    superClass.prototype._letFall = function(elements, ground) {
-
-        let comparator = (e1, e2)=> {
-            let b1 = this._supportSAP.bottom(e1);
-            let b2 = this._supportSAP.bottom(e2);
-            return b2-b1;
-        };
-
-        elements.sort(comparator);
-        for (let element of elements) {
-            element._fall = {};
+    defineMethod(superClass,
+        function _canFall(element) {
+            return gravitationPredicate.call(this, element);
         }
-        for (let element of elements) {
-            ground.process(element);
+    );
+
+    defineMethod(superClass,
+        function _letFall(elements, ground) {
+
+            let comparator = (e1, e2)=> {
+                let b1 = this._supportSAP.bottom(e1);
+                let b2 = this._supportSAP.bottom(e2);
+                return b2-b1;
+            };
+
+            elements.sort(comparator);
+            for (let element of elements) {
+                element._fall = {};
+            }
+            for (let element of elements) {
+                ground.process(element);
+            }
         }
-    };
+    );
 
-    superClass.prototype._processElements = function() {
-        let elements = new List(...this._elements);
-        this._letFall(elements, new Ground(this));
-        this._setCarried(elements);
-    };
+    defineMethod(superClass,
+        function _processElements() {
+            let elements = new List(...this._elements);
+            this._letFall(elements, new Ground(this));
+            this._setCarried(elements);
+        }
+    );
 
-    let refresh = superClass.prototype._refresh;
-    superClass.prototype._refresh = function() {
-        refresh.call(this);
-        this._processElements();
-    };
+    extendMethod(superClass, $refresh=>
+        function _refresh() {
+            $refresh.call(this);
+            this._processElements();
+        }
+    );
 
-    return superClass;
 }
 
 export function createGravitationPhysic({predicate, gravitationPredicate, carryingPredicate}) {

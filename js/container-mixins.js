@@ -1,5 +1,6 @@
 import {
-    assert, defineGetProperty, defineMethod, extendMethod, proposeGetProperty, replaceGetProperty, proposeMethod
+    assert, defineGetProperty, defineMethod, extendMethod, proposeGetProperty, replaceGetProperty, proposeMethod,
+    replaceMethod
 } from "./misc.js";
 import {
     Cloning, Events, Memento, makeCloneable, MutationObservers, CloneableObject
@@ -839,7 +840,7 @@ export function makeContainerASupport(superClass) {
         }
     );
 
-    defineMethod(superClass,
+    replaceMethod(superClass,
         function _dropTarget(element) {
             return this;
         }
@@ -918,29 +919,34 @@ export function makeContainerMultiLayered(superClass, {layers}) {
 
     let defaultLayer = layers[0];
 
-    let initContent = superClass.prototype._initContent;
-    superClass.prototype._initContent = function () {
-        let content = new Group();
-        content.cloning = Cloning.NONE;
-        this._layers = new CloneableObject();
-        for (let layer of layers) {
-            this._layers[layer] = new Group();
-            content.add(this._layers[layer]);
+    extendMethod(superClass, $initContent=>
+        function _initContent() {
+            let content = new Group();
+            content.cloning = Cloning.NONE;
+            this._layers = new CloneableObject();
+            for (let layer of layers) {
+                this._layers[layer] = new Group();
+                content.add(this._layers[layer]);
+            }
+            $initContent && $initContent.call(this);
+            return content;
         }
-        initContent && initContent.call(this);
-        return content;
-    };
+    );
 
-    superClass.prototype.__clearChildren = function () {
-        for (let layer of layers) {
-            this._layers[layer].clear();
+    replaceMethod(superClass,
+        function __clearChildren() {
+            for (let layer of layers) {
+                this._layers[layer].clear();
+            }
         }
-    };
+    );
 
-    superClass.prototype.__addChild = function (element) {
-        let layer = this._getLayer(element);
-        this._layers[layer].add(element._root);
-    };
+    replaceMethod(superClass,
+        function __addChild(element) {
+            let layer = this._getLayer(element);
+            this._layers[layer].add(element._root);
+        }
+    );
 
     /**
      * Find the first element that follow a given child in the container and that belongs to a given layer. This
@@ -951,80 +957,91 @@ export function makeContainerMultiLayered(superClass, {layers}) {
      * @returns {*}
      * @private
      */
-    superClass.prototype._findNextOnLayer = function (element, layer) {
-        let elemIdx = this._children.indexOf(element);
-        if (elemIdx === -1) return null;
-        for (let index = elemIdx + 1; index < this._children.length; index++) {
-            if (this._getLayer(this._children[index]) === layer) return this._children[index];
+    defineMethod(superClass,
+        function _findNextOnLayer(element, layer) {
+            let elemIdx = this._children.indexOf(element);
+            if (elemIdx === -1) return null;
+            for (let index = elemIdx + 1; index < this._children.length; index++) {
+                if (this._getLayer(this._children[index]) === layer) return this._children[index];
+            }
+            return null;
         }
-        return null;
-    };
+    );
 
-    superClass.prototype.__insertChild = function (previous, element) {
-        let previousLayer = this._getLayer(previous);
-        let layer = this._getLayer(element);
-        if (layer === previousLayer) {
-            this._layers[layer].insert(previous._root, element._root);
-        }
-        else {
-            let next = this._findNextOnLayer(previous, layer);
-            if (next) {
-                this._layers[layer].insert(next._root, element._root);
+    replaceMethod(superClass,
+        function __insertChild(previous, element) {
+            let previousLayer = this._getLayer(previous);
+            let layer = this._getLayer(element);
+            if (layer === previousLayer) {
+                this._layers[layer].insert(previous._root, element._root);
             }
             else {
-                this._layers[layer].add(element._root);
+                let next = this._findNextOnLayer(previous, layer);
+                if (next) {
+                    this._layers[layer].insert(next._root, element._root);
+                }
+                else {
+                    this._layers[layer].add(element._root);
+                }
             }
         }
-    };
+    );
 
-    superClass.prototype.__replaceChild = function (previous, element) {
-        let previousLayer = this._getLayer(previous);
-        let layer = this._getLayer(element);
-        if (layer === previousLayer) {
-            this._layers[layer].replace(previous._root, element._root);
-        }
-        else {
-            let next = this._findNextOnLayer(previous, layer);
-            this._layers[previousLayer].remove(previous._root);
-            if (next) {
-                this._layers[layer].insert(next._root, element._root);
+    replaceMethod(superClass,
+        function __replaceChild(previous, element) {
+            let previousLayer = this._getLayer(previous);
+            let layer = this._getLayer(element);
+            if (layer === previousLayer) {
+                this._layers[layer].replace(previous._root, element._root);
             }
             else {
-                this._layers[layer].add(element._root);
+                let next = this._findNextOnLayer(previous, layer);
+                this._layers[previousLayer].remove(previous._root);
+                if (next) {
+                    this._layers[layer].insert(next._root, element._root);
+                }
+                else {
+                    this._layers[layer].add(element._root);
+                }
             }
         }
-    };
+    );
 
-    superClass.prototype.__removeChild = function (element) {
-        let layer = this._getLayer(element);
-        this._layers[layer].remove(element._root);
-    };
-
-    let getLayer = superClass.prototype._getLayer;
-    superClass.prototype._getLayer = function (element) {
-        let layer = getLayer ? getLayer.call(this, element) : null;
-        if (!layer) {
-            layer = element.getLayer && element.getLayer(this);
-            if (!layer) layer = defaultLayer;
+    replaceMethod(superClass,
+        function __removeChild(element) {
+            let layer = this._getLayer(element);
+            this._layers[layer].remove(element._root);
         }
-        if (!this._layers[layer]) layer = defaultLayer;
-        return layer;
-    };
+    );
 
-    let cloning = superClass.prototype._cloning;
-    superClass.prototype._cloning = function (duplicata) {
-        let copy = cloning.call(this, duplicata);
-        for (let layer of layers) {
-            copy._content.add(copy._layers[layer]);
+    extendMethod(superClass, $getLayer=>
+        function _getLayer(element) {
+            let layer = $getLayer ? $getLayer.call(this, element) : null;
+            if (!layer) {
+                layer = element.getLayer && element.getLayer(this);
+                if (!layer) layer = defaultLayer;
+            }
+            if (!this._layers[layer]) layer = defaultLayer;
+            return layer;
         }
-        return copy;
-    };
+    );
 
-    superClass.prototype.getLayerNode = function(layer) {
-        return this._layers[layer];
-    };
+    extendMethod(superClass, $cloning=>
+        function _cloning(duplicata) {
+            let copy = $cloning.call(this, duplicata);
+            for (let layer of layers) {
+                copy._content.add(copy._layers[layer]);
+            }
+            return copy;
+        }
+    );
 
-    return superClass;
+    defineMethod(superClass,
+        function getLayerNode(layer) {
+            return this._layers[layer];
+        }
+    );
+
 }
 
 export function makeMultiLayeredContainer(superClass, {layers}) {
@@ -1039,185 +1056,220 @@ export function makeLayersWithContainers(superClass, {layersBuilder}) {
     let defaultLayer;
     let layers = layersBuilder();
 
-    let superInit = superClass.prototype._init;
-    superClass.prototype._init = function (...args) {
-        superInit.call(this, ...args);
-        this._content = this._initContent();
-        this._addContentToTray();
-    };
-
-    superClass.prototype._addContentToTray = function () {
-        let next = this._decorationsSupport || this._floatingContent;
-        next ? this._tray.insert(next, this._content) : this._tray.add(this._content);
-    };
-
-    superClass.prototype._initContent = function () {
-        let content = new Group();
-        this._layers = new CloneableObject();
-        for (let layer in layers) {
-            if (!defaultLayer) defaultLayer = layer;
-            this._layers[layer] = layers[layer];
-            this._layers[layer].pedestal = new Group();
-            content.add(this._layers[layer].pedestal.add(layers[layer]._root));
-            layers[layer]._parent = this;
+    extendMethod(superClass, $init=>
+        function _init(...args) {
+            $init.call(this, ...args);
+            this._content = this._initContent();
+            this._addContentToTray();
         }
-        return content;
-    };
+    );
 
-    let finalize = superClass.prototype.finalize;
-    superClass.prototype.finalize = function () {
-        finalize.call(this);
-        for (let layer of this._layers) {
-            layer.finalize();
+    defineMethod(superClass,
+        function _addContentToTray() {
+            let next = this._decorationsSupport || this._floatingContent;
+            next ? this._tray.insert(next, this._content) : this._tray.add(this._content);
         }
-    };
+    );
 
-    superClass.prototype.clearChildren = function () {
-        for (let layer in layers) {
-            this._layers[layer].clear();
+    defineMethod(superClass,
+        function _initContent() {
+            let content = new Group();
+            this._layers = new CloneableObject();
+            for (let layer in layers) {
+                if (!defaultLayer) defaultLayer = layer;
+                this._layers[layer] = layers[layer];
+                this._layers[layer].pedestal = new Group();
+                content.add(this._layers[layer].pedestal.add(layers[layer]._root));
+                layers[layer]._parent = this;
+            }
+            return content;
         }
-        return this;
-    };
+    );
 
-    superClass.prototype.addChild = function (element) {
-        let layer = this._getLayer(element);
-        this._layers[layer].add(element);
-        return this;
-    };
-
-    superClass.prototype.insertChild = function (previous, element) {
-        let previousLayer = this._getLayer(previous);
-        let layer = this._getLayer(element);
-        if (layer === previousLayer) {
-            this._layers[layer].insert(previous, element);
+    extendMethod(superClass, $finalize=>
+        function finalize() {
+            $finalize.call(this);
+            for (let layer of this._layers) {
+                layer.finalize();
+            }
         }
-        else {
-            this._layers[layer].add(element);
+    );
+
+    defineMethod(superClass,
+        function clearChildren() {
+            for (let layer in layers) {
+                this._layers[layer].clear();
+            }
+            return this;
         }
-        return this;
-    };
+    );
 
-    superClass.prototype.replaceChild = function (previous, element) {
-        let previousLayer = this._getLayer(previous);
-        let layer = this._getLayer(element);
-        if (layer === previousLayer) {
-            this._layers[layer].replace(previous, element);
-        }
-        else {
-            this._layers[previousLayer].remove(previous);
-            this._layers[layer].add(element);
-        }
-        return this;
-    };
-
-    superClass.prototype.removeChild = function (element) {
-        let layer = this._getLayer(element);
-        this._layers[layer].remove(element);
-        return this;
-    };
-
-    superClass.prototype.containsChild = function (element) {
-        let layer = this._getLayer(element);
-        return this._layers[layer].contains(element);
-    };
-
-    superClass.prototype._shiftChild = function (element, x, y) {
-    };
-
-    let shift = superClass.prototype._shift;
-    superClass.prototype._shift = function(element, x, y) {
-        if (shift && shift.call(this, element, x, y)) return true;
-        if (!this.containsChild(element)) return false;
-        this._shiftChild(element, x, y);
-        return true;
-    };
-
-    superClass.prototype.getElementsInLayers = function (elements) {
-        let elementsInLayers = new Map();
-        for (let element of elements) {
+    defineMethod(superClass,
+        function addChild(element) {
             let layer = this._getLayer(element);
-            let elements = elementsInLayers.get(layer);
-            if (!elements) {
-                elements = new List();
-                elementsInLayers.set(layer, elements);
-            }
-            elements.add(element);
+            this._layers[layer].add(element);
+            return this;
         }
-        return elementsInLayers;
-    };
+    );
 
-    let hover = superClass.prototype.hover;
-    superClass.prototype.hover = function (elements) {
-        hover && hover.call(this, elements);
-        let elementsInLayers = this.getElementsInLayers(elements);
-        for (let layer of elementsInLayers.keys()) {
-            if (this._layers[layer].hover) {
-                this._layers[layer].hover(elementsInLayers.get(layer));
+    defineMethod(superClass,
+        function insertChild(previous, element) {
+            let previousLayer = this._getLayer(previous);
+            let layer = this._getLayer(element);
+            if (layer === previousLayer) {
+                this._layers[layer].insert(previous, element);
+            }
+            else {
+                this._layers[layer].add(element);
+            }
+            return this;
+        }
+    );
+
+    defineMethod(superClass,
+        function replaceChild(previous, element) {
+            let previousLayer = this._getLayer(previous);
+            let layer = this._getLayer(element);
+            if (layer === previousLayer) {
+                this._layers[layer].replace(previous, element);
+            }
+            else {
+                this._layers[previousLayer].remove(previous);
+                this._layers[layer].add(element);
+            }
+            return this;
+        }
+    );
+
+    defineMethod(superClass,
+        function removeChild(element) {
+            let layer = this._getLayer(element);
+            this._layers[layer].remove(element);
+            return this;
+        }
+    );
+
+    defineMethod(superClass,
+        function containsChild(element) {
+            let layer = this._getLayer(element);
+            return this._layers[layer].contains(element);
+        }
+    );
+
+    defineMethod(superClass,
+        function _shiftChild(element, x, y) {
+        }
+    );
+
+    extendMethod(superClass, $shift=>
+        function _shift(element, x, y) {
+            if (shift && shift.call(this, element, x, y)) return true;
+            if (!this.containsChild(element)) return false;
+            this._shiftChild(element, x, y);
+            return true;
+        }
+    );
+
+    defineMethod(superClass,
+        function getElementsInLayers(elements) {
+            let elementsInLayers = new Map();
+            for (let element of elements) {
+                let layer = this._getLayer(element);
+                let elements = elementsInLayers.get(layer);
+                if (!elements) {
+                    elements = new List();
+                    elementsInLayers.set(layer, elements);
+                }
+                elements.add(element);
+            }
+            return elementsInLayers;
+        }
+    );
+
+    extendMethod(superClass, $hover=>
+        function hover(elements) {
+            hover && hover.call(this, elements);
+            let elementsInLayers = this.getElementsInLayers(elements);
+            for (let layer of elementsInLayers.keys()) {
+                if (this._layers[layer].hover) {
+                    this._layers[layer].hover(elementsInLayers.get(layer));
+                }
             }
         }
-    };
+    );
 
-    superClass.prototype.showLayer = function (layer) {
-        this._layers[layer].pedestal.add(this._layers[layer]._root);
-    };
+    defineMethod(superClass,
+        function showLayer(layer) {
+            this._layers[layer].pedestal.add(this._layers[layer]._root);
+        }
+    );
 
-    superClass.prototype.hideLayer = function (layer) {
-        this._layers[layer].pedestal.remove(this._layers[layer]._root);
-    };
+    defineMethod(superClass,
+        function hideLayer(layer) {
+            this._layers[layer].pedestal.remove(this._layers[layer]._root);
+        }
+    );
 
-    superClass.prototype.hidden = function (layer) {
-        return !!this._layers[layer]._root.parent;
-    };
+    defineMethod(superClass,
+        function hidden(layer) {
+            return !!this._layers[layer]._root.parent;
+        }
+    );
 
-    Object.defineProperty(superClass.prototype, "children", {
-        configurable: true,
-        get: function () {
+    defineGetProperty(superClass,
+        function children() {
             let result = new List();
             for (let layer in this._layers) {
                 result.push(...this._layers[layer].children);
             }
             return result;
         }
-    });
+    );
 
-    superClass.prototype.layerChildren = function (layer) {
-        return this._layers[layer].children;
-    };
-
-    superClass.prototype._acceptDrop = function (element) {
-        let layer = this._getLayer(element);
-        return this._layers[layer]._acceptDrop(element);
-    };
-
-    let getLayer = superClass.prototype._getLayer;
-    superClass.prototype._getLayer = function (element) {
-        let layer = getLayer ? getLayer.call(this, element) : null;
-        if (!layer) {
-            layer = element.getLayer && element.getLayer(this);
-            if (!layer) layer = defaultLayer;
+    defineMethod(superClass,
+        function layerChildren(layer) {
+            return this._layers[layer].children;
         }
-        if (!this._layers[layer]) layer = defaultLayer;
-        return layer;
-    };
+    );
 
-    Object.defineProperty(superClass.prototype, "content", {
-        configurable: true,
-        get: function () {
+    defineMethod(superClass,
+        function _acceptDrop(element) {
+            let layer = this._getLayer(element);
+            return this._layers[layer]._acceptDrop(element);
+        }
+    );
+
+    extendMethod(superClass, $getLayer=>
+        function _getLayer(element) {
+            let layer = getLayer ? getLayer.call(this, element) : null;
+            if (!layer) {
+                layer = element.getLayer && element.getLayer(this);
+                if (!layer) layer = defaultLayer;
+            }
+            if (!this._layers[layer]) layer = defaultLayer;
+            return layer;
+        }
+    );
+
+    defineGetProperty(superClass,
+        function content() {
             return this._content;
         }
-    });
+    );
+
 }
 
 export function makeLayered(superClass, {layer}) {
 
-    let getLayer = superClass.prototype.getLayer;
-    superClass.prototype.getLayer = function (target) {
-        if (getLayer) {
-            let layer = getLayer.call(this, target);
-            if (layer) return layer;
+    extendMethod(superClass, $getLayer=>
+        function getLayer(target) {
+            if (getLayer) {
+                let layer = getLayer.call(this, target);
+                if (layer) return layer;
+            }
+            return layer;
         }
-        return layer;
-    };
+    );
 
 }
 
@@ -1683,111 +1735,135 @@ class ZIndexSupport {
 
 export function makeContainerZindex(superClass) {
 
-    superClass.prototype._initContent = function () {
-        this._content = new Group();
-        this._content.cloning = Cloning.NONE;
-        this._zIndexSupport = new ZIndexSupport(this);
-        return this._content;
-    };
-
-    let addChild = superClass.prototype.addChild;
-    superClass.prototype.addChild = function (element) {
-        Memento.register(this._zIndexSupport);
-        this._zIndexSupport._memorizeElementContent(element);
-        return addChild.call(this, element);
-    };
-
-    let insertChild = superClass.prototype.insertChild;
-    superClass.prototype.insertChild = function (previous, element) {
-        Memento.register(this._zIndexSupport);
-        this._zIndexSupport._memorizeElementContent(element);
-        return insertChild.call(this, previous, element);
-    };
-
-    let replaceChild = superClass.prototype.replaceChild;
-    superClass.prototype.replaceChild = function (previous, element) {
-        Memento.register(this._zIndexSupport);
-        this._zIndexSupport._memorizeElementContent(element);
-        return replaceChild.call(this, previous, element);
-    };
-
-    let removeChild = superClass.prototype.removeChild;
-    superClass.prototype.removeChild = function (element) {
-        Memento.register(this._zIndexSupport);
-        this._zIndexSupport._memorizeElementContent(element);
-        return removeChild.call(this, element);
-    };
-
-    let clearChildren = superClass.prototype.clearChildren;
-    superClass.prototype.clearChildren = function () {
-        Memento.register(this._zIndexSupport);
-        for (let element of this._children) {
-            this._zIndexSupport._memorizeElementContent(element);
+    replaceMethod(superClass,
+        function _initContent() {
+            this._content = new Group();
+            this._content.cloning = Cloning.NONE;
+            this._zIndexSupport = new ZIndexSupport(this);
+            return this._content;
         }
-        return clearChildren.call(this);
-    };
+    );
 
-    let _addChild = superClass.prototype._addChild;
-    superClass.prototype._addChild = function (element) {
-        this._zIndexSupport._addChild(_addChild, element);
-    };
+    extendMethod(superClass, $addChild=>
+        function addChild(element) {
+            Memento.register(this._zIndexSupport);
+            this._zIndexSupport._memorizeElementContent(element);
+            return $addChild.call(this, element);
+        }
+    );
 
-    let _insertChild = superClass.prototype._insertChild;
-    superClass.prototype._insertChild = function (previous, element) {
-        this._zIndexSupport._insertChild(_insertChild, previous, element);
-    };
+    extendMethod(superClass, $insertChild=>
+        function insertChild(previous, element) {
+            Memento.register(this._zIndexSupport);
+            this._zIndexSupport._memorizeElementContent(element);
+            return $insertChild.call(this, previous, element);
+        }
+    );
 
-    let _replaceChild = superClass.prototype._replaceChild;
-    superClass.prototype._replaceChild = function (previous, element) {
-        this._zIndexSupport._replaceChild(_replaceChild, previous, element);
-    };
+    extendMethod(superClass, $replaceChild=>
+        function replaceChild(previous, element) {
+            Memento.register(this._zIndexSupport);
+            this._zIndexSupport._memorizeElementContent(element);
+            return $replaceChild.call(this, previous, element);
+        }
+    );
 
-    let _removeChild = superClass.prototype._removeChild;
-    superClass.prototype._removeChild = function (element) {
-        this._zIndexSupport._removeChild(_removeChild, element);
-    };
+    extendMethod(superClass, $removeChild=>
+        function removeChild(element) {
+            Memento.register(this._zIndexSupport);
+            this._zIndexSupport._memorizeElementContent(element);
+            return $removeChild.call(this, element);
+        }
+    );
 
-    let _clearChildren = superClass.prototype._clearChildren;
-    superClass.prototype._clearChildren = function () {
-        this._zIndexSupport._clearChildren(_clearChildren);
-    };
-
-    superClass.prototype.__addChild = function (element) {
-        this._zIndexSupport.__addChild(element);
-    };
-
-    superClass.prototype.__insertChild = function (previous, element) {
-        this._zIndexSupport.__insertChild(previous, element);
-    };
-
-    superClass.prototype.__replaceChild = function (previous, element) {
-        this._zIndexSupport.__replacechild(previous, element);
-    };
-
-    superClass.prototype.__removeChild = function (element) {
-        this._zIndexSupport.__removeChild(element);
-    };
-
-    superClass.prototype.__clearChildren = function () {
-        this._content.clearChildren();
-        this._zIndexSupport.__clearChildren();
-    };
-
-    superClass.prototype._memorizeContent = function (memento) {
-        Memento.register(this._zIndexSupport);
-    };
-
-    superClass.prototype._revertContent = function (memento) {
-    };
-
-    if (!superClass.prototype.hasOwnProperty("isZIndex")) {
-        Object.defineProperty(superClass.prototype, "isZIndex", {
-            configurable: true,
-            get() {
-                return true;
+    extendMethod(superClass, $clearChildren=>
+        function clearChildren() {
+            Memento.register(this._zIndexSupport);
+            for (let element of this._children) {
+                this._zIndexSupport._memorizeElementContent(element);
             }
-        });
-    }
+            return $clearChildren.call(this);
+        }
+    );
+
+    extendMethod(superClass, $addChild=>
+        function _addChild(element) {
+            this._zIndexSupport._addChild($addChild, element);
+        }
+    );
+
+    extendMethod(superClass, $insertChild=>
+        function _insertChild(previous, element) {
+            this._zIndexSupport._insertChild($insertChild, previous, element);
+        }
+    );
+
+    extendMethod(superClass, $replaceChild=>
+        function _replaceChild(previous, element) {
+            this._zIndexSupport._replaceChild($replaceChild, previous, element);
+        }
+    );
+
+    extendMethod(superClass, $removeChild=>
+        function _removeChild(element) {
+            this._zIndexSupport._removeChild($removeChild, element);
+        }
+    );
+
+    extendMethod(superClass, $clearChildren=>
+        function _clearChildren() {
+            this._zIndexSupport._clearChildren($clearChildren);
+        }
+    );
+
+    replaceMethod(superClass,
+        function __addChild(element) {
+            this._zIndexSupport.__addChild(element);
+        }
+    );
+
+    replaceMethod(superClass,
+        function __insertChild(previous, element) {
+            this._zIndexSupport.__insertChild(previous, element);
+        }
+    );
+
+    replaceMethod(superClass,
+        function __replaceChild(previous, element) {
+            this._zIndexSupport.__replacechild(previous, element);
+        }
+    );
+
+    replaceMethod(superClass,
+        function __removeChild(element) {
+            this._zIndexSupport.__removeChild(element);
+        }
+    );
+
+    replaceMethod(superClass,
+        function __clearChildren() {
+            this._content.clearChildren();
+            this._zIndexSupport.__clearChildren();
+        }
+    );
+
+    replaceMethod(superClass,
+        function _memorizeContent(memento) {
+            Memento.register(this._zIndexSupport);
+        }
+    );
+
+    replaceMethod(superClass,
+        function _revertContent(memento) {
+        }
+    );
+
+    proposeGetProperty(superClass,
+        function isZIndex() {
+            return true;
+        }
+    );
+
 }
 
 export function makeZindexContainer(superClass) {

@@ -443,7 +443,21 @@ export class ToolTitlePopup {
         this._restore = new ToolTitleCommand(ToolPopup.RESTORE_URL, popup.width/2-ToolPopup.HEADER_MARGIN,
             () => popup.restore()
         );
+        this._maxClip = new ClipPath(toolId());
+        this._root.add(this._maxClip);
+        this._minClip = new ClipPath(toolId());
+        this._root.add(this._minClip);
+        this._setClips(popup.width);
         this._dragOperation(function() {return DragPopupOperation.instance;});
+    }
+
+    _setClips(width) {
+        this._maxClip.clear().add(
+            new Rect(-width / 2, -ToolPopup.HEADER_HEIGHT / 2, width, ToolPopup.HEADER_HEIGHT+5)
+                .attrs({ rx: ToolPopup.CORNER_SIZE, ry: ToolPopup.CORNER_SIZE }));
+        this._minClip.clear().add(
+            new Rect(-width / 2, -ToolPopup.HEADER_HEIGHT / 2, width, ToolPopup.HEADER_HEIGHT)
+                .attrs({ rx: ToolPopup.CORNER_SIZE, ry: ToolPopup.CORNER_SIZE }));
     }
 
     set width(width) {
@@ -451,23 +465,24 @@ export class ToolTitlePopup {
         this._titleBackground.width = width;
         this._minimize.move(this._popup.width/2-ToolPopup.HEADER_MARGIN);
         this._restore.move(this._popup.width/2-ToolPopup.HEADER_MARGIN);
+        this._setClips(width);
     }
 
     get popup() {
         return this._popup;
     }
 
-    minimize(clip, y) {
+    minimize(y) {
         this._root.add(this._restore._root);
         this._minimize._root.detach();
-        this._titleBackground.attrs({ clip_path: clip });
+        this._titleBackground.attrs({ clip_path: this._minClip });
         this._root.matrix = Matrix.translate(0, y);
     }
 
-    restore(clip, y) {
+    restore(y) {
         this._root.add(this._minimize._root);
         this._restore._root.detach();
-        this._titleBackground.attrs({ clip_path: clip });
+        this._titleBackground.attrs({ clip_path: this._maxClip });
         this._root.matrix = Matrix.translate(0, y);
     }
 
@@ -491,16 +506,10 @@ export class ToolPopup {
         this._root.add(this._contentSupport);
         this._content = new Group();
         this._contentSupport.add(this._content);
-        this._maxClip = new ClipPath(toolId()).add(
-            new Rect(-width / 2, -ToolPopup.HEADER_HEIGHT / 2, width, ToolPopup.HEADER_HEIGHT+5)
-            .attrs({ rx: ToolPopup.CORNER_SIZE, ry: ToolPopup.CORNER_SIZE }));
-        this._minClip = new ClipPath(toolId()).add(
-            new Rect(-width / 2, -ToolPopup.HEADER_HEIGHT / 2, width, ToolPopup.HEADER_HEIGHT)
-            .attrs({ rx: ToolPopup.CORNER_SIZE, ry: ToolPopup.CORNER_SIZE }));
         this._title = new ToolTitlePopup(this);
         this._root.add(this._title._root);
-        let y =-height / 2 + ToolPopup.HEADER_HEIGHT / 2
-        this._title.restore(this._maxClip, y);
+        let y =-height / 2 + ToolPopup.HEADER_HEIGHT / 2;
+        this._title.restore(y);
         Canvas.instance.addObserver(this);
         Canvas.instance.putArtifactOnToolsLayer(this._root);
         this._dragOperation(()=>ResizePopupOperation.instance);
@@ -529,7 +538,7 @@ export class ToolPopup {
         this._background.height = height;
         this._background.y = -height/2;
         let y =  -height/2+ToolPopup.HEADER_HEIGHT/2;
-        this._title.restore(this._maxClip, y);
+        this._title.restore(y);
     }
 
     set height(height) {
@@ -550,7 +559,7 @@ export class ToolPopup {
             width: this.width, height: ToolPopup.HEADER_HEIGHT});
         this._content.detach();
         let dY = this._height / 2 - ToolPopup.HEADER_HEIGHT / 2;
-        this._title.minimize(this._minClip, 0);
+        this._title.minimize(0);
         this._root.matrix = Matrix.translate(this._root.matrix.dx, this._root.matrix.dy - dY);
     }
 
@@ -561,7 +570,7 @@ export class ToolPopup {
             width: this.width, height: this.height});
         this._contentSupport.add(this._content);
         let dY = this._background.height / 2 - ToolPopup.HEADER_HEIGHT / 2;
-        this._title.restore(this._maxClip, -dY);
+        this._title.restore(-dY);
         this._root.matrix = Matrix.translate(this._root.matrix.dx, this._root.matrix.dy + dY);
         this._adjustPosition();
     }
@@ -586,6 +595,36 @@ export class ToolPopup {
         let imatrix = this._root.parent.matrix.invert();
         let fx = imatrix.x(x, y);
         let fy = imatrix.y(x, y);
+        this.move(fx, fy);
+    }
+
+    _adjustSize() {
+        let clientWidth = Canvas.instance.clientWidth;
+        let clientHeight = Canvas.instance.clientHeight;
+        let x = this._root.globalMatrix.dx-clientWidth/2;
+        let y = this._root.globalMatrix.dy-clientHeight/2;
+        let width = this.width;
+        let height = this.height;
+        if (x + this.width/2 > clientWidth/2 - ToolPopup.BORDER_MARGIN) {
+            width = this.width/2 - x + clientWidth/2 - ToolPopup.BORDER_MARGIN;
+            x += (width - this.width)/2;
+        }
+        if (x - this.width/2 < -clientWidth/2 + ToolPopup.BORDER_MARGIN ) {
+            width = this.width/2 + x + clientWidth/2 - ToolPopup.BORDER_MARGIN;
+            x -= (width - this.width)/2;
+        }
+        if (y + this.height/2 > clientHeight/2 - ToolPopup.BORDER_MARGIN) {
+            height = this.height/2 - y + clientHeight/2 - ToolPopup.BORDER_MARGIN;
+            y += (height - this.height)/2;
+        }
+        if (y - this.height/2 < -clientHeight/2 + ToolPopup.BORDER_MARGIN) {
+            height = this.height/2 + y + clientHeight/2 - ToolPopup.BORDER_MARGIN;
+            y -= (height - this.height)/2;
+        }
+        let imatrix = this._root.parent.matrix.invert();
+        let fx = imatrix.x(x, y);
+        let fy = imatrix.y(x, y);
+        this.resize(width, height);
         this.move(fx, fy);
     }
 
@@ -726,7 +765,14 @@ export class ResizePopupOperation extends DragOperation {
             this._dragY+=pY/2;
         }
         popup.resize(width, height);
-        popup.move(nx, ny);
+        let dWidth = this._dragX<0 ? width-popup.width : popup.width-width;
+        let dHeight = this._dragY<0 ? height-popup.height : popup.height-height;
+        popup.move(nx+dWidth/2, ny+dHeight/2);
+        popup._adjustSize();
+        dWidth = this._dragX<0 ? width-popup.width : popup.width-width;
+        dHeight = this._dragY<0 ? height-popup.height : popup.height-height;
+        this._dragX+=dWidth/2;
+        this._dragY+=dHeight/2;
     }
 
     doDrop(popup, x, y, event) {
@@ -883,7 +929,7 @@ export class ToolCard {
     }
 
     get resizable() {
-        return false;
+        return ToolCard.Resizable.NO;
     }
 
     setLocation(x, y) {
@@ -912,6 +958,11 @@ export class ToolCard {
     _refresh() {
     }
 }
+ToolCard.Resizable = {
+    NO: 0,
+    VERTICAL: 1,
+    HORIZONTAL: 2
+};
 
 export class ToolCardStack extends ToolCard {
 
@@ -954,26 +1005,125 @@ export class ToolCardStack extends ToolCard {
     }
 
     get resizable() {
+        let resizable = ToolCard.Resizable.NO;
         for (let card of this._cards) {
-            if (card.resizable) return true;
+            if (card.resizable===ToolCard.Resizable.VERTICAL) return ToolCard.Resizable.VERTICAL;
+            if (card.resizable===ToolCard.Resizable.HORIZONTAL) resizable = ToolCard.Resizable.HORIZONTAL;
         }
-        return false;
+        return resizable;
+    }
+
+    get minWidth() {
+        let minWidth = 0;
+        for (let card of this._cards) {
+            let cardMinWidth = card.minWidth;
+            if (cardMinWidth>minWidth) minWidth = cardMinWidth;
+        }
+        return minWidth;
+    }
+
+    get minHeight() {
+        let minHeight = 0;
+        let lines = this._getLines(this.width);
+        for (let line of lines) {
+            if (line.length===1 && line[0].resizable === ToolCard.Resizable.VERTICAL) {
+                let card = line[0];
+                minHeight += card.minHeight;
+            }
+            else {
+                minHeight += this._lineHeight(line);
+            }
+        }
+        return minHeight;
+    }
+
+    _getLines(width) {
+        let lines = new List();
+        let line = null;
+        let pX = 0;
+        for (let card of this._cards) {
+            if (card.resizable===ToolCard.Resizable.NO || card.resizable===ToolCard.Resizable.HORIZONTAL) {
+                if (line && pX + card.minWidth < width) {
+                    line.add(card);
+                    pX += card.minWidth;
+                }
+                else {
+                    line = new List();
+                    lines.add(line);
+                    line.add(card);
+                    pX = card.minWidth;
+                }
+            }
+            else {  // card.resizable===ToolCard.Resizable.VERTICAL
+                line = new List();
+                lines.add(line);
+                line.add(card);
+                pX = 0;
+            }
+        }
+        return lines;
+    }
+
+    _lineHeight(line) {
+        let height = 0;
+        for (let card of line) {
+            let cardMinHeight = card.minHeight;
+            if (cardMinHeight>height) height = cardMinHeight;
+        }
+        return height;
     }
 
     resize(width, height) {
+
+        function placeLine(y, width, height, line) {
+            let resizables = 0;
+            let margin = width;
+            for (let card of line) {
+                if (card.resizable === ToolCard.Resizable.HORIZONTAL) resizables++;
+                margin -= card.minWidth;
+                let cardMinHeight = card.minHeight;
+            }
+            let incWidth = resizables ? margin/resizables : margin/line.length;
+            let pX = -width/2;
+            for (let card of line) {
+                let cardWidth = card.minWidth;
+                if (!resizables || card.resizable === ToolCard.Resizable.HORIZONTAL) {
+                    cardWidth += incWidth;
+                }
+                card.resize(cardWidth, height);
+                card.setLocation(pX+cardWidth/2, y+height/2);
+                pX += cardWidth;
+            }
+        }
+
+        let lines = this._getLines(width);
         let resizables = 0;
-        for (let card of this._cards) {
-            if (card.resizable) resizables++;
+        let margin = height;
+        for (let line of lines) {
+            if (line.length===1 && line[0].resizable === ToolCard.Resizable.VERTICAL) {
+                resizables++;
+                let card = line[0];
+                margin -= card.minHeight;
+            }
+            else {
+                margin -= this._lineHeight(line);
+            }
         }
         let pY = -height/2;
-        let pHeight = this.height;
-        let incHeight = (height-pHeight)/resizables;
-        for (let card of this._cards) {
-            if (card.resizable) {
-                card.resize(width, card.height+incHeight);
+        let incHeight = this.resizable ? margin/resizables : margin/lines.length;
+        for (let line of lines) {
+            if (line.length===1 && line[0].resizable === ToolCard.Resizable.VERTICAL) {
+                let card = line[0];
+                card.resize(width, card.minHeight+incHeight);
+                card.setLocation(0, pY + card.height/2);
+                pY += card.height;
             }
-            card.setLocation(0, pY + card.height/2);
-            pY += card.height;
+            else {
+                let lineHeight = this._lineHeight(line);
+                if (!resizables) lineHeight += incHeight;
+                placeLine.call(this, pY, width, lineHeight, line);
+                pY += lineHeight;
+            }
         }
         this._setSize(width, height);
     }
@@ -1059,7 +1209,17 @@ export class ToolPanelCard extends ToolCard {
     }
 
     get resizable() {
-        return true;
+        return ToolCard.Resizable.VERTICAL;
+    }
+
+    get minWidth() {
+        let currentPanel = this.currentPanel;
+        return currentPanel ? currentPanel.minWidth : 1;
+    }
+
+    get minHeight() {
+        let currentPanel = this.currentPanel;
+        return currentPanel ? currentPanel.minHeight : 1;
     }
 
     resize(width, height) {
@@ -1240,6 +1400,13 @@ export class ToolPanel {
         return this;
     }
 
+    get minWidth() {
+        return this._content.minWidth;
+    }
+
+    get minHeight() {
+        return this._content.minHeight;
+    }
 }
 ToolPanel.PANEL_TITLE_HEIGHT = 20;
 ToolPanel.PANEL_MIN_HEIGHT = 16;
@@ -1256,9 +1423,10 @@ export class ToolExpandablePanelCard extends ToolPanelCard {
     _build() {
         let contentHeight = this.height -
             this._panels.length * ToolPanel.PANEL_TITLE_HEIGHT;
-        if (this.currentPanel) {
-            this.currentPanel.height = contentHeight;
-            this.currentPanel.width = this.width;
+        let currentPanel = this.currentPanel;
+        if (currentPanel) {
+            currentPanel.height = contentHeight;
+            currentPanel.width = this.width;
         }
         let height = -this._height / 2;
         for (let panel of this._panels) {
@@ -1273,6 +1441,14 @@ export class ToolExpandablePanelCard extends ToolPanelCard {
                 height += contentHeight;
             }
         }
+    }
+
+    get titleHeight() {
+        return this._panels.length * ToolPanel.PANEL_TITLE_HEIGHT;
+    }
+
+    get minHeight() {
+        return super.minHeight + this.titleHeight;
     }
 
 }
@@ -1343,13 +1519,22 @@ export class ToolTabsetPanelCard extends ToolPanelCard {
             height += ToolPanel.PANEL_TITLE_HEIGHT;
         }
         let contentHeight = this.height - ToolPanel.PANEL_TITLE_HEIGHT*lines.length;
-        if (this.currentPanel) {
-            this.currentPanel.width = this.width;
-            this.currentPanel.height = contentHeight;
-            this._root.add(this.currentPanel._root);
-            this.currentPanel._refresh();
-            this.currentPanel.setLocation(0, height + contentHeight / 2);
+        let currentPanel = this.currentPanel;
+        if (currentPanel) {
+            currentPanel.width = this.width;
+            currentPanel.height = contentHeight;
+            this._root.add(currentPanel._root);
+            currentPanel._refresh();
+            currentPanel.setLocation(0, height + contentHeight / 2);
         }
+    }
+
+    get titleHeight() {
+        return this._getTitleLines(new List(...this._panels)).length * ToolPanel.PANEL_TITLE_HEIGHT;
+    }
+
+    get minHeight() {
+        return super.minHeight + this.titleHeight;
     }
 
 }
@@ -1408,7 +1593,19 @@ export class ToolCardPopup extends ToolPopup {
         return this;
     }
 
+    get minWidth() {
+        return this._rootCard.minWidth+this._widthMargin;
+    }
+
+    get minHeight() {
+        return this._rootCard.minHeight+this._heightMargin;
+    }
+
     resize(width, height) {
+        let minWidth = this.minWidth;
+        if (width<minWidth) width = minWidth;
+        let minHeight = this.minHeight;
+        if (height<minHeight) height = minHeight;
         super.resize(width, height);
         this._rootCard.resize(width-this._widthMargin, height -this._heightMargin);
     }
@@ -1419,6 +1616,8 @@ export class ToolFilterCard extends ToolCard {
 
     constructor(width, height, action) {
         super(width, height);
+        this._minWidth = width;
+        this._minHeight = height;
         this._background = new Rect(-width/2, -height/2, width, height).attrs({fill:Colors.LIGHTEST_GREY});
         this._root.add(this._background);
         this._action = action;
@@ -1431,11 +1630,16 @@ export class ToolFilterCard extends ToolCard {
         return this._input._node.value;
     }
 
-    _buildInput(width, height) {
-        let inputHeight = Math.round(height*0.66);
+    _setInputSizeAndPosition(width, height) {
+        let inputHeight = Math.round(this._minHeight*0.50);
         let inputWidth = width - Math.round(ToolFilterCard.WIDTH_OFFSET*3.5);
-        let margin = Math.round(inputHeight/4);
-        this._input = new DOMElement("input").attrs({style: `width:${inputWidth}px;height:${inputHeight}px;`});
+        let inputMargin = Math.round(inputHeight/4);
+        this._input.attrs({style: `width:${inputWidth}px;height:${inputHeight}px;`});
+        this._inputSupport.attrs({x:-width / 2 + inputMargin, y:-inputHeight/2, width:inputWidth});
+    }
+
+    _buildInput(width, height) {
+        this._input = new DOMElement("input");
         this._input.on(MouseEvents.MOUSE_DOWN, event => {
             event.stopPropagation();
         });
@@ -1445,17 +1649,23 @@ export class ToolFilterCard extends ToolCard {
         this._input.on(KeyboardEvents.INPUT, event => {
             this._action && this._action(this._inputValue());
         });
-        this._inputSupport = new ForeignObject(-width / 2 + margin, -height / 2 + margin, inputWidth, inputHeight);
+        this._inputSupport = new ForeignObject(-width / 2, -height / 2, width, height);
         this._inputSupport.add(this._input);
         this._root.add(this._inputSupport);
+        this._setInputSizeAndPosition(width, height);
+    }
+
+    _setMagnifierSizeAndPosition(width, height) {
+        let magnifierSize = ToolFilterCard.WIDTH_OFFSET;
+        let magnifierMargin = Math.round(magnifierSize/4);
+        this._magnifierSupport.set(width/2-magnifierMargin-magnifierSize/2, 0);
     }
 
     _buildMagnifier(width, height) {
         let magnifierSize = ToolFilterCard.WIDTH_OFFSET;
-        let margin = Math.round(magnifierSize/4);
         this._magnifier = new SvgRasterImage(
             "./images/icons/magnifier.svg", -magnifierSize/2, -magnifierSize/2, magnifierSize, magnifierSize );
-        this._magnifierSupport = new Translation(width/2-margin-magnifierSize/2);
+        this._magnifierSupport = new Translation();
         this._magnifierSupport.add(this._magnifier);
         this._root.add(this._magnifierSupport);
         this._magnifierSupport.on(MouseEvents.MOUSE_DOWN, event=>{
@@ -1467,14 +1677,21 @@ export class ToolFilterCard extends ToolCard {
         this._magnifierSupport.on(MouseEvents.MOUSE_UP, event=>{
             this._magnifier.matrix = null;
         });
+        this._setMagnifierSizeAndPosition(width, height);
+    }
+
+    _setCrossSizeAndPosition(width, height) {
+        let crossSize = ToolFilterCard.WIDTH_OFFSET;
+        let crossMargin = Math.round(crossSize/4);
+        this._crossSupport.set(width/2-crossMargin*2-crossSize*3/2, 0);
     }
 
     _buildCross(width, height) {
         let crossSize = ToolFilterCard.WIDTH_OFFSET;
-        let margin = Math.round(crossSize/4);
         this._cross = new SvgRasterImage(
             "./images/icons/cross.svg", -crossSize/2, -crossSize/2, crossSize, crossSize );
-        this._crossSupport = new Translation(width/2-margin*2-crossSize*3/2);
+        this._crossSupport = new Translation();
+        this._setCrossSizeAndPosition(width, height);
         this._crossSupport.add(this._cross);
         this._root.add(this._crossSupport);
         this._crossSupport.on(MouseEvents.MOUSE_DOWN, event=>{
@@ -1488,6 +1705,26 @@ export class ToolFilterCard extends ToolCard {
             this._cross.matrix = null;
         });
     }
+
+    get resizable() {
+        return ToolCard.Resizable.NO;
+    }
+
+    resize(width, height) {
+        this._setSize(width, height);
+        this._background.attrs({x:-width/2, y:-height/2, width, height});
+        this._setInputSizeAndPosition(width, height);
+        this._setCrossSizeAndPosition(width, height);
+        this._setMagnifierSizeAndPosition(width, height);
+    }
+
+    get minWidth() {
+        return this._minWidth;
+    }
+
+    get minHeight() {
+        return this._minHeight;
+    }
 }
 ToolFilterCard.WIDTH_OFFSET = 20;
 
@@ -1495,10 +1732,13 @@ export class ToolKeywordsCard extends ToolCard {
 
     constructor(width, action) {
         super(width, 1);
+        this._minWidth = width;
         this._keywords = new List();
         this._content = new Translation();
         this._background = new Rect(-width/2, 0, width, 1).attrs({fill:Colors.LIGHTEST_GREY});
         this._content.add(this._background);
+        this._pedestalsSupport = new Translation();
+        this._content.add(this._pedestalsSupport);
         this._action = action;
         this._root.add(this._content);
     }
@@ -1517,15 +1757,16 @@ export class ToolKeywordsCard extends ToolCard {
         return this;
     }
 
-    _refresh() {
-        this._content.clear();
-        this._content.add(this._background);
+    _build() {
+        this._pedestalsSupport.clear();
+        this._pedestals = new List();
         let current = null;
-        this._height = ToolKeywordsCard.MARGIN;
+        let height = ToolKeywordsCard.MARGIN;
         let x = -this._width / 2 + ToolKeywordsCard.MARGIN;
         let y = -ToolKeywordsCard.MARGIN;
         for (let keyword of this._keywords) {
             let pedestal = new Translation();
+            this._pedestals.add(pedestal);
             let text = new Text(0, 0, keyword.label).attrs({
                 text_anchor: TextAnchor.MIDDLE,
                 alignement_baseline: AlignmentBaseline.MIDDLE,
@@ -1534,12 +1775,12 @@ export class ToolKeywordsCard extends ToolCard {
             pedestal.text = text;
             pedestal.keyword = keyword;
             pedestal.add(text);
-            this._content.add(pedestal);
+            this._pedestalsSupport.add(pedestal);
             let bbox = pedestal.bbox;
             if (y <= 0 || x + bbox.width > this._width / 2 - ToolKeywordsCard.MARGIN) {
                 x = -this._width / 2 + ToolKeywordsCard.MARGIN;
                 y += bbox.height + ToolKeywordsCard.MARGIN;
-                this._height += bbox.height + ToolKeywordsCard.MARGIN;
+                height += bbox.height + ToolKeywordsCard.MARGIN;
             }
             let background = new Rect( -bbox.width / 2,  -bbox.height / 2 - ToolKeywordsCard.MARGIN,
                 bbox.width, bbox.height + ToolKeywordsCard.MARGIN )
@@ -1561,10 +1802,48 @@ export class ToolKeywordsCard extends ToolCard {
             pedestal.set(x + bbox.width / 2, y);
             x += bbox.width + ToolKeywordsCard.MARGIN;
         }
-        this._content.set(0, -this._height/2);
-        this._background.y = 0;
-        this._background.height = this._height;
+        let dWidth = this.width - this._pedestalsSupport.bbox.width;
+        this._pedestalsSupport.set(dWidth/2, 0);
+        return height;
     }
+
+    _refresh() {
+        this._height  = this._build();
+        this._content.set(0, -this._height/2);
+        this._background.attrs({x: -this._width/2, y: 0, width:this._width, height:this._height});
+    }
+
+    get resizable() {
+        return ToolCard.Resizable.HORIZONTAL;
+    }
+
+    resize(width, height) {
+        this._setSize(width, height);
+        this._build();
+        this._content.set(0, -this._height/2);
+        this._background.attrs({x: -this._width/2, y: 0, width:this._width, height:this._height});
+    }
+
+    get minWidth() {
+        return this._minWidth;
+    }
+
+    get minHeight() {
+        let minHeight = ToolKeywordsCard.MARGIN;
+        let x = -this._width / 2 + ToolKeywordsCard.MARGIN;
+        let y = -ToolKeywordsCard.MARGIN;
+        for (let pedestal of this._pedestals) {
+            let bbox = pedestal.bbox;
+            if (y <= 0 || x + bbox.width > this._width / 2 - ToolKeywordsCard.MARGIN) {
+                x = -this._width / 2 + ToolKeywordsCard.MARGIN;
+                y += bbox.height + ToolKeywordsCard.MARGIN;
+                minHeight += bbox.height + ToolKeywordsCard.MARGIN;
+            }
+            x += bbox.width + ToolKeywordsCard.MARGIN;
+        }
+        return minHeight;
+    }
+
 }
 ToolKeywordsCard.MARGIN = 5;
 ToolKeywordsCard.KEYWORD_SELECTED_CLASS = "keyword-selected";
@@ -1829,6 +2108,13 @@ export class ToolGridPanelContent extends ToolPanelContent {
         return this;
     }
 
+    get minWidth() {
+        return this._cellWidth + ToolGridPanelContent.CELL_MARGIN*2;
+    }
+
+    get minHeight() {
+        return this._cellHeight;
+    }
 }
 makeObservable(ToolGridPanelContent);
 ToolGridPanelContent.SCROLL_WHEEL_STEP = 50;

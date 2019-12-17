@@ -16,7 +16,7 @@ import {
 } from "../../js/toolkit.js";
 import {
     BoardItemBuilder, ToolGridPanelContent, ToolToggleCommand, FavoriteItemBuilder, ToolTabsetPanelPopup,
-    ToolGridExpandablePanel, ToolCommandPopup, ToolFilterCard, ToolKeywordsCard
+    ToolGridExpandablePanel, ToolCommandPopup, ToolFilterCard, ToolKeywordsCard, ToolExpandablePanelPopup
 } from "../../js/tools.js";
 import {
     FreePositioningMode
