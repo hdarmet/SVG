@@ -2532,14 +2532,19 @@ export class RasterImage extends Shape {
 
     _setImage(raster, width, height) {
         if (!width || !height) {
-            if (width) {
+            if (!height) {
                 height = raster.height * width / raster.width;
-            } else if (height) {
+            } else if (!width) {
                 width = raster.width * height / raster.height;
             } else {
-                width = raster.width;
-                height = raster.height;
+                let factor = Math.min(width / raster.width, height / raster.height);
+                width = raster.width * factor;
+                height = raster.height * factor;
             }
+        }
+        else {
+            width = raster.width;
+            height = raster.height;
         }
         this._old = this._node;
         this._attrs.width = width;

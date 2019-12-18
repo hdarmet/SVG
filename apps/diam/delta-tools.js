@@ -16,7 +16,8 @@ import {
 } from "../../js/toolkit.js";
 import {
     BoardItemBuilder, ToolGridPanelContent, ToolToggleCommand, FavoriteItemBuilder, ToolTabsetPanelPopup,
-    ToolGridExpandablePanel, ToolCommandPopup, ToolFilterCard, ToolKeywordsCard, ToolExpandablePanelPopup
+    ToolGridExpandablePanel, ToolCommandPopup, ToolFilterCard, ToolKeywordsCard, ToolExpandablePanelPopup,
+    ToolPopup, ToolToggleTitleCommand
 } from "../../js/tools.js";
 import {
     FreePositioningMode
@@ -169,6 +170,64 @@ export function createCommandPopup(palettePopup) {
 
 export function setShortcuts() {
     Facilities.allowElementDeletion();
+}
+
+export class DIAMPalette extends ToolTabsetPanelPopup {
+
+    constructor(paletteContent) {
+        let filterCard = new ToolFilterCard(200, 40, input=>console.log("Input:", input));
+        let keywordsCard = new ToolKeywordsCard(200, keyword=>console.log("Keyword:", keyword));
+        super(210, 200, 350, [filterCard, keywordsCard]);
+        this._keywordsCard = keywordsCard;
+        this._paletteContent = paletteContent;
+        this._buildSmartViewCommand();
+        this._buildPanels();
+        this.display(-110, 240);
+    }
+
+    _showSmartImages() {
+        for (let builder of this._paletteContent.cells) {
+            builder.showImage();
+        }
+    }
+
+    _hideSmartImages() {
+        for (let builder of this._paletteContent.cells) {
+            builder.hideImage();
+        }
+    }
+
+    _buildSmartViewCommand() {
+        this._smartViewCommand = new ToolToggleTitleCommand(this,
+            "./images/icons/icon_view.png", "./images/icons/3D_view.png",
+            ToolPopup.HEADER_MARGIN + ToolPopup.TITLE_COMMAND_MARGIN,
+            event=>{
+                this._smartViewCommand.switchToAlt();
+                this._showSmartImages();
+            },
+            event=>{
+                this._smartViewCommand.switchToNormal();
+                this._hideSmartImages();
+            }
+        );
+        this.addTitleCommand(this._smartViewCommand);
+    }
+
+    _buildPanels() {
+        this.addPanel(new ToolGridExpandablePanel("All", this._paletteContent));
+        this.addPanel(new ToolGridExpandablePanel("Furniture", this._paletteContent,
+            cell=>cell.applyAnd(is(DIAMPane, DIAMAbstractLadder, DIAMShelf, DIAMBox, DIAMFixing, DIAMHook))));
+        this.addPanel(new ToolGridExpandablePanel("Modules", this._paletteContent,
+            cell=>cell.applyAnd(is(DIAMAbstractModule))));
+        this.addPanel(new OptionsExpandablePanel("Colors And Options", this._paletteContent));
+        this.addPanel(new ToolGridExpandablePanel("Favorites", this._paletteContent,
+            cell=>cell instanceof FavoriteItemBuilder));
+    }
+
+    addKeyword(keyword, label) {
+        this._keywordsCard.addKeyword(keyword, label);
+        return this;
+    }
 }
 
 export function createPalettePopup() {
@@ -340,7 +399,7 @@ export function createPalettePopup() {
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMImageModule({
         width:20, height:40, realisticUrl:"./apps/diam/modules/eye liner c.png", url:{svg:"./apps/diam/modules/eye liner b.svg", rasterized:true}
-    })]));
+    })], null, "./apps/diam/modules/eye liner e.png"));
     paletteContent.addCell(new BoardItemBuilder([new DIAMBasicModule({
         width:20, height:40, color:"#FF0000"
     })]));
@@ -447,9 +506,9 @@ export function createPalettePopup() {
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#AA0000"}),
         compatibilities:["R"]
     })]));
-    let filterCard = new ToolFilterCard(200, 40, input=>console.log("Input:", input));
-    let keywordsCard = new ToolKeywordsCard(200, keyword=>console.log("Keyword:", keyword))
-        .addKeyword("alpha", "A")
+
+    let palettePopup = new DIAMPalette(paletteContent);
+    palettePopup.addKeyword("alpha", "A")
         .addKeyword("beta", "B")
         .addKeyword("gamma", "C")
         .addKeyword("delta", "D")
@@ -459,15 +518,5 @@ export function createPalettePopup() {
         .addKeyword("gamma")
         .addKeyword("delta")
         .addKeyword("epsilon");
-    let palettePopup = new ToolTabsetPanelPopup(210, 200, 350, [filterCard, keywordsCard]).display(-110, 240);
-    palettePopup.addPanel(new ToolGridExpandablePanel("All", paletteContent));
-    palettePopup.addPanel(new ToolGridExpandablePanel("Furniture", paletteContent,
-        cell=>cell.applyAnd(is(DIAMPane, DIAMAbstractLadder, DIAMShelf, DIAMBox, DIAMFixing, DIAMHook))));
-    palettePopup.addPanel(new ToolGridExpandablePanel("Modules", paletteContent,
-        cell=>cell.applyAnd(is(DIAMAbstractModule))));
-    palettePopup.addPanel(new OptionsExpandablePanel("Colors And Options", paletteContent));
-    palettePopup.addPanel(new ToolGridExpandablePanel("Favorites", paletteContent,
-        cell=>cell instanceof FavoriteItemBuilder));
-    palettePopup._paletteContent = paletteContent;
     return palettePopup;
 }

@@ -1263,8 +1263,8 @@ export function makeLayered(superClass, {layer}) {
 
     extendMethod(superClass, $getLayer=>
         function getLayer(target) {
-            if (getLayer) {
-                let layer = getLayer.call(this, target);
+            if ($getLayer) {
+                let layer = $getLayer.call(this, target);
                 if (layer) return layer;
             }
             return layer;

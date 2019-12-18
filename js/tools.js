@@ -122,7 +122,7 @@ Canvas.prototype.manageMenus = function() {
     //FIXME May I use one day ?
     Canvas.prototype.askForClosingMenu = function() {
         let menu = this._menu;
-        setTimeout(() => {
+        win.setTimeout(() => {
             if (menu) {
                 menu.close();
                 if (this._menu === menu) delete this._menu;
@@ -399,20 +399,50 @@ function toolId() {
 
 export class ToolTitleCommand {
 
-    constructor(imageURL, x, action) {
-        this._root = new RasterImage(imageURL,
-            -ToolTitleCommand.SIZE/2, -ToolTitleCommand.SIZE/2, ToolTitleCommand.SIZE, ToolTitleCommand.SIZE );
+    constructor(popup, imageURL, location, action) {
+        this._popup = popup;
+        this._location = location;
+        this._root = new Translation();
         this._root._owner = this;
-        this.move(x);
+        this._icon = new RasterImage(imageURL,
+            -ToolTitleCommand.SIZE/2, -ToolTitleCommand.SIZE/2, ToolTitleCommand.SIZE, ToolTitleCommand.SIZE );
+        this._root.add(this._icon);
+        this._action = action;
         this._root.on(MouseEvents.CLICK, action);
     }
 
-    move(x) {
-        this._root.matrix = Matrix.translate(x, 0);
+    _adjust() {
+        this._root.set(this._popup.width/2 - this._location, 0);
     }
 
 }
 ToolTitleCommand.SIZE = 12;
+
+export class ToolToggleTitleCommand extends ToolTitleCommand {
+
+    constructor(popup, imageURL, altImageURL, x, action, altAction = action) {
+        super(popup, imageURL, x, action);
+        this._altImageURL = altImageURL;
+        this._altAction = altAction;
+        this._altIcon = new RasterImage(altImageURL,
+            -ToolTitleCommand.SIZE/2, -ToolTitleCommand.SIZE/2, ToolTitleCommand.SIZE, ToolTitleCommand.SIZE );
+        this._altAction = altAction;
+    }
+
+    switchToNormal() {
+        this._root.clear();
+        this._root.add(this._icon);
+        this._root.off(MouseEvents.CLICK, this._altAction);
+        this._root.on(MouseEvents.CLICK, this._action);
+    }
+
+    switchToAlt() {
+        this._root.clear();
+        this._root.add(this._altIcon);
+        this._root.off(MouseEvents.CLICK, this._action);
+        this._root.on(MouseEvents.CLICK, this._altAction);
+    }
+}
 
 let _refreshPoll = null;
 let refreshTools = function(action) {
@@ -436,13 +466,13 @@ export class ToolTitlePopup {
         this._titleBackground = new Rect(-popup.width / 2, -ToolPopup.HEADER_HEIGHT / 2, popup.width, ToolPopup.HEADER_HEIGHT)
             .attrs({fill: Colors.BLACK});
         this._root.add(this._titleBackground);
-        this._minimize = new ToolTitleCommand(ToolPopup.MINIMIZE_URL, popup.width/2-ToolPopup.HEADER_MARGIN,
-            () => popup.minimize()
-        );
-        this._root.add(this._minimize._root);
-        this._restore = new ToolTitleCommand(ToolPopup.RESTORE_URL, popup.width/2-ToolPopup.HEADER_MARGIN,
+        this._titleCommands = new List();
+        this._minimizeRestore = new ToolToggleTitleCommand(this._popup,
+            ToolPopup.MINIMIZE_URL, ToolPopup.RESTORE_URL, ToolPopup.HEADER_MARGIN,
+            () => popup.minimize(),
             () => popup.restore()
         );
+        this.addTitleCommand(this._minimizeRestore);
         this._maxClip = new ClipPath(toolId());
         this._root.add(this._maxClip);
         this._minClip = new ClipPath(toolId());
@@ -463,8 +493,9 @@ export class ToolTitlePopup {
     set width(width) {
         this._titleBackground.x = -width/2;
         this._titleBackground.width = width;
-        this._minimize.move(this._popup.width/2-ToolPopup.HEADER_MARGIN);
-        this._restore.move(this._popup.width/2-ToolPopup.HEADER_MARGIN);
+        for (let titleCommand of this._titleCommands) {
+            titleCommand._adjust(width);
+        }
         this._setClips(width);
     }
 
@@ -473,17 +504,27 @@ export class ToolTitlePopup {
     }
 
     minimize(y) {
-        this._root.add(this._restore._root);
-        this._minimize._root.detach();
+        this._minimizeRestore.switchToAlt();
         this._titleBackground.attrs({ clip_path: this._minClip });
         this._root.matrix = Matrix.translate(0, y);
     }
 
     restore(y) {
-        this._root.add(this._minimize._root);
-        this._restore._root.detach();
+        this._minimizeRestore.switchToNormal();
         this._titleBackground.attrs({ clip_path: this._maxClip });
         this._root.matrix = Matrix.translate(0, y);
+    }
+
+    addTitleCommand(titleCommand) {
+        this._titleCommands.add(titleCommand);
+        this._root.add(titleCommand._root);
+        titleCommand._adjust();
+        return this;
+    }
+
+    removeTitleCommand(titleCommand) {
+        this._titleCommands.remove(titleCommand);
+        this._root.remove(titleCommand._root);
     }
 
 }
@@ -628,6 +669,11 @@ export class ToolPopup {
         this.move(fx, fy);
     }
 
+    addTitleCommand(titleCommand) {
+        this._title.addTitleCommand(titleCommand);
+        return this;
+    }
+
     add(something) {
         this._content.add(something._root);
         return this;
@@ -686,6 +732,7 @@ ToolPopup.TITLE_MARGIN = 1;
 ToolPopup.FOOTER_MARGIN = 10;
 // Distance between the right edge of the popup and the minimize/restore icon
 ToolPopup.HEADER_MARGIN = 10;
+ToolPopup.TITLE_COMMAND_MARGIN = 20;
 ToolPopup.MINIMIZE_URL = "./images/icons/minimize.png";
 ToolPopup.RESTORE_URL = "./images/icons/restore.png";
 
@@ -1978,10 +2025,21 @@ export class ToolGridPanelContent extends ToolPanelContent {
         Layers.instance.addObserver(this);
     }
 
+    get cells() {
+        return this._cells;
+    }
+
     _notified(source, event) {
         if (source === Layers.instance && event === Layers.events.ACTIVATE) {
             this._requestRefresh();
         }
+    }
+
+    unselectAll() {
+        for (let cell of this._cells) {
+            cell.unselect && cell.unselect();
+        }
+        return this;
     }
 
     _getCellsToShow() {
@@ -2158,9 +2216,10 @@ export function onToolPanelContent(panelContent) {
 
 export class BoardItemBuilder extends ToolCell {
 
-    constructor(proto, action) {
+    constructor(proto, action, imageURL) {
         super();
         this._proto = proto;
+        this._imageURL = imageURL;
         this._support = new Group();
         this._root.add(this._support);
         this._action = action;
@@ -2183,10 +2242,31 @@ export class BoardItemBuilder extends ToolCell {
         return this;
     }
 
+    showImage() {
+        if (this._image) {
+            this._image.visibility = Visibility.VISIBLE;
+            console.log(this._image.outerHTML);
+            this._support.visibility = Visibility.HIDDEN;
+        }
+    }
+
+    hideImage() {
+        if (this._image) {
+            this._image.visibility = Visibility.HIDDEN;
+            console.log(this._image.outerHTML);
+            this._support.visibility = Visibility.VISIBLE;
+        }
+    }
+
     activate(owner, width, height) {
         super.activate(owner, width, height);
         this._makeItems();
         this._adjustSize();
+        if (this._imageURL) {
+            this._image = new RasterImage(this._imageURL, -width/2, -height/2, width, height);
+            this._root.add(this._image);
+            this._image.visibility = Visibility.HIDDEN;
+        }
         this._glass = new Rect(
             -width/2-BoardItemBuilder.MARGIN, -height/2-BoardItemBuilder.MARGIN,
             width+BoardItemBuilder.MARGIN*2, height+BoardItemBuilder.MARGIN*2).attrs({
@@ -2221,16 +2301,30 @@ export class BoardItemBuilder extends ToolCell {
     }
 
     select() {
-        Selection.instance.unselectAll(onToolPanelContent(getPanelContent(this)));
-        for (let element of this._currentItems) {
-            Selection.instance.select(element);
+        if (!this._selected) {
+            this._owner.unselectAll();
+            this._selected = true;
+            for (let element of this._currentItems) {
+                Selection.instance.select(element);
+            }
+            if (this._image) {
+                this._image.filter = BoardItemBuilder.getImageSelectionMark();
+            }
         }
     }
 
     unselect() {
-        for (let element of this._currentItems) {
-            Selection.instance.unselect(element);
+        if (this._selected) {
+            for (let element of this._currentItems) {
+                element.visit({}, function (context) {
+                    Selection.instance.unselect(this);
+                });
+            }
+            if (this._image) {
+                this._image.filter = null;
+            }
         }
+        delete this._selected;
     }
 
     _notified(source, event) {
@@ -2316,6 +2410,14 @@ export class BoardItemBuilder extends ToolCell {
 
 }
 BoardItemBuilder.MARGIN = 4;
+BoardItemBuilder.getImageSelectionMark = function() {
+    if (!Context._boardItemBuilderImageSelectionMark) {
+        Context._boardItemBuilderImageSelectionMark = defineShadow(`_bIbImg_`, Colors.RED);
+        Context._boardItemBuilderImageSelectionMark.feDropShadow.stdDeviation = [5, 5];
+        Canvas.instance.addFilter(Context._boardItemBuilderImageSelectionMark);
+    }
+    return Context._boardItemBuilderImageSelectionMark;
+};
 
 export class FavoriteItemBuilder extends BoardItemBuilder {
 
