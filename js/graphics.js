@@ -15,7 +15,6 @@ console.log("Svgbase loaded");
 export let SVG_NS = "http://www.w3.org/2000/svg";
 export let XLINK_NS = "http://www.w3.org/1999/xlink";
 
-
 export let dom = {
     clientWidth(node) {
         return node.clientWidth;
@@ -700,7 +699,7 @@ function defineFloatListProperty(clazz, name, separator=" ") {
     );
 }
 
-function defineDimensionListProperty(clazz, name) {
+function defineDimensionListProperty(clazz, name, separator) {
     defineProperty(clazz, name,
         function () {
             let value = this.attr(name);
@@ -711,8 +710,8 @@ function defineDimensionListProperty(clazz, name) {
                 throw TypeError("Attribute value must be defined");
             }
             if (value!==null) {
-                let list = numbers.join(separator);
-                this.attr(name, list, numbers);
+                let list = value.join(separator);
+                this.attr(name, list, value);
             }
             else this.attr(name, null);
         }
@@ -2359,6 +2358,7 @@ export const TextAnchor = {
 };
 
 export const AlignmentBaseline = {
+    NONE : "none",
     AUTO : "auto",
     BASELINE : "baseline",
     BEFORE_EDGE : "before-edge",
@@ -2477,27 +2477,27 @@ defineStringProperty(TextItem, Attrs.ALIGNMENT_BASELINE);
 defineDimensionProperty(TextItem, Attrs.X);
 defineDimensionProperty(TextItem, Attrs.Y);
 defineFloatProperty(TextItem, Attrs.ROTATE);
+defineStringProperty(TextItem, Attrs.FONT_FAMILY);
+defineAnyProperty(TextItem, Attrs.FONT_SIZE);
+defineStringProperty(TextItem, Attrs.FONT_STYLE);
+defineStringProperty(TextItem, Attrs.FONT_VARIANT);
+defineAnyProperty(TextItem, Attrs.FONT_WEIGHT);
+defineAnyProperty(TextItem, Attrs.FONT_SIZE_ADJUST);
+defineStringProperty(TextItem, Attrs.FONT_STRETCH);
 
 export class Tspan extends TextItem {
     constructor(x, y, text) {
         super("tspan", x, y, text);
     }
 }
-defineDimensionListProperty(Tspan, Attrs.DX, ", ");
-defineDimensionListProperty(Tspan, Attrs.DY, ", ");
+defineDimensionProperty(Tspan, Attrs.DX);
+defineDimensionProperty(Tspan, Attrs.DY);
 
 export class Text extends TextItem {
     constructor(x, y, text) {
         super("text", x, y, text);
     }
 }
-defineStringProperty(Text, Attrs.FONT_FAMILY);
-defineAnyProperty(Text, Attrs.FONT_SIZE);
-defineStringProperty(Text, Attrs.FONT_STYLE);
-defineStringProperty(Text, Attrs.FONT_VARIANT);
-defineAnyProperty(Text, Attrs.FONT_WEIGHT);
-defineAnyProperty(Text, Attrs.FONT_SIZE_ADJUST);
-defineStringProperty(Text, Attrs.FONT_STRETCH);
 
 export const AspectRatio = {
     NONE: "none"

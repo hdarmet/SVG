@@ -17,7 +17,7 @@ import {
 import {
     BoardItemBuilder, ToolGridPanelContent, ToolToggleCommand, FavoriteItemBuilder, ToolTabsetPanelPopup,
     ToolGridExpandablePanel, ToolCommandPopup, ToolFilterCard, ToolKeywordsCard, ToolExpandablePanelPopup,
-    ToolPopup, ToolToggleTitleCommand
+    ToolPopup, ToolToggleTitleCommand, makePopupResizable
 } from "../../js/tools.js";
 import {
     FreePositioningMode
@@ -229,9 +229,10 @@ export class DIAMPalette extends ToolTabsetPanelPopup {
         return this;
     }
 }
+makePopupResizable(DIAMPalette);
 
 export function createPalettePopup() {
-    let paletteContent = new ToolGridPanelContent(200, 80, 80);
+    let paletteContent = new ToolGridPanelContent(200, 80, 120);
     paletteContent.addCell(new BoardItemBuilder([new DIAMPane({
         width:840, height:500, contentX:0, contentY:0, contentWidth:810, contentHeight:460,
         label:"pane"
@@ -399,10 +400,10 @@ export function createPalettePopup() {
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DIAMImageModule({
         width:20, height:40, realisticUrl:"./apps/diam/modules/eye liner c.png", url:{svg:"./apps/diam/modules/eye liner b.svg", rasterized:true}
-    })], null, "./apps/diam/modules/eye liner e.png"));
+    })], null, "./apps/diam/modules/eye liner e.png", "Eye Liner\nLiner Eye\nAnd a big, very big line"));
     paletteContent.addCell(new BoardItemBuilder([new DIAMBasicModule({
         width:20, height:40, color:"#FF0000"
-    })]));
+    })], null, null, new Rect(-100, -50, 200, 100).attrs({fill:Colors.LIGHT_GREY})));
     paletteContent.addCell(new BoardItemBuilder([new DIAMBasicModule({
         width:40, height:40, color:"#00FF00"
     })]));

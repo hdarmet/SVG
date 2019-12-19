@@ -9,7 +9,7 @@ import {
 import {
     Visibility, computePosition, RasterImage, SvgRasterImage, Group, ClipPath, Rect, Text, AlignmentBaseline,
     Colors, MouseEvents, TextAnchor, win, Cursor, ForeignObject, DOMElement, Translation, KeyboardEvents,
-    M, Path, Z, Q, L
+    M, Path, Z, Q, L, SVGElement
 } from "./graphics.js";
 import {
     Context, Events, l2pBoundingBox, Memento, Canvas, makeObservable, makeNotCloneable,
@@ -22,8 +22,11 @@ import {
     makeDraggable
 } from "./core-mixins.js";
 import {
-    defineShadow
+    defineShadow, MultiLineText
 } from "./svgtools.js";
+import {
+    assert, defineMethod, extendMethod
+} from "./misc.js";
 
 export class Menu {
 
@@ -533,16 +536,11 @@ makeDraggable(ToolTitlePopup);
 export class ToolPopup {
 
     constructor(width, height) {
+        this._width = width;
         this._height = height;
         this._root = new Group();
-        this._background = new Rect(-width / 2, -height / 2, width, height)
-            .attrs({
-                stroke: Colors.BLACK,
-                fill: Colors.LIGHT_GREY,
-                rx: ToolPopup.CORNER_SIZE, ry: ToolPopup.CORNER_SIZE, filter: Canvas.instance.shadowFilter
-            });
-        this._root.add(this._background);
         this._root._owner = this;
+        this._init();
         this._contentSupport = new Group();
         this._root.add(this._contentSupport);
         this._content = new Group();
@@ -553,7 +551,16 @@ export class ToolPopup {
         this._title.restore(y);
         Canvas.instance.addObserver(this);
         Canvas.instance.putArtifactOnToolsLayer(this._root);
-        this._dragOperation(()=>ResizePopupOperation.instance);
+    }
+
+    _init() {
+        this._background = new Rect(-this.width / 2, -this.height / 2, this.width, this.height)
+            .attrs({
+                stroke: Colors.BLACK,
+                fill: Colors.LIGHT_GREY,
+                rx: ToolPopup.CORNER_SIZE, ry: ToolPopup.CORNER_SIZE, filter: Canvas.instance.shadowFilter
+            });
+        this._root.add(this._background);
     }
 
     get minimized() {
@@ -561,10 +568,11 @@ export class ToolPopup {
     }
 
     get width() {
-        return this._background.width;
+        return this._width;
     }
 
     set width(width) {
+        this._width = width;
         this._background.width = width;
         this._background.x = -width/2;
     }
@@ -585,12 +593,6 @@ export class ToolPopup {
     set height(height) {
         this._setHeight(height);
         this._adjustPosition();
-    }
-
-    resize(width, height) {
-        this.width = width;
-        this.height = height;
-        this._title.width = this.width;
     }
 
     minimize() {
@@ -616,6 +618,12 @@ export class ToolPopup {
         this._adjustPosition();
     }
 
+    resize(width, height) {
+        this.width = width;
+        this.height = height;
+        this._title.width = this.width;
+    }
+
     _adjustPosition() {
         let clientWidth = Canvas.instance.clientWidth;
         let clientHeight = Canvas.instance.clientHeight;
@@ -636,36 +644,6 @@ export class ToolPopup {
         let imatrix = this._root.parent.matrix.invert();
         let fx = imatrix.x(x, y);
         let fy = imatrix.y(x, y);
-        this.move(fx, fy);
-    }
-
-    _adjustSize() {
-        let clientWidth = Canvas.instance.clientWidth;
-        let clientHeight = Canvas.instance.clientHeight;
-        let x = this._root.globalMatrix.dx-clientWidth/2;
-        let y = this._root.globalMatrix.dy-clientHeight/2;
-        let width = this.width;
-        let height = this.height;
-        if (x + this.width/2 > clientWidth/2 - ToolPopup.BORDER_MARGIN) {
-            width = this.width/2 - x + clientWidth/2 - ToolPopup.BORDER_MARGIN;
-            x += (width - this.width)/2;
-        }
-        if (x - this.width/2 < -clientWidth/2 + ToolPopup.BORDER_MARGIN ) {
-            width = this.width/2 + x + clientWidth/2 - ToolPopup.BORDER_MARGIN;
-            x -= (width - this.width)/2;
-        }
-        if (y + this.height/2 > clientHeight/2 - ToolPopup.BORDER_MARGIN) {
-            height = this.height/2 - y + clientHeight/2 - ToolPopup.BORDER_MARGIN;
-            y += (height - this.height)/2;
-        }
-        if (y - this.height/2 < -clientHeight/2 + ToolPopup.BORDER_MARGIN) {
-            height = this.height/2 + y + clientHeight/2 - ToolPopup.BORDER_MARGIN;
-            y -= (height - this.height)/2;
-        }
-        let imatrix = this._root.parent.matrix.invert();
-        let fx = imatrix.x(x, y);
-        let fy = imatrix.y(x, y);
-        this.resize(width, height);
         this.move(fx, fy);
     }
 
@@ -735,6 +713,48 @@ ToolPopup.HEADER_MARGIN = 10;
 ToolPopup.TITLE_COMMAND_MARGIN = 20;
 ToolPopup.MINIMIZE_URL = "./images/icons/minimize.png";
 ToolPopup.RESTORE_URL = "./images/icons/restore.png";
+
+export function makePopupResizable(superClass) {
+
+    extendMethod(superClass, $init=>
+        function _init() {
+            $init.call(this);
+            this._dragOperation(()=>ResizePopupOperation.instance);
+        }
+    );
+
+    defineMethod(superClass,
+        function _adjustSize() {
+            let clientWidth = Canvas.instance.clientWidth;
+            let clientHeight = Canvas.instance.clientHeight;
+            let x = this._root.globalMatrix.dx-clientWidth/2;
+            let y = this._root.globalMatrix.dy-clientHeight/2;
+            let width = this.width;
+            let height = this.height;
+            if (x + this.width/2 > clientWidth/2 - ToolPopup.BORDER_MARGIN) {
+                width = this.width/2 - x + clientWidth/2 - ToolPopup.BORDER_MARGIN;
+                x += (width - this.width)/2;
+            }
+            if (x - this.width/2 < -clientWidth/2 + ToolPopup.BORDER_MARGIN ) {
+                width = this.width/2 + x + clientWidth/2 - ToolPopup.BORDER_MARGIN;
+                x -= (width - this.width)/2;
+            }
+            if (y + this.height/2 > clientHeight/2 - ToolPopup.BORDER_MARGIN) {
+                height = this.height/2 - y + clientHeight/2 - ToolPopup.BORDER_MARGIN;
+                y += (height - this.height)/2;
+            }
+            if (y - this.height/2 < -clientHeight/2 + ToolPopup.BORDER_MARGIN) {
+                height = this.height/2 + y + clientHeight/2 - ToolPopup.BORDER_MARGIN;
+                y -= (height - this.height)/2;
+            }
+            let imatrix = this._root.parent.matrix.invert();
+            let fx = imatrix.x(x, y);
+            let fy = imatrix.y(x, y);
+            this.resize(width, height);
+            this.move(fx, fy);
+        }
+    );
+}
 
 export class DragPopupOperation extends DragOperation {
 
@@ -2137,7 +2157,9 @@ export class ToolGridPanelContent extends ToolPanelContent {
 
     addCell(cell) {
         this._cells.add(cell);
-        cell.activate(this, this._cellWidth * 0.9, this._cellHeight * 0.8);
+        cell.activate(this,
+            this._cellWidth * ToolGridPanelContent.REDUCTION_FACTOR,
+            this._cellHeight * ToolGridPanelContent.REDUCTION_FACTOR);
         this._requestRefresh();
         return this;
     }
@@ -2176,7 +2198,8 @@ export class ToolGridPanelContent extends ToolPanelContent {
 }
 makeObservable(ToolGridPanelContent);
 ToolGridPanelContent.SCROLL_WHEEL_STEP = 50;
-ToolGridPanelContent.CELL_MARGIN = 20;
+ToolGridPanelContent.CELL_MARGIN = 10;
+ToolGridPanelContent.REDUCTION_FACTOR = 0.95;
 
 export class ToolGridExpandablePanel extends ToolPanel {
 
@@ -2216,14 +2239,29 @@ export function onToolPanelContent(panelContent) {
 
 export class BoardItemBuilder extends ToolCell {
 
-    constructor(proto, action, imageURL) {
+    constructor(proto, action, imageURL, label) {
         super();
         this._proto = proto;
         this._imageURL = imageURL;
         this._support = new Group();
         this._root.add(this._support);
         this._action = action;
+        this._setLabel(label);
         Canvas.instance.addObserver(this);
+    }
+
+    _setLabel(label) {
+        if (label!==undefined && label!==null) {
+            if (typeof(label)==="string") {
+                this._label = new MultiLineText(0, 0, label);
+            }
+            else if (label instanceof SVGElement) {
+                this._label = label;
+            }
+            else {
+                assert(false);
+            }
+        }
     }
 
     get gx() {
@@ -2232,6 +2270,14 @@ export class BoardItemBuilder extends ToolCell {
 
     get gy() {
         return this._root.globalMatrix.dy;
+    }
+
+    get itemHeight() {
+        return this.height * BoardItemBuilder.ITEM_HEIGHT_FACTOR;
+    }
+
+    get textHeight() {
+        return this.height - this.itemHeight;
     }
 
     _addMenuOption(menuOption) {
@@ -2245,7 +2291,6 @@ export class BoardItemBuilder extends ToolCell {
     showImage() {
         if (this._image) {
             this._image.visibility = Visibility.VISIBLE;
-            console.log(this._image.outerHTML);
             this._support.visibility = Visibility.HIDDEN;
         }
     }
@@ -2253,7 +2298,6 @@ export class BoardItemBuilder extends ToolCell {
     hideImage() {
         if (this._image) {
             this._image.visibility = Visibility.HIDDEN;
-            console.log(this._image.outerHTML);
             this._support.visibility = Visibility.VISIBLE;
         }
     }
@@ -2263,13 +2307,19 @@ export class BoardItemBuilder extends ToolCell {
         this._makeItems();
         this._adjustSize();
         if (this._imageURL) {
-            this._image = new RasterImage(this._imageURL, -width/2, -height/2, width, height);
+            this._image = new RasterImage(this._imageURL, -width/2, -height/2, width, this.itemHeight);
             this._root.add(this._image);
             this._image.visibility = Visibility.HIDDEN;
         }
+        if (this._label) {
+            this._root.add(this._label);
+            let factor = Math.min(this.width/this._label.width, this.height/this._label.height);
+            if (factor>BoardItemBuilder.MIN_TEXT_REDUCTION_FACTOR) factor=BoardItemBuilder.MIN_TEXT_REDUCTION_FACTOR;
+            this._label.matrix = Matrix.translate(0, (this.height-this.textHeight)/2).mult(Matrix.scale(factor, factor));
+        }
         this._glass = new Rect(
             -width/2-BoardItemBuilder.MARGIN, -height/2-BoardItemBuilder.MARGIN,
-            width+BoardItemBuilder.MARGIN*2, height+BoardItemBuilder.MARGIN*2).attrs({
+            width+BoardItemBuilder.MARGIN*2, this.itemHeight+BoardItemBuilder.MARGIN).attrs({
            fill:Colors.WHITE, stroke:Colors.NONE, opacity:0.01
         });
         this._root.add(this._glass);
@@ -2355,9 +2405,10 @@ export class BoardItemBuilder extends ToolCell {
     _adjustSize() {
         let bbox = l2pBoundingBox(this._currentItems);
         let sizeWidthFactor = this.width / bbox.width;
-        let sizeHeightFactor = this.height / bbox.height;
-        this._zoom = Math.min(sizeWidthFactor, sizeHeightFactor, 10);
-        this._support.matrix = Matrix.scale(this._zoom, this._zoom, 0, 0).translate(-bbox.cx, -bbox.cy)
+        let sizeHeightFactor = this.itemHeight / bbox.height;
+        this._zoom = Math.min(sizeWidthFactor, sizeHeightFactor, BoardItemBuilder.MAX_ITEM_ENLARGMENT_FACTOR);
+        this._support.matrix = Matrix.translate(-bbox.cx, -bbox.cy - (this.height-this.itemHeight)/2)
+            .scale(this._zoom, this._zoom, 0, 0)
     }
 
     applyOr(predicate) {
@@ -2405,10 +2456,12 @@ export class BoardItemBuilder extends ToolCell {
             Canvas.instance.addFilter(this._selectionMark);
         }
         return this._selectionMark;
-        //return Selection.instance.selectFilter;
     }
 
 }
+BoardItemBuilder.ITEM_HEIGHT_FACTOR = 0.65;
+BoardItemBuilder.MIN_TEXT_REDUCTION_FACTOR = 0.6;
+BoardItemBuilder.MAX_ITEM_ENLARGMENT_FACTOR = 4;
 BoardItemBuilder.MARGIN = 4;
 BoardItemBuilder.getImageSelectionMark = function() {
     if (!Context._boardItemBuilderImageSelectionMark) {
