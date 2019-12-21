@@ -11,11 +11,11 @@ import {
     Decoration, makeDecorationsOwner, makeFramed, makeShaped
 } from "../../js/core-mixins.js";
 import {
-    DIAMItem, DIAMLayers, DIAMSupport, LAYERS_DEFINITION, makeLabelOwner, makePositionEditable, DIAMKnob
+    DeltaItem, DeltaLayers, DeltaSupport, LAYERS_DEFINITION, makeLabelOwner, makePositionEditable, DeltaKnob
 } from "./delta-core.js";
 import {
     AlignmentBaseline, Colors, definePropertiesSet, filterProperties, Group, L, M, Path, Q,
-    Rect, Attrs, Circle, Line, Text
+    Rect, Attrs, Circle, Line, Text, win
 } from "../../js/graphics.js";
 import {
     addBordersToCollisionPhysic, createGravitationPhysic, makeCarriable, makeCarrier,
@@ -25,7 +25,7 @@ import {
     TextDecoration
 } from "../../js/standard-mixins.js";
 import {
-    Canvas, Context, Memento, Events
+    Canvas, Context, Memento, Events, l2pBoundingBox
 } from "../../js/toolkit.js";
 import {
     Visitor, BoardElement
@@ -34,25 +34,29 @@ import {
     TextMenuOption
 } from "../../js/tools.js";
 import {
-    always, is
+    always, is, defineMethod, extendMethod, replaceMethod
 } from "../../js/misc.js";
 import {
     Box
 } from "../../js/geometry.js";
 import {
-    DIAMAbstractModule
+    DeltaAbstractModule
 } from "./delta-products.js";
 import {
-    ESet, List
+    ESet, List, EMap
 } from "../../js/collections.js";
+import {
+    makeResizeable, makeResizeableContent, BoardHandle
+} from "../../js/elements.js";
 
-export class DIAMFasciaSupport extends BoardElement {
+
+export class DeltaFasciaSupport extends BoardElement {
     constructor({width, height}) {
         super(width, height);
     }
 
     _acceptElement(element) {
-        return element instanceof DIAMFascia &&
+        return element instanceof DeltaFascia &&
             element.width === this.width &&
             element.height === this.height;
     }
@@ -62,14 +66,14 @@ export class DIAMFasciaSupport extends BoardElement {
     }
 
 }
-makePart(DIAMFasciaSupport);
-makeSupport(DIAMFasciaSupport);
-makePositioningContainer(DIAMFasciaSupport, {
+makePart(DeltaFasciaSupport);
+makeSupport(DeltaFasciaSupport);
+makePositioningContainer(DeltaFasciaSupport, {
     predicate: function(element) {return this.host._acceptElement(element);},
     positionsBuilder: element=>{return [{x:0, y:0}]}
 });
 
-export class DIAMFascia extends DIAMItem {
+export class DeltaFascia extends DeltaItem {
     constructor(specs) {
         super(specs);
     }
@@ -79,42 +83,65 @@ export class DIAMFascia extends DIAMItem {
         this._initFrame(this.width, this.height, Colors.INHERIT, color);
     }
 }
-makeFramed(DIAMFascia);
-makeKnobOwner(DIAMFascia, {size:15, predicate:is(DIAMFasciaSupport)});
+makeFramed(DeltaFascia);
+makeKnobOwner(DeltaFascia, {size:15, predicate:is(DeltaFasciaSupport)});
 
 export function makeHeaderOwner(superClass) {
 
     makePartsOwner(superClass);
 
-    superClass.prototype._initHeader = function(headerHeight) {
-        if (headerHeight) {
-            this._header = this._createHeader(this.width, headerHeight);
-            this._header.setLocation(0, -this.height/2+headerHeight/2);
-            this._addPart(this._header);
+    defineMethod(superClass,
+        function _initHeader(headerHeight) {
+            if (headerHeight) {
+                this._header = this._createHeader(this.width, headerHeight);
+                this._header.setLocation(0, -this.height/2+headerHeight/2);
+                this._addPart(this._header);
+            }
         }
-    };
+    );
 
-    superClass.prototype._createHeader = function(width, height) {
-        return new DIAMCover({width, height});
-    }
+    defineMethod(superClass,
+        function _createHeader(width, height) {
+            return new DeltaCover({width, height});
+        }
+    );
 
+    extendMethod(superClass, $setSize=>
+        function _setSize(width, height) {
+            $setSize.call(this, width, height);
+            this._header._setSize(width, this._header.height);
+            this._header.setLocation(0, -height/2+this._header.height/2);
+        }
+    );
 }
 
 export function makeFooterOwner(superClass) {
 
     makePartsOwner(superClass);
 
-    superClass.prototype._initFooter = function(footerHeight) {
-        if (footerHeight) {
-            this._footer = this._createFooter(this.width, footerHeight);
-            this._footer.setLocation(0, this.height/2-footerHeight/2);
-            this._addPart(this._footer);
+    defineMethod(superClass,
+        function _initFooter(footerHeight) {
+            if (footerHeight) {
+                this._footer = this._createFooter(this.width, footerHeight);
+                this._footer.setLocation(0, this.height/2-footerHeight/2);
+                this._addPart(this._footer);
+            }
         }
-    };
+    );
 
-    superClass.prototype._createFooter = function(width, height) {
-        return new DIAMCover({width, height});
-    }
+    defineMethod(superClass,
+        function _createFooter(width, height) {
+            return new DeltaCover({width, height});
+        }
+    );
+
+    extendMethod(superClass, $setSize=>
+        function _setSize(width, height) {
+            $setSize.call(this, width, height);
+            this._footer._setSize(width, this._footer.height);
+            this._footer.setLocation(0, height/2-this._footer.height/2);
+        }
+    );
 
 }
 
@@ -130,12 +157,12 @@ export function makeFasciaSupport(superClass) {
     };
 
     superClass.prototype._createFasciaSupport = function(width, height) {
-        return new DIAMFasciaSupport({width, height});
+        return new DeltaFasciaSupport({width, height});
     };
 
     let getTarget = superClass.prototype._dropTarget;
     superClass.prototype._dropTarget = function(element) {
-        if (element instanceof DIAMFascia) {
+        if (element instanceof DeltaFascia) {
             return this._fasciaSupport._dropTarget(element);
         }
         return getTarget ? getTarget.call(this, element) : this;
@@ -156,17 +183,17 @@ export function makeKnobOwner(superClass, {size, predicate}) {
     };
 
     superClass.prototype._createKnob = function(width, height) {
-        return new DIAMKnob({width, height, predicate});
+        return new DeltaKnob({width, height, predicate});
     };
 }
 
-export class DIAMCover extends DIAMSupport {
+export class DeltaCover extends DeltaSupport {
     constructor({width, height}) {
         super({width, height, strokeColor:Colors.LIGHT_GREY, backgroundColor:Colors.LIGHTEST_GREY});
     }
 
     _acceptElement(element) {
-        return element instanceof DIAMVisual &&
+        return element instanceof DeltaVisual &&
             element.width === this.width &&
             element.height === this.height;
     }
@@ -183,23 +210,23 @@ export class DIAMCover extends DIAMSupport {
         this.shape.fill = Colors.LIGHTEST_GREY;
     }
 }
-makeDecorationsOwner(DIAMCover);
-makePositioningContainer(DIAMCover, {
+makeDecorationsOwner(DeltaCover);
+makePositioningContainer(DeltaCover, {
     predicate: function(element) {return this.host._acceptElement(element);},
     positionsBuilder: element=>{return [{x:0, y:0}]}
 });
 
-export class DIAMVisual extends DIAMItem {
+export class DeltaVisual extends DeltaItem {
 
     _improve({color}) {
         super._improve({});
         this._initFrame(this.width, this.height, Colors.INHERIT, color);
     }
 }
-makeFramed(DIAMVisual);
-makeKnobOwner(DIAMVisual, {size: 15, predicate:is(DIAMCover)});
+makeFramed(DeltaVisual);
+makeKnobOwner(DeltaVisual, {size: 15, predicate:is(DeltaCover)});
 
-export class DIAMBlister extends DIAMItem {
+export class DeltaBlister extends DeltaItem {
 
     _improve({clip, color}) {
         super._improve({});
@@ -221,22 +248,22 @@ export class DIAMBlister extends DIAMItem {
     }
 
 }
-makeShaped(DIAMBlister);
-makeLayered(DIAMBlister, {
-    layer:DIAMLayers.MIDDLE
+makeShaped(DeltaBlister);
+makeLayered(DeltaBlister, {
+    layer:DeltaLayers.MIDDLE
 });
-makeClipsOwner(DIAMBlister);
+makeClipsOwner(DeltaBlister);
 
 /**
  * Class of bisters hook. Can set set on pane only.
  */
-export class DIAMHook extends DIAMItem {
+export class DeltaHook extends DeltaItem {
     /**
-     * Size of hooks is (for the moment) defaulted. To change it, change DIAMHook.WIDTH and DIAMHook.HEIGHT
+     * Size of hooks is (for the moment) defaulted. To change it, change DeltaHook.WIDTH and DeltaHook.HEIGHT
      * constants instead.
      */
     constructor() {
-        super({width: DIAMHook.WIDTH, height: DIAMHook.HEIGHT});
+        super({width: DeltaHook.WIDTH, height: DeltaHook.HEIGHT});
     }
 
     _improve() {
@@ -256,38 +283,38 @@ export class DIAMHook extends DIAMItem {
         let base = new Group();
         let item = new Path(
             ...pathDirectives(
-                DIAMHook.WIDTH, DIAMHook.HEIGHT / 2, DIAMHook.HEIGHT, DIAMHook.RADIUS
+                DeltaHook.WIDTH, DeltaHook.HEIGHT / 2, DeltaHook.HEIGHT, DeltaHook.RADIUS
             ),
             ...pathDirectives(
-                DIAMHook.WIDTH - DIAMHook.SIZE * 2, DIAMHook.HEIGHT / 2,
-                DIAMHook.HEIGHT - DIAMHook.SIZE, DIAMHook.RADIUS - DIAMHook.SIZE / 2
+                DeltaHook.WIDTH - DeltaHook.SIZE * 2, DeltaHook.HEIGHT / 2,
+                DeltaHook.HEIGHT - DeltaHook.SIZE, DeltaHook.RADIUS - DeltaHook.SIZE / 2
             )
         ).attrs({stroke: Colors.INHERIT, fill: Colors.WHITE});
         base.add(item);
         return base;
     }
 }
-makeShaped(DIAMHook);
-makeLayered(DIAMHook, {
-    layer:DIAMLayers.UP
+makeShaped(DeltaHook);
+makeLayered(DeltaHook, {
+    layer:DeltaLayers.UP
 });
-makeSlotsOwner(DIAMHook);
-makeCenteredAnchorage(DIAMHook);
-makeCenteredRuler(DIAMHook);
-makePositionEditable(DIAMHook);
+makeSlotsOwner(DeltaHook);
+makeCenteredAnchorage(DeltaHook);
+makeCenteredRuler(DeltaHook);
+makePositionEditable(DeltaHook);
 
-DIAMHook.WIDTH = 10;
-DIAMHook.HEIGHT = 10;
-DIAMHook.RADIUS = 6;
-DIAMHook.SIZE = 2;
+DeltaHook.WIDTH = 10;
+DeltaHook.HEIGHT = 10;
+DeltaHook.RADIUS = 6;
+DeltaHook.SIZE = 2;
 
-export class DIAMBoxContent extends DIAMSupport {
+export class DeltaBoxContent extends DeltaSupport {
     constructor({width, height}) {
         super({width, height, strokeColor:Colors.GREY, backgroundColor:Colors.LIGHTEST_GREY});
     }
 
     _dropTarget(element) {
-        if (element instanceof DIAMFascia) {
+        if (element instanceof DeltaFascia) {
             return this.parent._dropTarget(element);
         }
         return this;
@@ -301,10 +328,10 @@ export class DIAMBoxContent extends DIAMSupport {
         this.shape.fill = Colors.LIGHTEST_GREY;
     }
 }
-makePart(DIAMBoxContent);
-makeDecorationsOwner(DIAMBoxContent);
+makePart(DeltaBoxContent);
+makeDecorationsOwner(DeltaBoxContent);
 
-export class DIAMBox extends DIAMItem {
+export class DeltaBox extends DeltaItem {
 
     _improve({clips, contentX, contentY, contentWidth, contentHeight, ...args}) {
         super._improve({color:Colors.WHITE});
@@ -329,7 +356,7 @@ export class DIAMBox extends DIAMItem {
     }
 
     _buildBoxContent(contentWidth, contentHeight) {
-        return new DIAMBoxContent({width:contentWidth, height:contentHeight});
+        return new DeltaBoxContent({width:contentWidth, height:contentHeight});
     }
 
     showRealistic() {
@@ -340,14 +367,14 @@ export class DIAMBox extends DIAMItem {
         this.shape.fill = Colors.WHITE;
     }
 }
-makeShaped(DIAMBox);
-makeLayered(DIAMBox, {
-    layer:DIAMLayers.MIDDLE
+makeShaped(DeltaBox);
+makeLayered(DeltaBox, {
+    layer:DeltaLayers.MIDDLE
 });
-makeClipsOwner(DIAMBox);
-makeCarrier(DIAMBox);
+makeClipsOwner(DeltaBox);
+makeCarrier(DeltaBox);
 
-export class DIAMSlottedBoxContent extends DIAMBoxContent {
+export class DeltaSlottedBoxContent extends DeltaBoxContent {
 
     constructor({width, height, slotWidth}) {
         super({width, height});
@@ -378,7 +405,7 @@ export class DIAMSlottedBoxContent extends DIAMBoxContent {
 
     _createPhysic() {
         let PositioningPhysic = createPositioningPhysic({
-            predicate:is(DIAMAbstractModule),
+            predicate:is(DeltaAbstractModule),
             positionsBuilder:function(element) {return this._host._buildPositions(element);}
         });
         return new PositioningPhysic(this);
@@ -438,21 +465,21 @@ export class DIAMSlottedBoxContent extends DIAMBoxContent {
     }
 
 }
-addPhysicToContainer(DIAMSlottedBoxContent, {
+addPhysicToContainer(DeltaSlottedBoxContent, {
     physicBuilder: function() {
         return this._createPhysic();
     }
 });
 
-export class DIAMSlottedBox extends DIAMBox {
+export class DeltaSlottedBox extends DeltaBox {
 
     _buildBoxContent(contentWidth, contentHeight, {slotWidth}) {
-        return new DIAMSlottedBoxContent({width:contentWidth, height:contentHeight, slotWidth});
+        return new DeltaSlottedBoxContent({width:contentWidth, height:contentHeight, slotWidth});
     }
 
 }
 
-export class DIAMSlottedRichBox extends DIAMSlottedBox {
+export class DeltaSlottedRichBox extends DeltaSlottedBox {
 
     _improve({
                  clips,
@@ -467,14 +494,14 @@ export class DIAMSlottedRichBox extends DIAMSlottedBox {
     }
 
 }
-makeHeaderOwner(DIAMSlottedRichBox);
-makeFooterOwner(DIAMSlottedRichBox);
-makeFasciaSupport(DIAMSlottedRichBox);
+makeHeaderOwner(DeltaSlottedRichBox);
+makeFooterOwner(DeltaSlottedRichBox);
+makeFasciaSupport(DeltaSlottedRichBox);
 
-export class DIAMFixing extends DIAMItem {
+export class DeltaFixing extends DeltaItem {
 
     constructor() {
-        super({width: DIAMFixing.WIDTH, height: DIAMFixing.HEIGHT});
+        super({width: DeltaFixing.WIDTH, height: DeltaFixing.HEIGHT});
         this._root._node.style["z-index"] = 10;
     }
 
@@ -486,29 +513,29 @@ export class DIAMFixing extends DIAMItem {
 
     buildShape() {
         let base = new Group();
-        base.add(new Rect(-DIAMFixing.WIDTH / 2, -DIAMFixing.HEIGHT / 2, DIAMFixing.WIDTH, DIAMFixing.HEIGHT)
+        base.add(new Rect(-DeltaFixing.WIDTH / 2, -DeltaFixing.HEIGHT / 2, DeltaFixing.WIDTH, DeltaFixing.HEIGHT)
             .attrs({ stroke: Colors.INHERIT, fill: Colors.WHITE }));
-        base.add(new Circle(-DIAMFixing.WIDTH / 4, 0, DIAMFixing.DEVICE_RADIUS)
+        base.add(new Circle(-DeltaFixing.WIDTH / 4, 0, DeltaFixing.DEVICE_RADIUS)
             .attrs({ stroke: Colors.BLACK, fill: Colors.WHITE }));
-        base.add(new Circle(DIAMFixing.WIDTH / 4, 0, DIAMFixing.DEVICE_RADIUS)
+        base.add(new Circle(DeltaFixing.WIDTH / 4, 0, DeltaFixing.DEVICE_RADIUS)
             .attrs({ stroke: Colors.BLACK, fill: Colors.WHITE }));
         return base;
     }
 }
-makeShaped(DIAMFixing);
-makeLayered(DIAMFixing, {
-    layer:DIAMLayers.DOWN
+makeShaped(DeltaFixing);
+makeLayered(DeltaFixing, {
+    layer:DeltaLayers.DOWN
 });
-makeSlotsOwner(DIAMFixing);
-makeCenteredAnchorage(DIAMFixing);
-makeCenteredRuler(DIAMFixing);
-makePositionEditable(DIAMFixing);
+makeSlotsOwner(DeltaFixing);
+makeCenteredAnchorage(DeltaFixing);
+makeCenteredRuler(DeltaFixing);
+makePositionEditable(DeltaFixing);
 
-DIAMFixing.WIDTH = 16;
-DIAMFixing.HEIGHT = 6;
-DIAMFixing.DEVICE_RADIUS = 2;
+DeltaFixing.WIDTH = 16;
+DeltaFixing.HEIGHT = 6;
+DeltaFixing.DEVICE_RADIUS = 2;
 
-export class DIAMAbstractLadder extends DIAMItem {
+export class DeltaAbstractLadder extends DeltaItem {
 
     _improve({topSlot, bottomSlot, slotInterval}) {
         super._improve();
@@ -564,16 +591,16 @@ export class DIAMAbstractLadder extends DIAMItem {
     }
 
 }
-makeShaped(DIAMAbstractLadder);
-makeLayered(DIAMAbstractLadder, {
-    layer:DIAMLayers.DOWN
+makeShaped(DeltaAbstractLadder);
+makeLayered(DeltaAbstractLadder, {
+    layer:DeltaLayers.DOWN
 });
-makeSlotsOwner(DIAMAbstractLadder);
-makeCenteredAnchorage(DIAMAbstractLadder);
-makeCenteredRuler(DIAMAbstractLadder);
-makePositionEditable(DIAMAbstractLadder);
+makeSlotsOwner(DeltaAbstractLadder);
+makeCenteredAnchorage(DeltaAbstractLadder);
+makeCenteredRuler(DeltaAbstractLadder);
+makePositionEditable(DeltaAbstractLadder);
 
-export class DIAMLadder extends DIAMAbstractLadder {
+export class DeltaLadder extends DeltaAbstractLadder {
 
     _generateSlots() {
         let slotIndex = 0;
@@ -587,7 +614,7 @@ export class DIAMLadder extends DIAMAbstractLadder {
 
 }
 
-export class DIAMDoubleLadder extends DIAMAbstractLadder {
+export class DeltaDoubleLadder extends DeltaAbstractLadder {
 
     constructor({width, height, topSlot, bottomSlot, slotInterval}) {
         super({width, height, topSlot, bottomSlot, slotInterval});
@@ -631,7 +658,7 @@ export class Spike {
     }
 
     get mayNotCollide() {
-        return !DIAMShelf.spiked;
+        return !DeltaShelf.spiked;
     }
 }
 
@@ -709,13 +736,13 @@ export class SpikeDecoration extends Decoration {
     }
 
     _init() {
-        if (DIAMShelf.spiked) {
+        if (DeltaShelf.spiked) {
             this._root.add(new Line(
-                -this._element.width / 2, -this._element.height / 2 - DIAMShelf.SPIKE_SIZE,
-                -this._element.width / 2, this._element.height / 2 + DIAMShelf.SPIKE_SIZE));
+                -this._element.width / 2, -this._element.height / 2 - DeltaShelf.SPIKE_SIZE,
+                -this._element.width / 2, this._element.height / 2 + DeltaShelf.SPIKE_SIZE));
             this._root.add(new Line(
-                this._element.width / 2, -this._element.height / 2 - DIAMShelf.SPIKE_SIZE,
-                this._element.width / 2, this._element.height / 2 + DIAMShelf.SPIKE_SIZE));
+                this._element.width / 2, -this._element.height / 2 - DeltaShelf.SPIKE_SIZE,
+                this._element.width / 2, this._element.height / 2 + DeltaShelf.SPIKE_SIZE));
             this._root.stroke = Colors.GREY;
             this._root.stroke_width = SpikeDecoration.STROKE_WIDTH;
         }
@@ -732,7 +759,7 @@ export class SpikeDecoration extends Decoration {
 }
 SpikeDecoration.STROKE_WIDTH = 0.25;
 
-export class DIAMShelf extends DIAMItem {
+export class DeltaShelf extends DeltaItem {
 
     _improve({leftClip:leftClipSpec, rightClip:rightClipSpec, label, ...args}) {
         super._improve({color:Colors.GREY, label, ...args});
@@ -746,7 +773,7 @@ export class DIAMShelf extends DIAMItem {
     }
 
     _notified(source, event, element) {
-        if (source === this && event === Events.ADD_CARRIED && DIAMShelf.magnetized) {
+        if (source === this && event === Events.ADD_CARRIED && DeltaShelf.magnetized) {
             this.magnetise();
         }
     }
@@ -757,13 +784,13 @@ export class DIAMShelf extends DIAMItem {
 
     _addDecorations(args) {
         let labelProperties = filterProperties(args, Attrs.FONT_PROPERTIES);
-        let positionProperties = filterProperties(args, DIAMShelf.POSITION_FONT_PROPERTIES);
+        let positionProperties = filterProperties(args, DeltaShelf.POSITION_FONT_PROPERTIES);
         this.decorationTarget._addDecoration(new ClipDecoration(this, this._leftClip));
         this.decorationTarget._addDecoration(new ClipPositionDecoration(this._leftClip, {
-            x:TextDecoration.LEFT, y:TextDecoration.TOP, ...positionProperties}, DIAMShelf.POSITION_FONT_PROPERTIES));
+            x:TextDecoration.LEFT, y:TextDecoration.TOP, ...positionProperties}, DeltaShelf.POSITION_FONT_PROPERTIES));
         this.decorationTarget._addDecoration(new ClipDecoration(this, this._rightClip));
         this.decorationTarget._addDecoration(new ClipPositionDecoration(this._rightClip, {
-            x:TextDecoration.RIGHT, y:TextDecoration.TOP, ...positionProperties}, DIAMShelf.POSITION_FONT_PROPERTIES));
+            x:TextDecoration.RIGHT, y:TextDecoration.TOP, ...positionProperties}, DeltaShelf.POSITION_FONT_PROPERTIES));
         this._labelDecoration = new TextDecoration(this,
             function() {return this.label;},
             {x:TextDecoration.MIDDLE, y:TextDecoration.MIDDLE, ...labelProperties}
@@ -807,12 +834,12 @@ export class DIAMShelf extends DIAMItem {
     }
 
     _createSAPRecord(sweepAndPrune) {
-        return new SpikedSAPRecord(this, sweepAndPrune, DIAMShelf.SPIKE_SIZE);
+        return new SpikedSAPRecord(this, sweepAndPrune, DeltaShelf.SPIKE_SIZE);
     }
 
 }
-DIAMShelf.SPIKE_SIZE = 20;
-Object.defineProperty(DIAMShelf, "magnetized", {
+DeltaShelf.SPIKE_SIZE = 20;
+Object.defineProperty(DeltaShelf, "magnetized", {
     get() {
         return Context.magnetized;
     },
@@ -820,30 +847,30 @@ Object.defineProperty(DIAMShelf, "magnetized", {
         Context.magnetized = magnetized;
     }
 });
-Object.defineProperty(DIAMShelf, "spiked", {
+Object.defineProperty(DeltaShelf, "spiked", {
     get() {
         return Context.spiked;
     },
     set(spiked) {
         Context.spiked = spiked;
         new Visitor([Context.table, Context.palettePopup], {}, function() {
-            if (this instanceof DIAMShelf) {
+            if (this instanceof DeltaShelf) {
                 this._spikeDecoration.refresh();
             }
         })
     }
 });
-DIAMShelf.POSITION_FONT_PROPERTIES = definePropertiesSet("position", Attrs.FONT_PROPERTIES);
-makeShaped(DIAMShelf);
-makeDecorationsOwner(DIAMShelf);
-makeLabelOwner(DIAMShelf);
-makeLayered(DIAMShelf, {
-    layer:DIAMLayers.MIDDLE
+DeltaShelf.POSITION_FONT_PROPERTIES = definePropertiesSet("position", Attrs.FONT_PROPERTIES);
+makeShaped(DeltaShelf);
+makeDecorationsOwner(DeltaShelf);
+makeLabelOwner(DeltaShelf);
+makeLayered(DeltaShelf, {
+    layer:DeltaLayers.MIDDLE
 });
-makeClipsOwner(DIAMShelf);
-makeCarrier(DIAMShelf);
+makeClipsOwner(DeltaShelf);
+makeCarrier(DeltaShelf);
 
-export class DIAMRichShelf extends DIAMShelf {
+export class DeltaRichShelf extends DeltaShelf {
 
     _init({leftClip, rightClip, coverY, coverHeight, ...args}) {
         super._init({leftClip, rightClip, coverY, coverHeight, ...args});
@@ -861,14 +888,14 @@ export class DIAMRichShelf extends DIAMShelf {
     }
 
     _buildCover(coverWidth, coverHeight) {
-        return new DIAMCover({width:coverWidth, height:coverHeight});
+        return new DeltaCover({width:coverWidth, height:coverHeight});
     }
 }
-makeLayered(DIAMRichShelf, {
-    layer:DIAMLayers.UP
+makeLayered(DeltaRichShelf, {
+    layer:DeltaLayers.UP
 });
 
-export class DIAMCaddyContent extends DIAMBoxContent {
+export class DeltaCaddyContent extends DeltaBoxContent {
 
     _createContextMenu() {
         this.addMenuOption(new TextMenuOption("generate ladders",
@@ -878,45 +905,45 @@ export class DIAMCaddyContent extends DIAMBoxContent {
 
     _createPhysic() {
         let ModulePhysic = createGravitationPhysic({
-            predicate:is(DIAMAbstractModule, DIAMShelf),
-            gravitationPredicate:is(DIAMAbstractModule),
+            predicate:is(DeltaAbstractModule, DeltaShelf),
+            gravitationPredicate:is(DeltaAbstractModule),
             carryingPredicate:always});
         addBordersToCollisionPhysic(ModulePhysic, {
             bordersCollide: {all: true}
         });
         let LadderPhysic = createSlotsAndClipsPhysic({
-            predicate: is(DIAMShelf),
-            slotProviderPredicate: is(DIAMAbstractLadder)
+            predicate: is(DeltaShelf),
+            slotProviderPredicate: is(DeltaAbstractLadder)
         });
         return new PhysicSelector(this,
-            is(DIAMAbstractModule, DIAMShelf, DIAMAbstractLadder)
+            is(DeltaAbstractModule, DeltaShelf, DeltaAbstractLadder)
         )
             .register(new LadderPhysic(this))
             .register(new ModulePhysic(this));
     }
 
 }
-addPhysicToContainer(DIAMCaddyContent, {
+addPhysicToContainer(DeltaCaddyContent, {
     physicBuilder: function() {
         return this._createPhysic();
     }
 });
 
-export class DIAMCaddy extends DIAMBox {
+export class DeltaCaddy extends DeltaBox {
 
     _buildBoxContent(contentWidth, contentHeight, color) {
-        return new DIAMCaddyContent({width:contentWidth, height:contentHeight, color:Colors.LIGHTEST_GREY});
+        return new DeltaCaddyContent({width:contentWidth, height:contentHeight, color:Colors.LIGHTEST_GREY});
     }
 
 }
 
-export class DIAMRichCaddy extends DIAMCaddy {
+export class DeltaRichCaddy extends DeltaCaddy {
 
     _improve({
-                 clips,
-                 contentX, contentY, contentWidth, contentHeight,
-                 color,
-                 headerHeight, footerHeight}
+         clips,
+         contentX, contentY, contentWidth, contentHeight,
+         color,
+         headerHeight, footerHeight}
     ) {
         super._improve({clips, contentX, contentY, contentWidth, contentHeight, color});
         this._initHeader(headerHeight);
@@ -925,11 +952,11 @@ export class DIAMRichCaddy extends DIAMCaddy {
     }
 
 }
-makeHeaderOwner(DIAMRichCaddy);
-makeFooterOwner(DIAMRichCaddy);
-makeFasciaSupport(DIAMRichCaddy);
+makeHeaderOwner(DeltaRichCaddy);
+makeFooterOwner(DeltaRichCaddy);
+makeFasciaSupport(DeltaRichCaddy);
 
-export class DIAMDivider extends DIAMItem {
+export class DeltaDivider extends DeltaItem {
 
     _improve() {
         super._improve();
@@ -937,9 +964,9 @@ export class DIAMDivider extends DIAMItem {
     }
 
 }
-makeFramed(DIAMDivider);
-makeLayered(DIAMDivider, {
-    layer:DIAMLayers.MIDDLE
+makeFramed(DeltaDivider);
+makeLayered(DeltaDivider, {
+    layer:DeltaLayers.MIDDLE
 });
 
 export function callForGenerateLadders(container) {
@@ -957,7 +984,7 @@ export function callForGenerateLadders(container) {
 export function applyGenerateLadders(container, data) {
     if (!Context.isReadOnly()) {
         Memento.instance.open();
-        let leftLadder = new DIAMLadder({
+        let leftLadder = new DeltaLadder({
             width: data.ladderWidth,
             height: data.ladderHeight,
             topSlot: data.topSlot,
@@ -966,7 +993,7 @@ export function applyGenerateLadders(container, data) {
         });
         leftLadder.setLocation( data.left + (data.ladderWidth) / 2, data.y);
         container.addChild(leftLadder);
-        let rightLadder = new DIAMLadder({
+        let rightLadder = new DeltaLadder({
             width: data.ladderWidth,
             height: data.ladderHeight,
             topSlot: data.topSlot,
@@ -978,7 +1005,7 @@ export function applyGenerateLadders(container, data) {
         let width = data.right - data.left;
         for (let index = 1; index <= data.intermediateLaddersCount; index++) {
             let x = (width * index) / (data.intermediateLaddersCount + 1) + data.left;
-            let ladder = new DIAMDoubleLadder({
+            let ladder = new DeltaDoubleLadder({
                 width: data.ladderWidth * 2,
                 height: data.ladderHeight,
                 topSlot: data.topSlot,
@@ -1008,7 +1035,7 @@ export function applyGenerateFixings(container, data) {
         Memento.instance.open();
         for (let x = data.left; x <= data.right; x += data.boxWidth) {
             for (let y = data.top; y <= data.bottom ; y += data.boxHeight) {
-                let fixing = new DIAMFixing();
+                let fixing = new DeltaFixing();
                 fixing.setLocation(x, y);
                 container.addChild(fixing);
             }
@@ -1033,7 +1060,7 @@ export function applyGenerateHooks(container, data) {
         Memento.instance.open();
         for (let x = data.left; x <= data.right; x += data.blisterWidth) {
             for (let y = data.top; y <= data.bottom ; y += data.blisterHeight) {
-                let fixing = new DIAMHook();
+                let fixing = new DeltaHook();
                 fixing.setLocation(x, y);
                 container.addChild(fixing);
             }
@@ -1041,7 +1068,7 @@ export function applyGenerateHooks(container, data) {
     }
 }
 
-export class DIAMAnchorageDecoration extends Decoration {
+export class DeltaAnchorageDecoration extends Decoration {
 
     constructor({lineMargin, labelMargin, indexMargin}) {
         super();
@@ -1056,10 +1083,11 @@ export class DIAMAnchorageDecoration extends Decoration {
     }
 
     refresh() {
+
         function collect(element, xs, ys) {
 
             function isAnchorageElement(element) {
-                return is(DIAMShelf, DIAMFixing, DIAMHook)(element);
+                return is(DeltaShelf, DeltaFixing, DeltaHook)(element);
             }
 
             if (isAnchorageElement(element)) {
@@ -1128,12 +1156,12 @@ export class DIAMAnchorageDecoration extends Decoration {
 
     _notified(source, event) {
         if (source===this._element && (event===Events.ADD || event===Events.REMOVE || event===Events.MOVE)) {
-            this.refresh();
+            this._askForRefresh();
         }
     }
 
     clone(duplicata) {
-        return new DIAMAnchorageDecoration({
+        return new DeltaAnchorageDecoration({
             lineMargin:this._lineMargin,
             labelMargin:this._labelMargin,
             indexMargin:this._indexMargin});
@@ -1141,11 +1169,11 @@ export class DIAMAnchorageDecoration extends Decoration {
 
 }
 
-export class DIAMPaneContent extends DIAMSupport {
+export class DeltaPaneContent extends DeltaSupport {
 
     constructor({width, height, lineMargin, labelMargin, indexMargin}) {
         super({width, height, strokeColor:Colors.NONE, backgroundColor:Colors.LIGHTEST_GREY});
-        this._anchorageDecoration = new DIAMAnchorageDecoration({lineMargin, labelMargin, indexMargin });
+        this._anchorageDecoration = new DeltaAnchorageDecoration({lineMargin, labelMargin, indexMargin });
         this._addDecoration(this._anchorageDecoration);
         this._rulesDecoration = new RulesDecoration(this._attachmentPhysic);
         this._addDecoration(this._rulesDecoration);
@@ -1165,30 +1193,30 @@ export class DIAMPaneContent extends DIAMSupport {
 
     _createPhysic() {
         let ModulePhysic = createGravitationPhysic({
-            predicate:is(DIAMAbstractModule, DIAMShelf, DIAMBox, DIAMBlister),
-            gravitationPredicate:is(DIAMAbstractModule),
+            predicate:is(DeltaAbstractModule, DeltaShelf, DeltaBox, DeltaBlister),
+            gravitationPredicate:is(DeltaAbstractModule),
             carryingPredicate:always});
         addBordersToCollisionPhysic(ModulePhysic, {
             bordersCollide: {all: true}
         });
         let AttachmentPhysic = createRulersPhysic({
-            predicate: is(DIAMAbstractLadder, DIAMFixing, DIAMHook)
+            predicate: is(DeltaAbstractLadder, DeltaFixing, DeltaHook)
         });
         this._attachmentPhysic = new AttachmentPhysic(this);
         let LadderPhysic = createSlotsAndClipsPhysic({
-            predicate: is(DIAMShelf),
-            slotProviderPredicate: is(DIAMAbstractLadder)
+            predicate: is(DeltaShelf),
+            slotProviderPredicate: is(DeltaAbstractLadder)
         });
         let HookPhysic = createSlotsAndClipsPhysic({
-            predicate: is(DIAMBlister),
-            slotProviderPredicate: is(DIAMHook)
+            predicate: is(DeltaBlister),
+            slotProviderPredicate: is(DeltaHook)
         });
         let FixingPhysic = createSlotsAndClipsPhysic({
-            predicate: is(DIAMBox),
-            slotProviderPredicate: is(DIAMFixing)
+            predicate: is(DeltaBox),
+            slotProviderPredicate: is(DeltaFixing)
         });
         return new PhysicSelector(this,
-            is(DIAMAbstractModule, DIAMShelf, DIAMAbstractLadder, DIAMBlister, DIAMHook, DIAMBox, DIAMFixing, DIAMDivider)
+            is(DeltaAbstractModule, DeltaShelf, DeltaAbstractLadder, DeltaBlister, DeltaHook, DeltaBox, DeltaFixing, DeltaDivider)
         )
             .register(this._attachmentPhysic)
             .register(new LadderPhysic(this))
@@ -1218,26 +1246,29 @@ export class DIAMPaneContent extends DIAMSupport {
     showSchematic() {
         this.shape.fill = Colors.LIGHTEST_GREY;
     }
+
 }
-makeContainerMultiLayered(DIAMPaneContent, LAYERS_DEFINITION);
-addPhysicToContainer(DIAMPaneContent, {
+makeContainerMultiLayered(DeltaPaneContent, LAYERS_DEFINITION);
+addPhysicToContainer(DeltaPaneContent, {
     physicBuilder: function () {
         return this._createPhysic();
     }
 });
-makeDecorationsOwner(DIAMPaneContent);
+makeDecorationsOwner(DeltaPaneContent);
+makeResizeableContent(DeltaPaneContent);
 
-export class DIAMPane extends DIAMItem {
+export class DeltaPane extends DeltaItem {
 
     _improve({label, contentX, contentY, contentWidth, contentHeight, lineMargin, labelMargin, indexMargin}) {
         super._improve({label});
         this._initFrame(this.width, this.height, Colors.INHERIT, Colors.WHITE);
         this._paneContent = this._createPaneContent(contentX, contentY, contentWidth, contentHeight, lineMargin, labelMargin, indexMargin);
         this._addPart(this._paneContent);
+        this._initResize(Colors.RED);
     }
 
     _createPaneContent(contentX, contentY, contentWidth, contentHeight, lineMargin, labelMargin, indexMargin) {
-        let content = new DIAMPaneContent({width:contentWidth, height:contentHeight, lineMargin, labelMargin, indexMargin});
+        let content = new DeltaPaneContent({width:contentWidth, height:contentHeight, lineMargin, labelMargin, indexMargin});
         content._setLocation(contentX, contentY);
         return content;
     }
@@ -1253,13 +1284,50 @@ export class DIAMPane extends DIAMItem {
     showSchematic() {
         this.shape.fill = Colors.WHITE;
     }
-}
-makeFramed(DIAMPane);
-makeLabelOwner(DIAMPane);
-makeCarrier(DIAMPane);
-makeCarriable(DIAMPane);
 
-export class DIAMRichPane extends DIAMPane {
+    select() {
+        this.putHandles();
+    }
+
+    unselect() {
+        this.removeHandles();
+    }
+
+    get minWidth() {
+        let dWidth = this.width - this._paneContent.width;
+        return this._paneContent.minWidth + dWidth;
+    }
+
+    get minHeight() {
+        let dHeight = this.height - this._paneContent.height;
+        return this._paneContent.minHeight + dHeight;
+    }
+
+    resize(width, height, direction) {
+        let dWidth = this.width - this._paneContent.width;
+        let dHeight = this.height - this._paneContent.height;
+        this._paneContent.resize(width - dWidth, height - dHeight, direction);
+    }
+
+    setSize(width, height) {
+        let dWidth = this.width - this._paneContent.width;
+        let dHeight = this.height - this._paneContent.height;
+        super.setSize(width, height);
+        this._paneContent.setSize(width - dWidth, height - dHeight);
+    }
+
+}
+DeltaPane.ALL_HANDLES_BUT_BOTTOM_ONES = new ESet([
+    BoardHandle.TOP, BoardHandle.RIGHT_TOP, BoardHandle.RIGHT,
+    BoardHandle.LEFT, BoardHandle.LEFT_TOP
+]);
+makeFramed(DeltaPane);
+makeLabelOwner(DeltaPane);
+makeCarrier(DeltaPane);
+makeCarriable(DeltaPane);
+makeResizeable(DeltaPane, DeltaPane.ALL_HANDLES_BUT_BOTTOM_ONES);
+
+export class DeltaRichPane extends DeltaPane {
 
     constructor(specs) {
         super(specs);
@@ -1277,6 +1345,6 @@ export class DIAMRichPane extends DIAMPane {
         this._initFooter(footerHeight);
     }
 }
-makeHeaderOwner(DIAMRichPane);
-makeFooterOwner(DIAMRichPane);
+makeHeaderOwner(DeltaRichPane);
+makeFooterOwner(DeltaRichPane);
 

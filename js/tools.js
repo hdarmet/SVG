@@ -2449,7 +2449,7 @@ export class BoardItemBuilder extends ToolCell {
         element._parent = null;
     }
 
-    get selectionMark() {
+    get contentSelectionMark() {
         if (!this._selectionMark) {
             this._selectionMark = defineShadow(`_s${this._id}_`, Colors.RED);
             this._selectionMark.feDropShadow.stdDeviation = [5/this._zoom, 5/this._zoom];

@@ -31,14 +31,14 @@ import {
     assert
 } from "../../js/misc.js";
 
-export const DIAMLayers = {
+export const DeltaLayers = {
     DOWN: "d",
     MIDDLE : "m",
     UP : "u",
     PDF : "p"
 };
-export const LAYERS_DEFINITION = {layers:[DIAMLayers.DOWN,  DIAMLayers.MIDDLE, DIAMLayers.UP]};
-export const TABLE_LAYERS_DEFINITION = {layers:[DIAMLayers.DOWN,  DIAMLayers.MIDDLE, DIAMLayers.UP, DIAMLayers.PDF]};
+export const LAYERS_DEFINITION = {layers:[DeltaLayers.DOWN,  DeltaLayers.MIDDLE, DeltaLayers.UP]};
+export const TABLE_LAYERS_DEFINITION = {layers:[DeltaLayers.DOWN,  DeltaLayers.MIDDLE, DeltaLayers.UP, DeltaLayers.PDF]};
 
 export const FreePositioningMode = {};
 Object.defineProperty(FreePositioningMode, "mode", {
@@ -230,17 +230,17 @@ export function makeFreePositioningOwner(superClass) {
 
 }
 
-export class DIAMMarksSupport extends BoardElement {
+export class DeltaMarksSupport extends BoardElement {
 
     constructor({width, height}) {
         super(width, height);
     }
 
 }
-makeDecorationsOwner(DIAMMarksSupport);
-DIAMMarksSupport.SIZE = 10;
+makeDecorationsOwner(DeltaMarksSupport);
+DeltaMarksSupport.SIZE = 10;
 
-export class DIAMItem extends BoardElement {
+export class DeltaItem extends BoardElement {
     constructor({width, height, ...args}) {
         super(width, height, args);
     }
@@ -265,9 +265,9 @@ export class DIAMItem extends BoardElement {
     _createMarksSupport() {
         this._marksDecoration = new MarksDecoration({
             x:MarksDecoration.RIGHT, y:MarksDecoration.TOP,
-            markWidth:DIAMMarksSupport.SIZE, markHeight:DIAMMarksSupport.SIZE
+            markWidth:DeltaMarksSupport.SIZE, markHeight:DeltaMarksSupport.SIZE
         });
-        this._marksSupport = new DIAMMarksSupport({width:this.width, height:this.height});
+        this._marksSupport = new DeltaMarksSupport({width:this.width, height:this.height});
         this._marksSupport.addDecoration(this._marksDecoration);
     }
 
@@ -393,21 +393,26 @@ export class DIAMItem extends BoardElement {
         }
         return this;
     }
-}
-makePartsOwner(DIAMItem);
-makeSelectable(DIAMItem);
-makeDraggable(DIAMItem);
-makeMovable(DIAMItem);
-addDeleteFacility(DIAMItem);
-addLockFacility(DIAMItem);
-makeClickable(DIAMItem);
-makeMenuOwner(DIAMItem);
-addGroupFacility(DIAMItem);
-makeCommentOwner(DIAMItem);
-addHighlightFacility(DIAMItem);
-makeFreePositioningOwner(DIAMItem);
 
-export class DIAMSupport extends BoardElement {
+    _setSize(width, height) {
+        super._setSize(width, height);
+        this._marksSupport._setSize(width, height);
+    }
+}
+makePartsOwner(DeltaItem);
+makeSelectable(DeltaItem);
+makeDraggable(DeltaItem);
+makeMovable(DeltaItem);
+addDeleteFacility(DeltaItem);
+addLockFacility(DeltaItem);
+makeClickable(DeltaItem);
+makeMenuOwner(DeltaItem);
+addGroupFacility(DeltaItem);
+makeCommentOwner(DeltaItem);
+addHighlightFacility(DeltaItem);
+makeFreePositioningOwner(DeltaItem);
+
+export class DeltaSupport extends BoardElement {
 
     constructor({width, height, strokeColor, backgroundColor}) {
         super(width, height);
@@ -426,11 +431,11 @@ export class DIAMSupport extends BoardElement {
         return 0;
     }
 }
-makeFramed(DIAMSupport);
-makeHighlightable(DIAMSupport);
-makePart(DIAMSupport);
-makeSupport(DIAMSupport);
-makeMenuOwner(DIAMSupport);
+makeFramed(DeltaSupport);
+makeHighlightable(DeltaSupport);
+makePart(DeltaSupport);
+makeSupport(DeltaSupport);
+makeMenuOwner(DeltaSupport);
 
 export class KnobDragOperation extends DragOperation {
     constructor() {
@@ -471,7 +476,7 @@ export class KnobDragOperation extends DragOperation {
 makeNotCloneable(KnobDragOperation);
 KnobDragOperation.instance = new KnobDragOperation();
 
-export class DIAMKnob extends BoardElement {
+export class DeltaKnob extends BoardElement {
 
     constructor({width, height, predicate}) {
         super(width, height);
@@ -487,7 +492,7 @@ export class DIAMKnob extends BoardElement {
             L(-width/2, height/2), L(-width/2, -height/2))
             .attrs({
                 fill: Colors.GREY,
-                class: DIAMKnob.CLASS,
+                class: DeltaKnob.CLASS,
                 stroke: Colors.NONE
             });
     }
@@ -511,7 +516,7 @@ export class DIAMKnob extends BoardElement {
         return this.selectable;
     }
 }
-DIAMKnob.CLASS = "handle";
-makeShaped(DIAMKnob);
-makePart(DIAMKnob);
-makeDraggable(DIAMKnob);
+DeltaKnob.CLASS = "handle";
+makeShaped(DeltaKnob);
+makePart(DeltaKnob);
+makeDraggable(DeltaKnob);

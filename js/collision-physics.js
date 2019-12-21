@@ -1,6 +1,6 @@
 
 import {
-    same, evaluate, defineMethod, extendMethod, replaceMethod
+    same, evaluate, defineMethod, extendMethod, replaceMethod, defineGetProperty
 } from "./misc.js";
 import {
     AVLTree, ESet, List, EMap, dichotomousSearch, insertionSort
@@ -696,8 +696,20 @@ export function makeCollisionPhysic(superClass) {
 
 }
 
+/**
+ * Class of objects that materialize a container border, in order to prevent contained elements to collide with such
+ * borders. Borders help to "box" contained element inside their container.
+ */
 export class PhysicBorder {
 
+    /**
+     * Creates a new Border
+     * @param physic collision physic which this border object belong.
+     * @param x <b>function, not value<b> that compute the central point location of the border on horizontal axis.
+     * @param y <b>function, not value<b> that compute the central point location of the border on vertical axis.
+     * @param width <b>function, not value<b> that compute the width of the border (0 or host's width, depending on border).
+     * @param height <b>function, not value<b> that compute the height of the border (0 or host's width, depending on border).
+     */
     constructor(physic, x, y, width, height) {
         this._physic = physic;
         this._x = x;
@@ -706,98 +718,180 @@ export class PhysicBorder {
         this._height = height;
     }
 
+    /**
+     * Returns the border central point location on horizontal axis (in host's coordinate system).
+     * @returns {*}
+     */
     get lx() {
         return this._x();
     }
 
+    /**
+     * Returns the border central point location on vertical axis (in host's coordinate system).
+     * @returns {*}
+     */
     get ly() {
         return this._y();
     }
 
+    /**
+     * Returns the bounding box of the border (in host's coordinate system)
+     * @returns {Box}
+     */
     get localGeometry() {
         return new Box(this._x()-this._width()/2, this._y()-this._height()/2, this._width(), this._height());
     }
+
 }
 
+/**
+ * This Trait add the "Borders" capability to a collision physic. A collision physic (only) with this capability may
+ * prevent a contained element to collide with all or some of its (collision physic's) host borders (left/right/top/bottom).
+ * @param superClass collision phuysic class
+ * @param bordersCollide specify which borders may be "activated".
+ */
 export function addBordersToCollisionPhysic(superClass, {bordersCollide}) {
 
-    let init = superClass.prototype._init;
-    superClass.prototype._init = function(...args) {
-        init.call(this, ...args);
-        if (bordersCollide.left || bordersCollide.all) {
-            this._addLeftBorder();
+    /**
+     * Extends physic's init method in order to create the borders objects (inside collision physic) and bounds (inside
+     * "supportSAP" object). Note that only borders mentioned in the borderCollide specificaion ave created.
+     */
+    extendMethod(superClass, $init=>
+        function _init(...args) {
+            $init.call(this, ...args);
+            if (bordersCollide.left || bordersCollide.all) {
+                this._addLeftBorder();
+            }
+            if (bordersCollide.right || bordersCollide.all) {
+                this._addRightBorder();
+            }
+            if (bordersCollide.top || bordersCollide.all) {
+                this._addTopBorder();
+            }
+            if (bordersCollide.bottom || bordersCollide.all) {
+                this._addBottomBorder();
+            }
+            this._trigger();
         }
-        if (bordersCollide.right || bordersCollide.all) {
-            this._addRightBorder();
+    );
+
+    /**
+     * Add a "left" border to collision physic.
+     * @private
+     */
+    defineMethod(superClass,
+        function _addLeftBorder() {
+            this._leftBorder = new PhysicBorder(
+                this,
+                () => -this.host.width / 2,
+                () => 0,
+                () => 0,
+                () => this.host.height
+            );
+            this._supportSAP.add(this._leftBorder);
+            return this;
         }
-        if (bordersCollide.top || bordersCollide.all) {
-            this._addTopBorder();
+    );
+
+    /**
+     * Add a "right" border to collision physic.
+     * @private
+     */
+    defineMethod(superClass,
+        function _addRightBorder() {
+            this._rightBorder = new PhysicBorder(
+                this,
+                () => this.host.width / 2,
+                () => 0,
+                () => 0,
+                () => this.host.height
+            );
+            this._supportSAP.add(this._rightBorder);
+            return this;
         }
-        if (bordersCollide.bottom || bordersCollide.all) {
-            this._addBottomBorder();
+    );
+
+    /**
+     * Add a "top" border to collision physic.
+     * @private
+     */
+    defineMethod(superClass,
+        function _addTopBorder() {
+            this._topBorder = new PhysicBorder(
+                this,
+                () => 0,
+                () => -this.host.height / 2,
+                () => this.host.width,
+                () => 0
+            );
+            this._supportSAP.add(this._topBorder);
+            return this;
         }
-        this._trigger();
-    };
+    );
 
-    superClass.prototype._addLeftBorder = function() {
-        this._leftBorder = new PhysicBorder(
-            this,
-            () => -this.host.width / 2,
-            () => 0,
-            () => 0,
-            () => this.host.height
-        );
-        this._supportSAP.add(this._leftBorder);
-        return this;
-    };
+    /**
+     * Add a "bottom" border to collision physic.
+     * @private
+     */
+    defineMethod(superClass,
+        function _addBottomBorder() {
+            this._bottomBorder = new PhysicBorder(
+                this,
+                () => 0,
+                () => this.host.height / 2,
+                () => this.host.width,
+                () => 0
+            );
+            this._supportSAP.add(this._bottomBorder);
+            return this;
+        }
+    );
 
-    superClass.prototype._addRightBorder = function() {
-        this._rightBorder = new PhysicBorder(
-            this,
-            () => this.host.width / 2,
-            () => 0,
-            () => 0,
-            () => this.host.height
-        );
-        this._supportSAP.add(this._rightBorder);
-        return this;
-    };
+    /**
+     * Extends collision physic resize method so that method can warn the "support Sweep And Prune" object that borders
+     * have moved (according to new host dimension) and their related bounds must be updated.
+     * @param widrh new collision physic's host width
+     * @param height new collision physic's host height
+     */
+    extendMethod(superClass, $resize=>
+        function resize(width, height) {
+            $resize && $resize.call(this, width, height);
+            if (this._leftBorder) {
+                this._supportSAP.update(this._leftBorder);
+            }
+            if (this._rightBorder) {
+                this._supportSAP.update(this._rightBorder);
+            }
+            if (this._topBorder) {
+                this._supportSAP.update(this._topBorder);
+            }
+            if (this._bottomBorder) {
+                this._supportSAP.update(this._bottomBorder);
+            }
+        }
+    );
 
-    superClass.prototype._addTopBorder = function() {
-        this._topBorder = new PhysicBorder(
-            this,
-            () => 0,
-            () => -this.host.height / 2,
-            () => this.host.width,
-            () => 0
-        );
-        this._supportSAP.add(this._topBorder);
-        return this;
-    };
-
-    superClass.prototype._addBottomBorder = function() {
-        this._bottomBorder = new PhysicBorder(
-            this,
-            () => 0,
-            () => this.host.height / 2,
-            () => this.host.width,
-            () => 0
-        );
-        this._supportSAP.add(this._bottomBorder);
-        return this;
-    };
-
-    let reset = superClass.prototype._reset;
-    superClass.prototype._reset = function() {
-        reset.call(this);
-        this._leftBorder && this._supportSAP.add(this._leftBorder);
-        this._rightBorder && this._supportSAP.add(this._rightBorder);
-        this._topBorder && this._supportSAP.add(this._topBorder);
-        this._bottomBorder && this._supportSAP.add(this._bottomBorder);
-    };
+    /**
+     * Extends collision physic reset method so that method includes borders object and bounds in the
+     * (re-)initialisation process.
+     */
+    extendMethod(superClass, $reset=>
+        function _reset() {
+            $reset.call(this);
+            this._leftBorder && this._supportSAP.add(this._leftBorder);
+            this._rightBorder && this._supportSAP.add(this._rightBorder);
+            this._topBorder && this._supportSAP.add(this._topBorder);
+            this._bottomBorder && this._supportSAP.add(this._bottomBorder);
+        }
+    );
 
 }
 
+/**
+ * Utility method that creates a basic collision physic class.
+ * @param predicate prdicate used by the new collision physic class to select elements subject to its placement logic.
+ * @returns {CollisionPhysic}
+ */
 export function createCollisionPhysic({predicate}) {
     class CollisionPhysic extends Physic {
         constructor(host, ...args) {
@@ -1011,204 +1105,231 @@ export function makeGravitationContainer(superClass, {
 
 export function makeCarrier(superClass) {
 
-    Object.defineProperty(superClass.prototype, "isCarrier", {
-        configurable:true,
-        get() {
+    defineGetProperty(superClass,
+        function isCarrier() {
             return true;
         }
-    });
+    );
 
-    Object.defineProperty(superClass.prototype, "carried", {
-        configurable:true,
-        get() {
+    defineGetProperty(superClass,
+        function carried() {
             return this._carried ? this._carried.keys() : [];
         }
-    });
+    );
 
-    superClass.prototype.addCarried = function(element) {
-        if (element.__addCarriedBy) {
-            Memento.register(this);
-            Memento.register(element);
-            this._addCarried(element);
-            this._fire(Events.ADD_CARRIED, element);
-            element._fire(Events.ADD_CARRIER, this);
-        }
-    };
-
-    superClass.prototype.moveCarried = function(element) {
-        if (element.__addCarriedBy) {
-            Memento.register(this);
-            Memento.register(element);
-            this._moveCarried(element);
-            this._fire(Events.MOVE_CARRIED, element);
-            element._fire(Events.MOVE_CARRIER, this);
-        }
-    };
-
-    superClass.prototype.removeCarried = function(element) {
-        if (element.__removeCarriedBy) {
-            Memento.register(this);
-            Memento.register(element);
-            this._removeCarried(element);
-            this._fire(Events.REMOVE_CARRIED, element);
-            element._fire(Events.REMOVE_CARRIER, this);
-        }
-    };
-
-    superClass.prototype.__addCarried = function(element, record) {
-        if (!this._carried) {
-            this._carried = new Map();
-        }
-        this._carried.set(element, record);
-    };
-
-    superClass.prototype.__moveCarried = function(element, record) {
-        this._carried.set(element, record);
-    };
-
-    superClass.prototype.__removeCarried = function(element) {
-        if (this._carried) {
-            this._carried.delete(element);
-            if (!this._carried.size) {
-                delete this._carried;
+    defineMethod(superClass,
+        function addCarried(element) {
+            if (element.__addCarriedBy) {
+                Memento.register(this);
+                Memento.register(element);
+                this._addCarried(element);
+                this._fire(Events.ADD_CARRIED, element);
+                element._fire(Events.ADD_CARRIER, this);
             }
         }
-    };
+    );
 
-    superClass.prototype.carry = function(element) {
-        return this._carried && this._carried.has(element);
-    };
+    defineMethod(superClass,
+        function moveCarried(element) {
+            if (element.__addCarriedBy) {
+                Memento.register(this);
+                Memento.register(element);
+                this._moveCarried(element);
+                this._fire(Events.MOVE_CARRIED, element);
+                element._fire(Events.MOVE_CARRIER, this);
+            }
+        }
+    );
 
-    superClass.prototype._addCarried = function(element) {
-        let record = new CloneableObject({
-            dx:element.lx-this.lx,
-            dy:element.ly-this.ly
-        });
-        this.__addCarried(element, record);
-        element.__addCarriedBy(this, record);
-    };
+    defineMethod(superClass,
+        function removeCarried(element) {
+            if (element.__removeCarriedBy) {
+                Memento.register(this);
+                Memento.register(element);
+                this._removeCarried(element);
+                this._fire(Events.REMOVE_CARRIED, element);
+                element._fire(Events.REMOVE_CARRIER, this);
+            }
+        }
+    );
 
-    superClass.prototype._moveCarried = function(element) {
-        let record = new CloneableObject({
-            dx:element.lx-this.lx,
-            dy:element.ly-this.ly
-        });
-        this.__moveCarried(element, record);
-        element.__moveCarriedBy(this, record);
-    };
+    defineMethod(superClass,
+        function __addCarried(element, record) {
+            if (!this._carried) {
+                this._carried = new Map();
+            }
+            this._carried.set(element, record);
+        }
+    );
 
-    superClass.prototype._removeCarried = function(element) {
-        this.__removeCarried(element);
-        element.__removeCarriedBy(this);
-    };
+    defineMethod(superClass,
+        function __moveCarried(element, record) {
+            this._carried.set(element, record);
+        }
+    );
 
-    superClass.prototype._clearCarried = function() {
-        delete this._carried;
-    };
+    defineMethod(superClass,
+        function __removeCarried(element) {
+            if (this._carried) {
+                this._carried.delete(element);
+                if (!this._carried.size) {
+                    delete this._carried;
+                }
+            }
+        }
+    );
 
-    let getExtension = superClass.prototype.getExtension;
-    superClass.prototype.getExtension = function(extension) {
-        let elemExtension = getExtension ? getExtension.call(this, extension) : new ESet();
-        extension = extension ? extension.merge(elemExtension) : elemExtension;
-        if (this._carried) {
-            for (let element of this._carried.keys()) {
-                if (!extension.has(element)) {
-                    extension.add(element);
-                    if (element.getExtension) {
-                        for (let child of element.getExtension(extension)) {
-                            extension.add(child);
+    defineMethod(superClass,
+        function carry(element) {
+            return this._carried && this._carried.has(element);
+        }
+    );
+
+    defineMethod(superClass,
+        function _addCarried(element) {
+            let record = new CloneableObject({
+                dx:element.lx-this.lx,
+                dy:element.ly-this.ly
+            });
+            this.__addCarried(element, record);
+            element.__addCarriedBy(this, record);
+        }
+    );
+
+    defineMethod(superClass,
+        function _moveCarried(element) {
+            let record = new CloneableObject({
+                dx:element.lx-this.lx,
+                dy:element.ly-this.ly
+            });
+            this.__moveCarried(element, record);
+            element.__moveCarriedBy(this, record);
+        }
+    );
+
+    defineMethod(superClass,
+        function _removeCarried(element) {
+            this.__removeCarried(element);
+            element.__removeCarriedBy(this);
+        }
+    );
+
+    defineMethod(superClass,
+        function _clearCarried() {
+            delete this._carried;
+        }
+    );
+
+    extendMethod(superClass, $getExtension=>
+        function getExtension(extension) {
+            let elemExtension = $getExtension ? $getExtension.call(this, extension) : new ESet();
+            extension = extension ? extension.merge(elemExtension) : elemExtension;
+            if (this._carried) {
+                for (let element of this._carried.keys()) {
+                    if (!extension.has(element)) {
+                        extension.add(element);
+                        if (element.getExtension) {
+                            for (let child of element.getExtension(extension)) {
+                                extension.add(child);
+                            }
                         }
                     }
                 }
             }
+            return extension
         }
-        return extension
-    };
+    );
 
-    let move = superClass.prototype.move;
-    superClass.prototype.move = function(x, y) {
-        if (move.call(this, x, y)) {
+    extendMethod(superClass, $move=>
+        function move(x, y) {
+            if ($move.call(this, x, y)) {
+                if (this._carried) {
+                    for (let element of this._carried.keys()) {
+                        let record = this._carried.get(element);
+                        if (element.support === this.support) {
+                            element.move(this.lx + record.dx, this.ly + record.dy);
+                        }
+                    }
+                }
+                return true;
+            }
+            return false;
+        }
+    );
+
+    extendMethod(superClass, $cancelDrop=>
+        function _cancelDrop(dragOperation) {
+            $cancelDrop && $cancelDrop.call(this, dragOperation);
             if (this._carried) {
                 for (let element of this._carried.keys()) {
-                    let record = this._carried.get(element);
-                    if (element.support === this.support) {
-                        element.move(this.lx + record.dx, this.ly + record.dy);
+                    if (!dragOperation.dropCancelled(element)) {
+                        dragOperation.cancelDrop(element);
                     }
                 }
             }
-            return true;
         }
-        return false;
-    };
+    );
 
-    let cancelDrop = superClass.prototype._cancelDrop;
-    superClass.prototype._cancelDrop = function(dragOperation) {
-        cancelDrop && cancelDrop.call(this, dragOperation);
-        if (this._carried) {
-            for (let element of this._carried.keys()) {
-                if (!dragOperation.dropCancelled(element)) {
-                    dragOperation.cancelDrop(element);
+    extendMethod(superClass, $cloned=>
+        function _cloned(copy, duplicata) {
+            $cloned && $cloned.call(this, copy, duplicata);
+            if (this._carried) {
+                for (let element of this._carried.keys()) {
+                    let childCopy = duplicata.get(element);
+                    let record = this._carried.get(element);
+                    copy.__addCarried(childCopy, record);
                 }
             }
         }
-    };
+    );
 
-    let cloned = superClass.prototype._cloned;
-    superClass.prototype._cloned = function (copy, duplicata) {
-        cloned && cloned.call(this, copy, duplicata);
-        if (this._carried) {
-            for (let element of this._carried.keys()) {
-                let childCopy = duplicata.get(element);
-                let record = this._carried.get(element);
-                copy.__addCarried(childCopy, record);
+    extendMethod(superClass, $revertDroppedIn=>
+        function _revertDroppedIn() {
+            $revertDroppedIn && $revertDroppedIn.call(this);
+            if (this._carried) {
+                for (let element of this._carried.keys()) {
+                    let record = this._carried.get(element);
+                    element.__addCarriedBy(this, record);
+                }
             }
         }
-    };
+    );
 
-    let revertDroppedIn = superClass.prototype._revertDroppedIn;
-    superClass.prototype._revertDroppedIn = function () {
-        revertDroppedIn && revertDroppedIn.call(this);
-        if (this._carried) {
-            for (let element of this._carried.keys()) {
-                let record = this._carried.get(element);
-                element.__addCarriedBy(this, record);
+    extendMethod(superClass, $delete=>
+        function delete_() {
+            let result = $delete.call(this);
+            if (this._carried) {
+                for (let element of this._carried.keys()) {
+                    this.removeCarried(element);
+                }
             }
+            return result;
         }
-    };
+    );
 
-    let superDelete = superClass.prototype.delete;
-    superClass.prototype.delete = function() {
-        let result = superDelete.call(this);
-        if (this._carried) {
-            for (let element of this._carried.keys()) {
-                this.removeCarried(element);
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            if (this._carried) {
+                memento._carried = new Map(this._carried);
             }
+            return memento;
         }
-        return result;
-    };
+    );
 
-    let superMemento = superClass.prototype._memento;
-    superClass.prototype._memento = function () {
-        let memento = superMemento.call(this);
-        if (this._carried) {
-            memento._carried = new Map(this._carried);
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            if (memento._carried) {
+                this._carried = new Map(memento._carried);
+            }
+            else {
+                delete this._carried;
+            }
+            return this;
         }
-        return memento;
-    };
+    );
 
-    let superRevert = superClass.prototype._revert;
-    superClass.prototype._revert = function (memento) {
-        superRevert.call(this, memento);
-        if (memento._carried) {
-            this._carried = new Map(memento._carried);
-        }
-        else {
-            delete this._carried;
-        }
-        return this;
-    };
-
-    return superClass;
 }
 
 export function makeCarriable(superClass) {

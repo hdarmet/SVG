@@ -2,7 +2,7 @@
 
 
 import {
-    List
+    List, ESet, EMap
 } from "./collections.js";
 import {
     Box
@@ -11,7 +11,7 @@ import {
     Group, Rect, Fill, Stroke, Visibility, win, Colors, Circle, Line
 } from "./graphics.js";
 import {
-    Memento, Context, Events, makeNotCloneable, Canvas, makeSingleton, Selection
+    Memento, Context, Events, makeNotCloneable, Canvas, makeSingleton, Selection, l2pBoundingBox
 } from "./toolkit.js";
 import {
     DragSwitchOperation, DragOperation, DragMoveSelectionOperation, DragRotateSelectionOperation, DragAreaOperation,
@@ -37,6 +37,9 @@ import {
 import {
     makeStrokeUpdatable
 } from "./standard-mixins.js";
+import {
+    defineMethod, extendMethod, proposeMethod, defineGetProperty
+} from "./misc.js";
 
 Context.itemDrag = new DragSwitchOperation()
     .add(()=>true, DragRotateSelectionOperation.instance)
@@ -477,12 +480,17 @@ DragHandleOperation.instance = new DragHandleOperation();
 
 export class BoardHandle extends BoardElement {
 
-    constructor(color = BoardHandle.COLOR) {
+    constructor(color = BoardHandle.COLOR, direction) {
         let zoom = Canvas.instance.zoom;
         super(0, 0);
+        this._direction = direction;
         this.initShape(BoardHandle.SIZE/zoom, BoardHandle.SIZE/zoom, color, zoom);
         this._dragOperation(function() {return DragHandleOperation.instance;});
         this._observe(Canvas.instance);
+    }
+
+    get direction() {
+        return this._direction;
     }
 
     _notified(source, event, data) {
@@ -513,92 +521,130 @@ makeShaped(BoardHandle);
 makeDraggable(BoardHandle);
 BoardHandle.SIZE = 8;
 BoardHandle.COLOR = Colors.RED;
+BoardHandle.TOP = 0;
+BoardHandle.RIGHT_TOP = 1;
+BoardHandle.RIGHT = 2;
+BoardHandle.RIGHT_BOTTOM = 3;
+BoardHandle.BOTTOM = 4;
+BoardHandle.LEFT_BOTTOM = 5;
+BoardHandle.LEFT = 6;
+BoardHandle.LEFT_TOP = 7;
+BoardHandle.ALL = new ESet([
+    BoardHandle.TOP, BoardHandle.RIGHT_TOP, BoardHandle.RIGHT, BoardHandle.RIGHT_BOTTOM,
+    BoardHandle.BOTTOM, BoardHandle.LEFT_BOTTOM, BoardHandle.LEFT, BoardHandle.LEFT_TOP
+]);
 
-export function makeResizeable(superClass) {
+export function makeResizeable(superClass, spec=BoardHandle.ALL) {
 
-    superClass.prototype._initResize = function(color) {
-        this._handles = new List();
-        this._leftTopHandle = this._createHandle(color);
-        this._topHandle = this._createHandle(color);
-        this._rightTopHandle = this._createHandle(color);
-        this._rightHandle = this._createHandle(color);
-        this._rightBottomHandle = this._createHandle(color);
-        this._bottomHandle = this._createHandle(color);
-        this._leftBottomHandle = this._createHandle(color);
-        this._leftHandle = this._createHandle(color);
-    };
-
-    superClass.prototype._putHandles = function() {
-        for (let handle of this._handles) {
-            this._root.add(handle._root);
-            handle._parent = this;
+    defineMethod(superClass,
+        function _initResize(color) {
+            this._handles = new List();
+            this._leftTopHandle = this._createHandle(color, BoardHandle.LEFT_TOP);
+            this._topHandle = this._createHandle(color, BoardHandle.TOP);
+            this._rightTopHandle = this._createHandle(color, BoardHandle.RIGHT_TOP);
+            this._rightHandle = this._createHandle(color, BoardHandle.RIGHT);
+            this._rightBottomHandle = this._createHandle(color, BoardHandle.RIGHT_BOTTOM);
+            this._bottomHandle = this._createHandle(color, BoardHandle.BOTTOM);
+            this._leftBottomHandle = this._createHandle(color, BoardHandle.LEFT_BOTTOM);
+            this._leftHandle = this._createHandle(color, BoardHandle.LEFT);
         }
-        this._placeHandles();
-    };
+    );
 
-    superClass.prototype.putHandles = function() {
-        for (let handle of this._handles) {
-            Memento.register(handle);
+    defineMethod(superClass,
+        function _putHandles() {
+            for (let handle of this._handles) {
+                if (spec.has(handle.direction)) {
+                    this._root.add(handle._root);
+                    handle._parent = this;
+                }
+            }
+            this._placeHandles();
         }
-        this._putHandles();
-    };
+    );
 
-    superClass.prototype._removeHandles = function() {
-        for (let handle of this._handles) {
-            this._root.remove(handle._root);
-            handle._parent = null;
+    defineMethod(superClass,
+        function putHandles() {
+            for (let handle of this._handles) {
+                Memento.register(handle);
+            }
+            this._putHandles();
         }
-    };
+    );
 
-    superClass.prototype.removeHandles = function() {
-        for (let handle of this._handles) {
-            Memento.register(handle);
+    defineMethod(superClass,
+        function _removeHandles() {
+            for (let handle of this._handles) {
+                if (spec.has(handle.direction)) {
+                    this._root.remove(handle._root);
+                    handle._parent = null;
+                }
+            }
         }
-        this._removeHandles();
-    };
+    );
 
-    superClass.prototype._placeHandles = function() {
-        this._leftTopHandle._setLocation(-this.width/2, -this.height/2);
-        this._topHandle._setLocation(0, -this.height/2);
-        this._rightTopHandle._setLocation(this.width/2, -this.height/2);
-        this._rightHandle._setLocation(this.width/2, 0);
-        this._rightBottomHandle._setLocation(this.width/2, this.height/2);
-        this._bottomHandle._setLocation(0, this.height/2);
-        this._leftBottomHandle._setLocation(-this.width/2, this.height/2);
-        this._leftHandle._setLocation(-this.width/2, 0);
-    };
-
-    superClass.prototype.placeHandles = function() {
-        for (let handle of this._handles) {
-            Memento.register(handle);
+    defineMethod(superClass,
+        function removeHandles() {
+            for (let handle of this._handles) {
+                Memento.register(handle);
+            }
+            this._removeHandles();
         }
-        this._placeHandles();
-    };
+    );
 
-    superClass.prototype._createHandle = function(color) {
-        let handle = new BoardHandle(color);
-        this._handles.add(handle);
-        handle._parent = this;
-        return handle;
-    };
+    defineMethod(superClass,
+        function _placeHandles() {
+            this._leftTopHandle._setLocation(-this.width/2, -this.height/2);
+            this._topHandle._setLocation(0, -this.height/2);
+            this._rightTopHandle._setLocation(this.width/2, -this.height/2);
+            this._rightHandle._setLocation(this.width/2, 0);
+            this._rightBottomHandle._setLocation(this.width/2, this.height/2);
+            this._bottomHandle._setLocation(0, this.height/2);
+            this._leftBottomHandle._setLocation(-this.width/2, this.height/2);
+            this._leftHandle._setLocation(-this.width/2, 0);
+        }
+    );
 
-    superClass.prototype.resize = function(width, height) {
-        this._setSize(width, height);
-        return this;
-    };
+    defineMethod(superClass,
+        function placeHandles() {
+            for (let handle of this._handles) {
+                Memento.register(handle);
+            }
+            this._placeHandles();
+        }
+    );
+
+    defineMethod(superClass,
+        function _createHandle(color, direction) {
+            let handle = new BoardHandle(color, direction);
+            this._handles.add(handle);
+            return handle;
+        }
+    );
+
+    extendMethod(superClass, $resize=>
+        function resize(width, height, direction) {
+            let minWidth = this.minWidth;
+            let minHeight = this.minHeight;
+            if (minWidth!==undefined && width<minWidth) width = minWidth;
+            if (minHeight!==undefined && height<minHeight) height = minHeight;
+            $resize && $resize.call(this, width, height, direction);
+            this.setSize(width, height);
+            return this;
+        }
+    );
 
     /**
      * Defines in the bounds, the resizeable item cannot exceed. The defaulting value is the geometry of the item
      * parent.
      */
-    if (!superClass.prototype.bounds) {
-        superClass.prototype.bounds = function () {
+    proposeMethod(superClass,
+        function bounds() {
             return {
                 left: -this.parent.width / 2-this.lx, right: this.parent.width / 2-this.lx,
                 top: -this.parent.height / 2-this.ly, bottom: this.parent.height / 2-this.ly
             }
-        };
-    }
+        }
+    );
 
     /**
      * Process the "drop" of one of the resizeable item handles. This method has three missions:
@@ -611,68 +657,151 @@ export function makeResizeable(superClass) {
      * @param element resizeable item
      * @private
      */
-    superClass.prototype._receiveMove = function(element) {
+    defineMethod(superClass,
+        function _receiveMove(element) {
 
-        /**
-         * Ensure that the frame is indside the allowed bounds. If not, reduce the frame geometry accordingly.
-         * @param element resizeable item to rebound
-         * @param bounds the allowed bounds
-         */
-        function rebound(element, bounds) {
-            let lx = element.lx;
-            let ly = element.ly;
-            if (lx<bounds.left) lx = bounds.left;
-            if (lx>bounds.right) lx = bounds.right;
-            if (ly<bounds.top) ly = bounds.top;
-            if (ly>bounds.bottom) ly = bounds.bottom;
-            if (lx!==element.lx || ly!==element.ly) {
-                Memento.register(element);
-                element._setLocation(lx, ly);
+            /**
+             * Ensure that the frame is indside the allowed bounds. If not, reduce the frame geometry accordingly.
+             * @param element resizeable item to rebound
+             * @param bounds the allowed bounds
+             */
+            function rebound(element, bounds) {
+                let lx = element.lx;
+                let ly = element.ly;
+                if (lx<bounds.left) lx = bounds.left;
+                if (lx>bounds.right) lx = bounds.right;
+                if (ly<bounds.top) ly = bounds.top;
+                if (ly>bounds.bottom) ly = bounds.bottom;
+                if (lx!==element.lx || ly!==element.ly) {
+                    Memento.register(element);
+                    element._setLocation(lx, ly);
+                }
+            }
+
+            function updateHandlesVisibility() {
+                for (let handle of this._handles) {
+                    if (spec.has(handle.direction) && !handle._parent) {
+                        this._root.add(handle._root);
+                        handle._parent = this;
+                    }
+                    else if (!spec.has(handle.direction) && handle._parent) {
+                        this._root.remove(handle._root);
+                        handle._parent = null;
+                    }
+                }
+            }
+
+            if (element instanceof BoardHandle) {
+                rebound(element, this.bounds());
+                let width = this.width;
+                let height = this.height;
+                let lx = this.lx;
+                let ly = this.ly;
+                // Permutation management
+                if (element===this._leftTopHandle || element===this._leftHandle || element===this._leftBottomHandle) {
+                    width = -element.lx+this.width/2;
+                    lx += (this.width-width)/2;
+                }
+                else if (element===this._rightTopHandle || element===this._rightHandle || element===this._rightBottomHandle) {
+                    width = element.lx+this.width/2;
+                    lx += (width-this.width)/2;
+                }
+                if (element===this._leftTopHandle || element===this._topHandle || element===this._rightTopHandle) {
+                    height = -element.ly+this.height/2;
+                    ly += (this.height-height)/2;
+                }
+                else if (element===this._leftBottomHandle || element===this._bottomHandle || element===this._rightBottomHandle) {
+                    height = element.ly+this.height/2;
+                    ly += (height-this.height)/2;
+                }
+                if (width<0) {
+                    width = -width;
+                    let hdl = this._leftTopHandle; this._leftTopHandle = this._rightTopHandle; this._rightTopHandle = hdl;
+                    hdl = this._leftHandle; this._leftHandle = this._rightHandle; this._rightHandle = hdl;
+                    hdl = this._leftBottomHandle; this._leftBottomHandle = this._rightBottomHandle; this._rightBottomHandle = hdl;
+                }
+                if (height<0) {
+                    height = -height;
+                    let hdl = this._leftTopHandle; this._leftTopHandle = this._leftBottomHandle; this._leftBottomHandle = hdl;
+                    hdl = this._topHandle; this._topHandle = this._bottomHandle; this._bottomHandle = hdl;
+                    hdl = this._rightTopHandle; this._rightTopHandle = this._rightBottomHandle; this._rightBottomHandle = hdl;
+                }
+                updateHandlesVisibility.call(this);
+                // Geometry update
+                Memento.register(this);
+                this.resize(width, height, element.direction);
+                // Adjust position parameter in case of min width/height limits reached.
+                if (element===this._leftTopHandle || element===this._leftHandle || element===this._leftBottomHandle) {
+                    lx += (width-this.width)/2;
+                }
+                else if (element===this._rightTopHandle || element===this._rightHandle || element===this._rightBottomHandle) {
+                    lx += (this.width-width)/2;
+                }
+                if (element===this._leftTopHandle || element===this._topHandle || element===this._rightTopHandle) {
+                    ly += (height-this.height)/2;
+                }
+                else if (element===this._leftBottomHandle || element===this._bottomHandle || element===this._rightBottomHandle) {
+                    ly += (this.height-height)/2;
+                }
+                this.setLocation(lx, ly);
+                this.placeHandles();
             }
         }
+    );
 
-        if (element instanceof BoardHandle) {
-            rebound(element, this.bounds());
-            let width = this.width;
-            let height = this.height;
-            let lx = this.lx;
-            let ly = this.ly;
-            // Permutation management
-            if (element===this._leftTopHandle || element===this._leftHandle || element===this._leftBottomHandle) {
-                width = -element.lx+this.width/2;
-                lx += (this.width-width)/2;
-            }
-            else if (element===this._rightTopHandle || element===this._rightHandle || element===this._rightBottomHandle) {
-                width = element.lx+this.width/2;
-                lx += (width-this.width)/2;
-            }
-            if (element===this._leftTopHandle || element===this._topHandle || element===this._rightTopHandle) {
-                height = -element.ly+this.height/2;
-                ly += (this.height-height)/2;
-            }
-            else if (element===this._leftBottomHandle || element===this._bottomHandle || element===this._rightBottomHandle) {
-                height = element.ly+this.height/2;
-                ly += (height-this.height)/2;
-            }
-            if (width<0) {
-                width = -width;
-                let hdl = this._leftTopHandle; this._leftTopHandle = this._rightTopHandle; this._rightTopHandle = hdl;
-                hdl = this._leftHandle; this._leftHandle = this._rightHandle; this._rightHandle = hdl;
-                hdl = this._leftBottomHandle; this._leftBottomHandle = this._rightBottomHandle; this._rightBottomHandle = hdl;
-            }
-            if (height<0) {
-                height = -height;
-                let hdl = this._leftTopHandle; this._leftTopHandle = this._leftBottomHandle; this._leftBottomHandle = hdl;
-                hdl = this._topHandle; this._topHandle = this._bottomHandle; this._bottomHandle = hdl;
-                hdl = this._rightTopHandle; this._rightTopHandle = this._rightBottomHandle; this._rightBottomHandle = hdl;
-            }
-            // Geometry update
-            Memento.register(this);
-            this.setLocation(lx, ly);
-            this.resize(width, height);
-            this.placeHandles();
+}
+
+export function makeResizeableContent(superClass) {
+
+    defineGetProperty(superClass,
+        function minWidth() {
+            let bbox = l2pBoundingBox(this.children);
+            return bbox ? bbox.width : 0;
         }
-    }
+    );
+
+    defineGetProperty(superClass,
+        function minHeight() {
+            let bbox = l2pBoundingBox(this.children);
+            return bbox ? bbox.height : 0;
+        }
+    );
+
+    defineMethod(superClass,
+        function resize(width, height, direction) {
+            let dx = 0;
+            let dy = 0;
+            if (direction === BoardHandle.LEFT_TOP ||
+                direction === BoardHandle.LEFT ||
+                direction === BoardHandle.LEFT_BOTTOM) dx = width - this.width;
+            else if (direction === BoardHandle.RIGHT_TOP ||
+                direction === BoardHandle.RIGHT ||
+                direction === BoardHandle.RIGHT_BOTTOM) dx = this.width - width;
+            if (direction === BoardHandle.TOP ||
+                direction === BoardHandle.LEFT_TOP ||
+                direction === BoardHandle.RIGHT_TOP) dy = height - this.height;
+            else if (direction === BoardHandle.BOTTOM ||
+                direction === BoardHandle.LEFT_BOTTOM ||
+                direction === BoardHandle.RIGHT_BOTTOM) dy = this.height - height;
+            let positions = new EMap();
+            for (let element of this.children) {
+                let lx = element.lx;
+                let elemWidth = element.width;
+                if (lx-elemWidth/2+dx/2<-width/2) dx=-width-lx*2+elemWidth;
+                else if (lx+elemWidth/2+dx/2>width/2) dx=width-lx*2-elemWidth;
+                let ly = element.ly;
+                let elemHeight = element.height;
+                if (ly-elemHeight/2+dy/2<-height/2) dy=-height-ly*2+elemHeight;
+                else if (ly+elemHeight/2+dy/2>height/2) dy=height-ly*2-elemHeight;
+                positions.set(element, {x:lx, y:ly});
+            }
+            for (let element of this.children) {
+                let position = positions.get(element);
+                element.move(position.x + dx/2, position.y + dy/2);
+            }
+        }
+    );
+
 }
 
 export class BoardFrame extends BoardElement {

@@ -388,7 +388,7 @@ export function makeContainer(superClass) {
     );
 
     defineMethod(superClass,
-        function (_shiftChildelement, x, y) {
+        function _shiftChild(element, x, y) {
         }
     );
 

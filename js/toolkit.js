@@ -561,7 +561,7 @@ export class BaseLayer extends CanvasLayer {
         return this;
     }
 
-    get selectionMark() {
+    get contentSelectionMark() {
         return Selection.instance.selectFilter;
     }
 }
@@ -761,11 +761,13 @@ export class GlassLayer extends CanvasLayer {
     }
 
     hide() {
+        //this._root.visibility = Visibility.HIDDEN;
         this._root.remove(this._content);
         return true;
     }
 
     show() {
+        //this._root.visibility = null;
         this._root.add(this._content);
         return true;
     }
@@ -1796,8 +1798,9 @@ export class Selection {
     }
 
     selectionMark(element) {
+        if (element.selectionMark !== undefined) return element.selectionMark;
         while (element) {
-            let selectionMark = element.selectionMark;
+            let selectionMark = element.contentSelectionMark;
             if (selectionMark!==undefined) return selectionMark;
             element = element.support;
         }

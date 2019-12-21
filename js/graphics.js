@@ -1154,6 +1154,9 @@ export class DOMElement {
         memento._target = this;
         for (let property in this._attrs) {
             if (this._attrs.hasOwnProperty(property)) {
+                if (property==="width") {
+                    console.log("memento width", this._attrs[property]);
+                }
                 memento._attrs[property] = this._attrs[property];
             }
         }
@@ -1174,12 +1177,20 @@ export class DOMElement {
     }
 
     revert(memento) {
-        this.attrs(memento._attrs);
-        for (let child of [...this._children]) {
-            this.remove(child);
+        if (memento._attrs.width!==undefined) {
+            console.log("revert width", memento._attrs.width);
         }
-        for (let record of memento._children) {
-            this.add(record._target);
+        this.attrs(memento._attrs);
+        if (this._children) {
+            for (let child of [...this._children]) {
+                this.remove(child);
+            }
+        }
+        if (memento._children) {
+            for (let record of memento._children) {
+                this.add(record._target);
+                record._target.revert(record);
+            }
         }
         this._dnd = memento._dnd;
         if (this._events) {

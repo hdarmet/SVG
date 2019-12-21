@@ -1,6 +1,6 @@
 
 import {
-    DIAMItem
+    DeltaItem
 } from "./delta-core.js";
 import {
     makeCarriable, makeCarrier
@@ -13,7 +13,7 @@ import {
     Colors
 } from "../../js/graphics.js";
 import {
-    DIAMBoxContent, makeFasciaSupport, makeFooterOwner, makeHeaderOwner, DIAMSlottedBoxContent, DIAMCaddyContent
+    DeltaBoxContent, makeFasciaSupport, makeFooterOwner, makeHeaderOwner, DeltaSlottedBoxContent, DeltaCaddyContent
 } from "./delta-objects.js";
 import {
     ESet, List
@@ -37,12 +37,12 @@ import {
     assert, is
 } from "../../js/misc.js";
 
-export class DIAMAbstractModule extends DIAMItem {}
-makeCarrier(DIAMAbstractModule);
-makeCarriable(DIAMAbstractModule);
-makeGentleDropTarget(DIAMAbstractModule);
+export class DeltaAbstractModule extends DeltaItem {}
+makeCarrier(DeltaAbstractModule);
+makeCarriable(DeltaAbstractModule);
+makeGentleDropTarget(DeltaAbstractModule);
 
-export class DIAMBasicModule extends DIAMAbstractModule {
+export class DeltaBasicModule extends DeltaAbstractModule {
     constructor(specs) {
         super(specs);
     }
@@ -52,9 +52,9 @@ export class DIAMBasicModule extends DIAMAbstractModule {
         this._initFrame(this.width, this.height, Colors.INHERIT, color);
     }
 }
-makeFramed(DIAMBasicModule);
+makeFramed(DeltaBasicModule);
 
-export class DIAMImageModule extends DIAMAbstractModule {
+export class DeltaImageModule extends DeltaAbstractModule {
     constructor(specs) {
         super(specs);
     }
@@ -76,9 +76,9 @@ export class DIAMImageModule extends DIAMAbstractModule {
         return super.clone(duplicata)
     }
 }
-makeMultiImaged(DIAMImageModule);
+makeMultiImaged(DeltaImageModule);
 
-export class DIAMBoxModule extends DIAMAbstractModule {
+export class DeltaBoxModule extends DeltaAbstractModule {
     constructor(specs) {
         super(specs);
     }
@@ -92,7 +92,7 @@ export class DIAMBoxModule extends DIAMAbstractModule {
     }
 
     _buildBoxContent(contentWidth, contentHeight) {
-        return new DIAMBoxContent({width:contentWidth, height:contentHeight});
+        return new DeltaBoxContent({width:contentWidth, height:contentHeight});
     }
 
     showRealistic() {
@@ -103,17 +103,17 @@ export class DIAMBoxModule extends DIAMAbstractModule {
         this.shape.fill = Colors.WHITE;
     }
 }
-makeFramed(DIAMBoxModule);
+makeFramed(DeltaBoxModule);
 
-export class DIAMSlottedBoxModule extends DIAMBoxModule {
+export class DeltaSlottedBoxModule extends DeltaBoxModule {
 
     _buildBoxContent(contentWidth, contentHeight, {slotWidth}) {
-        return new DIAMSlottedBoxContent({width:contentWidth, height:contentHeight, slotWidth});
+        return new DeltaSlottedBoxContent({width:contentWidth, height:contentHeight, slotWidth});
     }
 
 }
 
-export class DIAMSlottedRichBoxModule extends DIAMSlottedBoxModule {
+export class DeltaSlottedRichBoxModule extends DeltaSlottedBoxModule {
 
     _improve({
          contentX, contentY, contentWidth, contentHeight,
@@ -127,19 +127,19 @@ export class DIAMSlottedRichBoxModule extends DIAMSlottedBoxModule {
     }
 
 }
-makeHeaderOwner(DIAMSlottedRichBoxModule);
-makeFooterOwner(DIAMSlottedRichBoxModule);
-makeFasciaSupport(DIAMSlottedRichBoxModule);
+makeHeaderOwner(DeltaSlottedRichBoxModule);
+makeFooterOwner(DeltaSlottedRichBoxModule);
+makeFasciaSupport(DeltaSlottedRichBoxModule);
 
-export class DIAMCaddyModule extends DIAMBoxModule {
+export class DeltaCaddyModule extends DeltaBoxModule {
 
     _buildBoxContent(contentWidth, contentHeight, color) {
-        return new DIAMCaddyContent({width:contentWidth, height:contentHeight, color:Colors.LIGHTEST_GREY});
+        return new DeltaCaddyContent({width:contentWidth, height:contentHeight, color:Colors.LIGHTEST_GREY});
     }
 
 }
 
-export class DIAMRichCaddyModule extends DIAMCaddyModule {
+export class DeltaRichCaddyModule extends DeltaCaddyModule {
 
     _improve({
                  contentX, contentY, contentWidth, contentHeight,
@@ -153,11 +153,11 @@ export class DIAMRichCaddyModule extends DIAMCaddyModule {
     }
 
 }
-makeHeaderOwner(DIAMRichCaddyModule);
-makeFooterOwner(DIAMRichCaddyModule);
-makeFasciaSupport(DIAMRichCaddyModule);
+makeHeaderOwner(DeltaRichCaddyModule);
+makeFooterOwner(DeltaRichCaddyModule);
+makeFasciaSupport(DeltaRichCaddyModule);
 
-export class DIAMAbstractCell extends BoardElement {
+export class DeltaAbstractCell extends BoardElement {
 
     constructor({width, height, x, y, shape, compatibilities}) {
         super(width, height);
@@ -171,7 +171,7 @@ export class DIAMAbstractCell extends BoardElement {
     }
 
     acceptElement(element) {
-        if (!is(DIAMOption)(element) || !element.compatibilities) return false;
+        if (!is(DeltaOption)(element) || !element.compatibilities) return false;
         return element.isCompatible(this.compatibilities);
     }
 
@@ -193,19 +193,19 @@ export class DIAMAbstractCell extends BoardElement {
     }
 
 }
-makeShaped(DIAMAbstractCell);
-makeSupport(DIAMAbstractCell);
-makePositioningContainer(DIAMAbstractCell, {
+makeShaped(DeltaAbstractCell);
+makeSupport(DeltaAbstractCell);
+makePositioningContainer(DeltaAbstractCell, {
     predicate: function(element) {
         return this.host.acceptElement(element);
     },
     positionsBuilder: element=>{return [{x:0, y:0}]}
 });
-makePart(DIAMAbstractCell);
-makeSelectable(DIAMAbstractCell);
-makeGentleDropTarget(DIAMAbstractCell);
+makePart(DeltaAbstractCell);
+makeSelectable(DeltaAbstractCell);
+makeGentleDropTarget(DeltaAbstractCell);
 
-export class DIAMCell extends DIAMAbstractCell {
+export class DeltaCell extends DeltaAbstractCell {
 
     constructor({width, height, x, y, shape, compatibilities, family}) {
         super({width, height, x, y, shape, compatibilities});
@@ -284,9 +284,9 @@ export class DIAMCell extends DIAMAbstractCell {
     }
 
 }
-makeClickable(DIAMCell);
+makeClickable(DeltaCell);
 
-export class DIAMOption extends DIAMItem {
+export class DeltaOption extends DeltaItem {
 
     _improve({shape, compatibilities}) {
         super._improve();
@@ -316,7 +316,7 @@ export class DIAMOption extends DIAMItem {
 
     _notified(source, event, value) {
         if (source === this && event===Events.ATTACH) {
-            if (this.parent && this.parent instanceof DIAMCell) {
+            if (this.parent && this.parent instanceof DeltaCell) {
                 Selection.instance.unselect(this);
                 Selection.instance.select(this.parent);
             }
@@ -328,7 +328,7 @@ export class DIAMOption extends DIAMItem {
     }
 
     select() {
-        if (this.parent && this.parent instanceof DIAMCell) {
+        if (this.parent && this.parent instanceof DeltaCell) {
             Selection.instance.select(this.parent);
             Selection.instance.unselect(this);
         }
@@ -336,17 +336,17 @@ export class DIAMOption extends DIAMItem {
 
     _draggedFrom(parent) {
         Selection.instance.select(this);
-        if (parent instanceof DIAMCell) {
+        if (parent instanceof DeltaCell) {
             Selection.instance.unselect(this.parent);
         }
     }
 
 }
-makeShaped(DIAMOption);
-makeContainer(DIAMOption);
-makeGentleDropTarget(DIAMOption);
+makeShaped(DeltaOption);
+makeContainer(DeltaOption);
+makeGentleDropTarget(DeltaOption);
 
-export class DIAMColorOption extends DIAMOption {
+export class DeltaColorOption extends DeltaOption {
 }
 
 export function makeCellsOwner(superClass) {
@@ -452,27 +452,27 @@ export function makeCellsOwner(superClass) {
     };
 }
 
-export class DIAMConfigurableOption extends DIAMOption {
+export class DeltaConfigurableOption extends DeltaOption {
     constructor({width, height, shape, compatibilities, cells}) {
         super({width, height, compatibilities, shape, cells});
     }
 
 }
-makeCellsOwner(DIAMConfigurableOption);
+makeCellsOwner(DeltaConfigurableOption);
 
-export class DIAMConfigurableModule extends DIAMBasicModule {
+export class DeltaConfigurableModule extends DeltaBasicModule {
     constructor({width, height, cells}) {
         super({width, height, color:Colors.WHITE, cells});
     }
 }
-makeCellsOwner(DIAMConfigurableModule);
+makeCellsOwner(DeltaConfigurableModule);
 
 export class OptionItemBuilder extends BoardItemBuilder {
     constructor(proto) {
         super(proto, function(items) {
             let selection = Selection.instance.selection(onCanvasLayer(Canvas.instance.baseLayer));
             for (let element of selection) {
-                if (element instanceof DIAMCell && !element.option) {
+                if (element instanceof DeltaCell && !element.option) {
                     let anOption = CopyPaste.instance.duplicateElement(items.pick());
                     element.addChild(anOption);
                     if (element.parent.isCellsOwner) {
@@ -535,7 +535,7 @@ export class OptionsExpandablePanel extends ToolGridExpandablePanel {
     }
 
     _compatibleOptions(element) {
-        if (!is(DIAMOption)(element)) return false;
+        if (!is(DeltaOption)(element)) return false;
         let compatibilities = this._getCompatibilitySet(Selection.instance.selection());
         return element.isCompatible(compatibilities);
     }

@@ -1550,19 +1550,28 @@ export class RulesDecoration extends Decoration {
     _notified(source, event, value) {
         if (source===this._element) {
             if (event===Events.ADD || event===Events.REMOVE || event===Events.MOVE) {
-                this.refresh();
+                if (this._shown) {
+                    this._askForRefresh();
+                }
             }
             else if (event===Events.HOVER) {
                 if (this._checksElements(value)) {
-                    if (!this._root.contains(this._rules)) {
-                        this._root.add(this._rules);
-                        this._root.add(this._arrows);
+                    if (!this._shown) {
+                        this._shown = true;
+                        if (!this._root.contains(this._rules)) {
+                            this._root.add(this._rules);
+                            this._root.add(this._arrows);
+                            this._askForRefresh();
+                        }
                     }
                 }
                 else {
-                    if (this._root.contains(this._rules)) {
-                        this._root.remove(this._rules);
-                        this._root.remove(this._arrows);
+                    if (this._shown) {
+                        this._shown = false;
+                        if (this._root.contains(this._rules)) {
+                            this._root.remove(this._rules);
+                            this._root.remove(this._arrows);
+                        }
                     }
                 }
             }

@@ -37,20 +37,23 @@ import {
     makeGravitationContainer
 } from "../../js/collision-physics.js";
 import {
-    BoardPrintArea
+    BoardPrintArea, makeResizeable, makeResizeableContent
 } from "../../js/elements.js";
 import {
-    LAYERS_DEFINITION, makeFreePositioningOwner, makeLabelOwner, TABLE_LAYERS_DEFINITION, DIAMSupport, DIAMLayers
+    LAYERS_DEFINITION, makeFreePositioningOwner, makeLabelOwner, TABLE_LAYERS_DEFINITION, DeltaSupport, DeltaLayers
 } from "./delta-core.js";
 import {
-    DIAMAbstractModule
+    DeltaAbstractModule
 } from "./delta-products.js";
 import {
-    DIAMBox, DIAMPane
+    DeltaBox, DeltaPane
 } from "./delta-objects.js";
 import {
     createCommandPopup, createPalettePopup, setShortcuts, defineLayers
 } from "./delta-tools.js";
+import {
+    makeSelectable
+} from "../../js/core-mixins.js";
 
 class BoardPaper extends BoardArea {
     constructor(width, height, backgroundColor) {
@@ -60,7 +63,7 @@ class BoardPaper extends BoardArea {
 }
 makePart(BoardPaper);
 
-class DIAMPaperContent extends DIAMSupport {
+class DeltaPaperContent extends DeltaSupport {
     constructor({width, height}) {
         super({width, height, strokeColor:Colors.NONE, backgroundColor:Colors.WHITE});
     }
@@ -69,19 +72,25 @@ class DIAMPaperContent extends DIAMSupport {
         return this.parent;
     }
 }
-makeGravitationContainer(DIAMPaperContent, {
-    predicate: is(DIAMPane, DIAMAbstractModule, DIAMBox),
+makeGravitationContainer(DeltaPaperContent, {
+    predicate: is(DeltaPane, DeltaAbstractModule, DeltaBox),
     carryingPredicate: always,
     bordersCollide:{all:true}
 });
-makePart(DIAMPaperContent);
-makeContainerMultiLayered(DIAMPaperContent, LAYERS_DEFINITION);
+makePart(DeltaPaperContent);
+makeContainerMultiLayered(DeltaPaperContent, LAYERS_DEFINITION);
+makeResizeableContent(DeltaPaperContent);
 
-class DIAMPaper extends BoardPaper {
+class DeltaPaper extends BoardPaper {
     constructor({width, height}) {
         super(width, height, Colors.WHITE);
-        this._contentPane = new DIAMPaperContent({width:width-DIAMPaper.MARGIN*2, height:height-DIAMPaper.MARGIN*2});
+    }
+
+    _improve(...args) {
+        this._contentPane = new DeltaPaperContent({width:this.width-DeltaPaper.MARGIN*2, height:this.height-DeltaPaper.MARGIN*2});
         this._addPart(this._contentPane);
+        this._initResize(Colors.RED);
+        super._improve(...args);
     }
 
     get freeTarget() {
@@ -96,12 +105,47 @@ class DIAMPaper extends BoardPaper {
     _revertDrop(element) {
     }
 
-}
-makePartsOwner(DIAMPaper);
-makeFreePositioningOwner(DIAMPaper);
-DIAMPaper.MARGIN = 10;
+    select() {
+        this.putHandles();
+    }
 
-class DIAMAbstractTable extends BoardTable {
+    unselect() {
+        this.removeHandles();
+    }
+
+    get selectionMark() {
+        return null;
+    }
+
+    get minWidth() {
+        return this._contentPane.minWidth + DeltaPaper.MARGIN*2;
+    }
+
+    get minHeight() {
+        return this._contentPane.minHeight + DeltaPaper.MARGIN*2;
+    }
+
+    resize(width, height, direction) {
+        this._contentPane.resize(width-DeltaPaper.MARGIN*2, height-DeltaPaper.MARGIN*2, direction);
+    }
+
+    setLocation(x, y) {
+        super.setLocation(0, 0);
+    }
+
+    setSize(width, height) {
+        super.setSize(width, height);
+        this._contentPane.setSize(width-DeltaPaper.MARGIN*2, height-DeltaPaper.MARGIN*2);
+    }
+
+}
+makePartsOwner(DeltaPaper);
+makeFreePositioningOwner(DeltaPaper);
+makeSelectable(DeltaPaper);
+makeResizeable(DeltaPaper);
+DeltaPaper.MARGIN = 10;
+
+class DeltaAbstractTable extends BoardTable {
 
     constructor({width, height, backgroundColor}) {
         super(width, height, backgroundColor);
@@ -116,8 +160,8 @@ class DIAMAbstractTable extends BoardTable {
         return this;
     }
 }
-makeContainerMultiLayered(DIAMAbstractTable, TABLE_LAYERS_DEFINITION);
-makeFreePositioningOwner(DIAMAbstractTable);
+makeContainerMultiLayered(DeltaAbstractTable, TABLE_LAYERS_DEFINITION);
+makeFreePositioningOwner(DeltaAbstractTable);
 
 const PDF = {
 
@@ -221,7 +265,7 @@ const PDF = {
 
 };
 
-class DIAMPrintArea extends BoardPrintArea {
+class DeltaPrintArea extends BoardPrintArea {
 
     constructor(width, height) {
         super(width, height);
@@ -312,8 +356,8 @@ class DIAMPrintArea extends BoardPrintArea {
         return result;
     }
 }
-makeLabelOwner(DIAMPrintArea);
-makeDecorationsOwner(DIAMPrintArea);
+makeLabelOwner(DeltaPrintArea);
+makeDecorationsOwner(DeltaPrintArea);
 
 function makePdfAreasOwner(superClass) {
 
@@ -334,7 +378,7 @@ function makePdfAreasOwner(superClass) {
     superClass.prototype._notified = function(source, type, value) {
         notified && notified.call(this, source, type, value);
         if (type === BoardPrintArea.events.NEW_AREA) {
-            let printArea = new DIAMPrintArea(value.width, value.height);
+            let printArea = new DeltaPrintArea(value.width, value.height);
             printArea.order = this._pdfAreas.length+1;
             printArea.setLocation(value.x, value.y);
             this.addChild(printArea);
@@ -347,7 +391,7 @@ function makePdfAreasOwner(superClass) {
     let addChild = superClass.prototype._addChild;
     superClass.prototype._addChild = function(element) {
         let result = addChild.call(this, element);
-        if (element instanceof DIAMPrintArea) {
+        if (element instanceof DeltaPrintArea) {
             this._pdfAreas.add(element);
         }
         return result;
@@ -355,10 +399,10 @@ function makePdfAreasOwner(superClass) {
 
     let insertChild = superClass.prototype._insertChild;
     superClass.prototype._insertChild = function(previous, element) {
-        assert((previous instanceof DIAMPrintArea && element instanceof DIAMPrintArea) ||
-            (!(previous instanceof DIAMPrintArea) && !(element instanceof DIAMPrintArea)));
+        assert((previous instanceof DeltaPrintArea && element instanceof DeltaPrintArea) ||
+            (!(previous instanceof DeltaPrintArea) && !(element instanceof DeltaPrintArea)));
         let result = insertChild.call(this, previous, element);
-        if (element instanceof DIAMPrintArea) {
+        if (element instanceof DeltaPrintArea) {
             this._pdfAreas.insert(previous, element);
         }
         return result;
@@ -366,10 +410,10 @@ function makePdfAreasOwner(superClass) {
 
     let replaceChild = superClass.prototype._replaceChild;
     superClass.prototype._replaceChild = function(previous, element) {
-        assert((previous instanceof DIAMPrintArea && element instanceof DIAMPrintArea) ||
-            (!(previous instanceof DIAMPrintArea) && !(element instanceof DIAMPrintArea)));
+        assert((previous instanceof DeltaPrintArea && element instanceof DeltaPrintArea) ||
+            (!(previous instanceof DeltaPrintArea) && !(element instanceof DeltaPrintArea)));
         let result = replaceChild.call(this, previous, element);
-        if (previous instanceof DIAMPrintArea) {
+        if (previous instanceof DeltaPrintArea) {
             this._pdfAreas.replace(previous, element);
         }
         return result;
@@ -378,7 +422,7 @@ function makePdfAreasOwner(superClass) {
     let removeChild = superClass.prototype._removeChild;
     superClass.prototype._removeChild = function(element) {
         let result = removeChild.call(this, element);
-        if (element instanceof DIAMPrintArea) {
+        if (element instanceof DeltaPrintArea) {
             this._pdfAreas.remove(element);
         }
         return result;
@@ -401,17 +445,17 @@ function makePdfAreasOwner(superClass) {
     return superClass;
 }
 
-class DIAMTable extends DIAMAbstractTable {
+class DeltaTable extends DeltaAbstractTable {
 
     constructor({width, height, backgroundColor}) {
         super({width, height, backgroundColor});
         this._observe(Canvas.instance);
-        this.getLayerNode(DIAMLayers.PDF).z_index = DIAMTable.PDFZOrder;
+        this.getLayerNode(DeltaLayers.PDF).z_index = DeltaTable.PDFZOrder;
     }
 
     _getLayer(element) {
         if (element instanceof BoardPrintArea) {
-            return DIAMLayers.PDF;
+            return DeltaLayers.PDF;
         }
         return super._getLayer(element);
     }
@@ -421,7 +465,7 @@ class DIAMTable extends DIAMAbstractTable {
     }
 
     _executeDrop(element, dragSet, initialTarget) {
-        if (element instanceof DIAMPrintArea || !super._executeDrop(element, dragSet, initialTarget)) {
+        if (element instanceof DeltaPrintArea || !super._executeDrop(element, dragSet, initialTarget)) {
             this.addChild(element);
         }
         return true;
@@ -430,22 +474,22 @@ class DIAMTable extends DIAMAbstractTable {
     _notified(source, event, ...args) {
         if (event === StandardDragMode.events.SWITCH_MODE) {
             if (StandardDragMode.mode === StandardDragMode.PRINT) {
-                this.getLayerNode(DIAMLayers.PDF).visibility = Visibility.VISIBLE;
+                this.getLayerNode(DeltaLayers.PDF).visibility = Visibility.VISIBLE;
             }
             else {
-                this.getLayerNode(DIAMLayers.PDF).visibility = Visibility.HIDDEN;
+                this.getLayerNode(DeltaLayers.PDF).visibility = Visibility.HIDDEN;
             }
         }
         else super._notified(source, event, ...args);
     }
 
 }
-DIAMTable.PDFZOrder = 500;
-makePdfAreasOwner(DIAMTable);
+DeltaTable.PDFZOrder = 500;
+makePdfAreasOwner(DeltaTable);
 
 function createTable() {
     setLayeredGlassStrategy(BoardTable, TABLE_LAYERS_DEFINITION);
-    Context.table = new DIAMTable({width:4000, height:3000, backgroundColor:"#A0A0A0"});
+    Context.table = new DeltaTable({width:4000, height:3000, backgroundColor:"#A0A0A0"});
     Canvas.instance.putOnBase(Context.table);
 }
 
@@ -457,7 +501,7 @@ function createCanvas() {
 }
 
 function createPaper() {
-    Context.paper = new DIAMPaper({width:3000, height:1500});
+    Context.paper = new DeltaPaper({width:3000, height:1500});
     Context.table._addPart(Context.paper);
     Facilities.zoomExtent();
 }

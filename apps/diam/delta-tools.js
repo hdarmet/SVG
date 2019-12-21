@@ -2,14 +2,14 @@ import {
     Visitor
 } from "../../js/base-element.js";
 import {
-    DIAMAbstractModule, DIAMBasicModule, DIAMCell, DIAMColorOption, DIAMConfigurableModule, DIAMImageModule,
-    DIAMRichCaddyModule, DIAMSlottedBoxModule, DIAMSlottedRichBoxModule, OptionItemBuilder, DIAMConfigurableOption,
+    DeltaAbstractModule, DeltaBasicModule, DeltaCell, DeltaColorOption, DeltaConfigurableModule, DeltaImageModule,
+    DeltaRichCaddyModule, DeltaSlottedBoxModule, DeltaSlottedRichBoxModule, OptionItemBuilder, DeltaConfigurableOption,
     OptionsExpandablePanel
 } from "./delta-products.js";
 import {
-    DIAMBlister, DIAMCover, DIAMDivider, DIAMDoubleLadder, DIAMFascia, DIAMFasciaSupport, DIAMFixing, DIAMHook,
-    DIAMLadder, DIAMPane, DIAMRichCaddy, DIAMRichPane, DIAMRichShelf, DIAMShelf, DIAMSlottedRichBox, DIAMVisual,
-    DIAMSlottedBox, DIAMBox, DIAMAbstractLadder
+    DeltaBlister, DeltaCover, DeltaDivider, DeltaDoubleLadder, DeltaFascia, DeltaFasciaSupport, DeltaFixing, DeltaHook,
+    DeltaLadder, DeltaPane, DeltaRichCaddy, DeltaRichPane, DeltaRichShelf, DeltaShelf, DeltaSlottedRichBox, DeltaVisual,
+    DeltaSlottedBox, DeltaBox, DeltaAbstractLadder
 } from "./delta-objects.js";
 import {
     Layers, Context, Layer
@@ -41,7 +41,7 @@ export function defineLayers() {
 
     function showColorOptions(checked, elements) {
         new Visitor(elements, {checked}, function({checked}) {
-            if (this instanceof DIAMColorOption) {
+            if (this instanceof DeltaColorOption) {
                 checked ? this.show() : this.hide();
             }
         });
@@ -49,7 +49,7 @@ export function defineLayers() {
 
     function showVisuals(checked, elements) {
         new Visitor(elements, {checked}, function({checked}) {
-            if (this instanceof DIAMVisual) {
+            if (this instanceof DeltaVisual) {
                 checked ? this.show() : this.hide();
             }
         });
@@ -57,7 +57,7 @@ export function defineLayers() {
 
     function showArtworks(checked, elements) {
         new Visitor(elements, {checked}, function({checked}) {
-            if (this instanceof DIAMCover || this instanceof DIAMFasciaSupport) {
+            if (this instanceof DeltaCover || this instanceof DeltaFasciaSupport) {
                 checked ? this.show() : this.hide();
             }
         });
@@ -65,7 +65,7 @@ export function defineLayers() {
 
     function showModules(checked, elements) {
         new Visitor(elements, {checked}, function({checked}) {
-            if (this instanceof DIAMAbstractModule) {
+            if (this instanceof DeltaAbstractModule) {
                 checked ? this.show() : this.hide();
             }
         });
@@ -114,16 +114,16 @@ export function defineLayers() {
 function spanOnLaddersCommand(toolPopup) {
     toolPopup.add(new ToolToggleCommand("./images/icons/span_on.svg", "./images/icons/span_off.svg",
         () => {
-            DIAMShelf.spiked = !DIAMShelf.spiked;
-        }, () => DIAMShelf.spiked)
+            DeltaShelf.spiked = !DeltaShelf.spiked;
+        }, () => DeltaShelf.spiked)
     );
 }
 
 function magnetCommand(toolPopup) {
     toolPopup.add(new ToolToggleCommand("./images/icons/magnet_on.svg", "./images/icons/magnet_off.svg",
         () => {
-            DIAMShelf.magnetized = !DIAMShelf.magnetized;
-        }, () => DIAMShelf.magnetized)
+            DeltaShelf.magnetized = !DeltaShelf.magnetized;
+        }, () => DeltaShelf.magnetized)
     );
 }
 
@@ -172,7 +172,7 @@ export function setShortcuts() {
     Facilities.allowElementDeletion();
 }
 
-export class DIAMPalette extends ToolTabsetPanelPopup {
+export class DeltaPalette extends ToolTabsetPanelPopup {
 
     constructor(paletteContent) {
         let filterCard = new ToolFilterCard(200, 40, input=>console.log("Input:", input));
@@ -216,9 +216,9 @@ export class DIAMPalette extends ToolTabsetPanelPopup {
     _buildPanels() {
         this.addPanel(new ToolGridExpandablePanel("All", this._paletteContent));
         this.addPanel(new ToolGridExpandablePanel("Furniture", this._paletteContent,
-            cell=>cell.applyAnd(is(DIAMPane, DIAMAbstractLadder, DIAMShelf, DIAMBox, DIAMFixing, DIAMHook))));
+            cell=>cell.applyAnd(is(DeltaPane, DeltaAbstractLadder, DeltaShelf, DeltaBox, DeltaFixing, DeltaHook))));
         this.addPanel(new ToolGridExpandablePanel("Modules", this._paletteContent,
-            cell=>cell.applyAnd(is(DIAMAbstractModule))));
+            cell=>cell.applyAnd(is(DeltaAbstractModule))));
         this.addPanel(new OptionsExpandablePanel("Colors And Options", this._paletteContent));
         this.addPanel(new ToolGridExpandablePanel("Favorites", this._paletteContent,
             cell=>cell instanceof FavoriteItemBuilder));
@@ -229,51 +229,51 @@ export class DIAMPalette extends ToolTabsetPanelPopup {
         return this;
     }
 }
-makePopupResizable(DIAMPalette);
+makePopupResizable(DeltaPalette);
 
 export function createPalettePopup() {
     let paletteContent = new ToolGridPanelContent(200, 80, 120);
-    paletteContent.addCell(new BoardItemBuilder([new DIAMPane({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaPane({
         width:840, height:500, contentX:0, contentY:0, contentWidth:810, contentHeight:460,
         label:"pane"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMRichPane({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaRichPane({
         width:840, height:500, contentX:0, contentY:0, contentWidth:810, contentHeight:460, headerHeight:40, footerHeight:40,
         label:"rich pane", lineMargin:30, labelMargin:60, indexMargin:40
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMHook()]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMFixing()]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMLadder({width:10, height:100, topSlot:-45, bottomSlot:45, slotInterval:5})]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMLadder({width:10, height:10, topSlot:0, bottomSlot:0, slotInterval:5})]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMDoubleLadder({width:20, height:100, topSlot:-45, bottomSlot:45, slotInterval:5})]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMShelf({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaHook()]));
+    paletteContent.addCell(new BoardItemBuilder([new DeltaFixing()]));
+    paletteContent.addCell(new BoardItemBuilder([new DeltaLadder({width:10, height:100, topSlot:-45, bottomSlot:45, slotInterval:5})]));
+    paletteContent.addCell(new BoardItemBuilder([new DeltaLadder({width:10, height:10, topSlot:0, bottomSlot:0, slotInterval:5})]));
+    paletteContent.addCell(new BoardItemBuilder([new DeltaDoubleLadder({width:20, height:100, topSlot:-45, bottomSlot:45, slotInterval:5})]));
+    paletteContent.addCell(new BoardItemBuilder([new DeltaShelf({
         width:100, height:10, leftClip:{x:-45, y:0}, rightClip:{x:45, y:0}, label:'shelf',
         font_family:"arial", font_size:6, fill:Colors.GREY,
         position_font_family:"arial", position_font_size:4, position_fill:Colors.GREY
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMRichShelf({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaRichShelf({
         width:100, height:10, leftClip:{x:-45, y:0}, rightClip:{x:45, y:0}, label:'shelf', coverY:0, coverHeight:20,
         font_family:"arial", font_size:8, fill:Colors.GREY,
         position_font_family:"arial", position_font_size:4, position_fill:Colors.GREY
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMSlottedBox({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaSlottedBox({
         width:120, height:70, clips:[{x:0, y:15}], contentX:0, contentY:0, contentWidth:100, contentHeight:60, slotWidth:20,
         status:{code:"N", color:Colors.RED}
     })]));
 
-    paletteContent.addCell(new BoardItemBuilder([new DIAMSlottedBoxModule({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaSlottedBoxModule({
         width:120, height:70, contentX:0, contentY:0, contentWidth:100, contentHeight:60, slotWidth:20,
         status:{code:"B", color:Colors.BLUE}
     })]));
 
-    paletteContent.addCell(new BoardItemBuilder([new DIAMSlottedRichBox({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaSlottedRichBox({
         width:120, height:70, clips:[{x:0, y:15}],
         contentX:0, contentY:0, contentWidth:100, contentHeight:60,
         slotWidth:20,
         headerHeight:10, footerHeight:10,
         status:{code:"V", color:Colors.GREEN}
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMSlottedRichBoxModule({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaSlottedRichBoxModule({
         width:120, height:70,
         contentX:0, contentY:0, contentWidth:100, contentHeight:60,
         slotWidth:20,
@@ -281,14 +281,14 @@ export function createPalettePopup() {
         status:{code:"B", color:Colors.BLUE}
     })]));
 
-    paletteContent.addCell(new BoardItemBuilder([new DIAMRichCaddy({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaRichCaddy({
         width:120, height:70, clips:[{x:0, y:15}],
         contentX:0, contentY:0, contentWidth:100, contentHeight:60,
         slotWidth:20,
         headerHeight:5, footerHeight:15
     })]));
 
-    paletteContent.addCell(new BoardItemBuilder([new DIAMRichCaddyModule({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaRichCaddyModule({
         width:120, height:70,
         contentX:0, contentY:0, contentWidth:100, contentHeight:60,
         slotWidth:20,
@@ -296,219 +296,219 @@ export function createPalettePopup() {
         status:{code:"B", color:Colors.BLUE}
     })]));
 
-    paletteContent.addCell(new BoardItemBuilder([new DIAMDivider({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaDivider({
         width:10, height:460, contentX:0
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMBox({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaBox({
         width:120, height:140, clips:[{x:0, y:-20}, {x:0, y:50}], contentX:0, contentY:0, contentWidth:100, contentHeight:130
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMConfigurableModule({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaConfigurableModule({
         width:20, height:40, cells:[
-            new DIAMCell({width:4, height:4, x:-5, y:-15,
+            new DeltaCell({width:4, height:4, x:-5, y:-15,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["C"], family:"a"
             }),
-            new DIAMCell({width:4, height:4, x:0, y:-15,
+            new DeltaCell({width:4, height:4, x:0, y:-15,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["C"], family:"a"
             }),
-            new DIAMCell({width:4, height:4, x:5, y:-15,
+            new DeltaCell({width:4, height:4, x:5, y:-15,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["C"], family:"a"
             }),
-            new DIAMCell({width:4, height:4, x:-5, y:-10,
+            new DeltaCell({width:4, height:4, x:-5, y:-10,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["C"], family:"b"
             }),
-            new DIAMCell({width:4, height:4, x:0, y:-10,
+            new DeltaCell({width:4, height:4, x:0, y:-10,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["C"], family:"b"
             }),
-            new DIAMCell({width:4, height:4, x:5, y:-10,
+            new DeltaCell({width:4, height:4, x:5, y:-10,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["C"], family:"b"
             }),
-            new DIAMCell({width:4, height:4, x:-5, y:-5,
+            new DeltaCell({width:4, height:4, x:-5, y:-5,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["C"]
             }),
-            new DIAMCell({width:4, height:4, x:0, y:-5,
+            new DeltaCell({width:4, height:4, x:0, y:-5,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["C"]
             }),
-            new DIAMCell({width:4, height:4, x:5, y:-5,
+            new DeltaCell({width:4, height:4, x:5, y:-5,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["C"]
             })
         ]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMConfigurableModule({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaConfigurableModule({
         width:20, height:40, cells:[
-            new DIAMCell({width:4, height:10, x:-5, y:5,
+            new DeltaCell({width:4, height:10, x:-5, y:5,
                 shape:new Rect(-2, -10, 4, 20).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["O"]
             }),
-            new DIAMCell({width:4, height:10, x:0, y:5,
+            new DeltaCell({width:4, height:10, x:0, y:5,
                 shape:new Rect(-2, -10, 4, 20).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["O"]
             }),
-            new DIAMCell({width:4, height:10, x:5, y:5,
+            new DeltaCell({width:4, height:10, x:5, y:5,
                 shape:new Rect(-2, -10, 4, 20).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["O"]
             })
         ]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMConfigurableModule({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaConfigurableModule({
         width:20, height:40, cells:[
-            new DIAMCell({width:4, height:4, x:-5, y:-15,
+            new DeltaCell({width:4, height:4, x:-5, y:-15,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["C"]
             }),
-            new DIAMCell({width:4, height:4, x:0, y:-15,
+            new DeltaCell({width:4, height:4, x:0, y:-15,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["C"]
             }),
-            new DIAMCell({width:4, height:4, x:5, y:-15,
+            new DeltaCell({width:4, height:4, x:5, y:-15,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["C"]
             }),
-            new DIAMCell({width:4, height:4, x:-5, y:-10,
+            new DeltaCell({width:4, height:4, x:-5, y:-10,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["C"]
             }),
-            new DIAMCell({width:4, height:4, x:0, y:-10,
+            new DeltaCell({width:4, height:4, x:0, y:-10,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["C"]
             }),
-            new DIAMCell({width:4, height:4, x:5, y:-10,
+            new DeltaCell({width:4, height:4, x:5, y:-10,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["C"]
             }),
-            new DIAMCell({width:4, height:10, x:-5, y:5,
+            new DeltaCell({width:4, height:10, x:-5, y:5,
                 shape:new Rect(-2, -10, 4, 20).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["O"]
             }),
-            new DIAMCell({width:4, height:10, x:0, y:5,
+            new DeltaCell({width:4, height:10, x:0, y:5,
                 shape:new Rect(-2, -10, 4, 20).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["O"]
             }),
-            new DIAMCell({width:4, height:10, x:5, y:5,
+            new DeltaCell({width:4, height:10, x:5, y:5,
                 shape:new Rect(-2, -10, 4, 20).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["O"]
             })
         ]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMImageModule({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaImageModule({
         width:20, height:40, realisticUrl:"./apps/diam/modules/eye liner c.png", url:{svg:"./apps/diam/modules/eye liner b.svg", rasterized:true}
     })], null, "./apps/diam/modules/eye liner e.png", "Eye Liner\nLiner Eye\nAnd a big, very big line"));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMBasicModule({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaBasicModule({
         width:20, height:40, color:"#FF0000"
     })], null, null, new Rect(-100, -50, 200, 100).attrs({fill:Colors.LIGHT_GREY})));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMBasicModule({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaBasicModule({
         width:40, height:40, color:"#00FF00"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMBasicModule({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaBasicModule({
         width:20, height:40, color:"#0000FF"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMBlister({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaBlister({
         width:30, height:60, clip:{x:0, y:-15, radius:8}, color:"#FF0000"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMBlister({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaBlister({
         width:35, height:75, clip:{x:0, y:-25, radius:8}, color:"#00FF00"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMBlister({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaBlister({
         width:45, height:90, clip:{x:0, y:-30, radius:8}, color:"#0000FF"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMVisual({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaVisual({
         width:120, height:10, color:"#FFFF00"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMVisual({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaVisual({
         width:840, height:40, color:"#FF0000"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMVisual({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaVisual({
         width:800, height:60, color:"#00FF00"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMVisual({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaVisual({
         width:600, height:60, color:"#0000FF"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMFascia({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaFascia({
         width:120, height:50, color:"#00FFFF"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DIAMFascia({
+    paletteContent.addCell(new BoardItemBuilder([new DeltaFascia({
         width:120, height:60, color:"#FF00FF"
     })]));
-    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:4,
+    paletteContent.addCell(new OptionItemBuilder([new DeltaColorOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#FF0000"}),
         compatibilities:["C"]
     })]));
-    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:4,
+    paletteContent.addCell(new OptionItemBuilder([new DeltaColorOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#F00000"}),
         compatibilities:["C"]
     })]));
-    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:4,
+    paletteContent.addCell(new OptionItemBuilder([new DeltaColorOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#FF0F0F"}),
         compatibilities:["C"]
     })]));
-    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:4,
+    paletteContent.addCell(new OptionItemBuilder([new DeltaColorOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#F00F0F"}),
         compatibilities:["C"]
     })]));
-    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:4,
+    paletteContent.addCell(new OptionItemBuilder([new DeltaColorOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#AA0000"}),
         compatibilities:["C"]
     })]));
-    paletteContent.addCell(new OptionItemBuilder([new DIAMConfigurableOption({width:4, height:20,
+    paletteContent.addCell(new OptionItemBuilder([new DeltaConfigurableOption({width:4, height:20,
         shape:new Rect(-2, -10, 4, 20).attrs({stroke_width:0.25, stroke:Colors.GREY, fill:Colors.WHITE}),
         compatibilities:["O"],
         cells:[
-            new DIAMCell({width:4, height:4, x:0, y:-7,
+            new DeltaCell({width:4, height:4, x:0, y:-7,
                 shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["R"]
             })
         ]
     })]));
-    paletteContent.addCell(new OptionItemBuilder([new DIAMConfigurableOption({width:4, height:20,
+    paletteContent.addCell(new OptionItemBuilder([new DeltaConfigurableOption({width:4, height:20,
         shape:new Rect(-2, -6, 4, 16).attrs({stroke_width:0.25, stroke:Colors.GREY, fill:Colors.WHITE}),
         compatibilities:["O"],
         cells:[
-            new DIAMCell({width:4, height:4, x:0, y:-3,
+            new DeltaCell({width:4, height:4, x:0, y:-3,
                 shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["R"]
             })
         ]
     })]));
-    paletteContent.addCell(new OptionItemBuilder([new DIAMConfigurableOption({width:4, height:20,
+    paletteContent.addCell(new OptionItemBuilder([new DeltaConfigurableOption({width:4, height:20,
         shape:new Rect(-2, -2, 4, 12).attrs({stroke_width:0.25, stroke:Colors.GREY, fill:Colors.WHITE}),
         compatibilities:["O"],
         cells:[
-            new DIAMCell({width:4, height:4, x:0, y:1,
+            new DeltaCell({width:4, height:4, x:0, y:1,
                 shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["R"]
             })
         ]
     })]));
-    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:6,
+    paletteContent.addCell(new OptionItemBuilder([new DeltaColorOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#FF0000"}),
         compatibilities:["R"]
     })]));
-    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:6,
+    paletteContent.addCell(new OptionItemBuilder([new DeltaColorOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#F00000"}),
         compatibilities:["R"]
     })]));
-    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:6,
+    paletteContent.addCell(new OptionItemBuilder([new DeltaColorOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#FF0F0F"}),
         compatibilities:["R"]
     })]));
-    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:6,
+    paletteContent.addCell(new OptionItemBuilder([new DeltaColorOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#F00F0F"}),
         compatibilities:["R"]
     })]));
-    paletteContent.addCell(new OptionItemBuilder([new DIAMColorOption({width:4, height:6,
+    paletteContent.addCell(new OptionItemBuilder([new DeltaColorOption({width:4, height:6,
         shape:new Rect(-2, -3, 4, 6).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#AA0000"}),
         compatibilities:["R"]
     })]));
 
-    let palettePopup = new DIAMPalette(paletteContent);
+    let palettePopup = new DeltaPalette(paletteContent);
     palettePopup.addKeyword("alpha", "A")
         .addKeyword("beta", "B")
         .addKeyword("gamma", "C")

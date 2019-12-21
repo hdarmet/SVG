@@ -1,5 +1,5 @@
 import {
-    ClippedRasterImage, Fill, Group, MouseEvents, RasterImage, Rect, Rotation, SvgRasterImage, Visibility
+    win, ClippedRasterImage, Fill, Group, MouseEvents, RasterImage, Rect, Rotation, SvgRasterImage, Visibility
 } from "./graphics.js";
 import {
     Cloning, Events, Memento, Selection
@@ -308,6 +308,19 @@ export class Decoration {
         }
     }
 
+    _askForRefresh() {
+        if (!this._dirty) {
+            this._dirty = true;
+            win.setTimeout(()=>{
+                this._dirty = false;
+                this.refresh();
+            }, 0);
+        }
+    }
+
+    refresh() {
+    }
+
 }
 
 export function makeDecorationsOwner(superClass) {
@@ -488,6 +501,14 @@ export function makeDecorationsOwner(superClass) {
         }
     );
 
+    extendMethod(superClass, $setSize=>
+        function _setSize(width, height) {
+            $setSize.call(this, width, height);
+            for (let decoration of this.decorations) {
+                decoration.refresh();
+            }
+        }
+    );
 }
 
 /**

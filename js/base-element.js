@@ -334,11 +334,14 @@ makeObservable(BoardElement, Cloning.NONE);
 export class BoardArea extends BoardElement {
 
     constructor(width, height, backgroundColor) {
-        super(width, height);
-        let background = new Rect(-width/2, -height/2, width, height);
+        super(width, height, backgroundColor);
+    }
+
+    _improve(backgroundColor) {
+        let background = new Rect(-this.width/2, -this.height/2, this.width, this.height);
         background.fill = backgroundColor;
         this._initShape(background);
-        this._setSize(width, height);
+        this._setSize(this.width, this.height);
         this._dragOperation(function() {return areaDrag;});
         this._clickHandler(null);
     }
