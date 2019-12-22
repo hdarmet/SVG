@@ -4,8 +4,8 @@ import {
 } from "../../js/container-mixins.js";
 import {
     addPhysicToContainer, ClipDecoration, ClipPositionDecoration, createRulersPhysic, createSlotsAndClipsPhysic,
-    makeCenteredAnchorage, makeCenteredRuler, makeClipsOwner, makePositioningContainer,
-    makeSlotsOwner, PhysicSelector, RulesDecoration, Slot, Clip, createPositioningPhysic
+    makeCenteredAnchorage, makeCenteredRuler, makeClipsOwner, makePositioningContainer, createGridPhysic,
+    makeSlotsOwner, PhysicSelector, RulesDecoration, RulerDecoration, Slot, Clip, createPositioningPhysic
 } from "../../js/physics.js";
 import {
     Decoration, makeDecorationsOwner, makeFramed, makeShaped
@@ -1177,6 +1177,8 @@ export class DeltaPaneContent extends DeltaSupport {
         this._addDecoration(this._anchorageDecoration);
         this._rulesDecoration = new RulesDecoration(this._attachmentPhysic);
         this._addDecoration(this._rulesDecoration);
+        this._rulerDecoration = new RulerDecoration(this._gridPhysic);
+        this._addDecoration(this._rulerDecoration);
     }
 
     _createContextMenu() {
@@ -1203,6 +1205,10 @@ export class DeltaPaneContent extends DeltaSupport {
             predicate: is(DeltaAbstractLadder, DeltaFixing, DeltaHook)
         });
         this._attachmentPhysic = new AttachmentPhysic(this);
+        let GridPhysic = createGridPhysic({
+            predicate: is(DeltaAbstractLadder, DeltaFixing, DeltaHook)
+        });
+        this._gridPhysic = new GridPhysic(this);
         let LadderPhysic = createSlotsAndClipsPhysic({
             predicate: is(DeltaShelf),
             slotProviderPredicate: is(DeltaAbstractLadder)
@@ -1218,6 +1224,7 @@ export class DeltaPaneContent extends DeltaSupport {
         return new PhysicSelector(this,
             is(DeltaAbstractModule, DeltaShelf, DeltaAbstractLadder, DeltaBlister, DeltaHook, DeltaBox, DeltaFixing, DeltaDivider)
         )
+            .register(this._gridPhysic)
             .register(this._attachmentPhysic)
             .register(new LadderPhysic(this))
             .register(new HookPhysic(this))

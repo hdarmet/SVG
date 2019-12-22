@@ -463,7 +463,7 @@ export function makeCollisionPhysic(superClass) {
 
     replaceMethod(superClass,
         function hover(elements) {
-            this._hover(this._managedElements(elements));
+            this._hover(this.managedElements(elements));
         }
     );
 

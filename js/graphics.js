@@ -1154,9 +1154,6 @@ export class DOMElement {
         memento._target = this;
         for (let property in this._attrs) {
             if (this._attrs.hasOwnProperty(property)) {
-                if (property==="width") {
-                    console.log("memento width", this._attrs[property]);
-                }
                 memento._attrs[property] = this._attrs[property];
             }
         }
@@ -1177,9 +1174,6 @@ export class DOMElement {
     }
 
     revert(memento) {
-        if (memento._attrs.width!==undefined) {
-            console.log("revert width", memento._attrs.width);
-        }
         this.attrs(memento._attrs);
         if (this._children) {
             for (let child of [...this._children]) {
@@ -1394,7 +1388,6 @@ class ZLayer {
                     //let style = window.getComputedStyle(element._parent._node);
                     if (element._attrs.visibility===null || element._attrs.visibility===undefined) {
                         let visibility = this._getInheritedAttribute(element._parent, Attrs.VISIBILITY);
-                        if (visibility) console.log(Attrs.VISIBILITY, visibility);
                         element._node.setAttribute(Attrs.VISIBILITY, visibility);
                     }
                 }

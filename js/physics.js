@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    always, assert
+    always, assert, defineMethod, replaceMethod, defineGetProperty
 } from "./misc.js";
 import {
     List, ESet, SpatialLocator, dichotomousSearch
@@ -10,10 +10,10 @@ import {
     Matrix
 } from "./geometry.js";
 import {
-    win, Colors, Line, computePosition, Group, Fill
+    win, Colors, Line, computePosition, Group, Fill, Translation, Rect
 } from "./graphics.js";
 import {
-    Canvas, Memento, Events, makeObservable
+    Canvas, Memento, Events, makeObservable, Context, Cloning
 } from "./toolkit.js";
 import {
     TextDecoration
@@ -61,7 +61,7 @@ export class Physic {
         return this;
     }
 
-    _managedElements(elements) {
+    managedElements(elements) {
         let managedElements = new List();
         for (let element of elements) {
             if (this.accept(element)) {
@@ -72,14 +72,17 @@ export class Physic {
     }
 
     hover(elements) {
-        this._hover(this._managedElements(elements));
+        let managedElements = this.managedElements(elements);
+        this._hover(managedElements);
         this._refresh();
+        this._host._fire(Physic.events.REFRESH_HOVER, this, managedElements);
         return this;
     }
 
     refresh() {
         this._triggered = false;
         this._refresh();
+        this._host._fire(Physic.events.REFRESH, this);
         return this;
     }
 
@@ -137,6 +140,10 @@ export class Physic {
     _acceptDrop(element, dragSet) { return true; }
     _receiveDrop(element, dragSet) { return this; }
 }
+Physic.events = {
+    REFRESH : "refresh",
+    REFRESH_HOVER : "refresh-hover"
+};
 
 export class PhysicSelector extends Physic {
 
@@ -173,7 +180,7 @@ export class PhysicSelector extends Physic {
     }
 
     hover(elements) {
-        elements = this._managedElements(elements);
+        elements = this.managedElements(elements);
         for (let physic of this._physics) {
             physic.hover(elements);
         }
@@ -370,36 +377,45 @@ export function addPhysicToContainer(superClass, {physicBuilder}) {
 
 export function makeAbstractPositioningPhysic(superClass) {
 
-    superClass.prototype._init = function(...args) {
-        this._elements = new ESet();
-    };
-
-    superClass.prototype._refresh = function() {
-        for (let element of this._elements) {
-            this._refreshElement(element);
+    replaceMethod(superClass,
+        function _init(...args) {
+            this._elements = new ESet();
         }
-        if (this._hoveredElements) {
-            for (let element of this._hoveredElements) {
-                this._refreshHoverElement(element);
+    );
+
+    replaceMethod(superClass,
+        function _refresh() {
+            for (let element of this._elements) {
+                this._refreshElement(element);
             }
-            this._hoveredElements.clear();
+            if (this._hoveredElements) {
+                for (let element of this._hoveredElements) {
+                    this._refreshHoverElement(element);
+                }
+                this._hoveredElements.clear();
+            }
+            this._elements.clear();
         }
-        this._elements.clear();
-    };
+    );
 
-    superClass.prototype._reset = function() {
-        this._elements = this._acceptedElements(this._host.children);
-    };
+    replaceMethod(superClass,
+        function _reset() {
+            this._elements = this._acceptedElements(this._host.children);
+        }
+    );
 
-    superClass.prototype._hover = function(elements) {
-        this._hoveredElements = new List(...elements);
-    };
+    replaceMethod(superClass,
+        function _hover(elements) {
+            this._hoveredElements = new List(...elements);
+        }
+    );
 
-    superClass.prototype._add = function(element) {
-        this._elements.add(element);
-    };
+    replaceMethod(superClass,
+        function _add(element) {
+            this._elements.add(element);
+        }
+    );
 
-    return superClass;
 }
 
 export function makePositioningPhysic(superClass, {
@@ -488,7 +504,7 @@ export function makePositioningContainer(superClass, {predicate, positionsBuilde
 export const Attachments = {
     SECTOR_THRESHOLD : 10,
     SECTOR_MIN_SIZE : 10,
-    RANGE : 20,
+    RANGE : 5,
     MARGIN: 0.0001
 };
 
@@ -572,8 +588,9 @@ export function makeAttachmentPhysic(superClass, {slotProviderPredicate = elemen
             this._attachments = this._collectAttachments();
         }
         let positions = new List();
+        let range = Attachments.RANGE / Canvas.instance.zoom;
         let {x, y} = clipBuilder(element);
-        for (let attachment of this._attachments.find(x, y, Attachments.RANGE)) {
+        for (let attachment of this._attachments.find(x, y, range)) {
             positions.add({
                 x:attachment.lx,
                 y:attachment.ly,
@@ -1133,6 +1150,15 @@ export function makeBoundedAnchorage(superClass) {
 
 }
 
+/**
+ * Positioning physic that promote valid locations according to rules. A "Rule" is a dynamically computed position on
+ * X or Y axis. The rule's position may depend on the element itself, especially its current shape and location.
+ * @param superClass class to enhance.
+ * @param rulesBuilder function that generates rules.
+ * @param anchorsBuilder function that returns element's "anchors" : remarkable points in element's geometry (like
+ * centers or corners). These points are those this physic will try to line up with rules's locations.
+ * @returns {*}
+ */
 export function makeRulesPhysic(superClass, {
     rulesBuilder,
     anchorsBuilder = element => element.anchors
@@ -1140,68 +1166,113 @@ export function makeRulesPhysic(superClass, {
 
     makeAbstractPositioningPhysic(superClass);
 
-    superClass.prototype._elementPosition = function(element) {
+    /**
+     * Looks for the most suited element location, according to rules and element's anchorage points: rules are computed
+     * and compared to anchorage points. The minimal distance found is selected.
+     * @returns an object containing 4 data:
+     * <ul>
+     *     <li> x: selected location on X axis for the center of the element (even if chosen anchorage point is not
+     *     the center).
+     *     <li> attachmentX: an informative value that refers to the "element", the rulesBuilder method used to generate
+     *     the selected rule. Not used by this physic.
+     *     <li> y: selected location on Y axis for the center of the element (even if chosen anchorage point is not
+     *     the center).
+     *     <li> attachmentY: an informative value that refers to the "element", the rulesBuilder method used to generate
+     *     the selected rule. Not used by this physic.
+     * </ul>
+     */
+    defineMethod(superClass,
+        function _elementPosition(element) {
 
-        function getPosition(epos, rules) {
-            let distance = Infinity;
-            let pos = null;
-            let attachment = null;
-            for (let _pos of epos) {
-                for (let _rule of rules) {
-                    let _distance = _rule.pos - _pos.pos;
-                    if (_distance < distance) {
-                        distance = _distance;
-                        pos = _rule.pos + _pos.distance;
-                        attachment = _rule.attachment;
+            /**
+             * Select a rule according to element's anchorage point on a given axis.
+             * @param epos anchorage points of processed element
+             * @param rules rules to check
+             * @returns {*}
+             */
+            function getPosition(epos, rules) {
+                let distance = Infinity;
+                let pos = null;
+                let attachment = null;
+                for (let _pos of epos) {
+                    for (let _rule of rules) {
+                        let _distance = _rule.pos - _pos.pos;
+                        if (_distance < distance) {
+                            distance = _distance;
+                            pos = _rule.pos + _pos.distance;
+                            attachment = _rule.attachment;
+                        }
                     }
                 }
+                return pos !== null ? {pos, attachment} : null;
             }
-            return pos ? {pos, attachment} : null;
-        }
 
-        let {x:ex, y:ey} = anchorsBuilder(element);
-        let {x:rx, y:ry} = rulesBuilder.call(this, element);
-        let x = getPosition(ex, rx);
-        let y = getPosition(ey, ry);
-        if (x!==null || y!=null) {
-            let position = {};
-            if (x) {
-                position.x = x.pos;
-                position.attachmentX = x.attachment;
+            let {x: ex, y: ey} = anchorsBuilder(element);
+            let {x: rx, y: ry} = rulesBuilder.call(this, element);
+            let x = getPosition(ex, rx);
+            let y = getPosition(ey, ry);
+            if (x !== null || y !== null) {
+                let position = {};
+                if (x) {
+                    position.x = x.pos;
+                    position.attachmentX = x.attachment;
+                }
+                if (y) {
+                    position.y = y.pos;
+                    position.attachmentY = y.attachment;
+                }
+                return position;
             }
-            if (y) {
-                position.y = y.pos;
-                position.attachmentY = y.attachment;
+            return null;
+        }
+    );
+
+    /**
+     * Adjust the location of a dragged element to fit the most suited location given by this physic rules.
+     * @param element dragged element
+     * @private
+     */
+    defineMethod(superClass,
+        function _refreshHoverElement(element) {
+            let position = this._elementPosition(element);
+            if (this._acceptPosition(element, position)) {
+                let x = position.x!==undefined ? position.x : element.lx;
+                let y = position.y!==undefined ? position.y : element.ly;
+                element.move(x, y);
             }
-            return position;
         }
-        return null;
-    };
+    );
 
-    superClass.prototype._refreshHoverElement = function(element) {
-        let position = this._elementPosition(element);
-        if (this._acceptPosition(element, position)) {
-            let x = position.x!==undefined ? position.x : element.lx;
-            let y = position.y!==undefined ? position.y : element.ly;
-            element.move(x, y);
-        }
-    };
-
-    superClass.prototype._refresh = function() {
-        if (this._hoveredElements) {
-            for (let element of this._hoveredElements) {
-                this._refreshHoverElement(element);
+    /**
+     * Adjust the locations of all dragged elements that hover this physic's host. These locations are adjusted to fit
+     * the most suited locations given by this physic rules.
+     */
+    replaceMethod(superClass,
+        function _refresh() {
+            if (this._hoveredElements) {
+                for (let element of this._hoveredElements) {
+                    this._refreshHoverElement(element);
+                }
+                this._hoveredElements.clear();
             }
-            this._hoveredElements.clear();
+            this._elements.clear();
         }
-        this._elements.clear();
-    };
+    );
 
-    superClass.prototype._acceptPosition = function(element, position) {
-        return element._acceptPosition ? element._acceptPosition(this, position) : !!position;
-    };
+    /**
+     * Asks the element if it accepts the location proposed by this physic. If not, the element will not be moved. If
+     * the element does not own a _acceptPosition method, the proposed location is automatically accepted.
+     * @param element element to check
+     * @param position position to check
+     * @returns {boolean}
+     * @private
+     */
+    defineMethod(superClass,
+        function _acceptPosition(element, position) {
+            return element._acceptPosition ? element._acceptPosition(this, position) : !!position;
+        }
+    );
 
-    return superClass;
 }
 
 export function createRulesPhysic({predicate = always, rulesBuilder, anchorsBuilder})
@@ -1239,6 +1310,7 @@ export function makeCenteredRuler(superClass) {
     });
 
 }
+
 export function makeBoundedRuler(superClass) {
 
     Object.defineProperty(superClass.prototype, "rules", {
@@ -1347,7 +1419,8 @@ export function makeRulersPhysic(superClass, {
         resize.call(this, width, height);
     };
 
-    superClass.prototype._findRules = function(element, range=Attachments.RANGE) {
+    superClass.prototype._findRules = function(element) {
+        let range = Attachments.RANGE / Canvas.instance.zoom;
         let allRules = this.rules;
         let rules = {
             x:new List(),
@@ -1375,9 +1448,9 @@ export function makeRulersPhysic(superClass, {
         return rules;
     };
 
-    superClass.prototype.findRules = function(element, range=Attachments.RANGE) {
+    superClass.prototype.findRules = function(element) {
         if (this._accept(element)) {
-            return this._findRules(element, range);
+            return this._findRules(element);
         }
         else {
             return {x:new List(), y:new List()};
@@ -1521,10 +1594,10 @@ export class RulesDecoration extends Decoration {
                 this._arrows.add(arrow);
             }
         }
-        this._adjustLinesAspect(zoom);
+        this._adjustAspect(zoom);
     }
 
-    _adjustLinesAspect(zoom) {
+    _adjustAspect(zoom) {
         for (let line of this._rules.children) {
             line.attrs({stroke_width:0.5/zoom, stroke_dasharray:[1/zoom, 1/zoom]});
         }
@@ -1577,7 +1650,7 @@ export class RulesDecoration extends Decoration {
             }
         }
         else if (source===Canvas.instance && event===Events.ZOOM) {
-            this._adjustLinesAspect(Canvas.instance.zoom);
+            this._adjustAspect(Canvas.instance.zoom);
         }
     }
 
@@ -1587,3 +1660,176 @@ export class RulesDecoration extends Decoration {
 
 }
 RulesDecoration.HEAD_SIZE = 5;
+
+export function makeGridPhysic(superClass, {
+    anchorsBuilder = element => {
+        return element.anchors;
+    }
+}) {
+
+    makeRulesPhysic(superClass, {
+        rulesBuilder:function(element) {
+            return this._findPositions(element);
+        },
+        anchorsBuilder
+    });
+
+    defineMethod(superClass,
+        function _getStep(zoom) {
+
+            function computeStep() {
+                let unitValue = Context.scale / zoom;
+                let step = unitValue * 10;
+                let scale = 1;
+                while (true) {
+                    let ref = scale;
+                    if (step < scale) return {scale, step: scale / Context.scale, ref:ref*10};
+                    scale *= 2.5;
+                    if (step < scale) return {scale, step: scale / Context.scale, ref:ref*10};
+                    scale *= 2;
+                    if (step < scale) return {scale, step: scale / Context.scale, ref:ref*10};
+                    scale *= 2;
+                }
+
+            }
+
+            if (!this._step || this._stepZoom !== zoom) {
+                this._step = computeStep();
+                this._stepZoom = zoom;
+            }
+            return this._step;
+        }
+    );
+
+    defineMethod(superClass,
+        function _findPositions(element) {
+            let step = this._getStep(Canvas.instance.zoom).step;
+            let positions = {
+                x:new List(),
+                y:new List()
+            };
+            let anchors = anchorsBuilder.call(this, element);
+            for (let anchor of anchors.x) {
+                positions.x.add({pos:Math.floor(anchor.pos/step)*step});
+                positions.x.add({pos:Math.ceil(anchor.pos/step)*step});
+            }
+            for (let anchor of anchors.y) {
+                positions.y.add({pos:Math.floor(anchor.pos/step)*step});
+                positions.y.add({pos:Math.ceil(anchor.pos/step)*step});
+            }
+            return positions;
+        }
+    );
+
+    defineMethod(superClass,
+        function findPositions(element) {
+            if (this._accept(element)) {
+                return this._findPositions(element, range);
+            }
+            else {
+                return {x:new List(), y:new List()};
+            }
+        }
+    );
+
+}
+
+export function createGridPhysic({predicate, anchorsBuilder}) {
+    class GridPhysic extends Physic {
+        constructor(host, ...args) {
+            super(host, predicate, ...args);
+        }
+    }
+    makeGridPhysic(GridPhysic, {anchorsBuilder});
+    return GridPhysic;
+}
+
+export class RulerDecoration extends Decoration {
+
+    constructor(rulesPhysic) {
+        super();
+        assert(rulesPhysic._getStep);
+        this._physic = rulesPhysic;
+        this._rulers = new Group();
+        Canvas.instance.addObserver(this);
+    }
+
+    _init() {
+        this.refresh();
+    }
+
+    _createRuler(element) {
+        let zoom = Canvas.instance.zoom;
+        let step = this._physic._getStep(Canvas.instance.zoom);
+        let ruler = new Translation().attrs({fill:Colors.RED, stroke_width:1/zoom, stroke:Colors.RED, z_index:2000});
+        let size = Math.max(element.width, element.height);
+        ruler.set(element.lx, element.ly);
+        ruler.add(new Line(-size, 0, size, 0));
+        let graduationSize = 10/zoom;
+        for (let inc = 0; inc*step.step<size; inc++) {
+            console.log("scale:", inc*step.scale, step.ref);
+            let lx = Math.round(element.lx*Context.scale);
+            let graduationValue = inc*step.scale+lx;
+            if (!(graduationValue % step.ref)) {
+                ruler.add(new Line(inc * step.step, -graduationSize*2, inc * step.step, +graduationSize*2));
+            }
+            else {
+                ruler.add(new Line(inc * step.step, -graduationSize, inc * step.step, +graduationSize));
+            }
+        }
+        ruler.add(new Line(0, -size, 0, size));
+        return ruler;
+    }
+
+    _setElement(element) {
+        super._setElement(element);
+        element._addObserver(this);
+    }
+
+    refresh() {
+        console.log("refresh", this._hoveredElements)
+        this._rulers.clear();
+        if (this._hoveredElements) {
+            for (let dragged of this._hoveredElements) {
+                this._rulers.add(this._createRuler(dragged));
+            }
+        }
+    }
+
+    _notified(source, event, value, elements) {
+        if (source===this._element) {
+            if (event===Physic.events.REFRESH_HOVER && value===this._physic) {
+                this._hoveredElements = elements;
+                if (this._hoveredElements.length) {
+                    if (!this._shown) {
+                        this._shown = true;
+                        this._root.add(this._rulers);
+                    }
+                    this.refresh();
+                }
+                else if (!this._hoveredElements.length) {
+                    if (this._shown) {
+                        this._shown = false;
+                        this._root.remove(this._rulers);
+                    }
+                }
+            }
+        }
+        else if (source===Canvas.instance && event===Events.ZOOM) {
+            if (this._shown) {
+                this.refresh();
+            }
+        }
+    }
+
+    _adjustAspect(zoom) {
+        for (let line of this._rulers.children) {
+            line.attrs({stroke_width:1/zoom/*, stroke_dasharray:[1/zoom, 1/zoom]*/});
+        }
+    }
+
+    clone(duplicata) {
+        return new RulerDecoration(duplicata.get(this._physic));
+    }
+
+}

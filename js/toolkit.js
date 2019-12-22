@@ -28,6 +28,7 @@ export const Context = {
     selectPredicate : null,
     readOnly : 0,
     freezed : 0,
+    scale : 18000 / 1200,
 
     isReadOnly() {
         return this.readOnly;
