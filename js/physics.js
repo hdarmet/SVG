@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    always, assert, defineMethod, replaceMethod, defineGetProperty
+    always, assert, defineMethod, replaceMethod, defineGetProperty, extendMethod
 } from "./misc.js";
 import {
     List, ESet, SpatialLocator, dichotomousSearch
@@ -10,7 +10,7 @@ import {
     Matrix
 } from "./geometry.js";
 import {
-    win, Colors, Line, computePosition, Group, Fill, Translation, Rect
+    win, Colors, Line, computePosition, Group, Fill, Translation, Rect, Text, TextAnchor, AlignmentBaseline
 } from "./graphics.js";
 import {
     Canvas, Memento, Events, makeObservable, Context, Cloning
@@ -392,7 +392,7 @@ export function makeAbstractPositioningPhysic(superClass) {
                 for (let element of this._hoveredElements) {
                     this._refreshHoverElement(element);
                 }
-                this._hoveredElements.clear();
+                //this._hoveredElements.clear();
             }
             this._elements.clear();
         }
@@ -1253,7 +1253,6 @@ export function makeRulesPhysic(superClass, {
                 for (let element of this._hoveredElements) {
                     this._refreshHoverElement(element);
                 }
-                this._hoveredElements.clear();
             }
             this._elements.clear();
         }
@@ -1674,6 +1673,22 @@ export function makeGridPhysic(superClass, {
         anchorsBuilder
     });
 
+    extendMethod(superClass, $init=>
+        function _init(...args) {
+            $init.call(this, ...args);
+            Canvas.instance.addObserver(this);
+        }
+    );
+
+    extendMethod(superClass, $notified=>
+        function _notified(source, event, ...args) {
+            $notified && $notified.call(this, source, event, ...args);
+            if (source===Canvas.instance && event===Events.ZOOM) {
+                this.refresh();
+            }
+        }
+    );
+
     defineMethod(superClass,
         function _getStep(zoom) {
 
@@ -1683,11 +1698,11 @@ export function makeGridPhysic(superClass, {
                 let scale = 1;
                 while (true) {
                     let ref = scale;
-                    if (step < scale) return {scale, step: scale / Context.scale, ref:ref*10};
+                    if (step < scale) return {scale, step: scale / Context.scale, ref:ref*10, case:1};
                     scale *= 2.5;
-                    if (step < scale) return {scale, step: scale / Context.scale, ref:ref*10};
+                    if (step < scale) return {scale, step: scale / Context.scale, ref:ref*10, case:2};
                     scale *= 2;
-                    if (step < scale) return {scale, step: scale / Context.scale, ref:ref*10};
+                    if (step < scale) return {scale, step: scale / Context.scale, ref:ref*10, case:3};
                     scale *= 2;
                 }
 
@@ -1759,25 +1774,109 @@ export class RulerDecoration extends Decoration {
     }
 
     _createRuler(element) {
-        let zoom = Canvas.instance.zoom;
-        let step = this._physic._getStep(Canvas.instance.zoom);
-        let ruler = new Translation().attrs({fill:Colors.RED, stroke_width:1/zoom, stroke:Colors.RED, z_index:2000});
-        let size = Math.max(element.width, element.height);
-        ruler.set(element.lx, element.ly);
-        ruler.add(new Line(-size, 0, size, 0));
-        let graduationSize = 10/zoom;
-        for (let inc = 0; inc*step.step<size; inc++) {
-            console.log("scale:", inc*step.scale, step.ref);
-            let lx = Math.round(element.lx*Context.scale);
+
+        function computeX(inc, unit) {
+            let lx = (element.lx+this._physic.host.width/2)*Context.scale;
             let graduationValue = inc*step.scale+lx;
-            if (!(graduationValue % step.ref)) {
-                ruler.add(new Line(inc * step.step, -graduationSize*2, inc * step.step, +graduationSize*2));
-            }
-            else {
-                ruler.add(new Line(inc * step.step, -graduationSize, inc * step.step, +graduationSize));
+            return {value:Math.round(graduationValue), label:Math.round(graduationValue)/unit.factor};
+        }
+
+        function computeY(inc, unit) {
+            let ly = (this._physic.host.height/2-element.ly)*Context.scale;
+            let graduationValue = ly-inc*step.scale;
+            return {value:Math.round(graduationValue), label:Math.round(graduationValue)/unit.factor};
+        }
+
+        function getUnit(ref) {
+           if (ref<=10) return {label:"mm", factor:10};
+           else if (ref<=1000) return {label:"cm", factor:100};
+           else return {label:"m", factor:1000};
+        }
+
+        function drawVerticalGraduation(inc, unit) {
+            let graduationSize = 10/zoom;
+            let graduation = computeX.call(this, inc, unit);
+            if (graduation.value>=0 && graduation.value<=this._physic.host.width*Context.scale) {
+                if ((graduation.value % step.ref < 0.001) || (step.case === 1 && graduation.value % (step.ref / 2) < 0.001)) {
+                    ruler.add(new Line(inc * step.step, -graduationSize * 2, inc * step.step, +graduationSize * 2));
+                    let text = new Text(inc * step.step, 0, graduation.label).attrs({
+                        fill: Colors.RED, text_anchor: TextAnchor.MIDDLE, font_size: 12 / zoom
+                    });
+                    if (step.case === 3 && ((graduation.value / step.ref) % 2) > 0.001) {
+                        text.attrs({y: graduationSize * 2.1, alignment_baseline: AlignmentBaseline.BEFORE_EDGE});
+                    }
+                    else {
+                        text.attrs({y: -graduationSize * 2.1, alignment_baseline: AlignmentBaseline.AFTER_EDGE});
+                    }
+                    ruler.add(text);
+                }
+                else {
+                    ruler.add(new Line(inc * step.step, -graduationSize, inc * step.step, +graduationSize));
+                }
             }
         }
-        ruler.add(new Line(0, -size, 0, size));
+
+        function drawHorizontalGraduation(inc, unit) {
+            let graduationSize = 10/zoom;
+            let graduation = computeY.call(this, inc, unit);
+            if (graduation.value>=0 && graduation.value<=this._physic.host.height*Context.scale) {
+                if (graduation.value % step.ref < 0.001) {
+                    ruler.add(new Line(-graduationSize * 2, inc * step.step, graduationSize * 2, inc * step.step));
+                    let text = new Text(graduationSize * 2.1, inc * step.step, "" + (graduation.value / unit.factor)).attrs({
+                        fill: Colors.RED, font_size: 12 / zoom,
+                        text_anchor: TextAnchor.START, alignment_baseline: AlignmentBaseline.MIDDLE
+                    });
+                    ruler.add(text);
+                }
+                else {
+                    ruler.add(new Line(-graduationSize, inc * step.step, graduationSize, inc * step.step));
+                }
+            }
+        }
+
+        function drawHorizontalAxis(zoom, step, unit, ruler) {
+            let margin = 50;
+            let horizontalSize = Math.max(element.width/2 + margin/zoom, step.step*10);
+            ruler.add(new Line(-horizontalSize, 0, horizontalSize, 0));
+            ruler.add(new Text(-horizontalSize*1.05, 0, computeX.call(this, 0, unit).label).attrs({
+                fill:Colors.RED, font_size: 16/zoom,
+                text_anchor:TextAnchor.END, alignment_baseline :AlignmentBaseline.MIDDLE
+            }));
+            ruler.add(new Text(horizontalSize*1.05, 0, unit.label).attrs({
+                fill:Colors.RED, font_size: 12/zoom,
+                text_anchor:TextAnchor.START, alignment_baseline :AlignmentBaseline.MIDDLE
+            }));
+            for (let inc = 1; inc*step.step<=horizontalSize; inc++) {
+                drawVerticalGraduation.call(this, inc, unit);
+                drawVerticalGraduation.call(this, -inc, unit);
+            }
+        }
+
+        function drawVerticalAxis(zoom, step, unit, ruler) {
+            let margin = 50;
+            let verticalSize = Math.max(element.height/2 + margin/zoom, step.step*10);
+            ruler.add(new Line(0, -verticalSize, 0, verticalSize));
+            ruler.add(new Text(0, verticalSize*1.05, computeY.call(this, 0, unit).label).attrs({
+                fill:Colors.RED, font_size: 16/zoom,
+                text_anchor:TextAnchor.MIDDLE, alignment_baseline :AlignmentBaseline.BEFORE_EDGE
+            }));
+            ruler.add(new Text(0, -verticalSize*1.05, unit.label).attrs({
+                fill:Colors.RED, font_size: 12/zoom,
+                text_anchor:TextAnchor.MIDDLE, alignment_baseline :AlignmentBaseline.AFTER_EDGE
+            }));
+            for (let inc = 1; inc*step.step<=verticalSize; inc++) {
+                drawHorizontalGraduation.call(this, inc, unit);
+                drawHorizontalGraduation.call(this, -inc, unit);
+            }
+        }
+
+        let zoom = Canvas.instance.zoom;
+        let step = this._physic._getStep(zoom);
+        let unit = getUnit.call(this, step.ref);
+        let ruler = new Translation().attrs({fill:Colors.RED, stroke_width:1/zoom, stroke:Colors.RED, z_index:2000});
+        drawHorizontalAxis.call(this, zoom, step, unit, ruler);
+        drawVerticalAxis.call(this, zoom, step, unit, ruler);
+        ruler.set(element.lx, element.ly);
         return ruler;
     }
 
@@ -1787,7 +1886,6 @@ export class RulerDecoration extends Decoration {
     }
 
     refresh() {
-        console.log("refresh", this._hoveredElements)
         this._rulers.clear();
         if (this._hoveredElements) {
             for (let dragged of this._hoveredElements) {
@@ -1819,12 +1917,6 @@ export class RulerDecoration extends Decoration {
             if (this._shown) {
                 this.refresh();
             }
-        }
-    }
-
-    _adjustAspect(zoom) {
-        for (let line of this._rulers.children) {
-            line.attrs({stroke_width:1/zoom/*, stroke_dasharray:[1/zoom, 1/zoom]*/});
         }
     }
 

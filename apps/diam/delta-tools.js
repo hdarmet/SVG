@@ -234,7 +234,7 @@ makePopupResizable(DeltaPalette);
 export function createPalettePopup() {
     let paletteContent = new ToolGridPanelContent(200, 80, 120);
     paletteContent.addCell(new BoardItemBuilder([new DeltaPane({
-        width:840, height:500, contentX:0, contentY:0, contentWidth:810, contentHeight:460,
+        width:1840, height:1240, contentX:0, contentY:0, contentWidth:1800, contentHeight:1200,
         label:"pane"
     })]));
     paletteContent.addCell(new BoardItemBuilder([new DeltaRichPane({
