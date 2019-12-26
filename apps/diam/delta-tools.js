@@ -9,7 +9,7 @@ import {
 import {
     DeltaBlister, DeltaCover, DeltaDivider, DeltaDoubleLadder, DeltaFascia, DeltaFasciaSupport, DeltaFixing, DeltaHook,
     DeltaLadder, DeltaPane, DeltaRichCaddy, DeltaRichPane, DeltaRichShelf, DeltaShelf, DeltaSlottedRichBox, DeltaVisual,
-    DeltaSlottedBox, DeltaBox, DeltaAbstractLadder
+    DeltaSlottedBox, DeltaBox, DeltaAbstractLadder, DeltaFrame
 } from "./delta-objects.js";
 import {
     Layers, Context, Layer
@@ -295,7 +295,12 @@ export function createPalettePopup() {
         headerHeight:5, footerHeight:15,
         status:{code:"B", color:Colors.BLUE}
     })]));
-
+    paletteContent.addCell(new BoardItemBuilder([new DeltaFrame({
+        width:120, height:70, frameWidth:5, color:Colors.BLUE
+    })]));
+    paletteContent.addCell(new BoardItemBuilder([new DeltaFrame({
+        width:150, height:80, frameWidth:5, color:Colors.GREEN
+    })]));
     paletteContent.addCell(new BoardItemBuilder([new DeltaDivider({
         width:10, height:460, contentX:0
     })]));

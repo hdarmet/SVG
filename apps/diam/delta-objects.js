@@ -15,7 +15,7 @@ import {
 } from "./delta-core.js";
 import {
     AlignmentBaseline, Colors, definePropertiesSet, filterProperties, Group, L, M, Path, Q,
-    Rect, Attrs, Circle, Line, Text, win
+    Rect, Attrs, Circle, Line, Text, win, Polygon
 } from "../../js/graphics.js";
 import {
     addBordersToCollisionPhysic, createGravitationPhysic, makeCarriable, makeCarrier,
@@ -65,6 +65,13 @@ export class DeltaFasciaSupport extends BoardElement {
         return this._acceptElement(element);
     }
 
+    _dropTarget(element) {
+        console.log("PASSE ICI")
+        if (is(DeltaFrame)(element)) {
+            return this.parent._dropTarget(element);
+        }
+        return this;
+    };
 }
 makePart(DeltaFasciaSupport);
 makeSupport(DeltaFasciaSupport);
@@ -82,9 +89,60 @@ export class DeltaFascia extends DeltaItem {
         super._improve({});
         this._initFrame(this.width, this.height, Colors.INHERIT, color);
     }
+
+    _dropTarget(element) {
+        if (is(DeltaFrame)(element)) {
+            console.log("PASSE LA", element, this.parent)
+            return this.parent._dropTarget(element);
+        }
+        return this;
+    };
 }
 makeFramed(DeltaFascia);
 makeKnobOwner(DeltaFascia, {size:15, predicate:is(DeltaFasciaSupport)});
+
+export class DeltaFrameSupport extends BoardElement {
+    constructor({width, height}) {
+        super(width, height);
+    }
+
+    _acceptElement(element) {
+        return element instanceof DeltaFrame &&
+            element.width === this.width &&
+            element.height === this.height;
+    }
+
+    _acceptDrop(element, dragSet) {
+        return this._acceptElement(element);
+    }
+
+}
+makePart(DeltaFrameSupport);
+makeSupport(DeltaFrameSupport);
+makePositioningContainer(DeltaFrameSupport, {
+    predicate: function(element) {return this.host._acceptElement(element);},
+    positionsBuilder: element=>{return [{x:0, y:0}]}
+});
+
+export class DeltaFrame extends DeltaItem {
+    constructor(specs) {
+        super(specs);
+    }
+
+    _improve({frameWidth, color}) {
+        super._improve({});
+        this._initShape(this._createFrameShape(this.width, this.height, frameWidth, color));
+    }
+
+    _createFrameShape(width, height, frameWidth, color) {
+        return new Polygon(
+            [-width/2, height/2], [-width/2, -height/2], [width/2, -height/2], [width/2, height/2],
+            [width/2-frameWidth, height/2], [width/2-frameWidth, -height/2+frameWidth],
+            [-width/2+frameWidth, -height/2+frameWidth], [-width/2+frameWidth, height/2]).attrs({fill:color});
+    }
+}
+makeShaped(DeltaFrame);
+makeKnobOwner(DeltaFrame, {size:15, predicate:is(DeltaFrameSupport)});
 
 export function makeHeaderOwner(superClass) {
 
@@ -169,6 +227,30 @@ export function makeFasciaSupport(superClass) {
     };
 
 }
+export function makeFrameSupport(superClass) {
+
+    makePartsOwner(superClass);
+
+    superClass.prototype._initFrameSupport = function() {
+        this._frameSupport = this._createFrameSupport(this.width, this.height);
+        this._frameSupport.setLocation(0, 0);
+        this._addPart(this._frameSupport);
+    };
+
+    superClass.prototype._createFrameSupport = function(width, height) {
+        return new DeltaFrameSupport({width, height});
+    };
+
+    let getTarget = superClass.prototype._dropTarget;
+    superClass.prototype._dropTarget = function(element) {
+        if (element instanceof DeltaFrame) {
+            return this._frameSupport._dropTarget(element);
+        }
+        return getTarget ? getTarget.call(this, element) : this;
+    };
+
+}
+
 
 export function makeKnobOwner(superClass, {size, predicate}) {
 
@@ -314,7 +396,7 @@ export class DeltaBoxContent extends DeltaSupport {
     }
 
     _dropTarget(element) {
-        if (element instanceof DeltaFascia) {
+        if (is(DeltaFascia, DeltaFrame)(element)) {
             return this.parent._dropTarget(element);
         }
         return this;
@@ -482,21 +564,23 @@ export class DeltaSlottedBox extends DeltaBox {
 export class DeltaSlottedRichBox extends DeltaSlottedBox {
 
     _improve({
-                 clips,
-                 contentX, contentY, contentWidth, contentHeight,
-                 slotWidth,
-                 headerHeight, footerHeight}
+         clips,
+         contentX, contentY, contentWidth, contentHeight,
+         slotWidth,
+         headerHeight, footerHeight}
     ) {
         super._improve({clips, contentX, contentY, contentWidth, contentHeight, slotWidth});
         this._initHeader(headerHeight);
         this._initFooter(footerHeight);
         this._initFasciaSupport(headerHeight, footerHeight);
+        this._initFrameSupport();
     }
 
 }
 makeHeaderOwner(DeltaSlottedRichBox);
 makeFooterOwner(DeltaSlottedRichBox);
 makeFasciaSupport(DeltaSlottedRichBox);
+makeFrameSupport(DeltaSlottedRichBox);
 
 export class DeltaFixing extends DeltaItem {
 
@@ -949,12 +1033,14 @@ export class DeltaRichCaddy extends DeltaCaddy {
         this._initHeader(headerHeight);
         this._initFooter(footerHeight);
         this._initFasciaSupport(headerHeight, footerHeight);
+        this._initFrameSupport();
     }
 
 }
 makeHeaderOwner(DeltaRichCaddy);
 makeFooterOwner(DeltaRichCaddy);
 makeFasciaSupport(DeltaRichCaddy);
+makeFrameSupport(DeltaRichCaddy);
 
 export class DeltaDivider extends DeltaItem {
 

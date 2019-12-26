@@ -114,7 +114,7 @@ export function makePart(superClass) {
         }
     );
 
-    replaceGetProperty(superClass,
+    proposeGetProperty(superClass,
         function selectable() {
             return this.owner.selectable;
         }
@@ -840,8 +840,12 @@ export function makeContainerASupport(superClass) {
         }
     );
 
-    replaceMethod(superClass,
+    extendMethod(superClass, $dropTarget=>
         function _dropTarget(element) {
+            if ($dropTarget) {
+                let dropTarget = $dropTarget.call(this, element);
+                if (dropTarget) return dropTarget;
+            }
             return this;
         }
     );

@@ -980,8 +980,12 @@ export function makeClipImaged(superClass) {
 
 export function makeGentleDropTarget(superClass) {
 
-    replaceMethod(superClass,
+    extendMethod(superClass, $dropTarget=>
         function _dropTarget(element) {
+            if ($dropTarget) {
+                let dropTarget = $dropTarget.call(this, element);
+                if (dropTarget) return dropTarget;
+            }
             if (this.support && this.support._dropTarget && (!this._acceptDrop || !this._acceptDrop(element))) {
                 return this.support._dropTarget(element);
             }
