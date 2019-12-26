@@ -1,6 +1,5 @@
 'use strict';
 
-
 import {
     List, ESet, EMap
 } from "./collections.js";
@@ -8,10 +7,10 @@ import {
     Box
 } from "./geometry.js";
 import {
-    Group, Rect, Fill, Stroke, Visibility, win, Colors, Circle, Line
+    Group, Rect, Fill, Stroke, Visibility, win, Colors, Circle, Line, AlignmentBaseline, TextAnchor, Translation, Text
 } from "./graphics.js";
 import {
-    Memento, Context, Events, makeNotCloneable, Canvas, makeSingleton, Selection, l2pBoundingBox
+    Memento, Context, Events, makeNotCloneable, Canvas, makeSingleton, Selection, l2pBoundingBox, computeGridStep
 } from "./toolkit.js";
 import {
     DragSwitchOperation, DragOperation, DragMoveSelectionOperation, DragRotateSelectionOperation, DragAreaOperation,
@@ -22,7 +21,7 @@ import {
 } from "./base-element.js";
 import {
     makeDraggable, makeSelectable, makeMovable, makeRotatable, makeClickable, makeFramed, makeSingleImaged,
-    makeMultiImaged, makeClipImaged, makeShaped, makeDeletable
+    makeMultiImaged, makeClipImaged, makeShaped, makeDeletable, Decoration
 } from "./core-mixins.js";
 import {
     makeContainer, makeSupport, makePart, makeLayersWithContainers, makeLayered, makeContainerASandBox,
@@ -454,28 +453,37 @@ export class DragHandleOperation extends DragOperation {
         return (!Context.isReadOnly() && element.movable && super.accept(element, x, y, event));
     }
 
-    doDragStart(element, x, y, event) {
+    doDragStart(handle, x, y, event) {
         Memento.instance.open();
-        Memento.register(element);
-        let invertedMatrix = element.global.invert();
+        Memento.register(handle);
+        let invertedMatrix = handle.global.invert();
         this.dragX = invertedMatrix.x(x, y);
         this.dragY = invertedMatrix.y(x, y);
+        handle.parent._fire(DragHandleOperation.events.START_DRAG_HANDLE, handle);
     }
 
-    doDragMove(element, x, y, event) {
-        let invertedMatrix = element.parent.global.invert();
+    doDragMove(handle, x, y, event) {
+        let invertedMatrix = handle.parent.global.invert();
         let dX = invertedMatrix.x(x, y) - this.dragX;
         let dY = invertedMatrix.y(x, y) - this.dragY;
-        element._setLocation(dX, dY);
-        element.parent._receiveMove && element.parent._receiveMove(element);
+        handle._setLocation(dX, dY);
+        handle.parent._receiveMoveHandle && handle.parent._receiveMoveHandle(handle);
+        handle.parent._fire(DragHandleOperation.events.DRAG_HANDLE, handle);
     }
 
-    doDrop(element, x, y, event) {
-        element.parent._receiveDrop && element.parent._receiveDrop(element);
-        element._droppedIn(element.parent);
+    doDrop(handle, x, y, event) {
+        handle.parent._receiveDropHandle && handle.parent._receiveDropHandle(handle);
+        handle._droppedIn(handle.parent);
+        handle.parent._fire(DragHandleOperation.events.DROP_HANDLE, handle);
+
     }
 }
 makeNotCloneable(DragHandleOperation);
+DragHandleOperation.events = {
+    START_DRAG_HANDLE: "start-drag-handle",
+    DRAG_HANDLE: "drag-handle",
+    DROP_HANDLE: "drop-handle"
+};
 DragHandleOperation.instance = new DragHandleOperation();
 
 export class BoardHandle extends BoardElement {
@@ -534,7 +542,7 @@ BoardHandle.ALL = new ESet([
     BoardHandle.BOTTOM, BoardHandle.LEFT_BOTTOM, BoardHandle.LEFT, BoardHandle.LEFT_TOP
 ]);
 
-export function makeResizeable(superClass, spec=BoardHandle.ALL) {
+export function makeResizeable(superClass, spec=BoardHandle.ALL, computeStep = null) {
 
     defineMethod(superClass,
         function _initResize(color) {
@@ -658,10 +666,11 @@ export function makeResizeable(superClass, spec=BoardHandle.ALL) {
      * @private
      */
     defineMethod(superClass,
-        function _receiveMove(element) {
+        function _receiveMoveHandle(handle) {
 
             /**
-             * Ensure that the frame is indside the allowed bounds. If not, reduce the frame geometry accordingly.
+             * Ensure that the element to resize is inside the allowed bounds. If not, reduce its geometry
+             * accordingly to bound constraints.
              * @param element resizeable item to rebound
              * @param bounds the allowed bounds
              */
@@ -691,27 +700,33 @@ export function makeResizeable(superClass, spec=BoardHandle.ALL) {
                 }
             }
 
-            if (element instanceof BoardHandle) {
-                rebound(element, this.bounds());
+            if (handle instanceof BoardHandle) {
+                rebound(handle, this.bounds());
+                this._movedHandle = handle;
                 let width = this.width;
                 let height = this.height;
                 let lx = this.lx;
                 let ly = this.ly;
+                let step = computeStep ? computeStep(handle).step : null;
                 // Permutation management
-                if (element===this._leftTopHandle || element===this._leftHandle || element===this._leftBottomHandle) {
-                    width = -element.lx+this.width/2;
+                if (this.resizeLeft) {
+                    width = -handle.lx+this.width/2;
+                    if (step) width = Math.round(width/step)*step;
                     lx += (this.width-width)/2;
                 }
-                else if (element===this._rightTopHandle || element===this._rightHandle || element===this._rightBottomHandle) {
-                    width = element.lx+this.width/2;
+                else if (this.resizeRight) {
+                    width = handle.lx+this.width/2;
+                    if (step) width = Math.round(width/step)*step;
                     lx += (width-this.width)/2;
                 }
-                if (element===this._leftTopHandle || element===this._topHandle || element===this._rightTopHandle) {
-                    height = -element.ly+this.height/2;
+                if (this.resizeTop) {
+                    height = -handle.ly+this.height/2;
+                    if (step) height = Math.round(height/step)*step;
                     ly += (this.height-height)/2;
                 }
-                else if (element===this._leftBottomHandle || element===this._bottomHandle || element===this._rightBottomHandle) {
-                    height = element.ly+this.height/2;
+                else if (this.resizeBottom) {
+                    height = handle.ly+this.height/2;
+                    if (step) height = Math.round(height/step)*step;
                     ly += (height-this.height)/2;
                 }
                 if (width<0) {
@@ -729,23 +744,57 @@ export function makeResizeable(superClass, spec=BoardHandle.ALL) {
                 updateHandlesVisibility.call(this);
                 // Geometry update
                 Memento.register(this);
-                this.resize(width, height, element.direction);
+                this.resize(width, height, handle.direction);
                 // Adjust position parameter in case of min width/height limits reached.
-                if (element===this._leftTopHandle || element===this._leftHandle || element===this._leftBottomHandle) {
+                if (this.resizeLeft) {
                     lx += (width-this.width)/2;
                 }
-                else if (element===this._rightTopHandle || element===this._rightHandle || element===this._rightBottomHandle) {
+                else if (this.resizeRight) {
                     lx += (this.width-width)/2;
                 }
-                if (element===this._leftTopHandle || element===this._topHandle || element===this._rightTopHandle) {
+                if (this.resizeTop) {
                     ly += (height-this.height)/2;
                 }
-                else if (element===this._leftBottomHandle || element===this._bottomHandle || element===this._rightBottomHandle) {
+                else if (this.resizeBottom) {
                     ly += (this.height-height)/2;
                 }
                 this.setLocation(lx, ly);
                 this.placeHandles();
             }
+        }
+    );
+
+    defineMethod(superClass,
+        function _receiveDropHandle(handle) {
+            delete this._movedHandle;
+        }
+    );
+
+    defineGetProperty(superClass,
+        function resizeLeft() {
+            return this._movedHandle && this._movedHandle===this._leftTopHandle ||
+                this._movedHandle===this._leftHandle || this._movedHandle===this._leftBottomHandle;
+        }
+    );
+
+    defineGetProperty(superClass,
+        function resizeRight() {
+            return this._movedHandle && this._movedHandle===this._rightTopHandle ||
+                this._movedHandle===this._rightHandle || this._movedHandle===this._rightBottomHandle;
+        }
+    );
+
+    defineGetProperty(superClass,
+        function resizeTop() {
+            return this._movedHandle && this._movedHandle===this._leftTopHandle ||
+                this._movedHandle===this._topHandle || this._movedHandle===this._rightTopHandle;
+        }
+    );
+
+    defineGetProperty(superClass,
+        function resizeBottom() {
+            return this._movedHandle && this._movedHandle===this._leftBottomHandle ||
+                this._movedHandle===this._bottomHandle || this._movedHandle===this._rightBottomHandle;
         }
     );
 
@@ -803,6 +852,163 @@ export function makeResizeableContent(superClass) {
     );
 
 }
+
+export class SizerDecoration extends Decoration {
+
+    constructor(rulesPhysic) {
+        super();
+        //assert(rulesPhysic._getStep);
+        this._rulers = new Group();
+        Canvas.instance.addObserver(this);
+    }
+
+    _init() {
+        this.refresh();
+    }
+
+    _createRuler(handle) {
+
+        function computeX(inc, step) {
+            let width = this._element.width*Context.scale;
+            let graduationValue = inc*step.scale+width;
+            return {value:Math.round(graduationValue), label:Math.round(graduationValue)/step.unitFactor};
+        }
+
+        function computeY(inc, step) {
+            let height = this._element.height*Context.scale;
+            let graduationValue = inc*step.scale+height;
+            return {value:Math.round(graduationValue), label:Math.round(graduationValue)/step.unitFactor};
+        }
+
+        function modulo(value, diviser) {
+            if (value<0) value=-value;
+            return value%diviser <0.001;
+        }
+
+        function drawVerticalGraduation(inc, step, direction) {
+            let graduationSize = 10/zoom;
+            let graduation = computeX.call(this, inc, step);
+            let x = inc * step.step*direction;
+            if (modulo(graduation.value, step.ref) || (step.case === 1 && modulo(graduation.value, step.ref))) {
+                ruler.add(new Line(x, -graduationSize * 2, x, +graduationSize * 2));
+                let text = new Text(x, 0, graduation.label).attrs({
+                    fill: Colors.RED, text_anchor: TextAnchor.MIDDLE, font_size: 12 / zoom
+                });
+                if (step.case === 3 && ((graduation.value / step.ref) % 2) > 0.001) {
+                    text.attrs({y: graduationSize * 2.1, alignment_baseline: AlignmentBaseline.BEFORE_EDGE});
+                }
+                else {
+                    text.attrs({y: -graduationSize * 2.1, alignment_baseline: AlignmentBaseline.AFTER_EDGE});
+                }
+                ruler.add(text);
+            }
+            else {
+                ruler.add(new Line(x, -graduationSize, x, +graduationSize));
+            }
+        }
+
+        function drawHorizontalGraduation(inc, step, direction) {
+            let graduationSize = 10/zoom;
+            let graduation = computeY.call(this, inc, step);
+            let y = inc * step.step*direction;
+            if (modulo(graduation.value, step.ref)) {
+                ruler.add(new Line(-graduationSize * 2, y, graduationSize * 2, y));
+                let text = new Text(graduationSize * 2.1, y, graduation.label).attrs({
+                    fill: Colors.RED, font_size: 12 / zoom,
+                    text_anchor: TextAnchor.START, alignment_baseline: AlignmentBaseline.MIDDLE
+                });
+                ruler.add(text);
+            }
+            else {
+                ruler.add(new Line(-graduationSize, y, graduationSize, y));
+            }
+        }
+
+        function drawHorizontalAxis(zoom, step, ruler, direction) {
+            let horizontalSize = step.step*10;
+            ruler.add(new Line(-horizontalSize, 0, horizontalSize, 0));
+            ruler.add(new Text(-horizontalSize*1.05, 0, computeX.call(this, 0, step).label).attrs({
+                fill:Colors.RED, font_size: 16/zoom,
+                text_anchor:TextAnchor.END, alignment_baseline :AlignmentBaseline.MIDDLE
+            }));
+            ruler.add(new Text(horizontalSize*1.05, 0, step.unitLabel).attrs({
+                fill:Colors.RED, font_size: 12/zoom,
+                text_anchor:TextAnchor.START, alignment_baseline :AlignmentBaseline.MIDDLE
+            }));
+            for (let inc = 1; inc*step.step<=horizontalSize; inc++) {
+                drawVerticalGraduation.call(this, inc, step, direction);
+                drawVerticalGraduation.call(this, -inc, step, direction);
+            }
+        }
+
+        function drawVerticalAxis(zoom, step, ruler, direction) {
+            let verticalSize = step.step*10;
+            ruler.add(new Line(0, -verticalSize, 0, verticalSize));
+            ruler.add(new Text(0, verticalSize*1.05, computeY.call(this, 0, step).label).attrs({
+                fill:Colors.RED, font_size: 16/zoom,
+                text_anchor:TextAnchor.MIDDLE, alignment_baseline :AlignmentBaseline.BEFORE_EDGE
+            }));
+            ruler.add(new Text(0, -verticalSize*1.05, step.unitLabel).attrs({
+                fill:Colors.RED, font_size: 12/zoom,
+                text_anchor:TextAnchor.MIDDLE, alignment_baseline :AlignmentBaseline.AFTER_EDGE
+            }));
+            for (let inc = 1; inc*step.step<=verticalSize; inc++) {
+                drawHorizontalGraduation.call(this, inc, step, direction);
+                drawHorizontalGraduation.call(this, -inc, step, direction);
+            }
+        }
+
+        let zoom = Canvas.instance.zoom;
+        let step = computeGridStep();
+        let ruler = new Translation().attrs({fill:Colors.RED, stroke_width:1/zoom, stroke:Colors.RED, z_index:2000});
+        if (this._element.resizeLeft) drawHorizontalAxis.call(this, zoom, step, ruler, -1);
+        if (this._element.resizeRight) drawHorizontalAxis.call(this, zoom, step, ruler, 1);
+        if (this._element.resizeTop) drawVerticalAxis.call(this, zoom, step, ruler, -1);
+        if (this._element.resizeBottom) drawVerticalAxis.call(this, zoom, step, ruler, 1);
+        ruler.set(handle.lx, handle.ly);
+        return ruler;
+    }
+
+    _setElement(element) {
+        super._setElement(element);
+        element._addObserver(this);
+    }
+
+    refresh() {
+        this._rulers.clear();
+        if (this._element._movedHandle) {
+            this._rulers.add(this._createRuler(this._element._movedHandle));
+        }
+    }
+
+    _notified(source, event, value, elements) {
+        if (source===this._element) {
+            if (event===DragHandleOperation.events.START_DRAG_HANDLE) {
+                this._shown = true;
+                this._root.add(this._rulers);
+                this.refresh();
+            }
+            else if (event===DragHandleOperation.events.DRAG_HANDLE) {
+                this.refresh();
+            }
+            else if (event===DragHandleOperation.events.DROP_HANDLE) {
+                this._shown = false;
+                this._root.remove(this._rulers);
+            }
+        }
+        else if (source===Canvas.instance && event===Events.ZOOM) {
+            if (this._shown) {
+                this.refresh();
+            }
+        }
+    }
+
+    clone(duplicata) {
+        return new SizerDecoration();
+    }
+
+}
+
 
 export class BoardFrame extends BoardElement {
 

@@ -25,7 +25,7 @@ import {
     TextDecoration
 } from "../../js/standard-mixins.js";
 import {
-    Canvas, Context, Memento, Events, l2pBoundingBox
+    Canvas, Context, Memento, Events, l2pBoundingBox, computeGridStep
 } from "../../js/toolkit.js";
 import {
     Visitor, BoardElement
@@ -46,7 +46,7 @@ import {
     ESet, List, EMap
 } from "../../js/collections.js";
 import {
-    makeResizeable, makeResizeableContent, BoardHandle
+    makeResizeable, makeResizeableContent, BoardHandle, SizerDecoration
 } from "../../js/elements.js";
 
 
@@ -1272,6 +1272,8 @@ export class DeltaPane extends DeltaItem {
         this._paneContent = this._createPaneContent(contentX, contentY, contentWidth, contentHeight, lineMargin, labelMargin, indexMargin);
         this._addPart(this._paneContent);
         this._initResize(Colors.RED);
+        this._sizerDecoration = new SizerDecoration();
+        this._addDecoration(this._sizerDecoration);
     }
 
     _createPaneContent(contentX, contentY, contentWidth, contentHeight, lineMargin, labelMargin, indexMargin) {
@@ -1332,7 +1334,8 @@ makeFramed(DeltaPane);
 makeLabelOwner(DeltaPane);
 makeCarrier(DeltaPane);
 makeCarriable(DeltaPane);
-makeResizeable(DeltaPane, DeltaPane.ALL_HANDLES_BUT_BOTTOM_ONES);
+makeDecorationsOwner(DeltaPane);
+makeResizeable(DeltaPane, DeltaPane.ALL_HANDLES_BUT_BOTTOM_ONES, computeGridStep);
 
 export class DeltaRichPane extends DeltaPane {
 

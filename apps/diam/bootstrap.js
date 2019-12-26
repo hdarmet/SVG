@@ -7,7 +7,7 @@ import {
     ESet, List
 } from "../../js/collections.js";
 import {
-    Context, Canvas, Groups, Memento, setLayeredGlassStrategy, Selection
+    Context, Canvas, Groups, Memento, setLayeredGlassStrategy, Selection, computeGridStep
 } from "../../js/toolkit.js";
 import {
     StandardDragMode
@@ -37,7 +37,7 @@ import {
     makeGravitationContainer
 } from "../../js/collision-physics.js";
 import {
-    BoardPrintArea, makeResizeable, makeResizeableContent
+    BoardPrintArea, makeResizeable, makeResizeableContent, BoardHandle, SizerDecoration
 } from "../../js/elements.js";
 import {
     LAYERS_DEFINITION, makeFreePositioningOwner, makeLabelOwner, TABLE_LAYERS_DEFINITION, DeltaSupport, DeltaLayers
@@ -84,6 +84,8 @@ makeResizeableContent(DeltaPaperContent);
 class DeltaPaper extends BoardPaper {
     constructor({width, height}) {
         super(width, height, Colors.WHITE);
+        this._sizerDecoration = new SizerDecoration();
+        this._addDecoration(this._sizerDecoration);
     }
 
     _improve(...args) {
@@ -142,7 +144,8 @@ class DeltaPaper extends BoardPaper {
 makePartsOwner(DeltaPaper);
 makeFreePositioningOwner(DeltaPaper);
 makeSelectable(DeltaPaper);
-makeResizeable(DeltaPaper);
+makeDecorationsOwner(DeltaPaper);
+makeResizeable(DeltaPaper, BoardHandle.ALL, computeGridStep);
 DeltaPaper.MARGIN = 10;
 
 class DeltaAbstractTable extends BoardTable {

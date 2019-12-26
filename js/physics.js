@@ -13,7 +13,7 @@ import {
     win, Colors, Line, computePosition, Group, Fill, Translation, Rect, Text, TextAnchor, AlignmentBaseline
 } from "./graphics.js";
 import {
-    Canvas, Memento, Events, makeObservable, Context, Cloning
+    Canvas, Memento, Events, makeObservable, Context, Cloning, computeGridStep
 } from "./toolkit.js";
 import {
     TextDecoration
@@ -1664,7 +1664,7 @@ export function makeGridPhysic(superClass, {
     anchorsBuilder = element => {
         return element.anchors;
     }
-}) {
+}, computeStep = computeGridStep) {
 
     makeRulesPhysic(superClass, {
         rulesBuilder:function(element) {
@@ -1690,24 +1690,8 @@ export function makeGridPhysic(superClass, {
     );
 
     defineMethod(superClass,
-        function _getStep(zoom) {
-
-            function computeStep() {
-                let unitValue = Context.scale / zoom;
-                let step = unitValue * 10;
-                let scale = 1;
-                while (true) {
-                    let ref = scale;
-                    if (step < scale) return {scale, step: scale / Context.scale, ref:ref*10, case:1};
-                    scale *= 2.5;
-                    if (step < scale) return {scale, step: scale / Context.scale, ref:ref*10, case:2};
-                    scale *= 2;
-                    if (step < scale) return {scale, step: scale / Context.scale, ref:ref*10, case:3};
-                    scale *= 2;
-                }
-
-            }
-
+        function _getStep() {
+            let zoom = Canvas.instance.zoom;
             if (!this._step || this._stepZoom !== zoom) {
                 this._step = computeStep();
                 this._stepZoom = zoom;
@@ -1718,19 +1702,21 @@ export function makeGridPhysic(superClass, {
 
     defineMethod(superClass,
         function _findPositions(element) {
-            let step = this._getStep(Canvas.instance.zoom).step;
+            let step = this._getStep().step;
             let positions = {
                 x:new List(),
                 y:new List()
             };
             let anchors = anchorsBuilder.call(this, element);
             for (let anchor of anchors.x) {
-                positions.x.add({pos:Math.floor(anchor.pos/step)*step});
-                positions.x.add({pos:Math.ceil(anchor.pos/step)*step});
+                let pos = (anchor.pos+this.host.width/2)/step;
+                positions.x.add({pos:Math.floor(pos)*step-this.host.width/2});
+                positions.x.add({pos:Math.ceil(pos)*step-this.host.width/2});
             }
             for (let anchor of anchors.y) {
-                positions.y.add({pos:Math.floor(anchor.pos/step)*step});
-                positions.y.add({pos:Math.ceil(anchor.pos/step)*step});
+                let pos = (this.host.height/2-anchor.pos)/step;
+                positions.y.add({pos:-Math.floor(pos)*step+this.host.height/2});
+                positions.y.add({pos:-Math.ceil(pos)*step+this.host.height/2});
             }
             return positions;
         }
@@ -1775,27 +1761,21 @@ export class RulerDecoration extends Decoration {
 
     _createRuler(element) {
 
-        function computeX(inc, unit) {
+        function computeX(inc, step) {
             let lx = (element.lx+this._physic.host.width/2)*Context.scale;
             let graduationValue = inc*step.scale+lx;
-            return {value:Math.round(graduationValue), label:Math.round(graduationValue)/unit.factor};
+            return {value:Math.round(graduationValue), label:Math.round(graduationValue)/step.unitFactor};
         }
 
-        function computeY(inc, unit) {
+        function computeY(inc, step) {
             let ly = (this._physic.host.height/2-element.ly)*Context.scale;
             let graduationValue = ly-inc*step.scale;
-            return {value:Math.round(graduationValue), label:Math.round(graduationValue)/unit.factor};
+            return {value:Math.round(graduationValue), label:Math.round(graduationValue)/step.unitFactor};
         }
 
-        function getUnit(ref) {
-           if (ref<=10) return {label:"mm", factor:10};
-           else if (ref<=1000) return {label:"cm", factor:100};
-           else return {label:"m", factor:1000};
-        }
-
-        function drawVerticalGraduation(inc, unit) {
+        function drawVerticalGraduation(inc, step) {
             let graduationSize = 10/zoom;
-            let graduation = computeX.call(this, inc, unit);
+            let graduation = computeX.call(this, inc, step);
             if (graduation.value>=0 && graduation.value<=this._physic.host.width*Context.scale) {
                 if ((graduation.value % step.ref < 0.001) || (step.case === 1 && graduation.value % (step.ref / 2) < 0.001)) {
                     ruler.add(new Line(inc * step.step, -graduationSize * 2, inc * step.step, +graduationSize * 2));
@@ -1816,13 +1796,13 @@ export class RulerDecoration extends Decoration {
             }
         }
 
-        function drawHorizontalGraduation(inc, unit) {
+        function drawHorizontalGraduation(inc, step) {
             let graduationSize = 10/zoom;
-            let graduation = computeY.call(this, inc, unit);
+            let graduation = computeY.call(this, inc, step);
             if (graduation.value>=0 && graduation.value<=this._physic.host.height*Context.scale) {
                 if (graduation.value % step.ref < 0.001) {
                     ruler.add(new Line(-graduationSize * 2, inc * step.step, graduationSize * 2, inc * step.step));
-                    let text = new Text(graduationSize * 2.1, inc * step.step, "" + (graduation.value / unit.factor)).attrs({
+                    let text = new Text(graduationSize * 2.1, inc * step.step, graduation.label).attrs({
                         fill: Colors.RED, font_size: 12 / zoom,
                         text_anchor: TextAnchor.START, alignment_baseline: AlignmentBaseline.MIDDLE
                     });
@@ -1834,48 +1814,47 @@ export class RulerDecoration extends Decoration {
             }
         }
 
-        function drawHorizontalAxis(zoom, step, unit, ruler) {
+        function drawHorizontalAxis(zoom, step, ruler) {
             let margin = 50;
             let horizontalSize = Math.max(element.width/2 + margin/zoom, step.step*10);
             ruler.add(new Line(-horizontalSize, 0, horizontalSize, 0));
-            ruler.add(new Text(-horizontalSize*1.05, 0, computeX.call(this, 0, unit).label).attrs({
+            ruler.add(new Text(-horizontalSize*1.05, 0, computeX.call(this, 0, step).label).attrs({
                 fill:Colors.RED, font_size: 16/zoom,
                 text_anchor:TextAnchor.END, alignment_baseline :AlignmentBaseline.MIDDLE
             }));
-            ruler.add(new Text(horizontalSize*1.05, 0, unit.label).attrs({
+            ruler.add(new Text(horizontalSize*1.05, 0, step.unitLabel).attrs({
                 fill:Colors.RED, font_size: 12/zoom,
                 text_anchor:TextAnchor.START, alignment_baseline :AlignmentBaseline.MIDDLE
             }));
             for (let inc = 1; inc*step.step<=horizontalSize; inc++) {
-                drawVerticalGraduation.call(this, inc, unit);
-                drawVerticalGraduation.call(this, -inc, unit);
+                drawVerticalGraduation.call(this, inc, step);
+                drawVerticalGraduation.call(this, -inc, step);
             }
         }
 
-        function drawVerticalAxis(zoom, step, unit, ruler) {
+        function drawVerticalAxis(zoom, step, ruler) {
             let margin = 50;
             let verticalSize = Math.max(element.height/2 + margin/zoom, step.step*10);
             ruler.add(new Line(0, -verticalSize, 0, verticalSize));
-            ruler.add(new Text(0, verticalSize*1.05, computeY.call(this, 0, unit).label).attrs({
+            ruler.add(new Text(0, verticalSize*1.05, computeY.call(this, 0, step).label).attrs({
                 fill:Colors.RED, font_size: 16/zoom,
                 text_anchor:TextAnchor.MIDDLE, alignment_baseline :AlignmentBaseline.BEFORE_EDGE
             }));
-            ruler.add(new Text(0, -verticalSize*1.05, unit.label).attrs({
+            ruler.add(new Text(0, -verticalSize*1.05, step.unitLabel).attrs({
                 fill:Colors.RED, font_size: 12/zoom,
                 text_anchor:TextAnchor.MIDDLE, alignment_baseline :AlignmentBaseline.AFTER_EDGE
             }));
             for (let inc = 1; inc*step.step<=verticalSize; inc++) {
-                drawHorizontalGraduation.call(this, inc, unit);
-                drawHorizontalGraduation.call(this, -inc, unit);
+                drawHorizontalGraduation.call(this, inc, step);
+                drawHorizontalGraduation.call(this, -inc, step);
             }
         }
 
         let zoom = Canvas.instance.zoom;
         let step = this._physic._getStep(zoom);
-        let unit = getUnit.call(this, step.ref);
         let ruler = new Translation().attrs({fill:Colors.RED, stroke_width:1/zoom, stroke:Colors.RED, z_index:2000});
-        drawHorizontalAxis.call(this, zoom, step, unit, ruler);
-        drawVerticalAxis.call(this, zoom, step, unit, ruler);
+        drawHorizontalAxis.call(this, zoom, step, ruler);
+        drawVerticalAxis.call(this, zoom, step, ruler);
         ruler.set(element.lx, element.ly);
         return ruler;
     }

@@ -68,6 +68,45 @@ export function html(item) {
     return item._root.outerHTML;
 }
 
+export let computeGridStep = function() {
+    let zoom = Canvas.instance.zoom;
+    let unitValue = Context.scale / zoom;
+    let step = unitValue * 10;
+    let scale = 1;
+    let gridSpec;
+    while (true) {
+        let ref = scale;
+        if (step < scale) {
+            gridSpec = {scale, step: scale / Context.scale, ref:ref*10, case:1};
+            break;
+        }
+        scale *= 2.5;
+        if (step < scale) {
+            gridSpec = {scale, step: scale / Context.scale, ref:ref*10, case:2};
+            break;
+        }
+        scale *= 2;
+        if (step < scale) {
+            gridSpec = {scale, step: scale / Context.scale, ref:ref*10, case:3};
+            break;
+        }
+        scale *= 2;
+    }
+    if (gridSpec.ref<=10) {
+        gridSpec.unitLabel = "mm";
+        gridSpec.unitFactor = 10;
+    }
+    else if (gridSpec.ref<=1000) {
+        gridSpec.unitLabel = "cm";
+        gridSpec.unitFactor = 100;
+    }
+    else {
+        gridSpec.unitLabel = "m";
+        gridSpec.unitFactor = 1000;
+    }
+    return gridSpec;
+};
+
 export const Events = {
     ADD : "add",
     REMOVE : "remove",
