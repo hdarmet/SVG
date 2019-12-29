@@ -276,13 +276,14 @@ export class PhysicSelector extends Physic {
 
 export function makePhysicExclusive(superClass) {
 
-    let acceptDrop = superClass.prototype._acceptDrop;
-    superClass.prototype._acceptDrop = function(element, dragSet) {
-        if (!this.accept(element)) {
-            return false;
+    extendMethod(superClass, $acceptDrop=>
+        function _acceptDrop(element, dragSet) {
+            if (!this.accept(element)) {
+                return false;
+            }
+            return $acceptDrop.call(this, element, dragSet);
         }
-        return acceptDrop.call(this, element, dragSet);
-    }
+    );
 
 }
 
@@ -290,88 +291,98 @@ export function addPhysicToContainer(superClass, {physicBuilder}) {
 
     assert(superClass.prototype._initContent);
 
-    let initContent = superClass.prototype._initContent;
-    superClass.prototype._initContent = function(...args) {
-        let result = initContent.call(this, ...args);
-        this._initPhysic();
-        return result;
-    };
+    extendMethod(superClass, $initContent=>
+        function _initContent(...args) {
+            let result = $initContent.call(this, ...args);
+            this._initPhysic();
+            return result;
+        }
+    );
 
-    superClass.prototype._initPhysic = function() {
-        this._physic = physicBuilder.call(this);
-        return this;
-    };
+    defineMethod(superClass,
+        function _initPhysic() {
+            this._physic = physicBuilder.call(this);
+            return this;
+        }
+    );
 
-    Object.defineProperty(superClass.prototype, "physic", {
-        configurable:true,
-        get() {
+    defineGetProperty(superClass,
+        function physic() {
             return this._physic;
         }
-    });
-    let addChild = superClass.prototype._addChild;
-    superClass.prototype._addChild = function(element) {
-        addChild.call(this, element);
-        this.physic.add(element);
-    };
+    );
 
-    let shiftChild = superClass.prototype._shiftChild;
-    superClass.prototype._shiftChild = function(element, x, y) {
-        shiftChild.call(this, element, x, y);
-        this.physic.move(element);
-    };
+    extendMethod(superClass, $addChild=>
+        function _addChild(element) {
+            $addChild.call(this, element);
+            this.physic.add(element);
+        }
+    );
 
-    let insertChild = superClass.prototype._insertChild;
-    superClass.prototype._insertChild = function(previous, element) {
-        insertChild.call(this, previous, element);
-        this.physic.add(element);
-    };
+    extendMethod(superClass, $shiftChild=>
+        function _shiftChild(element, x, y) {
+            $shiftChild.call(this, element, x, y);
+            this.physic.move(element);
+        }
+    );
 
-    let replaceChild = superClass.prototype._replaceChild;
-    superClass.prototype._replaceChild = function(previous, element) {
-        replaceChild.call(this, previous, element);
-        this.physic.add(element);
-        this.physic.remove(element);
-    };
+    extendMethod(superClass, $insertChild=>
+        function _insertChild(previous, element) {
+            $insertChild.call(this, previous, element);
+            this.physic.add(element);
+        }
+    );
 
-    let removeChild = superClass.prototype._removeChild;
-    superClass.prototype._removeChild = function(element) {
-        removeChild.call(this, element);
-        this.physic.remove(element);
-    };
+    extendMethod(superClass, $replaceChild=>
+        function _replaceChild(previous, element) {
+            $replaceChild.call(this, previous, element);
+            this.physic.add(element);
+            this.physic.remove(element);
+        }
+    );
 
-    let hover = superClass.prototype.hover;
-    superClass.prototype.hover = function(elements) {
-        hover && hover.call(this, elements);
-        this.physic.hover(elements);
-        return this;
-    };
+    extendMethod(superClass, $removeChild=>
+        function _removeChild(element) {
+            $removeChild.call(this, element);
+            this.physic.remove(element);
+        }
+    );
 
-    let setsize = superClass.prototype._setSize;
-    superClass.prototype._setSize = function(width, height) {
-        setsize && setsize.call(this, width, height);
-        this.physic.resize(width, height);
-    };
+    extendMethod(superClass, $hover=>
+        function hover(elements) {
+            $hover && $hover.call(this, elements);
+            this.physic.hover(elements);
+            return this;
+        }
+    );
 
-    let superMemento = superClass.prototype._memento;
-    if (superMemento) {
-        let recover = superClass.prototype._recover;
-        superClass.prototype._recover = function (memento) {
-            if (recover) recover.call(this, memento);
+    extendMethod(superClass, $setsize=>
+        function _setSize(width, height) {
+            $setsize && $setsize.call(this, width, height);
+            this.physic.resize(width, height);
+        }
+    );
+
+    extendMethod(superClass, $recover=>
+        function _recover(memento) {
+            $recover && $recover.call(this, memento);
             this.physic.reset();
         }
-    }
+    );
 
-    let acceptDrop = superClass.prototype._acceptDrop;
-    superClass.prototype._acceptDrop = function(element, dragSet) {
-        if (acceptDrop && !acceptDrop.call(this, element, dragSet)) return false;
-        return this.physic._acceptDrop(element, dragSet);
-    };
+    extendMethod(superClass, $acceptDrop=>
+        function _acceptDrop(element, dragSet) {
+            if ($acceptDrop && !$acceptDrop.call(this, element, dragSet)) return false;
+            return this.physic._acceptDrop(element, dragSet);
+        }
+    );
 
-    let receiveDrop = superClass.prototype._receiveDrop;
-    superClass.prototype._receiveDrop = function(element, dragSet) {
-        receiveDrop && receiveDrop.call(this, element, dragSet);
-        this.physic._receiveDrop(element, dragSet);
-    };
+    extendMethod(superClass, $receiveDrop=>
+        function _receiveDrop(element, dragSet) {
+            $receiveDrop && $receiveDrop.call(this, element, dragSet);
+            this.physic._receiveDrop(element, dragSet);
+        }
+    );
 
 }
 

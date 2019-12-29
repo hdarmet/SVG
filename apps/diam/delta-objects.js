@@ -66,7 +66,6 @@ export class DeltaFasciaSupport extends BoardElement {
     }
 
     _dropTarget(element) {
-        console.log("PASSE ICI")
         if (is(DeltaFrame)(element)) {
             return this.parent._dropTarget(element);
         }
@@ -207,47 +206,57 @@ export function makeFasciaSupport(superClass) {
 
     makePartsOwner(superClass);
 
-    superClass.prototype._initFasciaSupport = function(headerHeight=0, footerHeight=0) {
-        let height = this.height-headerHeight-footerHeight;
-        this._fasciaSupport = this._createFasciaSupport(this.width, height);
-        this._fasciaSupport.setLocation(0, -this.height/2+headerHeight+height/2);
-        this._addPart(this._fasciaSupport);
-    };
-
-    superClass.prototype._createFasciaSupport = function(width, height) {
-        return new DeltaFasciaSupport({width, height});
-    };
-
-    let getTarget = superClass.prototype._dropTarget;
-    superClass.prototype._dropTarget = function(element) {
-        if (element instanceof DeltaFascia) {
-            return this._fasciaSupport._dropTarget(element);
+    defineMethod(superClass,
+        function _initFasciaSupport(headerHeight=0, footerHeight=0) {
+            let height = this.height-headerHeight-footerHeight;
+            this._fasciaSupport = this._createFasciaSupport(this.width, height);
+            this._fasciaSupport.setLocation(0, -this.height/2+headerHeight+height/2);
+            this._addPart(this._fasciaSupport);
         }
-        return getTarget ? getTarget.call(this, element) : this;
-    };
+    );
+
+    defineMethod(superClass,
+        function _createFasciaSupport(width, height) {
+            return new DeltaFasciaSupport({width, height});
+        }
+    );
+
+    extendMethod(superClass, $dropTarget=>
+        function _dropTarget(element) {
+            if (element instanceof DeltaFascia) {
+                return this._fasciaSupport._dropTarget(element);
+            }
+            return $getTarget ? $getTarget.call(this, element) : this;
+        }
+    );
 
 }
 export function makeFrameSupport(superClass) {
 
     makePartsOwner(superClass);
 
-    superClass.prototype._initFrameSupport = function() {
-        this._frameSupport = this._createFrameSupport(this.width, this.height);
-        this._frameSupport.setLocation(0, 0);
-        this._addPart(this._frameSupport);
-    };
-
-    superClass.prototype._createFrameSupport = function(width, height) {
-        return new DeltaFrameSupport({width, height});
-    };
-
-    let getTarget = superClass.prototype._dropTarget;
-    superClass.prototype._dropTarget = function(element) {
-        if (element instanceof DeltaFrame) {
-            return this._frameSupport._dropTarget(element);
+    defineMethod(superClass,
+        function _initFrameSupport() {
+            this._frameSupport = this._createFrameSupport(this.width, this.height);
+            this._frameSupport.setLocation(0, 0);
+            this._addPart(this._frameSupport);
         }
-        return getTarget ? getTarget.call(this, element) : this;
-    };
+    );
+
+    defineMethod(superClass,
+        function _createFrameSupport(width, height) {
+            return new DeltaFrameSupport({width, height});
+        }
+    );
+
+    extendMethod(superClass, $dropTarget=>
+        function _dropTarget(element) {
+            if (element instanceof DeltaFrame) {
+                return this._frameSupport._dropTarget(element);
+            }
+            return $dropTarget ? $dropTarget.call(this, element) : this;
+        }
+    );
 
 }
 
@@ -256,17 +265,20 @@ export function makeKnobOwner(superClass, {size, predicate}) {
 
     makePartsOwner(superClass);
 
-    let superInit = superClass.prototype._init;
-    superClass.prototype._init = function({...args}) {
-        superInit && superInit.call(this, {...args});
-        let knob = this._createKnob(size, this.height);
-        knob._setLocation(-this.width/2+size/2, 0);
-        this._addPart(knob);
-    };
+    extendMethod(superClass, $init=>
+        function _init({...args}) {
+            $init && $init.call(this, {...args});
+            let knob = this._createKnob(size, this.height);
+            knob._setLocation(-this.width/2+size/2, 0);
+            this._addPart(knob);
+        }
+    );
 
-    superClass.prototype._createKnob = function(width, height) {
-        return new DeltaKnob({width, height, predicate});
-    };
+    defineMethod(superClass,
+        function _createKnob(width, height) {
+            return new DeltaKnob({width, height, predicate});
+        }
+    );
 }
 
 export class DeltaCover extends DeltaSupport {
