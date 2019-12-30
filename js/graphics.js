@@ -2072,6 +2072,7 @@ export class Polyline extends Polyshape {
 
 export class MovetoDirective {
     constructor(x, y) {
+        assert(!isNaN(x)&&!isNaN(y));
         this.x = x;
         this.y = y;
     }
@@ -2086,6 +2087,7 @@ export function M(x, y) {
 
 export class RelativeMovetoDirective {
     constructor(x, y) {
+        assert(!isNaN(x)&&!isNaN(y));
         this.x = x;
         this.y = y;
     }
@@ -2114,6 +2116,7 @@ export function L(x, y) {
 
 export class RelativeLinetoDirective {
     constructor(x, y) {
+        assert(!isNaN(x)&&!isNaN(y));
         this.x = x;
         this.y = y;
     }
@@ -2128,6 +2131,7 @@ export function l(x, y) {
 
 export class HorizontalDirective {
     constructor(x) {
+        assert(!isNaN(x));
         this.x = x;
     }
 
@@ -2141,6 +2145,7 @@ export function H(x) {
 
 export class RelativeHorizontalDirective {
     constructor(x) {
+        assert(!isNaN(x));
         this.x = x;
     }
 
@@ -2154,6 +2159,7 @@ export function h(x) {
 
 export class VerticalDirective {
     constructor(y) {
+        assert(!isNaN(y));
         this.y = y;
     }
 
@@ -2167,6 +2173,7 @@ export function V(y) {
 
 export class RelativeVerticalDirective {
     constructor(y) {
+        assert(!isNaN(y));
         this.y = y;
     }
 
@@ -2192,6 +2199,7 @@ export function Z() {
 
 export class CurveToDirective {
     constructor(x1, y1, x2, y2, x, y) {
+        assert(!isNaN(x1)&&!isNaN(y1)&&!isNaN(x2)&&!isNaN(y2)&&!isNaN(x)&&!isNaN(y));
         this.x1 = x1;
         this.y1 = y1;
         this.x2 = x2;
@@ -2210,6 +2218,7 @@ export function C(x1, y1, x2, y2, x, y) {
 
 export class RelativeCurveToDirective {
     constructor(x1, y1, x2, y2, x, y) {
+        assert(!isNaN(x1)&&!isNaN(y1)&&!isNaN(x2)&&!isNaN(y2)&&!isNaN(x)&&!isNaN(y));
         this.x1 = x1;
         this.y1 = y1;
         this.x2 = x2;
@@ -2228,6 +2237,7 @@ export function c(x1, y1, x2, y2, x, y) {
 
 export class ShorthandCurveToDirective {
     constructor(x2, y2, x, y) {
+        assert(!isNaN(x2)&&!isNaN(y2)&&!isNaN(x)&&!isNaN(y));
         this.x2 = x2;
         this.y2 = y2;
         this.x = x;
@@ -2244,6 +2254,7 @@ export function S(x2, y2, x, y) {
 
 export class RelativeShorthandCurveToDirective {
     constructor(x2, y2, x, y) {
+        assert(!isNaN(x2)&&!isNaN(y2)&&!isNaN(x)&&!isNaN(y));
         this.x2 = x2;
         this.y2 = y2;
         this.x = x;
@@ -2260,6 +2271,7 @@ export function s(x2, y2, x, y) {
 
 export class QuadraticBezierDirective {
     constructor(x1, y1, x, y) {
+        assert(!isNaN(x1)&&!isNaN(y1)&&!isNaN(x)&&!isNaN(y));
         this.x1 = x1;
         this.y1 = y1;
         this.x = x;
@@ -2276,6 +2288,7 @@ export function Q(x1, y1, x, y) {
 
 export class RelativeQuadraticBezierDirective {
     constructor(x1, y1, x, y) {
+        assert(!isNaN(x1)&&!isNaN(y1)&&!isNaN(x)&&!isNaN(y));
         this.x1 = x1;
         this.y1 = y1;
         this.x = x;

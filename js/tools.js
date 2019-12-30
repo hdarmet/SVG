@@ -576,11 +576,11 @@ export class ToolPopup {
         this._init();
         this._contentSupport = new Group();
         this._root.add(this._contentSupport);
-        this._content = this._createContent(width, height-ToolPopup.HEADER_HEIGHT, ...args);
+        this._content = this._createContent(width-this.widthMargin, height-this.heightMargin-ToolPopup.HEADER_HEIGHT, ...args);
         this._contentSupport.add(this._content._root);
         this._title = new ToolTitlePopup(this);
         this._root.add(this._title._root);
-        let y =-height / 2 + ToolPopup.HEADER_HEIGHT / 2;
+        let y =-height / 2 + ToolPopup.HEADER_HEIGHT/2;
         this._title.restore(y);
         Canvas.instance.addObserver(this);
         Canvas.instance.putArtifactOnToolsLayer(this._root);
@@ -626,12 +626,20 @@ export class ToolPopup {
     }
 
     _adjustFromContentResize(width, height) {
-        this._resize(width, height + ToolPopup.HEADER_HEIGHT);
+        this._resize(width + this.widthMargin, height + this.heightMargin + ToolPopup.HEADER_HEIGHT);
+    }
+
+    get widthMargin() {
+        return 0;
+    }
+
+    get heightMargin() {
+        return 0;
     }
 
     resize(width, height) {
         this._resize(width, height);
-        this._content._resize(width, height - ToolPopup.HEADER_HEIGHT);
+        this._content._resize(width-this.widthMargin, height-this.heightMargin - ToolPopup.HEADER_HEIGHT);
         return this;
     }
 
@@ -740,8 +748,8 @@ ToolPopup.BORDER_MARGIN = 5;
 ToolPopup.CORNER_SIZE = 5;
 // Height of the title bar
 ToolPopup.HEADER_HEIGHT = 15;
-ToolPopup.TITLE_MARGIN = 1;
-ToolPopup.FOOTER_MARGIN = 10;
+// Margin on bottom to prevent popup to cover rounded corners
+ToolPopup.FOOTER_MARGIN = 5;
 // Distance between the right edge of the popup and the minimize/restore icon
 ToolPopup.HEADER_MARGIN = 10;
 ToolPopup.TITLE_COMMAND_MARGIN = 20;
@@ -1041,6 +1049,7 @@ export class ToolCard {
     }
 
     _resize(width, height) {
+        assert(!isNaN(width)&&!isNaN(height));
         this._width = width;
         this._height = height;
     }
@@ -1646,16 +1655,16 @@ export class ToolCardPopupContent extends ToolPopupContent {
     constructor(popup, width, height, card) {
         super(popup, width, height, card);
         this._rootCard = card;
-        this._rootCard._resize(width-this._widthMargin, height);
+        this._rootCard._resize(width, height);
         this.add(this._rootCard);
     }
 
     get contentHeight() {
-        return this.height -ToolPopup.HEADER_HEIGHT -ToolPopup.TITLE_MARGIN -ToolPopup.FOOTER_MARGIN;
+        return this.height -ToolPopup.HEADER_HEIGHT -ToolPopup.FOOTER_MARGIN;
     }
 
     get contentCenter() {
-        return (ToolPopup.HEADER_HEIGHT +ToolPopup.TITLE_MARGIN -ToolPopup.FOOTER_MARGIN)/2;
+        return (ToolPopup.HEADER_HEIGHT -ToolPopup.FOOTER_MARGIN)/2;
     }
 
     addCard(card) {
@@ -1666,7 +1675,7 @@ export class ToolCardPopupContent extends ToolPopupContent {
 
     _refresh() {
         this._rootCard._refresh();
-        this.resize(this.width, this._rootCard.height + this._heightMargin);
+        this.resize(this.width, this._rootCard.height);
         this._rootCard.setLocation(0, this.contentCenter);
         return this;
     }
@@ -1686,7 +1695,7 @@ export class ToolCardPopupContent extends ToolPopupContent {
 
     _resize(width, height) {
         super._resize(width, height);
-        this._rootCard.resize(width-this._widthMargin, height -this._heightMargin);
+        this._rootCard.resize(width, height);
     }
 
 }
@@ -1716,7 +1725,7 @@ export class ToolCardPopup extends ToolPopup {
     }
 
     get heightMargin() {
-        return ToolPopup.HEADER_HEIGHT + ToolPopup.TITLE_MARGIN + ToolPopup.FOOTER_MARGIN + ToolCardPopup.MARGIN*2;
+        return ToolCardPopup.MARGIN*2;
     }
 
     get minWidth() {
@@ -1732,7 +1741,6 @@ export class ToolCardPopup extends ToolPopup {
         if (width<minWidth) width = minWidth;
         let minHeight = this.minHeight;
         if (height<minHeight) height = minHeight;
-        console.log(width, height)
         super.resize(width, height);
     }
 }
