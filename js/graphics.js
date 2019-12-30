@@ -1955,7 +1955,7 @@ defineElementProperty(Shape, Attrs.FILTER, "url(#ELEMENT)");
 // Testé
 export class Rect extends Shape {
     // Testé
-    constructor(x=0, y=0, width=100, height=100) {
+    constructor(x=0, y=0, width=0, height=0) {
         super("rect");
         this.x = x;
         this.y = y;

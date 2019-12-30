@@ -413,8 +413,18 @@ export class ToolTitleCommand {
         this._root.on(MouseEvents.CLICK, action);
     }
 
-    _adjust() {
-        this._root.set(this._popup.width/2 - this._location, 0);
+    get location() {
+        return this._location;
+    }
+
+    adjust(direction) {
+        if (direction) {
+            this._root.set(this._popup.width/2 - this.location, 0);
+        }
+        else {
+            //this._root.set(0, 0);
+            this._root.set(0, -this._popup.height/2 + this.location);
+        }
     }
 
 }
@@ -422,8 +432,8 @@ ToolTitleCommand.SIZE = 12;
 
 export class ToolToggleTitleCommand extends ToolTitleCommand {
 
-    constructor(popup, imageURL, altImageURL, x, action, altAction = action) {
-        super(popup, imageURL, x, action);
+    constructor(popup, imageURL, altImageURL, location, action, altAction = action) {
+        super(popup, imageURL, location, action);
         this._altImageURL = altImageURL;
         this._altAction = altAction;
         this._altIcon = new RasterImage(altImageURL,
@@ -464,9 +474,8 @@ export class ToolTitlePopup {
 
     constructor(popup) {
         this._popup = popup;
-        this._root = new Group(Matrix.translate(0, -popup.height / 2 + ToolPopup.HEADER_HEIGHT / 2));
-        this._titleBackground = new Rect(-popup.width / 2, -ToolPopup.HEADER_HEIGHT / 2, popup.width, ToolPopup.HEADER_HEIGHT)
-            .attrs({fill: Colors.BLACK});
+        this._root = new Group();
+        this._titleBackground = new Rect().attrs({fill: Colors.BLACK});
         this._root.add(this._titleBackground);
         this._titleCommands = new List();
         this._minimizeRestore = new ToolToggleTitleCommand(this._popup,
@@ -479,48 +488,91 @@ export class ToolTitlePopup {
         this._root.add(this._maxClip);
         this._minClip = new ClipPath(toolId());
         this._root.add(this._minClip);
-        this._setClips(popup.width);
         this._dragOperation(function() {return DragPopupOperation.instance;});
-    }
-
-    _setClips(width) {
-        this._maxClip.clear().add(
-            new Rect(-width / 2, -ToolPopup.HEADER_HEIGHT / 2, width, ToolPopup.HEADER_HEIGHT+5)
-                .attrs({ rx: ToolPopup.CORNER_SIZE, ry: ToolPopup.CORNER_SIZE }));
-        this._minClip.clear().add(
-            new Rect(-width / 2, -ToolPopup.HEADER_HEIGHT / 2, width, ToolPopup.HEADER_HEIGHT)
-                .attrs({ rx: ToolPopup.CORNER_SIZE, ry: ToolPopup.CORNER_SIZE }));
-    }
-
-    set width(width) {
-        this._titleBackground.x = -width/2;
-        this._titleBackground.width = width;
-        for (let titleCommand of this._titleCommands) {
-            titleCommand._adjust(width);
+        this._minimizeRestore.adjust(this.direction);
+        if (this.direction) {
+            this._root.matrix = Matrix.translate(0, -popup.height / 2 + ToolPopup.HEADER_HEIGHT / 2);
         }
-        this._setClips(width);
+        else {
+            this._root.matrix = Matrix.translate(-popup.width / 2 + ToolPopup.HEADER_HEIGHT / 2, 0);
+        }
+        this.adjustGeometry();
+    }
+
+    get direction() {
+        return this._popup.direction;
+    }
+
+    _setClips() {
+        let x, y, maxWidth, maxHeight, minWidth, minHeight;
+        if (this.direction) {
+            x = -this._popup.width / 2;
+            y =  -ToolPopup.HEADER_HEIGHT / 2;
+            minWidth = this._popup.width;
+            minHeight = ToolPopup.HEADER_HEIGHT;
+            maxWidth = this._popup.width;
+            maxHeight = ToolPopup.HEADER_HEIGHT + ToolPopup.CORNER_SIZE;
+        }
+        else {
+            x =  -ToolPopup.HEADER_HEIGHT / 2;
+            y = -this._popup.height / 2;
+            minWidth = ToolPopup.HEADER_HEIGHT;
+            minHeight = this._popup.height;
+            maxWidth = ToolPopup.HEADER_HEIGHT + ToolPopup.CORNER_SIZE;
+            maxHeight = this._popup.height;
+        }
+        this._maxClip.clear().add(
+            new Rect(x, y, maxWidth, maxHeight).attrs({rx: ToolPopup.CORNER_SIZE, ry: ToolPopup.CORNER_SIZE}));
+        this._minClip.clear().add(
+            new Rect(x, y, minWidth, minHeight).attrs({rx: ToolPopup.CORNER_SIZE, ry: ToolPopup.CORNER_SIZE}));
+    }
+
+    adjustGeometry() {
+        if (this.direction) {
+            this._titleBackground.x = -this._popup.width/2;
+            this._titleBackground.y = -ToolPopup.HEADER_HEIGHT / 2;
+            this._titleBackground.width = this._popup.width;
+            this._titleBackground.height = ToolPopup.HEADER_HEIGHT;
+        }
+        else {
+            this._titleBackground.x = -ToolPopup.HEADER_HEIGHT / 2;
+            this._titleBackground.y = -this._popup.height/2;
+            this._titleBackground.width = ToolPopup.HEADER_HEIGHT;
+            this._titleBackground.height = this._popup.height;
+        }
+        for (let titleCommand of this._titleCommands) {
+            titleCommand.adjust(this.direction);
+        }
+        this._setClips();
     }
 
     get popup() {
         return this._popup;
     }
 
-    minimize(y) {
+    minimize() {
         this._minimizeRestore.switchToAlt();
         this._titleBackground.attrs({ clip_path: this._minClip });
-        this._root.matrix = Matrix.translate(0, y);
+        this._root.matrix = new Matrix();
+        this._root.filter = Canvas.instance.shadowFilter;
     }
 
-    restore(y) {
+    restore(width, height) {
         this._minimizeRestore.switchToNormal();
         this._titleBackground.attrs({ clip_path: this._maxClip });
-        this._root.matrix = Matrix.translate(0, y);
+        if (this.direction) {
+            this._root.matrix = Matrix.translate(0, -height / 2 + ToolPopup.HEADER_HEIGHT/2);
+        }
+        else {
+            this._root.matrix = Matrix.translate(-width / 2 + ToolPopup.HEADER_HEIGHT/2, 0);
+        }
+        this._root.filter = null;
     }
 
     addTitleCommand(titleCommand) {
         this._titleCommands.add(titleCommand);
         this._root.add(titleCommand._root);
-        titleCommand._adjust();
+        titleCommand.adjust(this.direction);
         return this;
     }
 
@@ -538,7 +590,7 @@ export class ToolPopupContent {
         this._popup = popup;
         this._width = width;
         this._height = height;
-        this._root = new Group();
+        this._root = new Translation();
     }
 
     add(something) {
@@ -551,7 +603,7 @@ export class ToolPopupContent {
     }
 
     get height() {
-        return this._width;
+        return this._height;
     }
 
     _resize(width, height) {
@@ -576,18 +628,20 @@ export class ToolPopup {
         this._init();
         this._contentSupport = new Group();
         this._root.add(this._contentSupport);
-        this._content = this._createContent(width-this.widthMargin, height-this.heightMargin-ToolPopup.HEADER_HEIGHT, ...args);
+        let contentWidth = this.direction ? this.width-this.widthMargin*2: this.width-this.widthMargin-ToolPopup.HEADER_HEIGHT;
+        let contentHeight = this.direction ? this.height-this.heightMargin-ToolPopup.HEADER_HEIGHT : this.height-this.heightMargin*2;
+        this._content = this._createContent(contentWidth, contentHeight, ...args);
+        this._adjustContentLocation();
         this._contentSupport.add(this._content._root);
         this._title = new ToolTitlePopup(this);
         this._root.add(this._title._root);
-        let y =-height / 2 + ToolPopup.HEADER_HEIGHT/2;
-        this._title.restore(y);
+        this._title.restore(this.width, this.height);
         Canvas.instance.addObserver(this);
         Canvas.instance.putArtifactOnToolsLayer(this._root);
     }
 
-    _createContent(width, height) {
-        return new ToolPopupContent(this, width, height);
+    get direction() {
+        return this.width<this.height;
     }
 
     _init() {
@@ -609,7 +663,7 @@ export class ToolPopup {
     }
 
     get height() {
-        return this.minimized ? ToolPopup.HEADER_HEIGHT : this._height;
+        return this._height;
     }
 
     _resize(width, height) {
@@ -619,14 +673,28 @@ export class ToolPopup {
         this._background.x = -width/2;
         this._background.height = height;
         this._background.y = -height / 2;
-        this._title.width = this.width;
-        let y = -height / 2 + ToolPopup.HEADER_HEIGHT / 2;
-        this._title.restore(y);
+        this._title.adjustGeometry();
+        this._title.restore(this.width, this.height);
         this._adjustPosition();
     }
 
+    _adjustContentLocation() {
+        if (this.direction) {
+            this._content._root.set(0, ToolPopup.HEADER_HEIGHT/2-this.widthMargin/2);
+        }
+        else {
+            this._content._root.set(ToolPopup.HEADER_HEIGHT/2-this.heightMargin/2, 0);
+        }
+    }
+
     _adjustFromContentResize(width, height) {
-        this._resize(width + this.widthMargin, height + this.heightMargin + ToolPopup.HEADER_HEIGHT);
+        if (width<height) {
+            this._resize(width + this.widthMargin*2, height + this.heightMargin + ToolPopup.HEADER_HEIGHT);
+        }
+        else {
+            this._resize(width + this.widthMargin  + ToolPopup.HEADER_HEIGHT, height + this.heightMargin*2);
+        }
+        this._adjustContentLocation();
     }
 
     get widthMargin() {
@@ -639,30 +707,48 @@ export class ToolPopup {
 
     resize(width, height) {
         this._resize(width, height);
-        this._content._resize(width-this.widthMargin, height-this.heightMargin - ToolPopup.HEADER_HEIGHT);
+        if (this.direction) {
+            this._content._resize(width-this.widthMargin*2, height-this.heightMargin - ToolPopup.HEADER_HEIGHT);
+        }
+        else {
+            this._content._resize(width-this.widthMargin - ToolPopup.HEADER_HEIGHT, height-this.heightMargin*2);
+        }
+        this._adjustContentLocation();
         return this;
     }
 
     minimize() {
         this._minimized = true;
-        this._background.attrs({
-            x: -this.width / 2, y: -ToolPopup.HEADER_HEIGHT / 2,
-            width: this.width, height: ToolPopup.HEADER_HEIGHT});
+        this._background.visibility = Visibility.HIDDEN;
         this._content._root.detach();
-        let dY = this._height / 2 - ToolPopup.HEADER_HEIGHT / 2;
-        this._title.minimize(0);
-        this._root.matrix = Matrix.translate(this._root.matrix.dx, this._root.matrix.dy - dY);
+        this._title.minimize();
+        if (this.direction) {
+            this._root.matrix = Matrix.translate(
+                this._root.matrix.dx,
+                this._root.matrix.dy - (this.height - ToolPopup.HEADER_HEIGHT) / 2);
+        }
+        else {
+            this._root.matrix = Matrix.translate(
+                this._root.matrix.dx - (this.width - ToolPopup.HEADER_HEIGHT) / 2,
+                this._root.matrix.dy);
+        }
     }
 
     restore() {
         this._minimized = false;
-        this._background.attrs({
-            x: -this.width / 2, y: -this.height / 2,
-            width: this.width, height: this.height});
+        this._background.visibility = null;
         this._contentSupport.add(this._content._root);
-        let dY = this._background.height / 2 - ToolPopup.HEADER_HEIGHT / 2;
-        this._title.restore(-dY);
-        this._root.matrix = Matrix.translate(this._root.matrix.dx, this._root.matrix.dy + dY);
+        this._title.restore(this.width, this.height);
+        if (this.direction) {
+            this._root.matrix = Matrix.translate(
+                this._root.matrix.dx,
+                this._root.matrix.dy + (this.height - ToolPopup.HEADER_HEIGHT) / 2);
+        }
+        else {
+            this._root.matrix = Matrix.translate(
+                this._root.matrix.dx + (this.width - ToolPopup.HEADER_HEIGHT) / 2,
+                this._root.matrix.dy);
+        }
         this._adjustPosition();
     }
 
@@ -958,9 +1044,9 @@ export class ToolCommandPopupContent extends ToolPopupContent {
 
     constructor(popup, width, height, size) {
         super(popup, width, height);
-        this._size = size;
         this._margin = (width/2 - size)/3;
-        this._row = ToolPopup.HEADER_HEIGHT + this._margin*2;
+        this._row = this._margin*2;
+        this._size = size;
         this._left = true;
         this._commands = new Group();
         this._root.add(this._commands);
@@ -1019,6 +1105,10 @@ export class ToolCommandPopup extends ToolPopup {
 
     _createContent(width, height, size) {
         return new ToolCommandPopupContent(this, width, height, size);
+    }
+
+    get direction() {
+        return true;
     }
 
     add(command) {
@@ -1659,14 +1749,6 @@ export class ToolCardPopupContent extends ToolPopupContent {
         this.add(this._rootCard);
     }
 
-    get contentHeight() {
-        return this.height -ToolPopup.HEADER_HEIGHT -ToolPopup.FOOTER_MARGIN;
-    }
-
-    get contentCenter() {
-        return (ToolPopup.HEADER_HEIGHT -ToolPopup.FOOTER_MARGIN)/2;
-    }
-
     addCard(card) {
         this._rootCard.addCard(card);
         this._refresh();
@@ -1676,7 +1758,7 @@ export class ToolCardPopupContent extends ToolPopupContent {
     _refresh() {
         this._rootCard._refresh();
         this.resize(this.width, this._rootCard.height);
-        this._rootCard.setLocation(0, this.contentCenter);
+        this._rootCard.setLocation(0, 0);
         return this;
     }
 
@@ -1721,19 +1803,23 @@ export class ToolCardPopup extends ToolPopup {
     }
 
     get widthMargin() {
-        return ToolCardPopup.MARGIN*2;
+        return ToolCardPopup.MARGIN;
     }
 
     get heightMargin() {
-        return ToolCardPopup.MARGIN*2;
+        return ToolCardPopup.MARGIN;
     }
 
     get minWidth() {
-        return this._content.minWidth + this.widthMargin;
+        return this.direction ?
+            this._content.minWidth + this.widthMargin + ToolPopup.HEADER_HEIGHT :
+            this._content.minWidth + this.widthMargin*2;
     }
 
     get minHeight() {
-        return this._content.minHeight + this.heightMargin;
+        return this.direction ?
+            this._content.minHeight + this.heightMargin*2 :
+            this._content.minHeight + this.heightMargin + ToolPopup.HEADER_HEIGHT;
     }
 
     resize(width, height) {
