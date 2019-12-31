@@ -297,7 +297,7 @@ export function makeHighlightable(superClass) {
         function _setHighlight(highlight) {
             this._highlight = highlight;
             this._highlightShape.refresh();
-            setHighlight && setHighlight.call(this, highlight);
+            $setHighlight && $setHighlight.call(this, highlight);
             return this;
         }
     );

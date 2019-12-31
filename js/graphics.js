@@ -29,10 +29,20 @@ export let dom = {
         return node.getCTM();
     },
     addEventListener(node, event, callback) {
-        return node.addEventListener(event, callback);
+        if (!callback.envelope) {
+            callback.envelope = function (event) {
+                if (event.type !== AnyEvent) {
+                    let anyEvent = new Event(AnyEvent);
+                    anyEvent.event = event;
+                    doc.dispatchEvent(anyEvent);
+                }
+                callback.call(this, event);
+            };
+        }
+        return node.addEventListener(event, callback.envelope);
     },
     removeEventListener(node, event, callback) {
-        return node.removeEventListener(event, callback);
+        return node.removeEventListener(event, callback.envelope);
     }
 };
 
@@ -50,10 +60,20 @@ export let doc = {
         return document.createDocumentFragment();
     },
     addEventListener(event, callback) {
-        return dom.addEventListener(document, event, callback);
+        if (!callback.envelope) {
+            callback.envelope = function (event) {
+                if (event.type !== AnyEvent) {
+                    let anyEvent = new Event(AnyEvent);
+                    anyEvent.event = event;
+                    doc.dispatchEvent(anyEvent);
+                }
+                callback.call(this, event);
+            };
+        }
+        return dom.addEventListener(document, event, callback.envelope);
     },
     removeEventListener(event, callback) {
-        return dom.removeEventListener(document, event, callback);
+        return dom.removeEventListener(document, event, callback.envelope);
     },
     querySelector(selectors) {
         return document.querySelector(selectors);
@@ -148,6 +168,7 @@ export function computeAngle(source, target) {
         : targetMatrix.invert();
     return finalMatrix.angle;
 }
+export let AnyEvent = "event";
 
 export let MouseEvents = {
     CLICK : "click",

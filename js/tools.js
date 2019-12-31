@@ -9,7 +9,7 @@ import {
 import {
     Visibility, computePosition, RasterImage, SvgRasterImage, Group, ClipPath, Rect, Text, AlignmentBaseline,
     Colors, MouseEvents, TextAnchor, win, Cursor, ForeignObject, DOMElement, Translation, KeyboardEvents,
-    M, Path, Z, Q, L, SVGElement
+    M, Path, Z, Q, L, SVGElement, doc, AnyEvent
 } from "./graphics.js";
 import {
     Context, Events, l2pBoundingBox, Memento, Canvas, makeObservable, makeNotCloneable,
@@ -262,7 +262,7 @@ export class MenuOption {
 
     prepare(that, menuGeometry) {
         this._that = that;
-        this._root = new Group();
+        this._root = new Translation();
         this._background = new Rect(1, menuGeometry.height - Menu.YMARGIN / 2, 10, 10);
         this._root.add(this._background);
         this._root.class = MenuOption.CLASS;
@@ -281,6 +281,7 @@ export class MenuOption {
         }
         this._background.attrs({ height: bbox.height });
         menuGeometry.height += bbox.height;
+        return this._root;
     }
 }
 makeNotCloneable(MenuOption);
@@ -1120,6 +1121,112 @@ export class ToolCommandPopup extends ToolPopup {
         this._content.addMargin();
         return this;
     }
+}
+
+export class ToolMenuPopupContent extends ToolPopupContent {
+
+    constructor(popup, width, height) {
+        super(popup, width, height);
+        this._options = new List();
+        this._optionsSupport = new Translation();
+        this._root.add(this._optionsSupport);
+        doc.addEventListener(AnyEvent, event=> {
+            this._askForRefresh();
+        });
+    }
+
+    add(menuOption) {
+        this._options.add(menuOption);
+        this._askForRefresh();
+        return this;
+    }
+
+    _askForRefresh() {
+        if (!this._dirty) {
+            this._dirty = true;
+            win.setTimeout(()=>{
+                this._dirty = false;
+                this.refresh();
+            }, 0);
+        }
+    }
+
+    refresh() {
+        this._optionsSupport.clear();
+        let rect = new Rect(0, 0, 10, 10).attrs({
+            stroke: Colors.BLACK,
+            fill: Colors.WHITE,
+            filter: Canvas.instance.shadowFilter
+        });
+        this._optionsSupport.add(rect);
+        let menuGeometry = {
+            width: 0,
+            height: ToolMenuPopupContent.YMARGIN
+        };
+        let lineOptions = new List();
+        let lineWidth = 10;
+        for (let option of this._options) {
+            let optionGeometry = {
+                width: 10,
+                height: ToolMenuPopupContent.YMARGIN
+            };
+            if (!Context.isReadOnly()) {
+                option.prepare(null, optionGeometry);
+                this._optionsSupport.add(option._root);
+            }
+            if (menuGeometry.height+optionGeometry.height>this.height) {
+                menuGeometry.height = ToolMenuPopupContent.YMARGIN;
+                for (let option of lineOptions) {
+                    option.width = lineWidth + ToolMenuPopupContent.XMARGIN * 2 - 2;
+                }
+                menuGeometry.width += lineWidth + ToolMenuPopupContent.XMARGIN * 2 - 2;
+                lineOptions.clear();
+                lineWidth = 10;
+            }
+            if (lineWidth<optionGeometry.width) lineWidth = optionGeometry.width;
+            option._root.set(menuGeometry.width, menuGeometry.height);
+            menuGeometry.height += optionGeometry.height;
+            lineOptions.add(option);
+        }
+        for (let option of lineOptions) {
+            option.width = lineWidth + ToolMenuPopupContent.XMARGIN * 2 - 2;
+        }
+        menuGeometry.width += lineWidth + ToolMenuPopupContent.XMARGIN * 2 - 2;
+        rect.attrs({
+            width: menuGeometry.width + ToolMenuPopupContent.XMARGIN * 2,
+            height: this.height
+        });
+        this._optionsSupport.set(0, -this.height/2);
+    }
+
+    _resize(width, height) {
+        super._resize(width, height);
+        this._commands.matrix = Matrix.translate(0, -height/2);
+    }
+
+}
+ToolMenuPopupContent.YMARGIN = 2;
+ToolMenuPopupContent.XMARGIN = 10;
+
+export class ToolMenuPopup extends ToolPopup {
+
+    constructor(height) {
+        super(ToolPopup.HEADER_HEIGHT, height);
+    }
+
+    _createContent(width, height) {
+        return new ToolMenuPopupContent(this, width, height);
+    }
+
+    get direction() {
+        return false;
+    }
+
+    add(option) {
+        this._content.add(option);
+        return this;
+    }
+
 }
 
 export class ToolCard {

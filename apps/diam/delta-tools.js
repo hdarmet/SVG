@@ -17,7 +17,7 @@ import {
 import {
     BoardItemBuilder, ToolGridPanelContent, ToolToggleCommand, FavoriteItemBuilder, ToolTabsetPanelPopup,
     ToolGridExpandablePanel, ToolCommandPopup, ToolFilterCard, ToolKeywordsCard, ToolExpandablePanelPopup,
-    ToolPopup, ToolToggleTitleCommand, makePopupResizable
+    ToolPopup, ToolToggleTitleCommand, makePopupResizable, ToolMenuPopup
 } from "../../js/tools.js";
 import {
     FreePositioningMode
@@ -25,7 +25,8 @@ import {
 import {
     copyCommand, deleteCommand, Facilities, favoritesCommand, layersCommand, normalModeCommand, pasteCommand,
     regroupCommand, scrollModeCommand, selectAreaModeCommand, showInfosCommand, undoCommand, redoCommand, ungroupCommand,
-    lockCommand, unlockCommand, zoomExtentCommand, zoomInCommand, zoomOutCommand, zoomSelectionCommand
+    lockCommand, unlockCommand, zoomExtentCommand, zoomInCommand, zoomOutCommand, zoomSelectionCommand,
+    createLockMenuOption, createDeleteMenuOption, createGroupMenuOption, createHighlightMenuOption
 } from "../../js/standard-facilities.js";
 import {
     pdfModeCommand
@@ -166,6 +167,14 @@ export function createCommandPopup(palettePopup) {
     cmdPopup.addMargin();
     deleteCommand(cmdPopup);
     return cmdPopup;
+}
+
+export function createMenuPopup() {
+    let menuPopup = new ToolMenuPopup(60).display(100, -40);
+    menuPopup.add(createDeleteMenuOption());
+    menuPopup.add(createGroupMenuOption());
+    menuPopup.add(createLockMenuOption());
+    menuPopup.add(createHighlightMenuOption());
 }
 
 export function setShortcuts() {

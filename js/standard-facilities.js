@@ -114,6 +114,14 @@ export const Facilities = {
     redo() {
         Memento.instance.redo();
     },
+    highlight(element, highlight) {
+        let selection = this._selection(element);
+        for (let element of selection) {
+            if (element.highlightable) {
+                element.highlight = highlight;
+            }
+        }
+    },
     regroup(element) {
         Memento.instance.open();
         Selection.instance.regroup(element);
@@ -379,24 +387,38 @@ export function showInfosCommand(toolPopup) {
     );
 }
 
+export function createDeleteMenuOption() {
+    return new TextMenuOption("Delete",
+        function () {
+            Facilities.delete(this);
+        },
+        function () {
+            return Facilities.deletable(this);
+        }
+    );
+}
+
 export function addDeleteFacility(superClass) {
 
     makeDeletable(superClass);
 
     let createContextMenu = superClass.prototype._createContextMenu;
     superClass.prototype._createContextMenu = function () {
-        this._addMenuOption(new TextMenuOption("Delete",
-            function () {
-                Facilities.delete(this);
-            },
-            function () {
-                return Facilities.deletable(this);
-            })
-        );
+        this._addMenuOption(createDeleteMenuOption());
         createContextMenu && createContextMenu.call(this);
     };
 
     return superClass;
+}
+
+export function createHighlightMenuOption() {
+    return new ColorChooserMenuOption("highlight",
+        ["#000000", "#FF0000", "#00FF00", "#0000FF",
+            "#00FFFF", "#FF00FF", "#FFFF00", "#FFFFFF"],
+        function (highlight) {
+            Facilities.highlight(this, highlight);
+        }
+    );
 }
 
 export function addHighlightFacility(superClass) {
@@ -405,17 +427,28 @@ export function addHighlightFacility(superClass) {
 
     let createContextMenu = superClass.prototype._createContextMenu;
     superClass.prototype._createContextMenu = function () {
-        this._addMenuOption(new ColorChooserMenuOption("highlight",
-            ["#000000", "#FF0000", "#00FF00", "#0000FF",
-                "#00FFFF", "#FF00FF", "#FFFF00", "#FFFFFF"],
-            function (highlight) {
-                this.highlight = highlight;
-            })
-        );
+        this._addMenuOption(createHighlightMenuOption());
         createContextMenu && createContextMenu.call(this);
     };
 
     return superClass;
+}
+
+export function createGroupMenuOption() {
+    return new TextToggleMenuOption("Group", "Ungroup",
+        function () {
+            Facilities.regroup(this);
+        },
+        function () {
+            Facilities.ungroup(this);
+        },
+        function () {
+            return Facilities.ungroupable(this);
+        },
+        function () {
+            return Facilities.groupable(this) || Facilities.ungroupable(this);
+        }
+    );
 }
 
 export function addGroupFacility(superClass) {
@@ -424,24 +457,28 @@ export function addGroupFacility(superClass) {
 
     let createContextMenu = superClass.prototype._createContextMenu;
     superClass.prototype._createContextMenu = function () {
-        this._addMenuOption(new TextToggleMenuOption("Group", "Ungroup",
-            function () {
-                Facilities.regroup(this);
-            },
-            function () {
-                Facilities.ungroup(this);
-            },
-            function () {
-                return Facilities.ungroupable(this);
-            },
-            function () {
-                return Facilities.groupable(this) || Facilities.ungroupable(this);
-            })
-        );
+        this._addMenuOption(createGroupMenuOption());
         createContextMenu && createContextMenu.call(this);
     };
 
     return superClass;
+}
+
+export function createLockMenuOption() {
+    return new TextToggleMenuOption("Lock", "Unlock",
+        function () {
+            Facilities.lock(this);
+        },
+        function () {
+            Facilities.unlock(this);
+        },
+        function () {
+            return Facilities.unlockable(this);
+        },
+        function () {
+            return Facilities.lockable(this) || Facilities.unlockable(this);
+        }
+    );
 }
 
 export function addLockFacility(superClass) {
@@ -450,20 +487,7 @@ export function addLockFacility(superClass) {
 
     let createContextMenu = superClass.prototype._createContextMenu;
     superClass.prototype._createContextMenu = function () {
-        this._addMenuOption(new TextToggleMenuOption("Lock", "Unlock",
-            function () {
-                Facilities.lock(this);
-            },
-            function () {
-                Facilities.unlock(this);
-            },
-            function () {
-                return Facilities.unlockable(this);
-            },
-            function () {
-                return Facilities.lockable(this) || Facilities.unlockable(this);
-            })
-        );
+        this._addMenuOption(createLockMenuOption());
         createContextMenu && createContextMenu.call(this);
     };
 

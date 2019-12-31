@@ -49,7 +49,7 @@ import {
     DeltaBox, DeltaPane
 } from "./delta-objects.js";
 import {
-    createCommandPopup, createPalettePopup, setShortcuts, defineLayers
+    createCommandPopup, createPalettePopup, setShortcuts, defineLayers, createMenuPopup
 } from "./delta-tools.js";
 import {
     makeSelectable
@@ -515,6 +515,7 @@ function main() {
     createPaper();
     Context.palettePopup = createPalettePopup();
     Context.commandPopup = createCommandPopup(Context.palettePopup);
+    createMenuPopup();
     setShortcuts();
     defineLayers();
     Context.memento.opened = true;
