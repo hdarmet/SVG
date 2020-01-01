@@ -14,7 +14,7 @@ import {
     StandardDragMode
 } from "./drag-and-drop.js";
 import {
-    always
+    always, extendMethod
 } from "./misc.js";
 import {
     List
@@ -165,6 +165,7 @@ export const Facilities = {
     },
     unlockable(element) {
         let selection = this._selection(element);
+        if (!selection.size) return false;
         let result = true;
         for (let element of selection) {
             if (!element.lockable) return false;
@@ -402,11 +403,12 @@ export function addDeleteFacility(superClass) {
 
     makeDeletable(superClass);
 
-    let createContextMenu = superClass.prototype._createContextMenu;
-    superClass.prototype._createContextMenu = function () {
-        this._addMenuOption(createDeleteMenuOption());
-        createContextMenu && createContextMenu.call(this);
-    };
+    extendMethod(superClass, $createContextMenu=>
+        function _createContextMenu() {
+            this._addMenuOption(createDeleteMenuOption());
+            $createContextMenu && $createContextMenu.call(this);
+        }
+    );
 
     return superClass;
 }
@@ -425,11 +427,12 @@ export function addHighlightFacility(superClass) {
 
     makeHighlightable(superClass);
 
-    let createContextMenu = superClass.prototype._createContextMenu;
-    superClass.prototype._createContextMenu = function () {
-        this._addMenuOption(createHighlightMenuOption());
-        createContextMenu && createContextMenu.call(this);
-    };
+    extendMethod(superClass, $createContextMenu=>
+        function _createContextMenu() {
+            this._addMenuOption(createHighlightMenuOption());
+            $createContextMenu && $createContextMenu.call(this);
+        }
+    );
 
     return superClass;
 }
@@ -455,11 +458,12 @@ export function addGroupFacility(superClass) {
 
     makeGroupable(superClass);
 
-    let createContextMenu = superClass.prototype._createContextMenu;
-    superClass.prototype._createContextMenu = function () {
-        this._addMenuOption(createGroupMenuOption());
-        createContextMenu && createContextMenu.call(this);
-    };
+    extendMethod(superClass, $createContextMenu=>
+        function _createContextMenu() {
+            this._addMenuOption(createGroupMenuOption());
+            $createContextMenu && $createContextMenu.call(this);
+        }
+    );
 
     return superClass;
 }
@@ -485,10 +489,11 @@ export function addLockFacility(superClass) {
 
     makeLockable(superClass);
 
-    let createContextMenu = superClass.prototype._createContextMenu;
-    superClass.prototype._createContextMenu = function () {
-        this._addMenuOption(createLockMenuOption());
-        createContextMenu && createContextMenu.call(this);
-    };
+    extendMethod(superClass, $createContextMenu=>
+        function _createContextMenu() {
+            this._addMenuOption(createLockMenuOption());
+            $createContextMenu && $createContextMenu.call(this);
+        }
+    );
 
 }

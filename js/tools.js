@@ -1154,9 +1154,7 @@ export class ToolMenuPopupContent extends ToolPopupContent {
     refresh() {
         this._optionsSupport.clear();
         let rect = new Rect(0, 0, 10, 10).attrs({
-            stroke: Colors.BLACK,
-            fill: Colors.WHITE,
-            filter: Canvas.instance.shadowFilter
+            fill: Colors.WHITE
         });
         this._optionsSupport.add(rect);
         let menuGeometry = {
@@ -1196,12 +1194,12 @@ export class ToolMenuPopupContent extends ToolPopupContent {
             width: menuGeometry.width + ToolMenuPopupContent.XMARGIN * 2,
             height: this.height
         });
-        this._optionsSupport.set(0, -this.height/2);
+        this.resize(menuGeometry.width + ToolMenuPopupContent.XMARGIN * 2+ToolPopup.CORNER_SIZE, this.height);
     }
 
     _resize(width, height) {
         super._resize(width, height);
-        this._commands.matrix = Matrix.translate(0, -height/2);
+        this._optionsSupport.set(-this.width/2, -this.height/2);
     }
 
 }
@@ -2277,7 +2275,6 @@ export class ToolGridPanelContent extends ToolPanelContent {
 
     constructor(width, cellWidth, cellHeight) {
         super(width, cellHeight);
-        console.log(this._height)
         this._dirty = false;
         this._predicate = all;
         this._maxHeight = cellHeight;
@@ -2371,7 +2368,7 @@ export class ToolGridPanelContent extends ToolPanelContent {
     }
 
     _buildContent() {
-        this._clipRect.attrs({x: -this.width / 2 + 5, y: -this.height / 2 + 5, width: this.width - 10, height: this.height - 10 });
+        this._clipRect.attrs({x: -this.width / 2, y: -this.height / 2, width: this.width, height: this.height });
         this._background.attrs({x: -this.width/2, y:-this.height/2, width:this.width, height:this.height} );
         if (this._cellsLayer) {
             this._cellsLayer.detach();
@@ -2379,17 +2376,17 @@ export class ToolGridPanelContent extends ToolPanelContent {
         this._cellsLayer = new Group();
         this._content.add(this._cellsLayer);
 
-        let cellsByLine = Math.floor(this.width/this._cellWidth);
-        let cellWidth = this.width/cellsByLine;
+        let cellsByLine = Math.floor((this.width-ToolGridPanelContent.CELL_MARGIN*2)/this._cellWidth);
+        let cellWidth = (this.width-ToolGridPanelContent.CELL_MARGIN*2)/cellsByLine;
 
-        let startX = cellWidth / 2;
-        let startY = this._cellHeight / 2;
+        let startX = cellWidth / 2 + ToolGridPanelContent.CELL_MARGIN;
+        let startY = this._cellHeight / 2 + ToolGridPanelContent.CELL_MARGIN;
         let index=0;
         for (let cell of this._shownCells) {
             if (this._accept(cell)) {
                 if (index>=cellsByLine) {
                     index = 0;
-                    startX = cellWidth / 2;
+                    startX = cellWidth / 2 + ToolGridPanelContent.CELL_MARGIN;
                     startY += this._cellHeight;
                 }
                 index++;
@@ -2448,7 +2445,7 @@ export class ToolGridPanelContent extends ToolPanelContent {
     }
 
     get minHeight() {
-        return this._cellHeight;
+        return this._cellHeight + ToolGridPanelContent.CELL_MARGIN*2;
     }
 }
 makeObservable(ToolGridPanelContent);
