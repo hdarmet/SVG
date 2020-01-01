@@ -403,7 +403,6 @@ export function makeAbstractPositioningPhysic(superClass) {
                 for (let element of this._hoveredElements) {
                     this._refreshHoverElement(element);
                 }
-                //this._hoveredElements.clear();
             }
             this._elements.clear();
         }
@@ -515,7 +514,7 @@ export function makePositioningContainer(superClass, {predicate, positionsBuilde
 export const Attachments = {
     SECTOR_THRESHOLD : 10,
     SECTOR_MIN_SIZE : 10,
-    RANGE : 5,
+    RANGE : 20,
     MARGIN: 0.0001
 };
 
@@ -533,103 +532,116 @@ export function makeAttachmentPhysic(superClass, {slotProviderPredicate = elemen
      * (ie. clips owner elements) by the physic.
      * @type {add|*}
      */
-    let add = superClass.prototype.add;
-    superClass.prototype.add = function(element) {
-        if (this._addAttachments(element)) {
-            delete this._attachments;
-        }
-        add.call(this, element);
-    };
-
-    superClass.prototype._addAttachments = function(element) {
-        if (slotProviderPredicate.call(this, element)) {
-            if (!this._attachmentsProviders) {
-                this._attachmentsProviders = new List(element);
-            }
-            else {
-                this._attachmentsProviders.add(element);
-            }
-            return true;
-        }
-        return false;
-    };
-
-    let reset = superClass.prototype._reset;
-    superClass.prototype._reset = function() {
-        delete this._attachmentsProviders;
-        for (let element of this._host.children) {
-            this._addAttachments(element);
-        }
-        this._attachments = null;
-        reset.call(this);
-    };
-
-    let remove = superClass.prototype.remove;
-    superClass.prototype.remove = function(element) {
-        if (slotProviderPredicate.call(this, element)) {
-            if (this._attachmentsProviders) {
-                this._attachmentsProviders.remove(element);
+    extendMethod(superClass, $add=>
+        function add(element) {
+            if (this._addAttachments(element)) {
                 delete this._attachments;
             }
+            $add.call(this, element);
         }
-        remove.call(this, element);
-    };
+    );
 
-    let move = superClass.prototype.move;
-    superClass.prototype.move = function(element) {
-        if (slotProviderPredicate.call(this, element)) {
-            delete this._attachments;
+    defineMethod(superClass,
+        function _addAttachments(element) {
+            if (slotProviderPredicate.call(this, element)) {
+                if (!this._attachmentsProviders) {
+                    this._attachmentsProviders = new List(element);
+                }
+                else {
+                    this._attachmentsProviders.add(element);
+                }
+                return true;
+            }
+            return false;
         }
-        move.call(this, element);
-    };
+    );
 
-    let resize = superClass.prototype._resize;
-    superClass.prototype._resize = function(width, height) {
-        this._attachments = null;
-        resize.call(this, width, height);
-    };
-
-    superClass.prototype.getAttachment = function(x, y) {
-        let attachments = this._attachments.find(x, y, Attachments.MARGIN);
-        return attachments.length>0 ? attachments[0] : null;
-    };
-
-    superClass.prototype.findPosition = function(element) {
-        if (!this._attachments) {
-            this._attachments = this._collectAttachments();
+    extendMethod(superClass, $reset=>
+        function _reset() {
+            delete this._attachmentsProviders;
+            for (let element of this._host.children) {
+                this._addAttachments(element);
+            }
+            this._attachments = null;
+            $reset.call(this);
         }
-        let positions = new List();
-        let range = Attachments.RANGE / Canvas.instance.zoom;
-        let {x, y} = clipBuilder(element);
-        for (let attachment of this._attachments.find(x, y, range)) {
-            positions.add({
-                x:attachment.lx,
-                y:attachment.ly,
-                attachment: attachment
-            });
-        }
-        return positions;
-    };
+    );
 
-    superClass.prototype._collectAttachments = function() {
-        let attachments = new SpatialLocator(
-            this._host.width, this._host.height,
-            Attachments.SECTOR_THRESHOLD, Attachments.SECTOR_MIN_SIZE,
-            function(attachment) {
-                return {
-                    x:attachment.lx,
-                    y:attachment.ly
-                };
-            });
-        if (this._attachmentsProviders) {
-            for (let element of this._attachmentsProviders) {
-                for (let attachment of element.attachments) {
-                    attachments.add(attachment);
+    extendMethod(superClass, $remove=>
+        function remove(element) {
+            if (slotProviderPredicate.call(this, element)) {
+                if (this._attachmentsProviders) {
+                    this._attachmentsProviders.remove(element);
+                    delete this._attachments;
                 }
             }
+            $remove.call(this, element);
         }
-        return attachments;
-    }
+    );
+
+    extendMethod(superClass, $move=>
+        function move(element) {
+            if (slotProviderPredicate.call(this, element)) {
+                delete this._attachments;
+            }
+            $move.call(this, element);
+        }
+    );
+
+    extendMethod(superClass, $resize=>
+        function _resize(width, height) {
+            this._attachments = null;
+            $resize.call(this, width, height);
+        }
+    );
+
+    defineMethod(superClass,
+        function getAttachment(x, y) {
+            let attachments = this._attachments.find(x, y, Attachments.MARGIN);
+            return attachments.length>0 ? attachments[0] : null;
+        }
+    );
+
+    defineMethod(superClass,
+        function findPosition(element) {
+            if (!this._attachments) {
+                this._attachments = this._collectAttachments();
+            }
+            let positions = new List();
+            let range = Attachments.RANGE;
+            let {x, y} = clipBuilder(element);
+            for (let attachment of this._attachments.find(x, y, range)) {
+                positions.add({
+                    x:attachment.lx,
+                    y:attachment.ly,
+                    attachment: attachment
+                });
+            }
+            return positions;
+        }
+    );
+
+    defineMethod(superClass,
+        function _collectAttachments() {
+            let attachments = new SpatialLocator(
+                this._host.width, this._host.height,
+                Attachments.SECTOR_THRESHOLD, Attachments.SECTOR_MIN_SIZE,
+                function(attachment) {
+                    return {
+                        x:attachment.lx,
+                        y:attachment.ly
+                    };
+                });
+            if (this._attachmentsProviders) {
+                for (let element of this._attachmentsProviders) {
+                    for (let attachment of element.attachments) {
+                        attachments.add(attachment);
+                    }
+                }
+            }
+            return attachments;
+        }
+    );
 }
 
 export function createAttachmentPhysic({predicate, slotProviderPredicate, clipBuilder}) {
@@ -894,194 +906,220 @@ makeObservable(Slot);
 
 export function makeClipsOwner(superClass) {
 
-    superClass.prototype._addClips = function(...clips) {
-        if (!this._clips) {
-            this._clips = new List(...clips);
+    defineMethod(superClass,
+        function _addClips(...clips) {
+            if (!this._clips) {
+                this._clips = new List(...clips);
+            }
+            else {
+                this._clips.push(...clips);
+            }
         }
-        else {
-            this._clips.push(...clips);
-        }
-    };
+    );
 
-    superClass.prototype._clearClips = function() {
-        delete this._clips;
-    };
-
-    superClass.prototype.addClips = function(...clips) {
-        if (clips.length) {
-            Memento.register(this);
-            this._addClips(...clips);
-        }
-    };
-
-    superClass.prototype.clearClips = function() {
-        if (this._clips) {
-            Memento.register(this);
-            this._clearClips();
-        }
-    };
-
-    let superMemento = superClass.prototype._memento;
-    superClass.prototype._memento = function() {
-        let memento = superMemento.call(this);
-        if (this._clips) {
-            memento._clips = new List(...this._clips);
-        }
-        return memento;
-    };
-
-    let superRevert = superClass.prototype._revert;
-    superClass.prototype._revert = function(memento) {
-        superRevert.call(this, memento);
-        if (memento._clips) {
-            this._clips = new List(...memento._clips);
-        }
-        else if (this._clips) {
+    defineMethod(superClass,
+        function _clearClips() {
             delete this._clips;
         }
-    };
+    );
 
-    let cloning = superClass.prototype.__cloning;
-    superClass.prototype.__cloning = function(duplicata) {
-        let copy = cloning.call(this, duplicata);
-        for (let index=0; index<this._clips.length; index++) {
-            duplicata.set(this._clips[index], copy._clips[index]);
+    defineMethod(superClass,
+        function addClips(...clips) {
+            if (clips.length) {
+                Memento.register(this);
+                this._addClips(...clips);
+            }
         }
-        return copy;
-    };
+    );
 
-    let cloned = superClass.prototype._cloned;
-    superClass.prototype._cloned = function(copy, duplicata) {
-        cloned && cloned.call(this, copy, duplicata);
-        for (let clip of copy._clips) {
-            clip.cloned(duplicata);
+    defineMethod(superClass,
+        function clearClips() {
+            if (this._clips) {
+                Memento.register(this);
+                this._clearClips();
+            }
         }
-    };
+    );
 
-    Object.defineProperty(superClass.prototype, "clips", {
-        configurable: true,
-        get: function () {
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            if (this._clips) {
+                memento._clips = new List(...this._clips);
+            }
+            return memento;
+        }
+    );
+
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            if (memento._clips) {
+                this._clips = new List(...memento._clips);
+            }
+            else if (this._clips) {
+                delete this._clips;
+            }
+        }
+    );
+
+    extendMethod(superClass, $cloning=>
+        function __cloning(duplicata) {
+            let copy = $cloning.call(this, duplicata);
+            for (let index=0; index<this._clips.length; index++) {
+                duplicata.set(this._clips[index], copy._clips[index]);
+            }
+            return copy;
+        }
+    );
+
+    extendMethod(superClass, $cloned=>
+        function _cloned(copy, duplicata) {
+            $cloned && $cloned.call(this, copy, duplicata);
+            for (let clip of copy._clips) {
+                clip.cloned(duplicata);
+            }
+        }
+    );
+
+    defineGetProperty(superClass,
+        function clips() {
             return new List(...this._clips);
         }
-    });
+    );
 
-    superClass.prototype._acceptPosition = function(physic, position) {
+    defineMethod(superClass,
+        function _acceptPosition(physic, position) {
 
-        function refusePosition() {
-            for (let index = 0; index < this._clips.length; index++) {
-                this._clips[index].position = null;
-            }
-            return false;
-        }
-
-        if (position) {
-            let dx = position.x - this.lx;
-            let dy = position.y - this.ly;
-            let attachments = new List();
-            for (let index = 0; index < this._clips.length; index++) {
-                let clip = this._clips[index];
-                let attachment = physic.getAttachment(clip.lx + dx, clip.ly + dy);
-                attachments[index] = attachment;
-                if (!attachment) {
-                    return refusePosition.call(this);
+            function refusePosition() {
+                for (let index = 0; index < this._clips.length; index++) {
+                    this._clips[index].position = null;
                 }
+                return false;
             }
-            for (let index = 0; index < this._clips.length; index++) {
-                this._clips[index].position = attachments[index];
-            }
-            return true;
-        }
-        else {
-            return refusePosition.call(this);
-        }
-    };
 
-    superClass.prototype._positioned = function(physic, position) {
-        let dx = position.x-this.lx;
-        let dy = position.y-this.ly;
-        for (let index=0; index<this._clips.length; index++) {
-            let clip = this._clips[index];
-            let slot = physic.getAttachment(clip.lx+dx, clip.ly+dy);
-            slot.plug(clip);
+            if (position) {
+                let dx = position.x - this.lx;
+                let dy = position.y - this.ly;
+                let attachments = new List();
+                for (let index = 0; index < this._clips.length; index++) {
+                    let clip = this._clips[index];
+                    let attachment = physic.getAttachment(clip.lx + dx, clip.ly + dy);
+                    attachments[index] = attachment;
+                    if (!attachment) {
+                        return refusePosition.call(this);
+                    }
+                }
+                for (let index = 0; index < this._clips.length; index++) {
+                    this._clips[index].position = attachments[index];
+                }
+                return true;
+            }
+            else {
+                return refusePosition.call(this);
+            }
         }
-    }
+    );
+
+    defineMethod(superClass,
+        function _positioned(physic, position) {
+            let dx = position.x-this.lx;
+            let dy = position.y-this.ly;
+            for (let index=0; index<this._clips.length; index++) {
+                let clip = this._clips[index];
+                let slot = physic.getAttachment(clip.lx+dx, clip.ly+dy);
+                slot.plug(clip);
+            }
+        }
+    );
 
 }
 
 export function makeSlotsOwner(superClass) {
 
-    superClass.prototype._addSlots = function(...slots) {
-        if (!this._slots) {
-            this._slots = new List(...slots);
+    defineMethod(superClass,
+        function _addSlots(...slots) {
+            if (!this._slots) {
+                this._slots = new List(...slots);
+            }
+            else {
+                this._slots.push(...slots);
+            }
         }
-        else {
-            this._slots.push(...slots);
-        }
-    };
+    );
 
-    superClass.prototype._clearSlots = function() {
-        delete this._slots;
-    };
-
-    superClass.prototype.addSlots = function(...slots) {
-        if (slots.length) {
-            Memento.register(this);
-            this._addSlots(...slots);
-        }
-    };
-
-    superClass.prototype.clearSlots = function() {
-        if (this._slots) {
-            Memento.register(this);
-            this._clearSlots();
-        }
-    };
-
-    let superMemento = superClass.prototype._memento;
-    superClass.prototype._memento = function() {
-        let memento = superMemento.call(this);
-        if (this._slots) {
-            memento._slots = new List(...this._slots);
-        }
-        return memento;
-    };
-
-    let superRevert = superClass.prototype._revert;
-    superClass.prototype._revert = function(memento) {
-        superRevert.call(this, memento);
-        if (memento._slots) {
-            this._slots = new List(...memento._slots);
-        }
-        else if (this._slots) {
+    defineMethod(superClass,
+        function _clearSlots() {
             delete this._slots;
         }
-    };
+    );
 
-    let superCloned = superClass.prototype._cloned;
-    superClass.prototype._cloned = function(copy, duplicata) {
-        superCloned && superCloned.call(this, copy, duplicata);
-        for (let slot of copy._slots) {
-            slot.cloned(duplicata);
+    defineMethod(superClass,
+        function addSlots(...slots) {
+            if (slots.length) {
+                Memento.register(this);
+                this._addSlots(...slots);
+            }
         }
-    };
+    );
 
-    Object.defineProperty(superClass.prototype, "slots", {
-        configurable: true,
-        get: function () {
+    defineMethod(superClass,
+        function clearSlots() {
+            if (this._slots) {
+                Memento.register(this);
+                this._clearSlots();
+            }
+        }
+    );
+
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            if (this._slots) {
+                memento._slots = new List(...this._slots);
+            }
+            return memento;
+        }
+    );
+
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            if (memento._slots) {
+                this._slots = new List(...memento._slots);
+            }
+            else if (this._slots) {
+                delete this._slots;
+            }
+        }
+    );
+
+    extendMethod(superClass, $cloned=>
+        function _cloned(copy, duplicata) {
+            $cloned && $cloned.call(this, copy, duplicata);
+            for (let slot of copy._slots) {
+                slot.cloned(duplicata);
+            }
+        }
+    );
+
+    defineGetProperty(superClass,
+        function slots() {
             return new List(...this._slots);
         }
-    });
+    );
 
-    Object.defineProperty(superClass.prototype, "attachments", {
-        configurable: true,
-        get: function () {
+    defineGetProperty(superClass,
+        function attachments() {
             return this.slots;
         }
-    });
+    );
 
-    superClass.prototype._dropTarget = function() {
-        return this.parent;
-    }
+    defineMethod(superClass,
+        function _dropTarget() {
+            return this.parent;
+        }
+    );
 
 }
 
@@ -1106,49 +1144,45 @@ export function makeSlotsAndClipsContainer(superClass, {predicate, slotProviderP
 
 export function makeCenteredAnchorage(superClass) {
 
-    Object.defineProperty(superClass.prototype, "anchors", {
-        configurable:true,
-        get() {
+    defineGetProperty(superClass,
+        function anchors() {
             return {
                 x:[{pos:this.lx, distance:0}],
                 y:[{pos:this.ly, distance:0}]
             };
         }
-    });
+    );
 
 }
 
 export function makeHorizontalAnchorage(superClass) {
 
-    Object.defineProperty(superClass.prototype, "anchors", {
-        configurable:true,
-        get() {
+    defineGetProperty(superClass,
+        function anchors() {
             return {
                 x:[{pos:this.lx, distance:0}]
             };
         }
-    });
+    );
 
 }
 
 export function makeVerticalAnchorage(superClass) {
 
-    Object.defineProperty(superClass.prototype, "anchors", {
-        configurable:true,
-        get() {
+    defineGetProperty(superClass,
+        function anchors() {
             return {
                 y:[{pos:this.ly, distance:0}]
             };
         }
-    });
+    );
 
 }
 
 export function makeBoundedAnchorage(superClass) {
 
-    Object.defineProperty(superClass.prototype, "anchors", {
-        configurable:true,
-        get() {
+    defineGetProperty(superClass,
+        function anchors() {
             let lgeom = this.localGeometry();
             let lx = this.lx;
             let ly = this.ly;
@@ -1157,7 +1191,7 @@ export function makeBoundedAnchorage(superClass) {
                 y:[{pos:lgeom.top, distance:lgeom.top-ly}, {pos:ly, distance:0}, {pos:lgeom.bottom, distance:lgeom.bottom-ly}]
             };
         }
-    });
+    );
 
 }
 
