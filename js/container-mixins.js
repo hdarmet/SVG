@@ -177,7 +177,7 @@ export function makeContainer(superClass) {
 
     extendMethod(superClass, $finalize=>
         function finalize() {
-            finalize.call(this);
+            $finalize.call(this);
             if (this._children) {
                 for (let child of this._children) {
                     child.finalize();

@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    always, is, assert
+    always, is, assert, defineGetProperty, extendMethod
 } from "../../js/misc.js";
 import {
     ESet, List
@@ -54,6 +54,9 @@ import {
 import {
     makeSelectable
 } from "../../js/core-mixins.js";
+import {
+    Bubble
+} from "../../js/svgtools.js";
 
 class BoardPaper extends BoardArea {
     constructor(width, height, backgroundColor) {
@@ -364,88 +367,94 @@ makeDecorationsOwner(DeltaPrintArea);
 
 function makePdfAreasOwner(superClass) {
 
-    let init = superClass.prototype._init;
-    superClass.prototype._init = function(...args) {
-        init.call(this, ...args);
-        this._pdfAreas = new List();
-    };
+    extendMethod(superClass, $init=>
+        function _init(...args) {
+            $init.call(this, ...args);
+            this._pdfAreas = new List();
+        }
+    );
 
-    Object.defineProperty(superClass.prototype, "pdfAreas", {
-        configurable: true,
-        get() {
+    defineGetProperty(superClass,
+        function pdfAreas() {
             return this._pdfAreas;
         }
-    });
+    );
 
-    let notified = superClass.prototype._notified;
-    superClass.prototype._notified = function(source, type, value) {
-        notified && notified.call(this, source, type, value);
-        if (type === BoardPrintArea.events.NEW_AREA) {
-            let printArea = new DeltaPrintArea(value.width, value.height);
-            printArea.order = this._pdfAreas.length+1;
-            printArea.setLocation(value.x, value.y);
-            this.addChild(printArea);
-            win.setTimeout(function() {
-                Selection.instance.selectOnly(printArea);
-            }, 1);
+    extendMethod(superClass, $notified=>
+        function _notified(source, type, value) {
+            $notified && $notified.call(this, source, type, value);
+            if (type === BoardPrintArea.events.NEW_AREA) {
+                let printArea = new DeltaPrintArea(value.width, value.height);
+                printArea.order = this._pdfAreas.length+1;
+                printArea.setLocation(value.x, value.y);
+                this.addChild(printArea);
+                win.setTimeout(function() {
+                    Selection.instance.selectOnly(printArea);
+                }, 1);
+            }
         }
-    };
+    );
 
-    let addChild = superClass.prototype._addChild;
-    superClass.prototype._addChild = function(element) {
-        let result = addChild.call(this, element);
-        if (element instanceof DeltaPrintArea) {
-            this._pdfAreas.add(element);
+    extendMethod(superClass, $addChild=>
+        function _addChild(element) {
+            let result = $addChild.call(this, element);
+            if (element instanceof DeltaPrintArea) {
+                this._pdfAreas.add(element);
+            }
+            return result;
         }
-        return result;
-    };
+    );
 
-    let insertChild = superClass.prototype._insertChild;
-    superClass.prototype._insertChild = function(previous, element) {
-        assert((previous instanceof DeltaPrintArea && element instanceof DeltaPrintArea) ||
-            (!(previous instanceof DeltaPrintArea) && !(element instanceof DeltaPrintArea)));
-        let result = insertChild.call(this, previous, element);
-        if (element instanceof DeltaPrintArea) {
-            this._pdfAreas.insert(previous, element);
+    extendMethod(superClass, $insertChild=>
+        function _insertChild(previous, element) {
+            assert((previous instanceof DeltaPrintArea && element instanceof DeltaPrintArea) ||
+                (!(previous instanceof DeltaPrintArea) && !(element instanceof DeltaPrintArea)));
+            let result = $insertChild.call(this, previous, element);
+            if (element instanceof DeltaPrintArea) {
+                this._pdfAreas.insert(previous, element);
+            }
+            return result;
         }
-        return result;
-    };
+    );
 
-    let replaceChild = superClass.prototype._replaceChild;
-    superClass.prototype._replaceChild = function(previous, element) {
-        assert((previous instanceof DeltaPrintArea && element instanceof DeltaPrintArea) ||
-            (!(previous instanceof DeltaPrintArea) && !(element instanceof DeltaPrintArea)));
-        let result = replaceChild.call(this, previous, element);
-        if (previous instanceof DeltaPrintArea) {
-            this._pdfAreas.replace(previous, element);
+    extendMethod(superClass, $replaceChild=>
+        function _replaceChild(previous, element) {
+            assert((previous instanceof DeltaPrintArea && element instanceof DeltaPrintArea) ||
+                (!(previous instanceof DeltaPrintArea) && !(element instanceof DeltaPrintArea)));
+            let result = $replaceChild.call(this, previous, element);
+            if (previous instanceof DeltaPrintArea) {
+                this._pdfAreas.replace(previous, element);
+            }
+            return result;
         }
-        return result;
-    };
+    );
 
-    let removeChild = superClass.prototype._removeChild;
-    superClass.prototype._removeChild = function(element) {
-        let result = removeChild.call(this, element);
-        if (element instanceof DeltaPrintArea) {
-            this._pdfAreas.remove(element);
+    extendMethod(superClass, $removeChild=>
+        function _removeChild(element) {
+            let result = $removeChild.call(this, element);
+            if (element instanceof DeltaPrintArea) {
+                this._pdfAreas.remove(element);
+            }
+            return result;
         }
-        return result;
-    };
+    );
 
-    let superMemento = superClass.prototype._memento;
-    superClass.prototype._memento = function() {
-        let memento = superMemento.call(this);
-        memento._pdfAreas = new List(...this._pdfAreas);
-        return memento;
-    };
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            memento._pdfAreas = new List(...this._pdfAreas);
+            return memento;
+        }
+    );
 
-    let superRevert = superClass.prototype._revert;
-    superClass.prototype._revert = function(memento) {
-        superRevert.call(this, memento);
-        this._pdfAreas = new List(memento._pdfAreas);
-        return this;
-    };
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            this._pdfAreas = new List(memento._pdfAreas);
+            return this;
+        }
+    );
 
-    return superClass;
 }
 
 class DeltaTable extends DeltaAbstractTable {
@@ -520,6 +529,11 @@ function main() {
     defineLayers();
     Context.memento.opened = true;
     Context.start();
+
+    let bubble = new Bubble(-50, -50, 100, 100, 70, 60, 16, 5);
+    bubble.attrs({fill:Colors.WHITE, stroke:Colors.BLACK, px:100, py:0, filter:Canvas.instance.shadowFilter});
+    Canvas.instance.baseLayer._root.add(bubble);
+
 }
 
 main();

@@ -1115,7 +1115,7 @@ export function makeSlotsOwner(superClass) {
         }
     );
 
-    defineMethod(superClass,
+    replaceMethod(superClass,
         function _dropTarget() {
             return this.parent;
         }

@@ -226,7 +226,7 @@ export function makeFasciaSupport(superClass) {
             if (element instanceof DeltaFascia) {
                 return this._fasciaSupport._dropTarget(element);
             }
-            return $getTarget ? $getTarget.call(this, element) : this;
+            return $dropTarget ? $dropTarget.call(this, element) : this;
         }
     );
 

@@ -78,7 +78,7 @@ export function intersectLinePolygon(a1, a2, points) {
         let b1 = points[i];
         let b2 = points[(i+1) % points.length];
         let intersect = intersectLineWithLine(a1, a2, b1, b2);
-        intersect && result.push(inter);
+        intersect && result.push(intersect);
     }
     return result;
 }
