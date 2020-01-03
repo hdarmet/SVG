@@ -12,7 +12,7 @@ import {
     makeHighlightable, Mark, MarksDecoration
 } from "../../js/standard-mixins.js";
 import {
-    BoardElement
+    SigmaElement
 } from "../../js/base-element.js";
 import {
     makeClickable, makeDecorationsOwner, makeDraggable, makeFramed, makeMovable,
@@ -230,7 +230,7 @@ export function makeFreePositioningOwner(superClass) {
 
 }
 
-export class DeltaMarksSupport extends BoardElement {
+export class DeltaMarksSupport extends SigmaElement {
 
     constructor({width, height}) {
         super(width, height);
@@ -240,7 +240,7 @@ export class DeltaMarksSupport extends BoardElement {
 makeDecorationsOwner(DeltaMarksSupport);
 DeltaMarksSupport.SIZE = 10;
 
-export class DeltaItem extends BoardElement {
+export class DeltaItem extends SigmaElement {
     constructor({width, height, ...args}) {
         super(width, height, args);
     }
@@ -412,7 +412,7 @@ makeCommentOwner(DeltaItem);
 addHighlightFacility(DeltaItem);
 makeFreePositioningOwner(DeltaItem);
 
-export class DeltaSupport extends BoardElement {
+export class DeltaSupport extends SigmaElement {
 
     constructor({width, height, strokeColor, backgroundColor}) {
         super(width, height);
@@ -476,7 +476,7 @@ export class KnobDragOperation extends DragOperation {
 makeNotCloneable(KnobDragOperation);
 KnobDragOperation.instance = new KnobDragOperation();
 
-export class DeltaKnob extends BoardElement {
+export class DeltaKnob extends SigmaElement {
 
     constructor({width, height, predicate}) {
         super(width, height);

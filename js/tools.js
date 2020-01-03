@@ -2470,7 +2470,7 @@ export class ToolGridExpandablePanel extends ToolPanel {
 export function getItemBuilder(artifact) {
     let svgElement = artifact._root;
     while (svgElement) {
-        if (svgElement._owner instanceof BoardItemBuilder) {
+        if (svgElement._owner instanceof SigmaItemBuilder) {
             return svgElement._owner;
         }
         svgElement = svgElement.parent;
@@ -2489,7 +2489,7 @@ export function onToolPanelContent(panelContent) {
     }
 }
 
-export class BoardItemBuilder extends ToolCell {
+export class SigmaItemBuilder extends ToolCell {
 
     constructor(proto, action, imageURL, label) {
         super();
@@ -2525,7 +2525,7 @@ export class BoardItemBuilder extends ToolCell {
     }
 
     get itemHeight() {
-        return this.height * BoardItemBuilder.ITEM_HEIGHT_FACTOR;
+        return this.height * SigmaItemBuilder.ITEM_HEIGHT_FACTOR;
     }
 
     get textHeight() {
@@ -2566,12 +2566,12 @@ export class BoardItemBuilder extends ToolCell {
         if (this._label) {
             this._root.add(this._label);
             let factor = Math.min(this.width/this._label.width, this.height/this._label.height);
-            if (factor>BoardItemBuilder.MIN_TEXT_REDUCTION_FACTOR) factor=BoardItemBuilder.MIN_TEXT_REDUCTION_FACTOR;
+            if (factor>SigmaItemBuilder.MIN_TEXT_REDUCTION_FACTOR) factor=SigmaItemBuilder.MIN_TEXT_REDUCTION_FACTOR;
             this._label.matrix = Matrix.translate(0, (this.height-this.textHeight)/2).mult(Matrix.scale(factor, factor));
         }
         this._glass = new Rect(
-            -width/2-BoardItemBuilder.MARGIN, -height/2-BoardItemBuilder.MARGIN,
-            width+BoardItemBuilder.MARGIN*2, this.itemHeight+BoardItemBuilder.MARGIN).attrs({
+            -width/2-SigmaItemBuilder.MARGIN, -height/2-SigmaItemBuilder.MARGIN,
+            width+SigmaItemBuilder.MARGIN*2, this.itemHeight+SigmaItemBuilder.MARGIN).attrs({
            fill:Colors.WHITE, stroke:Colors.NONE, opacity:0.01
         });
         this._root.add(this._glass);
@@ -2610,7 +2610,7 @@ export class BoardItemBuilder extends ToolCell {
                 Selection.instance.select(element);
             }
             if (this._image) {
-                this._image.filter = BoardItemBuilder.getImageSelectionMark();
+                this._image.filter = SigmaItemBuilder.getImageSelectionMark();
             }
         }
     }
@@ -2658,7 +2658,7 @@ export class BoardItemBuilder extends ToolCell {
         let bbox = l2pBoundingBox(this._currentItems);
         let sizeWidthFactor = this.width / bbox.width;
         let sizeHeightFactor = this.itemHeight / bbox.height;
-        this._zoom = Math.min(sizeWidthFactor, sizeHeightFactor, BoardItemBuilder.MAX_ITEM_ENLARGMENT_FACTOR);
+        this._zoom = Math.min(sizeWidthFactor, sizeHeightFactor, SigmaItemBuilder.MAX_ITEM_ENLARGMENT_FACTOR);
         this._support.matrix = Matrix.translate(-bbox.cx, -bbox.cy - (this.height-this.itemHeight)/2)
             .scale(this._zoom, this._zoom, 0, 0)
     }
@@ -2711,11 +2711,11 @@ export class BoardItemBuilder extends ToolCell {
     }
 
 }
-BoardItemBuilder.ITEM_HEIGHT_FACTOR = 0.65;
-BoardItemBuilder.MIN_TEXT_REDUCTION_FACTOR = 0.6;
-BoardItemBuilder.MAX_ITEM_ENLARGMENT_FACTOR = 4;
-BoardItemBuilder.MARGIN = 4;
-BoardItemBuilder.getImageSelectionMark = function() {
+SigmaItemBuilder.ITEM_HEIGHT_FACTOR = 0.65;
+SigmaItemBuilder.MIN_TEXT_REDUCTION_FACTOR = 0.6;
+SigmaItemBuilder.MAX_ITEM_ENLARGMENT_FACTOR = 4;
+SigmaItemBuilder.MARGIN = 4;
+SigmaItemBuilder.getImageSelectionMark = function() {
     if (!Context._boardItemBuilderImageSelectionMark) {
         Context._boardItemBuilderImageSelectionMark = defineShadow(`_bIbImg_`, Colors.RED);
         Context._boardItemBuilderImageSelectionMark.feDropShadow.stdDeviation = [5, 5];
@@ -2724,7 +2724,7 @@ BoardItemBuilder.getImageSelectionMark = function() {
     return Context._boardItemBuilderImageSelectionMark;
 };
 
-export class FavoriteItemBuilder extends BoardItemBuilder {
+export class FavoriteItemBuilder extends SigmaItemBuilder {
 
     constructor(proto) {
         super(proto);

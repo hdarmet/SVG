@@ -10,7 +10,7 @@ import {
     DragSwitchOperation, DragMoveSelectionOperation, DragRotateSelectionOperation
 } from "./drag-and-drop.js";
 import {
-    BoardElement, BoardTable,
+    SigmaElement, SigmaTable,
 } from "./base-element.js";
 import {
     makeRotatable, makeShaped, makeDraggable, makeClickable, makeSelectable, makeDeletable
@@ -21,15 +21,15 @@ import {
 import {
     ToolCommandPopup, ToolExpandablePopup, ToolExpandablePanel,
     ToolGridPanelContent, ToolCell,
-    makeMenuOwner, TextMenuOption, TextToggleMenuOption, CheckMenuOption, ColorChooserMenuOption, BoardItemBuilder,
+    makeMenuOwner, TextMenuOption, TextToggleMenuOption, CheckMenuOption, ColorChooserMenuOption, SigmaItemBuilder,
 } from "./tools.js";
 import {
     zoomInCommand, zoomOutCommand, zoomExtentCommand, zoomSelectionCommand,
     copyCommand, pasteCommand, redoCommand, undoCommand, deleteCommand
 } from "./standard-facilities.js";
 import {
-    BoardBox, BoardImageBox, BoardCounter, BoardDie, BoardMap, BoardHandle, BoardTarget, makeConfigurableMap,
-    BoardContent
+    SigmaBox, SigmaImageBox, SigmaCounter, SigmaDie, SigmaMap, SigmaHandle, SigmaTarget, makeConfigurableMap,
+    SigmaContent
 } from "./elements.js"
 import {
     makeCarrier, makeCarriable, makeGravitationContainer
@@ -40,7 +40,7 @@ Context.rotateOrMoveDrag = new DragSwitchOperation()
     .add(()=>true, DragRotateSelectionOperation.instance)
     .add(()=>true, DragMoveSelectionOperation.instance);
 
-class BoardDummy extends BoardElement {
+class SigmaDummy extends SigmaElement {
 
     constructor(width, height, backgroundColor) {
         super(width, height);
@@ -67,25 +67,25 @@ class BoardDummy extends BoardElement {
     }
 
 }
-makeSelectable(BoardDummy);
-makeMoveable(BoardDummy);
-makeRotatable(BoardDummy);
-makeShaped(BoardDummy);
-makeDraggable(BoardDummy);
-makeClickable(BoardDummy);
-makeMenuOwner(BoardDummy);
-makeLayered(BoardDummy, {layer:"_up"});
+makeSelectable(SigmaDummy);
+makeMoveable(SigmaDummy);
+makeRotatable(SigmaDummy);
+makeShaped(SigmaDummy);
+makeDraggable(SigmaDummy);
+makeClickable(SigmaDummy);
+makeMenuOwner(SigmaDummy);
+makeLayered(SigmaDummy, {layer:"_up"});
 
-makeContainerMultiLayered(BoardTable, {layers:["_down",  "_middle", "_up"]});
-setLayeredGlassStrategy(BoardTable, {layers:["_down",  "_middle", "_up"]});
-makeContainerMultiLayered(BoardBox, {layers:["_down",  "_middle", "_up"]});
-setLayeredGlassStrategy(BoardBox, {layers:["_up", "_middle", "_down"]});
-makeLayered(BoardBox, {layer:"_down"});
-makeDeletable(BoardCounter);
-makeCarrier(BoardCounter);
-makeCarriable(BoardCounter);
+makeContainerMultiLayered(SigmaTable, {layers:["_down",  "_middle", "_up"]});
+setLayeredGlassStrategy(SigmaTable, {layers:["_down",  "_middle", "_up"]});
+makeContainerMultiLayered(SigmaBox, {layers:["_down",  "_middle", "_up"]});
+setLayeredGlassStrategy(SigmaBox, {layers:["_up", "_middle", "_down"]});
+makeLayered(SigmaBox, {layer:"_down"});
+makeDeletable(SigmaCounter);
+makeCarrier(SigmaCounter);
+makeCarriable(SigmaCounter);
 
-Canvas.instance = new Canvas("#board", "width:100%;height:100%;margin:0;padding:0;overflow:hidden;");
+Canvas.instance = new Canvas("#Sigma", "width:100%;height:100%;margin:0;padding:0;overflow:hidden;");
 Canvas.instance.manageMenus();
 Selection.instance = new Selection();
 
@@ -123,8 +123,8 @@ function createPalettePopup() {
 
     let paletteContent = new ToolGridPanelContent(200, 80, 80);
 
-    paletteContent.addCell(new BoardItemBuilder([new BoardDummy(30, 20, "#0000FF")]));
-    paletteContent.addCell(new BoardItemBuilder([new BoardImageBox(150, 200, 10, Colors.BLACK, "./images/wood3.jpg", "./images/wood3.jpg", "./images/wood3.jpg")]));
+    paletteContent.addCell(new SigmaItemBuilder([new SigmaDummy(30, 20, "#0000FF")]));
+    paletteContent.addCell(new SigmaItemBuilder([new SigmaImageBox(150, 200, 10, Colors.BLACK, "./images/wood3.jpg", "./images/wood3.jpg", "./images/wood3.jpg")]));
     for (let index = 0; index < 10; index++) {
         paletteContent.addCell(new DummyCell());
     }
@@ -138,15 +138,15 @@ function createPalettePopup() {
 createCommandPopup();
 createPalettePopup();
 
-let area = new BoardTable(4000, 3000, "#A0A0A0");
+let area = new SigmaTable(4000, 3000, "#A0A0A0");
 Canvas.instance.putOnBase(area);
 
-let dummy1 = new BoardDummy(30, 20, "#FF0000");
-let dummy2 = new BoardDummy(30, 20, "#00FF00");
-let box1 = new BoardImageBox(150, 200, 10, Colors.BLACK, "./images/wood3.jpg", "./images/wood3.jpg", "./images/wood3.jpg");
+let dummy1 = new SigmaDummy(30, 20, "#FF0000");
+let dummy2 = new SigmaDummy(30, 20, "#00FF00");
+let box1 = new SigmaImageBox(150, 200, 10, Colors.BLACK, "./images/wood3.jpg", "./images/wood3.jpg", "./images/wood3.jpg");
 box1.orientation=90;
 
-class BoardCollisionContent extends BoardContent {
+class SigmaCollisionContent extends SigmaContent {
     constructor(...args) {
         super(...args);
     }
@@ -160,65 +160,65 @@ class BoardCollisionContent extends BoardContent {
         super._revert(memento);
     }
 }
-//makeCollisionContainer(BoardCollisionContent, element=>element instanceof BoardCounter, {all:true});
-makeGravitationContainer(BoardCollisionContent, {
-    predicate: element => element instanceof BoardCounter,
+//makeCollisionContainer(SigmaCollisionContent, element=>element instanceof SigmaCounter, {all:true});
+makeGravitationContainer(SigmaCollisionContent, {
+    predicate: element => element instanceof SigmaCounter,
     bordersCollide: {all: true}
 });
 
 
-class BoardCollisionBox extends BoardBox {
+class SigmaCollisionBox extends SigmaBox {
     constructor(...args) {
         super(...args);
     }
     initBoxContent(width, height, margin, strokeColor, backgroundColor) {
-        return new BoardCollisionContent(this, width-margin/2, height-margin/2, strokeColor, backgroundColor);
+        return new SigmaCollisionContent(this, width-margin/2, height-margin/2, strokeColor, backgroundColor);
     }
 }
-window.box2 = new BoardCollisionBox(150, 200, 10, Colors.BLACK, Colors.LIGHT_GREY);
+window.box2 = new SigmaCollisionBox(150, 200, 10, Colors.BLACK, Colors.LIGHT_GREY);
 
 area.add(dummy1);
 area.add(dummy2);
 area.add(box1);
 area.add(box2);
 
-let counter1 = new BoardCounter(40, 40, Colors.GREY, "./images/JemmapesRecto1_001.jpg", "./images/JemmapesVerso1_001.jpg");
+let counter1 = new SigmaCounter(40, 40, Colors.GREY, "./images/JemmapesRecto1_001.jpg", "./images/JemmapesVerso1_001.jpg");
 area.add(counter1);
-let counter2 = new BoardCounter(50, 50, Colors.GREY, "./images/JemmapesRecto1_001.jpg", "./images/JemmapesVerso1_001.jpg");
+let counter2 = new SigmaCounter(50, 50, Colors.GREY, "./images/JemmapesRecto1_001.jpg", "./images/JemmapesVerso1_001.jpg");
 area.add(counter2);
 
-class BoardHexMap extends BoardMap {
+class SigmaHexMap extends SigmaMap {
     constructor(...args) {
         super(...args);
     }
 
     get handlePositions() {
         return this.layerChildren("configuration")
-            .filter(element=>element instanceof BoardTarget)
+            .filter(element=>element instanceof SigmaTarget)
             .map(handle=>{return {x:handle.lx, y:handle.ly}});
     }
 
 }
-makeLayered(BoardHexMap, {layer:"_down"});
+makeLayered(SigmaHexMap, {layer:"_down"});
 
-makeZindexSupport(BoardHexMap);
+makeZindexSupport(SigmaHexMap);
 
-makeConfigurableMap(BoardHexMap, element=>element instanceof BoardCounter, function(element) {
+makeConfigurableMap(SigmaHexMap, element=>element instanceof SigmaCounter, function(element) {
    return this.parent.handlePositions;
 });
 
-let map1 = new BoardHexMap(1256, 888, Colors.GREY, "./images/Jemmapes.jpg");
+let map1 = new SigmaHexMap(1256, 888, Colors.GREY, "./images/Jemmapes.jpg");
 area.add(map1);
-let d8 = new BoardDie(50, 50, "none", "./images/game/d8.png",
+let d8 = new SigmaDie(50, 50, "none", "./images/game/d8.png",
     {x:16, y:16, width:90, height:104}, {x:130, y:16, width:90, height:104}, {x:244, y:16, width:90, height:104},
     {x:72, y:123, width:90, height:104}, {x:187, y:123, width:90, height:104},
     {x:16, y:230, width:90, height:104}, {x:130, y:230, width:90, height:104}, {x:244, y:230, width:90, height:104});
 area.add(d8);
 
-let handle = new BoardHandle();
+let handle = new SigmaHandle();
 area.add(handle);
 
-let target = new BoardTarget(16, Colors.RED);
+let target = new SigmaTarget(16, Colors.RED);
 map1.add(target);
 
 Memento.instance.opened = true;

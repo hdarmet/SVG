@@ -15,7 +15,7 @@ import {
     Layers, Context, Layer
 } from "../../js/toolkit.js";
 import {
-    BoardItemBuilder, ToolGridPanelContent, ToolToggleCommand, FavoriteItemBuilder, ToolTabsetPanelPopup,
+    SigmaItemBuilder, ToolGridPanelContent, ToolToggleCommand, FavoriteItemBuilder, ToolTabsetPanelPopup,
     ToolGridExpandablePanel, ToolCommandPopup, ToolFilterCard, ToolKeywordsCard, ToolExpandablePanelPopup,
     ToolPopup, ToolToggleTitleCommand, makePopupResizable, ToolMenuPopup
 } from "../../js/tools.js";
@@ -242,47 +242,47 @@ makePopupResizable(DeltaPalette);
 
 export function createPalettePopup() {
     let paletteContent = new ToolGridPanelContent(200, 80, 120);
-    paletteContent.addCell(new BoardItemBuilder([new DeltaPane({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaPane({
         width:1840, height:1240, contentX:0, contentY:0, contentWidth:1800, contentHeight:1200,
         label:"pane"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaRichPane({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaRichPane({
         width:840, height:500, contentX:0, contentY:0, contentWidth:810, contentHeight:460, headerHeight:40, footerHeight:40,
         label:"rich pane", lineMargin:30, labelMargin:60, indexMargin:40
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaHook()]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaFixing()]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaLadder({width:10, height:100, topSlot:-45, bottomSlot:45, slotInterval:5})]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaLadder({width:10, height:10, topSlot:0, bottomSlot:0, slotInterval:5})]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaDoubleLadder({width:20, height:100, topSlot:-45, bottomSlot:45, slotInterval:5})]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaShelf({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaHook()]));
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaFixing()]));
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaLadder({width:10, height:100, topSlot:-45, bottomSlot:45, slotInterval:5})]));
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaLadder({width:10, height:10, topSlot:0, bottomSlot:0, slotInterval:5})]));
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaDoubleLadder({width:20, height:100, topSlot:-45, bottomSlot:45, slotInterval:5})]));
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaShelf({
         width:100, height:10, leftClip:{x:-45, y:0}, rightClip:{x:45, y:0}, label:'shelf',
         font_family:"arial", font_size:6, fill:Colors.GREY,
         position_font_family:"arial", position_font_size:4, position_fill:Colors.GREY
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaRichShelf({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaRichShelf({
         width:100, height:10, leftClip:{x:-45, y:0}, rightClip:{x:45, y:0}, label:'shelf', coverY:0, coverHeight:20,
         font_family:"arial", font_size:8, fill:Colors.GREY,
         position_font_family:"arial", position_font_size:4, position_fill:Colors.GREY
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaSlottedBox({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaSlottedBox({
         width:120, height:70, clips:[{x:0, y:15}], contentX:0, contentY:0, contentWidth:100, contentHeight:60, slotWidth:20,
         status:{code:"N", color:Colors.RED}
     })]));
 
-    paletteContent.addCell(new BoardItemBuilder([new DeltaSlottedBoxModule({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaSlottedBoxModule({
         width:120, height:70, contentX:0, contentY:0, contentWidth:100, contentHeight:60, slotWidth:20,
         status:{code:"B", color:Colors.BLUE}
     })]));
 
-    paletteContent.addCell(new BoardItemBuilder([new DeltaSlottedRichBox({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaSlottedRichBox({
         width:120, height:70, clips:[{x:0, y:15}],
         contentX:0, contentY:0, contentWidth:100, contentHeight:60,
         slotWidth:20,
         headerHeight:10, footerHeight:10,
         status:{code:"V", color:Colors.GREEN}
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaSlottedRichBoxModule({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaSlottedRichBoxModule({
         width:120, height:70,
         contentX:0, contentY:0, contentWidth:100, contentHeight:60,
         slotWidth:20,
@@ -290,33 +290,33 @@ export function createPalettePopup() {
         status:{code:"B", color:Colors.BLUE}
     })]));
 
-    paletteContent.addCell(new BoardItemBuilder([new DeltaRichCaddy({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaRichCaddy({
         width:120, height:70, clips:[{x:0, y:15}],
         contentX:0, contentY:0, contentWidth:100, contentHeight:60,
         slotWidth:20,
         headerHeight:5, footerHeight:15
     })]));
 
-    paletteContent.addCell(new BoardItemBuilder([new DeltaRichCaddyModule({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaRichCaddyModule({
         width:120, height:70,
         contentX:0, contentY:0, contentWidth:100, contentHeight:60,
         slotWidth:20,
         headerHeight:5, footerHeight:15,
         status:{code:"B", color:Colors.BLUE}
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaFrame({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaFrame({
         width:120, height:70, frameWidth:5, color:Colors.BLUE
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaFrame({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaFrame({
         width:150, height:80, frameWidth:5, color:Colors.GREEN
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaDivider({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaDivider({
         width:10, height:460, contentX:0
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaBox({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaBox({
         width:120, height:140, clips:[{x:0, y:-20}, {x:0, y:50}], contentX:0, contentY:0, contentWidth:100, contentHeight:130
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaConfigurableModule({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaConfigurableModule({
         width:20, height:40, cells:[
             new DeltaCell({width:4, height:4, x:-5, y:-15,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
@@ -356,7 +356,7 @@ export function createPalettePopup() {
             })
         ]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaConfigurableModule({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaConfigurableModule({
         width:20, height:40, cells:[
             new DeltaCell({width:4, height:10, x:-5, y:5,
                 shape:new Rect(-2, -10, 4, 20).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
@@ -372,7 +372,7 @@ export function createPalettePopup() {
             })
         ]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaConfigurableModule({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaConfigurableModule({
         width:20, height:40, cells:[
             new DeltaCell({width:4, height:4, x:-5, y:-15,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
@@ -412,43 +412,43 @@ export function createPalettePopup() {
             })
         ]
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaImageModule({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaImageModule({
         width:20, height:40, realisticUrl:"./apps/diam/modules/eye liner c.png", url:{svg:"./apps/diam/modules/eye liner b.svg", rasterized:true}
     })], null, "./apps/diam/modules/eye liner e.png", "Eye Liner\nLiner Eye\nAnd a big, very big line"));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaBasicModule({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaBasicModule({
         width:20, height:40, color:"#FF0000"
     })], null, null, new Rect(-100, -50, 200, 100).attrs({fill:Colors.LIGHT_GREY})));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaBasicModule({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaBasicModule({
         width:40, height:40, color:"#00FF00"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaBasicModule({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaBasicModule({
         width:20, height:40, color:"#0000FF"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaBlister({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaBlister({
         width:30, height:60, clip:{x:0, y:-15, radius:8}, color:"#FF0000"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaBlister({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaBlister({
         width:35, height:75, clip:{x:0, y:-25, radius:8}, color:"#00FF00"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaBlister({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaBlister({
         width:45, height:90, clip:{x:0, y:-30, radius:8}, color:"#0000FF"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaVisual({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaVisual({
         width:120, height:10, color:"#FFFF00"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaVisual({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaVisual({
         width:840, height:40, color:"#FF0000"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaVisual({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaVisual({
         width:800, height:60, color:"#00FF00"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaVisual({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaVisual({
         width:600, height:60, color:"#0000FF"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaFascia({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaFascia({
         width:120, height:50, color:"#00FFFF"
     })]));
-    paletteContent.addCell(new BoardItemBuilder([new DeltaFascia({
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaFascia({
         width:120, height:60, color:"#FF00FF"
     })]));
     paletteContent.addCell(new OptionItemBuilder([new DeltaColorOption({width:4, height:4,

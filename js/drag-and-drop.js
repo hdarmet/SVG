@@ -241,7 +241,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
      * Move an element still in the glass.
      * <p> The main problem solved here is the fact that an element can "switch" support. Each time an element hovers
      * another one (not dragged), it have to change support.
-     * <p> Targets and supports are the same objects : before becoming a support, an element on the board is a target
+     * <p> Targets and supports are the same objects : before becoming a support, an element on the Sigma is a target
      * (target to be support :) ).
      * <p> Dragged element may react by implementing the _hoverOn method.
      * @param element element to drag

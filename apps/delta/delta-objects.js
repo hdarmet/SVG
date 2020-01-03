@@ -28,7 +28,7 @@ import {
     Canvas, Context, Memento, Events, l2pBoundingBox, computeGridStep
 } from "../../js/toolkit.js";
 import {
-    Visitor, BoardElement
+    Visitor, SigmaElement
 } from "../../js/base-element.js";
 import {
     TextMenuOption
@@ -46,11 +46,11 @@ import {
     ESet, List, EMap
 } from "../../js/collections.js";
 import {
-    makeResizeable, makeResizeableContent, BoardHandle, SizerDecoration
+    makeResizeable, makeResizeableContent, SigmaHandle, SizerDecoration
 } from "../../js/elements.js";
 
 
-export class DeltaFasciaSupport extends BoardElement {
+export class DeltaFasciaSupport extends SigmaElement {
     constructor({width, height}) {
         super(width, height);
     }
@@ -100,7 +100,7 @@ export class DeltaFascia extends DeltaItem {
 makeFramed(DeltaFascia);
 makeKnobOwner(DeltaFascia, {size:15, predicate:is(DeltaFasciaSupport)});
 
-export class DeltaFrameSupport extends BoardElement {
+export class DeltaFrameSupport extends SigmaElement {
     constructor({width, height}) {
         super(width, height);
     }
@@ -1425,8 +1425,8 @@ export class DeltaPane extends DeltaItem {
 
 }
 DeltaPane.ALL_HANDLES_BUT_BOTTOM_ONES = new ESet([
-    BoardHandle.TOP, BoardHandle.RIGHT_TOP, BoardHandle.RIGHT,
-    BoardHandle.LEFT, BoardHandle.LEFT_TOP
+    SigmaHandle.TOP, SigmaHandle.RIGHT_TOP, SigmaHandle.RIGHT,
+    SigmaHandle.LEFT, SigmaHandle.LEFT_TOP
 ]);
 makeFramed(DeltaPane);
 makeLabelOwner(DeltaPane);

@@ -25,13 +25,13 @@ import {
     makePositioningContainer
 } from "../../js/physics.js";
 import {
-    BoardItemBuilder, ToolGridExpandablePanel
+    SigmaItemBuilder, ToolGridExpandablePanel
 } from "../../js/tools.js";
 import {
     Canvas, CopyPaste, onCanvasLayer, Selection, Events
 } from "../../js/toolkit.js";
 import {
-    BoardElement
+    SigmaElement
 } from "../../js/base-element.js";
 import {
     assert, is
@@ -157,7 +157,7 @@ makeHeaderOwner(DeltaRichCaddyModule);
 makeFooterOwner(DeltaRichCaddyModule);
 makeFasciaSupport(DeltaRichCaddyModule);
 
-export class DeltaAbstractCell extends BoardElement {
+export class DeltaAbstractCell extends SigmaElement {
 
     constructor({width, height, x, y, shape, compatibilities}) {
         super(width, height);
@@ -467,7 +467,7 @@ export class DeltaConfigurableModule extends DeltaBasicModule {
 }
 makeCellsOwner(DeltaConfigurableModule);
 
-export class OptionItemBuilder extends BoardItemBuilder {
+export class OptionItemBuilder extends SigmaItemBuilder {
     constructor(proto) {
         super(proto, function(items) {
             let selection = Selection.instance.selection(onCanvasLayer(Canvas.instance.baseLayer));

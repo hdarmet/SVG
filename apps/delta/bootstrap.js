@@ -13,7 +13,7 @@ import {
     StandardDragMode
 } from "../../js/drag-and-drop.js";
 import {
-    BoardTable, BoardArea
+    SigmaTable, SigmaArea
 } from "../../js/base-element.js";
 import {
     makeDecorationsOwner
@@ -37,7 +37,7 @@ import {
     makeGravitationContainer
 } from "../../js/collision-physics.js";
 import {
-    BoardPrintArea, makeResizeable, makeResizeableContent, BoardHandle, SizerDecoration
+    SigmaPrintArea, makeResizeable, makeResizeableContent, SigmaHandle, SizerDecoration
 } from "../../js/elements.js";
 import {
     LAYERS_DEFINITION, makeFreePositioningOwner, makeLabelOwner, TABLE_LAYERS_DEFINITION, DeltaSupport, DeltaLayers
@@ -58,13 +58,13 @@ import {
     Bubble, PlainArrow
 } from "../../js/svgtools.js";
 
-class BoardPaper extends BoardArea {
+class SigmaPaper extends SigmaArea {
     constructor(width, height, backgroundColor) {
         super(width, height, backgroundColor);
     }
 
 }
-makePart(BoardPaper);
+makePart(SigmaPaper);
 
 class DeltaPaperContent extends DeltaSupport {
     constructor({width, height}) {
@@ -84,7 +84,7 @@ makePart(DeltaPaperContent);
 makeContainerMultiLayered(DeltaPaperContent, LAYERS_DEFINITION);
 makeResizeableContent(DeltaPaperContent);
 
-class DeltaPaper extends BoardPaper {
+class DeltaPaper extends SigmaPaper {
     constructor({width, height}) {
         super(width, height, Colors.WHITE);
         this._sizerDecoration = new SizerDecoration();
@@ -148,10 +148,10 @@ makePartsOwner(DeltaPaper);
 makeFreePositioningOwner(DeltaPaper);
 makeSelectable(DeltaPaper);
 makeDecorationsOwner(DeltaPaper);
-makeResizeable(DeltaPaper, BoardHandle.ALL, computeGridStep);
+makeResizeable(DeltaPaper, SigmaHandle.ALL, computeGridStep);
 DeltaPaper.MARGIN = 10;
 
-class DeltaAbstractTable extends BoardTable {
+class DeltaAbstractTable extends SigmaTable {
 
     constructor({width, height, backgroundColor}) {
         super(width, height, backgroundColor);
@@ -271,7 +271,7 @@ const PDF = {
 
 };
 
-class DeltaPrintArea extends BoardPrintArea {
+class DeltaPrintArea extends SigmaPrintArea {
 
     constructor(width, height) {
         super(width, height);
@@ -383,7 +383,7 @@ function makePdfAreasOwner(superClass) {
     extendMethod(superClass, $notified=>
         function _notified(source, type, value) {
             $notified && $notified.call(this, source, type, value);
-            if (type === BoardPrintArea.events.NEW_AREA) {
+            if (type === SigmaPrintArea.events.NEW_AREA) {
                 let printArea = new DeltaPrintArea(value.width, value.height);
                 printArea.order = this._pdfAreas.length+1;
                 printArea.setLocation(value.x, value.y);
@@ -466,7 +466,7 @@ class DeltaTable extends DeltaAbstractTable {
     }
 
     _getLayer(element) {
-        if (element instanceof BoardPrintArea) {
+        if (element instanceof SigmaPrintArea) {
             return DeltaLayers.PDF;
         }
         return super._getLayer(element);
@@ -500,7 +500,7 @@ DeltaTable.PDFZOrder = 500;
 makePdfAreasOwner(DeltaTable);
 
 function createTable() {
-    setLayeredGlassStrategy(BoardTable, TABLE_LAYERS_DEFINITION);
+    setLayeredGlassStrategy(SigmaTable, TABLE_LAYERS_DEFINITION);
     Context.table = new DeltaTable({width:4000, height:3000, backgroundColor:"#A0A0A0"});
     Canvas.instance.putOnBase(Context.table);
 }

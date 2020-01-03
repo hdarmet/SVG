@@ -17,7 +17,7 @@ import {
     ifStandardDragMode, standardDrag, areaDrag, StandardDragMode
 } from "./drag-and-drop.js";
 import {
-    BoardElement, BoardSupport, BoardLayer, BoardZindexLayer
+    SigmaElement, SigmaSupport, SigmaLayer, SigmaZindexLayer
 } from "./base-element.js";
 import {
     makeDraggable, makeSelectable, makeMovable, makeRotatable, makeClickable, makeFramed, makeSingleImaged,
@@ -49,7 +49,7 @@ Context.itemDrag = new DragSwitchOperation()
  * it is a "support" (other elements may dropped on) with a shape (a background visual) and is not independant (part of
  * another element, cannot be moved by itself).
  */
-export class AbstractBoardContent extends BoardSupport {
+export class AbstractSigmaContent extends SigmaSupport {
 
     constructor(owner, width, height, ...args) {
         super(width, height, ...args);
@@ -121,9 +121,9 @@ export class AbstractBoardContent extends BoardSupport {
         element.move(box.x+box.width/2, box.y+box.height/2);
     }
 }
-makePart(AbstractBoardContent);
+makePart(AbstractSigmaContent);
 
-export class AbstractBoardCover extends BoardElement {
+export class AbstractSigmaCover extends SigmaElement {
 
     constructor(owner, width, height, ...args) {
         super(width, height);
@@ -174,11 +174,11 @@ export class AbstractBoardCover extends BoardElement {
         return this;
     }
 }
-makeDraggable(AbstractBoardCover);
-makePart(AbstractBoardCover);
-makeContainer(AbstractBoardCover);
+makeDraggable(AbstractSigmaCover);
+makePart(AbstractSigmaCover);
+makeContainer(AbstractSigmaCover);
 
-export class AbstractBoardBox extends BoardElement {
+export class AbstractSigmaBox extends SigmaElement {
 
     constructor(width, height, ...args) {
         super(width, height);
@@ -230,26 +230,14 @@ export class AbstractBoardBox extends BoardElement {
     }
 
 }
-makeSelectable(AbstractBoardBox);
-makeMovable(AbstractBoardBox);
-makeRotatable(AbstractBoardBox);
-makeContainer(AbstractBoardBox);
-makeDraggable(AbstractBoardBox);
-makeMenuOwner(AbstractBoardBox);
+makeSelectable(AbstractSigmaBox);
+makeMovable(AbstractSigmaBox);
+makeRotatable(AbstractSigmaBox);
+makeContainer(AbstractSigmaBox);
+makeDraggable(AbstractSigmaBox);
+makeMenuOwner(AbstractSigmaBox);
 
-export class BoardContent extends AbstractBoardContent {
-
-    constructor(owner, width, height, strokeColor, backgroundColor) {
-        super(owner, width, height, strokeColor, backgroundColor);
-    }
-
-    initShape(width, height, strokeColor, backgroundColor) {
-        return this._initFrame(width, height, strokeColor, backgroundColor);
-    }
-}
-makeFramed(BoardContent);
-
-export class BoardCover extends AbstractBoardCover {
+export class SigmaContent extends AbstractSigmaContent {
 
     constructor(owner, width, height, strokeColor, backgroundColor) {
         super(owner, width, height, strokeColor, backgroundColor);
@@ -259,9 +247,21 @@ export class BoardCover extends AbstractBoardCover {
         return this._initFrame(width, height, strokeColor, backgroundColor);
     }
 }
-makeFramed(BoardCover);
+makeFramed(SigmaContent);
 
-export class BoardBox extends AbstractBoardBox {
+export class SigmaCover extends AbstractSigmaCover {
+
+    constructor(owner, width, height, strokeColor, backgroundColor) {
+        super(owner, width, height, strokeColor, backgroundColor);
+    }
+
+    initShape(width, height, strokeColor, backgroundColor) {
+        return this._initFrame(width, height, strokeColor, backgroundColor);
+    }
+}
+makeFramed(SigmaCover);
+
+export class SigmaBox extends AbstractSigmaBox {
 
     constructor(width, height, margin, strokeColor, backgroundColor) {
         super(width, height, margin, strokeColor, backgroundColor);
@@ -272,17 +272,17 @@ export class BoardBox extends AbstractBoardBox {
     }
 
     initBoxContent(width, height, margin, strokeColor, backgroundColor) {
-        return new BoardContent(this, width-margin/2, height-margin/2, strokeColor, backgroundColor);
+        return new SigmaContent(this, width-margin/2, height-margin/2, strokeColor, backgroundColor);
     }
 
     initBoxCover(width, height, margin, strokeColor, backgroundColor) {
-        return new BoardCover(this, width, height, strokeColor, backgroundColor);
+        return new SigmaCover(this, width, height, strokeColor, backgroundColor);
     }
 
 }
-makeFramed(BoardBox);
+makeFramed(SigmaBox);
 
-export class BoardImageContent extends AbstractBoardContent {
+export class SigmaImageContent extends AbstractSigmaContent {
 
     constructor(owner, width, height, strokeColor, backgroundURL) {
         super(owner, width, height, strokeColor, backgroundURL);
@@ -292,9 +292,9 @@ export class BoardImageContent extends AbstractBoardContent {
         return this._initImage(width, height, strokeColor, backgroundURL);
     }
 }
-makeSingleImaged(BoardImageContent);
+makeSingleImaged(SigmaImageContent);
 
-export class BoardImageCover extends AbstractBoardCover {
+export class SigmaImageCover extends AbstractSigmaCover {
 
     constructor(owner, width, height, strokeColor, backgroundURL) {
         super(owner, width, height, strokeColor, backgroundURL);
@@ -304,9 +304,9 @@ export class BoardImageCover extends AbstractBoardCover {
         return this._initImage(width, height, strokeColor, backgroundURL);
     }
 }
-makeSingleImaged(BoardImageCover);
+makeSingleImaged(SigmaImageCover);
 
-export class BoardImageBox extends AbstractBoardBox {
+export class SigmaImageBox extends AbstractSigmaBox {
 
     constructor(width, height, margin, strokeColor, backgroundURL, sideURL, coverURL) {
         super(width, height, margin, strokeColor, backgroundURL, sideURL, coverURL);
@@ -317,17 +317,17 @@ export class BoardImageBox extends AbstractBoardBox {
     }
 
     initBoxContent(width, height, margin, strokeColor, backgroundURL, sideURL, coverURL) {
-        return new BoardImageContent(this, width-margin/2, height-margin/2, strokeColor, sideURL);
+        return new SigmaImageContent(this, width-margin/2, height-margin/2, strokeColor, sideURL);
     }
 
     initBoxCover(width, height, margin, strokeColor, backgroundURL, sideURL, coverURL) {
-        return new BoardImageCover(this, width, height, strokeColor, coverURL);
+        return new SigmaImageCover(this, width, height, strokeColor, coverURL);
     }
 
 }
-makeSingleImaged(BoardImageBox);
+makeSingleImaged(SigmaImageBox);
 
-export class AbstractBoardCounter extends BoardElement {
+export class AbstractSigmaCounter extends SigmaElement {
 
     constructor(width, height, ...args) {
         super(width, height);
@@ -338,21 +338,21 @@ export class AbstractBoardCounter extends BoardElement {
         });
     }
 }
-makeSelectable(AbstractBoardCounter);
-makeMovable(AbstractBoardCounter);
-makeRotatable(AbstractBoardCounter);
-makeDraggable(AbstractBoardCounter);
-makeClickable(AbstractBoardCounter);
-makeMenuOwner(AbstractBoardCounter);
-makeSupport(AbstractBoardCounter);
-makePositioningContainer( AbstractBoardCounter, {
-    predicate: element => element instanceof BoardCounter,
+makeSelectable(AbstractSigmaCounter);
+makeMovable(AbstractSigmaCounter);
+makeRotatable(AbstractSigmaCounter);
+makeDraggable(AbstractSigmaCounter);
+makeClickable(AbstractSigmaCounter);
+makeMenuOwner(AbstractSigmaCounter);
+makeSupport(AbstractSigmaCounter);
+makePositioningContainer( AbstractSigmaCounter, {
+    predicate: element => element instanceof SigmaCounter,
     positionsBuilder: function () {
         return [{x: 0, y: 0}]
     }
 });
 
-export class BoardCounter extends AbstractBoardCounter {
+export class SigmaCounter extends AbstractSigmaCounter {
 
     constructor(width, height, strokeColor, ...backgroundURLs) {
         super(width, height, strokeColor, ...backgroundURLs)
@@ -363,10 +363,10 @@ export class BoardCounter extends AbstractBoardCounter {
     }
 
 }
-makeMultiImaged(BoardCounter);
-makeLayered(BoardCounter, {layer: "content"});
+makeMultiImaged(SigmaCounter);
+makeLayered(SigmaCounter, {layer: "content"});
 
-export class AbstractBoardDie extends BoardElement {
+export class AbstractSigmaDie extends SigmaElement {
 
     constructor(width, height, ...args) {
         super(width, height);
@@ -388,14 +388,14 @@ export class AbstractBoardDie extends BoardElement {
         return this._faceCount;
     }
 }
-makeSelectable(AbstractBoardDie);
-makeMovable(AbstractBoardDie);
-makeDraggable(AbstractBoardDie);
-makeClickable(AbstractBoardDie);
-makeMenuOwner(AbstractBoardDie);
-makeSupport(AbstractBoardDie);
+makeSelectable(AbstractSigmaDie);
+makeMovable(AbstractSigmaDie);
+makeDraggable(AbstractSigmaDie);
+makeClickable(AbstractSigmaDie);
+makeMenuOwner(AbstractSigmaDie);
+makeSupport(AbstractSigmaDie);
 
-export class BoardDie extends AbstractBoardDie {
+export class SigmaDie extends AbstractSigmaDie {
 
     constructor(width, height, strokeColor, imageURL, ...clipped) {
         super(width, height, strokeColor, imageURL, ...clipped);
@@ -407,9 +407,9 @@ export class BoardDie extends AbstractBoardDie {
     }
 
 }
-makeClipImaged(BoardDie);
+makeClipImaged(SigmaDie);
 
-export class AbstractBoardMap extends BoardElement {
+export class AbstractSigmaMap extends SigmaElement {
 
     constructor(width, height, ...args) {
         super(width, height);
@@ -424,13 +424,13 @@ export class AbstractBoardMap extends BoardElement {
     }
 
 }
-makeSelectable(AbstractBoardMap);
-makeMovable(AbstractBoardMap);
-makeRotatable(AbstractBoardMap);
-makeDraggable(AbstractBoardMap);
-makeMenuOwner(AbstractBoardMap);
+makeSelectable(AbstractSigmaMap);
+makeMovable(AbstractSigmaMap);
+makeRotatable(AbstractSigmaMap);
+makeDraggable(AbstractSigmaMap);
+makeMenuOwner(AbstractSigmaMap);
 
-export class BoardMap extends AbstractBoardMap {
+export class SigmaMap extends AbstractSigmaMap {
 
     constructor(width, height, strokeColor, backgroundURL) {
         super(width, height, strokeColor, backgroundURL)
@@ -441,7 +441,7 @@ export class BoardMap extends AbstractBoardMap {
     }
 
 }
-makeSingleImaged(BoardMap);
+makeSingleImaged(SigmaMap);
 
 export class DragHandleOperation extends DragOperation {
 
@@ -486,13 +486,13 @@ DragHandleOperation.events = {
 };
 DragHandleOperation.instance = new DragHandleOperation();
 
-export class BoardHandle extends BoardElement {
+export class SigmaHandle extends SigmaElement {
 
-    constructor(color = BoardHandle.COLOR, direction) {
+    constructor(color = SigmaHandle.COLOR, direction) {
         let zoom = Canvas.instance.zoom;
         super(0, 0);
         this._direction = direction;
-        this.initShape(BoardHandle.SIZE/zoom, BoardHandle.SIZE/zoom, color, zoom);
+        this.initShape(SigmaHandle.SIZE/zoom, SigmaHandle.SIZE/zoom, color, zoom);
         this._dragOperation(function() {return DragHandleOperation.instance;});
         this._observe(Canvas.instance);
     }
@@ -505,8 +505,8 @@ export class BoardHandle extends BoardElement {
         if (event === Events.ZOOM) {
             let zoom = Canvas.instance.zoom;
             this.shape.attrs({
-                x:-BoardHandle.SIZE/zoom/2, y:-BoardHandle.SIZE/zoom/2,
-                width:BoardHandle.SIZE/zoom, height:BoardHandle.SIZE/zoom, stroke_width:1/zoom
+                x:-SigmaHandle.SIZE/zoom/2, y:-SigmaHandle.SIZE/zoom/2,
+                width:SigmaHandle.SIZE/zoom, height:SigmaHandle.SIZE/zoom, stroke_width:1/zoom
             });
         }
     }
@@ -524,37 +524,37 @@ export class BoardHandle extends BoardElement {
         copy._observe(Canvas.instance);
     }
 }
-makeMovable(BoardHandle);
-makeShaped(BoardHandle);
-makeDraggable(BoardHandle);
-BoardHandle.SIZE = 8;
-BoardHandle.COLOR = Colors.RED;
-BoardHandle.TOP = 0;
-BoardHandle.RIGHT_TOP = 1;
-BoardHandle.RIGHT = 2;
-BoardHandle.RIGHT_BOTTOM = 3;
-BoardHandle.BOTTOM = 4;
-BoardHandle.LEFT_BOTTOM = 5;
-BoardHandle.LEFT = 6;
-BoardHandle.LEFT_TOP = 7;
-BoardHandle.ALL = new ESet([
-    BoardHandle.TOP, BoardHandle.RIGHT_TOP, BoardHandle.RIGHT, BoardHandle.RIGHT_BOTTOM,
-    BoardHandle.BOTTOM, BoardHandle.LEFT_BOTTOM, BoardHandle.LEFT, BoardHandle.LEFT_TOP
+makeMovable(SigmaHandle);
+makeShaped(SigmaHandle);
+makeDraggable(SigmaHandle);
+SigmaHandle.SIZE = 8;
+SigmaHandle.COLOR = Colors.RED;
+SigmaHandle.TOP = 0;
+SigmaHandle.RIGHT_TOP = 1;
+SigmaHandle.RIGHT = 2;
+SigmaHandle.RIGHT_BOTTOM = 3;
+SigmaHandle.BOTTOM = 4;
+SigmaHandle.LEFT_BOTTOM = 5;
+SigmaHandle.LEFT = 6;
+SigmaHandle.LEFT_TOP = 7;
+SigmaHandle.ALL = new ESet([
+    SigmaHandle.TOP, SigmaHandle.RIGHT_TOP, SigmaHandle.RIGHT, SigmaHandle.RIGHT_BOTTOM,
+    SigmaHandle.BOTTOM, SigmaHandle.LEFT_BOTTOM, SigmaHandle.LEFT, SigmaHandle.LEFT_TOP
 ]);
 
-export function makeResizeable(superClass, spec=BoardHandle.ALL, computeStep = null) {
+export function makeResizeable(superClass, spec=SigmaHandle.ALL, computeStep = null) {
 
     defineMethod(superClass,
         function _initResize(color) {
             this._handles = new List();
-            this._leftTopHandle = this._createHandle(color, BoardHandle.LEFT_TOP);
-            this._topHandle = this._createHandle(color, BoardHandle.TOP);
-            this._rightTopHandle = this._createHandle(color, BoardHandle.RIGHT_TOP);
-            this._rightHandle = this._createHandle(color, BoardHandle.RIGHT);
-            this._rightBottomHandle = this._createHandle(color, BoardHandle.RIGHT_BOTTOM);
-            this._bottomHandle = this._createHandle(color, BoardHandle.BOTTOM);
-            this._leftBottomHandle = this._createHandle(color, BoardHandle.LEFT_BOTTOM);
-            this._leftHandle = this._createHandle(color, BoardHandle.LEFT);
+            this._leftTopHandle = this._createHandle(color, SigmaHandle.LEFT_TOP);
+            this._topHandle = this._createHandle(color, SigmaHandle.TOP);
+            this._rightTopHandle = this._createHandle(color, SigmaHandle.RIGHT_TOP);
+            this._rightHandle = this._createHandle(color, SigmaHandle.RIGHT);
+            this._rightBottomHandle = this._createHandle(color, SigmaHandle.RIGHT_BOTTOM);
+            this._bottomHandle = this._createHandle(color, SigmaHandle.BOTTOM);
+            this._leftBottomHandle = this._createHandle(color, SigmaHandle.LEFT_BOTTOM);
+            this._leftHandle = this._createHandle(color, SigmaHandle.LEFT);
         }
     );
 
@@ -623,7 +623,7 @@ export function makeResizeable(superClass, spec=BoardHandle.ALL, computeStep = n
 
     defineMethod(superClass,
         function _createHandle(color, direction) {
-            let handle = new BoardHandle(color, direction);
+            let handle = new SigmaHandle(color, direction);
             this._handles.add(handle);
             return handle;
         }
@@ -700,7 +700,7 @@ export function makeResizeable(superClass, spec=BoardHandle.ALL, computeStep = n
                 }
             }
 
-            if (handle instanceof BoardHandle) {
+            if (handle instanceof SigmaHandle) {
                 rebound(handle, this.bounds());
                 this._movedHandle = handle;
                 let width = this.width;
@@ -820,18 +820,18 @@ export function makeResizeableContent(superClass) {
         function resize(width, height, direction) {
             let dx = 0;
             let dy = 0;
-            if (direction === BoardHandle.LEFT_TOP ||
-                direction === BoardHandle.LEFT ||
-                direction === BoardHandle.LEFT_BOTTOM) dx = width - this.width;
-            else if (direction === BoardHandle.RIGHT_TOP ||
-                direction === BoardHandle.RIGHT ||
-                direction === BoardHandle.RIGHT_BOTTOM) dx = this.width - width;
-            if (direction === BoardHandle.TOP ||
-                direction === BoardHandle.LEFT_TOP ||
-                direction === BoardHandle.RIGHT_TOP) dy = height - this.height;
-            else if (direction === BoardHandle.BOTTOM ||
-                direction === BoardHandle.LEFT_BOTTOM ||
-                direction === BoardHandle.RIGHT_BOTTOM) dy = this.height - height;
+            if (direction === SigmaHandle.LEFT_TOP ||
+                direction === SigmaHandle.LEFT ||
+                direction === SigmaHandle.LEFT_BOTTOM) dx = width - this.width;
+            else if (direction === SigmaHandle.RIGHT_TOP ||
+                direction === SigmaHandle.RIGHT ||
+                direction === SigmaHandle.RIGHT_BOTTOM) dx = this.width - width;
+            if (direction === SigmaHandle.TOP ||
+                direction === SigmaHandle.LEFT_TOP ||
+                direction === SigmaHandle.RIGHT_TOP) dy = height - this.height;
+            else if (direction === SigmaHandle.BOTTOM ||
+                direction === SigmaHandle.LEFT_BOTTOM ||
+                direction === SigmaHandle.RIGHT_BOTTOM) dy = this.height - height;
             let positions = new EMap();
             for (let element of this.children) {
                 let lx = element.lx;
@@ -1010,11 +1010,11 @@ export class SizerDecoration extends Decoration {
 }
 
 
-export class BoardFrame extends BoardElement {
+export class SigmaFrame extends SigmaElement {
 
     constructor(width, height) {
         super(width, height);
-        this.initShape(width, height, BoardFrame.COLOR);
+        this.initShape(width, height, SigmaFrame.COLOR);
         this._initResize();
         this._putHandles();
         this._observe(Canvas.instance);
@@ -1047,11 +1047,11 @@ export class BoardFrame extends BoardElement {
         copy._observe(Canvas.instance);
     }
 }
-makeShaped(BoardFrame);
-makeResizeable(BoardFrame);
-makeLayered(BoardFrame, {layer: "configuration"});
+makeShaped(SigmaFrame);
+makeResizeable(SigmaFrame);
+makeLayered(SigmaFrame, {layer: "configuration"});
 
-export class BoardTarget extends BoardElement {
+export class SigmaTarget extends SigmaElement {
 
     constructor(size, strokeColor) {
         super(size, size);
@@ -1108,19 +1108,19 @@ export class BoardTarget extends BoardElement {
 
 }
 
-makeShaped(BoardTarget);
-makeSelectable(BoardTarget);
-makeMovable(BoardTarget);
-makeDraggable(BoardTarget);
-makeMenuOwner(BoardTarget);
-makeLayered(BoardTarget, {layer:"configuration"});
-makeStrokeUpdatable(BoardTarget);
+makeShaped(SigmaTarget);
+makeSelectable(SigmaTarget);
+makeMovable(SigmaTarget);
+makeDraggable(SigmaTarget);
+makeMenuOwner(SigmaTarget);
+makeLayered(SigmaTarget, {layer:"configuration"});
+makeStrokeUpdatable(SigmaTarget);
 
-BoardFrame.COLOR = Colors.RED;
+SigmaFrame.COLOR = Colors.RED;
 
 export function makeConfigurableMap(superClass, predicate, positionsFct) {
 
-    let ContentLayer = makePositioningContainer(class ContentLayer extends BoardZindexLayer {}, {
+    let ContentLayer = makePositioningContainer(class ContentLayer extends SigmaZindexLayer {}, {
         predicate,
         positionsBuilder: function (element) {
             return positionsFct.call(this.host, element);
@@ -1130,9 +1130,9 @@ export function makeConfigurableMap(superClass, predicate, positionsFct) {
     makeLayersWithContainers(superClass, {
         layersBuilder:()=>{
             return {
-                configuration:new BoardLayer(),
+                configuration:new SigmaLayer(),
                 content:new ContentLayer(),
-                top:new BoardLayer()
+                top:new SigmaLayer()
             };
         }
     });
@@ -1143,7 +1143,7 @@ export function makeConfigurableMap(superClass, predicate, positionsFct) {
     superClass.prototype._build = function () {
         build && build.call(this);
         this._contextMenu();
-        this.configFrame = new BoardFrame(100, 50);
+        this.configFrame = new SigmaFrame(100, 50);
         this.add(this.configFrame);
     };
 
@@ -1201,7 +1201,7 @@ export function makeConfigurableMap(superClass, predicate, positionsFct) {
             let margin = data.type===1 ? 0 : rowHeight/2;
             for (let x = colSliceWidth * 2; x < bounds.width; x += colSliceWidth*3) {
                 for (let y = margin + rowHeight / 2; y < bounds.height; y += rowHeight) {
-                    this.add(new BoardTarget(16, data.strokeColor).move(x + bounds.x, y + bounds.y));
+                    this.add(new SigmaTarget(16, data.strokeColor).move(x + bounds.x, y + bounds.y));
                 }
                 margin = margin ? 0 : rowHeight/2;
             }
@@ -1212,7 +1212,7 @@ export function makeConfigurableMap(superClass, predicate, positionsFct) {
             let margin = data.type===3 ? 0 : colWidth/2;
             for (let y = rowSliceHeight * 2; y < bounds.height; y += rowSliceHeight*3) {
                 for (let x = margin + colWidth / 2; x < bounds.width; x += colWidth) {
-                    this.add(new BoardTarget(16, data.strokeColor).move(x + bounds.x, y + bounds.y));
+                    this.add(new SigmaTarget(16, data.strokeColor).move(x + bounds.x, y + bounds.y));
                 }
                 margin = margin ? 0 : colWidth/2;
             }
@@ -1225,7 +1225,7 @@ export function makeConfigurableMap(superClass, predicate, positionsFct) {
         let rowHeight = bounds.height/data.rowCount;
         for (let x = colWidth/2; x<bounds.width; x+=colWidth) {
             for (let y = rowHeight/2; y<bounds.height; y+=rowHeight) {
-                this.add(new BoardTarget(16, data.strokeColor).move(x+bounds.x, y+bounds.y));
+                this.add(new SigmaTarget(16, data.strokeColor).move(x+bounds.x, y+bounds.y));
             }
         }
     };
@@ -1285,16 +1285,16 @@ export class DragPrintAreaOperation extends DragAreaOperation {
         let height = area.height;
         let x = area.x + area.width/2;
         let y = area.y + area.height/2;
-        if (width > BoardPrintArea.MIN_SIZE &&
-            height > BoardPrintArea.MIN_SIZE) {
-            Canvas.instance._fire(BoardPrintArea.events.NEW_AREA, {x, y, width, height});
+        if (width > SigmaPrintArea.MIN_SIZE &&
+            height > SigmaPrintArea.MIN_SIZE) {
+            Canvas.instance._fire(SigmaPrintArea.events.NEW_AREA, {x, y, width, height});
         }
     }
 
 }
 makeSingleton(DragPrintAreaOperation);
 
-export class BoardPrintArea extends BoardElement {
+export class SigmaPrintArea extends SigmaElement {
 
     constructor(width, height) {
         super(width, height);
@@ -1322,16 +1322,16 @@ export class BoardPrintArea extends BoardElement {
     _createContextMenu() {}
 
 }
-makeContainer(BoardPrintArea);
-makeFramed(BoardPrintArea);
-makeMenuOwner(BoardPrintArea);
-makeResizeable(BoardPrintArea);
-makeSelectable(BoardPrintArea);
-makeDraggable(BoardPrintArea);
-makeMovable(BoardPrintArea);
-makeDeletable(BoardPrintArea);
-BoardPrintArea.MIN_SIZE = 10;
-BoardPrintArea.events = {
+makeContainer(SigmaPrintArea);
+makeFramed(SigmaPrintArea);
+makeMenuOwner(SigmaPrintArea);
+makeResizeable(SigmaPrintArea);
+makeSelectable(SigmaPrintArea);
+makeDraggable(SigmaPrintArea);
+makeMovable(SigmaPrintArea);
+makeDeletable(SigmaPrintArea);
+SigmaPrintArea.MIN_SIZE = 10;
+SigmaPrintArea.events = {
     NEW_AREA : "new-area"
 };
 

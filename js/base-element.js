@@ -26,7 +26,7 @@ import {
     makeContainer, makeSupport, makeZindexContainer, makePartsOwner
 } from "./container-mixins.js";
 
-export class BoardElement {
+export class SigmaElement {
 
     constructor(width, height, ...args) {
         this._width = width;
@@ -329,9 +329,9 @@ export class BoardElement {
     }
 
 }
-makeObservable(BoardElement, Cloning.NONE);
+makeObservable(SigmaElement, Cloning.NONE);
 
-export class BoardArea extends BoardElement {
+export class SigmaArea extends SigmaElement {
 
     constructor(width, height, backgroundColor) {
         super(width, height, backgroundColor);
@@ -364,13 +364,13 @@ export class BoardArea extends BoardElement {
         return true;
     }
 }
-makeShaped(BoardArea);
-makeContainer(BoardArea);
-makeDraggable(BoardArea);
-makeClickable(BoardArea);
-makeNotCloneable(BoardArea);
+makeShaped(SigmaArea);
+makeContainer(SigmaArea);
+makeDraggable(SigmaArea);
+makeClickable(SigmaArea);
+makeNotCloneable(SigmaArea);
 
-export class BoardTable extends BoardArea {
+export class SigmaTable extends SigmaArea {
 
     constructor(width, height, backgroundColor) {
         super(width, height, backgroundColor);
@@ -395,14 +395,14 @@ export class BoardTable extends BoardArea {
         return Canvas.instance.baseLayer;
     }
 }
-makePartsOwner(BoardTable);
+makePartsOwner(SigmaTable);
 
 /**
  * Abstract class for element that (generally) are part of another element and define the "content" of this element:
  * the area where other first class elements can be dropped on.
  * <p> Note that a support is a valid drop target (it must have a reachable "shape" like a rect or an image).
  */
-export class BoardSupport extends BoardElement {
+export class SigmaSupport extends SigmaElement {
 
     constructor(width, height, ...args) {
         super(width, height);
@@ -410,8 +410,8 @@ export class BoardSupport extends BoardElement {
     }
 
 }
-makeSupport(BoardSupport);
-makeDraggable(BoardSupport);
+makeSupport(SigmaSupport);
+makeDraggable(SigmaSupport);
 
 /**
  * Base class for layers. Layers are part elements that materialize slices in a "stack" of invisible supports elements.
@@ -419,7 +419,7 @@ makeDraggable(BoardSupport);
  * <p> Note that a layer is not a support : it has no shape and cannot be a reachable target of a drop operation (a
  * simple "g" cannot be targeted). "Dropped" element are given by parent element to the layer.
  */
-export class BoardBaseLayer extends BoardElement {
+export class SigmaBaseLayer extends SigmaElement {
 
     constructor() {
         super(0, 0);
@@ -441,26 +441,26 @@ export class BoardBaseLayer extends BoardElement {
 /**
  * Class for simple layers (the layer is a basic container)
  */
-export class BoardLayer extends BoardBaseLayer {
+export class SigmaLayer extends SigmaBaseLayer {
 
     constructor() {
         super();
     }
 
 }
-makeContainer(BoardLayer);
+makeContainer(SigmaLayer);
 
 /**
  * Class for layers that use the z-index strategy to place the dropped elements.
  */
-export class BoardZindexLayer extends BoardBaseLayer {
+export class SigmaZindexLayer extends SigmaBaseLayer {
 
     constructor() {
         super();
     }
 
 }
-makeZindexContainer(BoardZindexLayer);
+makeZindexContainer(SigmaZindexLayer);
 
 export class Visitor {
 
