@@ -25,7 +25,7 @@ import {
 } from "./core-mixins.js";
 import {
     makeContainer, makeSupport, makePart, makeLayersWithContainers, makeLayered, makeContainerASandBox,
-    makeContainerASupport
+    makeContainerASupport, makePartsOwner
 } from "./container-mixins.js";
 import {
     TextMenuOption, TextToggleMenuOption, makeMenuOwner, ToolToggleCommand
@@ -1352,4 +1352,12 @@ export function pdfModeCommand(toolPopup) {
             Canvas.instance._fire(StandardDragMode.events.SWITCH_MODE, StandardDragMode.PRINT);
         }, () => StandardDragMode.mode === StandardDragMode.PRINT)
     );
+}
+
+export function makeSecondViewOwner(superClass) {
+
+    makePartsOwner(superClass);
+
+
+
 }

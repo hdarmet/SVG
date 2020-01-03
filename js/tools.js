@@ -2505,7 +2505,7 @@ export class BoardItemBuilder extends ToolCell {
     _setLabel(label) {
         if (label!==undefined && label!==null) {
             if (typeof(label)==="string") {
-                this._label = new MultiLineText(0, 0, label);
+                this._label = new MultiLineText(label);
             }
             else if (label instanceof SVGElement) {
                 this._label = label;

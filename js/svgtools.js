@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    win, Group, Rect, Line, Path, Filter, FeDropShadow, PC, FilterUnits, FeIn, M, L, l, Z, Q, c, Colors, Fill, Text, Tspan, doc, SVG_NS,
+    win, Group, Rect, Line, Path, Filter, FeDropShadow, PC, FilterUnits, FeIn, M, L, l, Z, Q, q, Colors, Fill, Text, Tspan, doc, SVG_NS,
     AlignmentBaseline, TextAnchor, Translation
 } from "./graphics.js";
 import {
@@ -60,10 +60,8 @@ export function defineShadow(id, color) {
 
 export class MultiLineText extends Group {
 
-    constructor(x, y, ...lines) {
+    constructor(...lines) {
         super();
-        this._x = x;
-        this._y = y;
         this._lines = lines;
         this._build();
     }
@@ -99,12 +97,17 @@ export class MultiLineText extends Group {
         return bbox;
     }
 
-    get width() {
-        return this._width;
-    }
+    get width() { return this._width; }
 
-    get height() {
-        return this._height;
+    get height() { return this._height; }
+
+    get lines() { return this._lines; };
+    set lines(lines) { this._lines = lines; __askForRefresh(this); };
+
+    attrs(values) {
+        super.attrs(values);
+        __cancelForRefresh(this);
+        this._build();
     }
 }
 
@@ -112,9 +115,7 @@ export class Arrow extends Group {
 
     constructor(x1, y1, x2, y2, [lhwidth, lhheight], [rhwidth, rhheight]) {
         super();
-        this.setPosition(x1, y1, x2, y2, false);
-        this.setLeftHeadGeometry(lhwidth, lhheight, false);
-        this.setRightHeadGeometry(rhwidth, rhheight, true);
+        this.attrs({x1, y1, x2, y2, lhwidth, lhheight, rhwidth, rhheight});
     }
 
     _build() {
@@ -139,28 +140,57 @@ export class Arrow extends Group {
         this.matrix = matrix;
     }
 
-    setPosition(x1, y1, x2, y2, redraw=true) {
-        this._x1 = x1;
-        this._y1 = y1;
-        this._x2 = x2;
-        this._y2 = y2;
-        redraw && this._build();
+    setPosition(x1, y1, x2, y2) {
+        this.attrs({
+            x1, y1, x2, y2
+        });
         return this;
     }
 
-    setLeftHeadGeometry(hwidth, hheight, redraw=true) {
-        this._lhwidth = hwidth;
-        this._lhheight = hheight;
-        redraw && this._build();
+    setLeftHeadGeometry(lhwidth, lhheight) {
+        this.attrs({
+            lhwidth, lhheight
+        });
         return this;
     }
 
-    setRightHeadGeometry(hwidth, hheight, redraw=true) {
-        this._rhwidth = hwidth;
-        this._rhheight = hheight;
-        redraw && this._build();
+    setRightHeadGeometry(rhwidth, rhheight) {
+        this.attrs({
+            rhwidth, rhheight
+        });
         return this;
     }
+
+    get x1() { return this._x1; };
+    set x1(x1) { this._x1 = x1; __askForRefresh(this); };
+
+    get y1() { return this._y1; };
+    set y1(y1) { this._y1 = y1; __askForRefresh(this); };
+
+    get x2() { return this._x2; };
+    set x2(x2) { this._x2 = x2; __askForRefresh(this); };
+
+    get y2() { return this._y2; };
+    set y2(y2) { this._y2 = y2; __askForRefresh(this); };
+
+    get lhwidth() { return this._lhwidth; };
+    set lhwidth(lhwidth) { this._lhwidth = lhwidth; __askForRefresh(this); };
+
+    get lhheight() { return this._lhheight; };
+    set lhheight(lhheight) { this._lhheight = lhheight; __askForRefresh(this); };
+
+    get rhwidth() { return this._rhwidth; };
+    set rhwidth(rhwidth) { this._rhwidth = rhwidth; __askForRefresh(this); };
+
+    get rhheight() { return this._rhheight; };
+    set rhheight(rhheight) { this._rhheight = rhheight; __askForRefresh(this); };
+
+    attrs(values) {
+        super.attrs(values);
+        __cancelForRefresh(this);
+        this._build();
+    }
+
 }
 
 export class Bubble extends Group {
@@ -330,4 +360,65 @@ export class Bubble extends Group {
         this._build();
     }
 
+}
+
+export class PlainArrow extends Group {
+
+    constructor(width, height, hwidth, hheight, r=0) {
+        super();
+        this._width = width;
+        this._height = height;
+        this._hwidth = hwidth;
+        this._hheight = hheight;
+        this._r = r;
+        this._build();
+    }
+
+    _build() {
+        if (this._r) {
+            let hr = this._r/this._hwidth*this._hheight*2;
+            this.clear().add(
+                new Path(M(-this._width/2, 0), l(this._width/2-this._r, 0), q(this._r, 0, this._r, this._r),
+                    l(0, this._height-this._hheight-this._r*2), q(0, this._r, this._r, this._r),
+                    l((this._hwidth-this._width)/2-this._r*2, 0), q(this._r, 0, 0, hr),
+                    l(-this._hwidth/2+this._r*2, this._hheight-hr*2), q(-this._r, hr, -this._r*2, 0),
+                    l(-this._hwidth/2+this._r*2, -this._hheight+hr*2), q(-this._r, -hr, 0, -hr),
+                    l((this._hwidth-this._width)/2-this._r*2, 0), q(this._r, 0, this._r, -this._r),
+                    l(0, -this._height+this._hheight+this._r*2), q(0, -this._r, this._r, -this._r),
+                    l(this._width/2-this._r, 0)
+                )
+            )
+        }
+        else {
+            this.clear().add(
+                new Path(M(-this._width/2, 0), l(this._width/2, 0),
+                    l(0, this._height-this._hheight), l((this._hwidth-this._width)/2, 0),
+                    l(-this._hwidth/2, this._hheight), l(-this._hwidth/2, -this._hheight),
+                    l((this._hwidth-this._width)/2, 0), l(0, -this._height+this._hheight),
+                    l(this._width/2, 0)
+                )
+            )
+        }
+    }
+
+    get width() { return this._width; }
+    set width(width) { this._width = width; __askForRefresh(this); };
+
+    get height() { return this._height; }
+    set height(height) { this._height = height; __askForRefresh(this); };
+
+    get hwidth() { return this._hwidth; }
+    set hwidth(hwidth) { this._hwidth = hwidth; __askForRefresh(this); };
+
+    get hheight() { return this._hheight; }
+    set hheight(hheight) { this._hheight = hheight; __askForRefresh(this); };
+
+    get r() { return this._r; }
+    set r(r) { this._r = r; __askForRefresh(this); };
+
+    attrs(values) {
+        super.attrs(values);
+        __cancelForRefresh(this);
+        this._build();
+    }
 }

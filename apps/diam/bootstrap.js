@@ -55,7 +55,7 @@ import {
     makeSelectable
 } from "../../js/core-mixins.js";
 import {
-    Bubble
+    Bubble, PlainArrow
 } from "../../js/svgtools.js";
 
 class BoardPaper extends BoardArea {
@@ -530,10 +530,15 @@ function main() {
     Context.memento.opened = true;
     Context.start();
 
+    /*
     let bubble = new Bubble(-50, -50, 100, 100, 70, 60, 16, 5);
     bubble.attrs({fill:Colors.WHITE, stroke:Colors.BLACK, px:100, py:0, filter:Canvas.instance.shadowFilter});
     Canvas.instance.baseLayer._root.add(bubble);
+    */
 
+    let arrow = new PlainArrow(40, 100, 80, 30, 5);
+    arrow.attrs({fill:Colors.WHITE, stroke:Colors.BLACK, hheight:50, filter:Canvas.instance.shadowFilter});
+    Canvas.instance.baseLayer._root.add(arrow);
 }
 
 main();
