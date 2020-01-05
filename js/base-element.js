@@ -234,6 +234,10 @@ export class SigmaElement {
         return this._geometry(this.relative);
     }
 
+    _setParent(parent) {
+        this._parent = parent;
+    }
+
     get parent() {
         return this._parent;
     }

@@ -62,7 +62,7 @@ export function makePartsOwner(superClass) {
                 // IMPORTANT : DOM update before this._children update !
                 this._partsSupport.add(element._root);
                 this._parts.add(element);
-                element._parent = this;
+                element._setParent(this);
             }
         );
 
@@ -225,7 +225,7 @@ export function makeContainer(superClass) {
             // IMPORTANT : DOM update before this._children update !
             this.__addChild(element);
             this._children.add(element);
-            element._parent = this;
+            element._setParent(this);
         }
     );
 
@@ -251,7 +251,7 @@ export function makeContainer(superClass) {
                 this.__insertChild(previous, element);
                 // IMPORTANT : DOM update before this._children update !
                 this._children.insert(previous, element);
-                element._parent = this;
+                element._setParent(this);
             }
         }
     );
@@ -288,8 +288,8 @@ export function makeContainer(superClass) {
             // IMPORTANT : DOM update before this._children update !
             this.__replaceChild(previous, element);
             this._children.replace(previous, element);
-            previous._parent = null;
-            element._parent = this;
+            previous._setParent(null);
+            element._setParent(this);
         }
     );
 
@@ -326,7 +326,7 @@ export function makeContainer(superClass) {
                 // IMPORTANT : DOM update before this._children update !
                 this.__removeChild(element);
                 this._children.remove(element);
-                element._parent = null;
+                element._setParent(null);
                 if (this._children.size === 0) {
                     delete this._children;
                 }
@@ -353,7 +353,7 @@ export function makeContainer(superClass) {
                 // IMPORTANT : DOM update before this._children update !
                 this.__clearChildren();
                 for (let element of this._children) {
-                    element._parent = null;
+                    element._setParent(null);
                 }
                 delete this._children;
             }
@@ -560,7 +560,7 @@ export function makeFloatingContainer(superClass) {
             // IMPORTANT : DOM update before this._floatingChildren update !
             this.__addFloating(element);
             this._floatingChildren.add(element);
-            element._parent = this;
+            element._setParent(this);
         }
     );
 
@@ -586,7 +586,7 @@ export function makeFloatingContainer(superClass) {
                 this.__insertFloating(previous, element);
                 // IMPORTANT : DOM update before this._children update !
                 this._floatingChildren.insert(previous, element);
-                element._parent = this;
+                element._setParent(this);
             }
         }
     );
@@ -623,8 +623,8 @@ export function makeFloatingContainer(superClass) {
             // IMPORTANT : DOM update before this._children update !
             this.__replaceFloating(previous, element);
             this._floatingChildren.replace(previous, element);
-            previous._parent = null;
-            element._parent = this;
+            previous._setParent(null);
+            element._setParent(this);
         }
     );
 
@@ -661,7 +661,7 @@ export function makeFloatingContainer(superClass) {
                 // IMPORTANT : DOM update before this._children update !
                 this.__removeFloating(element);
                 this._floatingChildren.remove(element);
-                element._parent = null;
+                element._setParent(null);
                 if (this._floatingChildren.size === 0) {
                     delete this._floatingChildren;
                 }
@@ -688,7 +688,7 @@ export function makeFloatingContainer(superClass) {
                 // IMPORTANT : DOM update before this._children update !
                 this.__clearFloating();
                 for (let element of this._floatingChildren) {
-                    element._parent = null;
+                    element._setParent(null);
                 }
                 delete this._floatingChildren;
             }
@@ -1084,7 +1084,7 @@ export function makeLayersWithContainers(superClass, {layersBuilder}) {
                 this._layers[layer] = layers[layer];
                 this._layers[layer].pedestal = new Group();
                 content.add(this._layers[layer].pedestal.add(layers[layer]._root));
-                layers[layer]._parent = this;
+                layers[layer]._setParent(this);
             }
             return content;
         }

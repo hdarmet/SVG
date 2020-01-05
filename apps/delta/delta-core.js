@@ -15,7 +15,7 @@ import {
     SigmaElement
 } from "../../js/base-element.js";
 import {
-    makeClickable, makeDecorationsOwner, makeDraggable, makeFramed, makeMovable,
+    makeClickable, makeDecorationsOwner, makeDraggable, makeFramed, makeMovable, makeElevable,
     makeSelectable, makeShaped
 } from "../../js/core-mixins.js";
 import {
@@ -307,7 +307,7 @@ export class DeltaItem extends SigmaElement {
 
     _revertDrop(element) {
     }
-
+/*
     get zIndex() {
         return this._zIndex ? this._zIndex : 0;
     }
@@ -352,10 +352,10 @@ export class DeltaItem extends SigmaElement {
         if (FreePositioningMode.mode) {
             this.visit({element:this}, function(context) {
                 if (this===context.element) {
-                    this.zIndex = 1;
+                    this.zIndex = DeltaItem.FREE_ZINDEX;
                 }
                 else if (this.zIndex) {
-                    this.zIndex ++;
+                    this.zIndex += DeltaItem.FREE_ZINDEX;
                 }
             });
         }
@@ -371,10 +371,10 @@ export class DeltaItem extends SigmaElement {
         if (FreePositioningMode.mode) {
             this.visit({element:this}, function(context) {
                 if (this===context.element) {
-                    this._setZIndex(1);
+                    this._setZIndex(DeltaItem.FREE_ZINDEX);
                 }
                 else if (this.zIndex) {
-                    this._setZIndex(this.zIndex+1);
+                    this._setZIndex(this.zIndex+DeltaItem.FREE_ZINDEX);
                 }
             });
         }
@@ -393,16 +393,34 @@ export class DeltaItem extends SigmaElement {
         }
         return this;
     }
+*/
+    _draggedFrom() {
+        this.elevation = 0;
+    }
+
+    _droppedIn(target, dragSet, initialTarget) {
+        if (FreePositioningMode.mode) {
+            this.elevation = DeltaItem.FREE_ZINDEX;
+        }
+    }
+
+    _revertDroppedIn(parent) {
+        if (FreePositioningMode.mode) {
+            this._setElevation(DeltaItem.FREE_ZINDEX);
+        }
+    }
 
     _setSize(width, height) {
         super._setSize(width, height);
         this._marksSupport._setSize(width, height);
     }
 }
+DeltaItem.FREE_ZINDEX = 5;
 makePartsOwner(DeltaItem);
 makeSelectable(DeltaItem);
 makeDraggable(DeltaItem);
 makeMovable(DeltaItem);
+makeElevable(DeltaItem);
 addDeleteFacility(DeltaItem);
 addLockFacility(DeltaItem);
 makeClickable(DeltaItem);
@@ -425,11 +443,12 @@ export class DeltaSupport extends SigmaElement {
     get freeTarget() {
         return this.selectable;
     }
-
+/*
     get zOrder() {
         if (this.parent) return this.parent.zOrder;
         return 0;
     }
+    */
 }
 makeFramed(DeltaSupport);
 makeHighlightable(DeltaSupport);

@@ -46,7 +46,7 @@ import {
     ESet, List, EMap
 } from "../../js/collections.js";
 import {
-    makeResizeable, makeResizeableContent, SigmaHandle, SizerDecoration
+    makeResizeable, makeResizeableContent, SigmaHandle, SizerDecoration, makeExpansionOwner
 } from "../../js/elements.js";
 
 
@@ -467,6 +467,7 @@ makeLayered(DeltaBox, {
 });
 makeClipsOwner(DeltaBox);
 makeCarrier(DeltaBox);
+makeExpansionOwner(DeltaBox);
 
 export class DeltaSlottedBoxContent extends DeltaBoxContent {
 

@@ -108,6 +108,14 @@ export class MultiLineText extends Group {
         super.attrs(values);
         __cancelForRefresh(this);
         this._build();
+        return this;
+    }
+
+    _cloneAttrs(copy) {
+        copy._width = this._width;
+        copy._height = this._height;
+        copy._lines = this._lines;
+        super._cloneAttrs(copy);
     }
 }
 
@@ -189,6 +197,19 @@ export class Arrow extends Group {
         super.attrs(values);
         __cancelForRefresh(this);
         this._build();
+        return this;
+    }
+
+    _cloneAttrs(copy) {
+        copy._x1 = this._x1;
+        copy._y1 = this._y1;
+        copy._x2 = this._x2;
+        copy._y2 = this._y2;
+        copy._lhwidth = this._lhwidth;
+        copy._lhheight = this._lhheight;
+        copy._rhwidth = this._rhwidth;
+        copy._rhheight = this._rhheight;
+        super._cloneAttrs(copy);
     }
 
 }
@@ -202,7 +223,7 @@ export class Bubble extends Group {
         this._width = width;
         this._height = height;
         this._px = px;
-        this._py = px;
+        this._py = py;
         this._bw = bw;
         this._r = r;
         this._build();
@@ -358,6 +379,19 @@ export class Bubble extends Group {
         super.attrs(values);
         __cancelForRefresh(this);
         this._build();
+        return this;
+    }
+
+    _cloneAttrs(copy) {
+        copy._x = this._x;
+        copy._y = this._y;
+        copy._width = this._width;
+        copy._height = this._height;
+        copy._px = this._px;
+        copy._py = this._py;
+        copy._bw = this._bw;
+        copy._r = this._r;
+        super._cloneAttrs(copy);
     }
 
 }
@@ -420,5 +454,16 @@ export class PlainArrow extends Group {
         super.attrs(values);
         __cancelForRefresh(this);
         this._build();
+        return this;
     }
+
+    _cloneAttrs(copy) {
+        copy._width = this._width;
+        copy._height = this._height;
+        copy._hwidth = this._hwidth;
+        copy._hheight = this._hheight;
+        copy._r = this._r;
+        super._cloneAttrs(copy);
+    }
+
 }

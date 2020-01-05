@@ -524,7 +524,7 @@ function main() {
     createPaper();
     Context.palettePopup = createPalettePopup();
     Context.commandPopup = createCommandPopup(Context.palettePopup);
-    createMenuPopup();
+    //createMenuPopup();
     setShortcuts();
     defineLayers();
     Context.memento.opened = true;
@@ -535,10 +535,11 @@ function main() {
     bubble.attrs({fill:Colors.WHITE, stroke:Colors.BLACK, px:100, py:0, filter:Canvas.instance.shadowFilter});
     Canvas.instance.baseLayer._root.add(bubble);
     */
-
+/*
     let arrow = new PlainArrow(40, 100, 80, 30, 5);
     arrow.attrs({fill:Colors.WHITE, stroke:Colors.BLACK, hheight:50, filter:Canvas.instance.shadowFilter});
     Canvas.instance.baseLayer._root.add(arrow);
+    */
 }
 
 main();

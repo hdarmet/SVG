@@ -994,3 +994,106 @@ export function makeGentleDropTarget(superClass) {
     );
 
 }
+
+export function makeElevable(superClass) {
+
+    defineMethod(superClass,
+        function _setZIndex(zIndex) {
+            if (zIndex) {
+                this._zIndex = zIndex;
+                this._root.z_index = zIndex;
+            }
+            else {
+                delete this._zIndex;
+                this._root.z_index = undefined;
+            }
+        }
+    );
+
+    defineMethod(superClass,
+        function _setElevation(elevation) {
+            let deltaElevation = elevation-this.elevation;
+            this._elevation = elevation;
+            this.visit({}, function(context) {
+                if (this._setZIndex) {
+                    this._setZIndex(this.zIndex + deltaElevation);
+                }
+            });
+        }
+    );
+
+    defineProperty(superClass,
+        function elevation() {
+            return this._elevation ? this._elevation : 0;
+        },
+        function elevation(elevation) {
+            if (this.elevation !== elevation) {
+                Memento.register(this);
+                this._setElevation(elevation);
+            }
+        },
+    );
+
+    defineProperty(superClass,
+        function zIndex() {
+            return this._zIndex ? this._zIndex : 0;
+        },
+        function zIndex(zIndex) {
+            if (this.zIndex !== zIndex) {
+                Memento.register(this);
+                this._setZIndex(zIndex);
+            }
+        },
+    );
+
+    defineMethod(superClass,
+        function _getZOrder(element) {
+            while (element) {
+                let zOrder = element.zOrder;
+                if (zOrder!=undefined) return zOrder;
+                element = element.parent;
+            }
+            return 0;
+        }
+    );
+
+    defineGetProperty(superClass,
+        function zOrder() {
+            if (this.zIndex!==undefined) return this.zIndex;
+            return this._getZOrder(this.parent);
+        }
+    );
+
+    extendMethod(superClass, $setParent=>
+        function _setParent(parent) {
+            let deltaZOrder = this._getZOrder(parent) - this._getZOrder(this.parent);
+            $setParent.call(this, parent);
+            this.visit({}, function(context) {
+                if (this._setZIndex) {
+                    this._setZIndex(this.zIndex + deltaZOrder);
+                }
+            });
+        }
+    );
+
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            memento._zIndex = this._zIndex;
+            memento._elevation = this._elevation;
+            return memento;
+        }
+    );
+
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            this._elevation = memento._elevation;
+            if (memento._zIndex !== this.zIndex) {
+                this._setZIndex(memento._zIndex);
+            }
+            return this;
+        }
+    );
+
+}

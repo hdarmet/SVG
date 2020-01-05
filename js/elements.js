@@ -4,7 +4,7 @@ import {
     List, ESet, EMap
 } from "./collections.js";
 import {
-    Box
+    Box, Matrix
 } from "./geometry.js";
 import {
     Group, Rect, Fill, Stroke, Visibility, win, Colors, Circle, Line, AlignmentBaseline, TextAnchor, Translation, Text
@@ -39,6 +39,9 @@ import {
 import {
     defineMethod, extendMethod, proposeMethod, defineGetProperty
 } from "./misc.js";
+import {
+    Bubble
+} from "./svgtools.js";
 
 Context.itemDrag = new DragSwitchOperation()
     .add(()=>true, DragRotateSelectionOperation.instance)
@@ -1354,10 +1357,35 @@ export function pdfModeCommand(toolPopup) {
     );
 }
 
-export function makeSecondViewOwner(superClass) {
+export class SigmaExpansion extends SigmaElement {
+
+    constructor(width, height) {
+        super(width, height);
+        this._initShape(this._buildExpansionShape());
+    }
+
+    _buildExpansionShape() {
+        return new Bubble(-this.width/2, -this.height/2, this.width, this.height, 0, this.height/2+20, 20, 5)
+            .attrs({fill:Colors.WHITE, stroke:Colors.BLACK, filter:Canvas.instance.shadowFilter});
+    }
+}
+SigmaExpansion.MARGIN_FACTOR = 1.2;
+makeShaped(SigmaExpansion);
+makePart(SigmaExpansion);
+
+export function makeExpansionOwner(superClass) {
 
     makePartsOwner(superClass);
 
-
+    extendMethod(superClass, $improve=>
+        function _improve(...args) {
+            $improve.call(this, ...args);
+            let expansionWidth = this.width*SigmaExpansion.MARGIN_FACTOR;
+            let expansionHeight = this.height*SigmaExpansion.MARGIN_FACTOR;
+            this._expansion = new SigmaExpansion(expansionWidth, expansionHeight);
+            this._expansion.matrix = Matrix.translate(0, -expansionHeight-10);
+            this._addPart(this._expansion);
+        }
+    );
 
 }

@@ -413,8 +413,8 @@ export function createPalettePopup() {
         ]
     })]));
     paletteContent.addCell(new SigmaItemBuilder([new DeltaImageModule({
-        width:20, height:40, realisticUrl:"./apps/diam/modules/eye liner c.png", url:{svg:"./apps/diam/modules/eye liner b.svg", rasterized:true}
-    })], null, "./apps/diam/modules/eye liner e.png", "Eye Liner\nLiner Eye\nAnd a big, very big line"));
+        width:20, height:40, realisticUrl:"./apps/delta/modules/eye liner c.png", url:{svg:"./apps/delta/modules/eye liner b.svg", rasterized:true}
+    })], null, "./apps/delta/modules/eye liner e.png", "Eye Liner\nLiner Eye\nAnd a big, very big line"));
     paletteContent.addCell(new SigmaItemBuilder([new DeltaBasicModule({
         width:20, height:40, color:"#FF0000"
     })], null, null, new Rect(-100, -50, 200, 100).attrs({fill:Colors.LIGHT_GREY})));
