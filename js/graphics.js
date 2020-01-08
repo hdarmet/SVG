@@ -941,7 +941,10 @@ export class DOMElement {
             let attr = this._attrs[name];
             if (attr===undefined) {
                 attr = this._node.getAttribute(name);
-                this._attrs[name] = attr;
+                if (attr !== "null") {
+                    this._attrs[name] = attr;
+                }
+                else return; // undefined !
             }
             return attr;
         }
@@ -1206,7 +1209,7 @@ export class DOMElement {
         if (this._events) {
             memento._events = new Map();
             for (let event of this._events.keys()) {
-                memento.events.set(event, [...this._events.get(event)]);
+                memento._events.set(event, [...this._events.get(event)]);
             }
         }
         return memento;
@@ -1512,41 +1515,24 @@ export class Svg extends SVGElement {
     }
 
     _putOnLayer(element, index) {
+        assert(element._zLayer===undefined);
         if (!this._layers[index]) {
             this._createZLayer(index);
         }
         this._layers[index].add(element); // TODO ? Manage order ?
+        element._zLayer = index;
         element._zMatrix = element._parent ? element._parent.globalMatrix : null;
     }
 
-    _removeFromLayer(element, index) {
-
-        function reinsertInRightLocation(element) {
-            if (element._parent) {
-                let index = element._parent._children.indexOf(element);
-                while(element._parent._children[index].parentNode !== element._parent._node
-                && index<element._parent._children.length - 1) {
-                    index++;
-                }
-                if (index === element._parent._children.length - 1) {
-                    dom.appendChild(element._parent._node, element._node);
-                }
-                else {
-                    let before = element._parent._children[index];
-                    dom.insertBefore(element._parent._node, element._node, before._node);
-                }
+    _removeFromLayer(element) {
+        if (element._zLayer!==undefined) {
+            this._layers[element._zLayer].remove(element);
+            if (this._layers[element._zLayer].empty) {
+                delete this._layers[element._zLayer];
             }
+            delete element._zLayer;
+            element._zMatrix = null;
         }
-
-        assert(this._layers[index]);
-        this._layers[index].remove(element);
-        // To re-insert in the right place.
-        reinsertInRightLocation(element);
-        assert(this._layers[index]);
-        if (this._layers[index].empty) {
-            delete this._layers[index];
-        }
-        element._zMatrix = null;
     }
 
         /*
@@ -1757,12 +1743,29 @@ export class SVGCoreElement extends SVGElement {
     }
 
     _unregister() {
+        function reinsertInRightLocation(element) {
+            let index = element._parent._children.indexOf(element);
+            while(element._parent._children[index].parentNode !== element._parent._node
+            && index<element._parent._children.length - 1) {
+                index++;
+            }
+            if (index === element._parent._children.length - 1) {
+                dom.appendChild(element._parent._node, element._node);
+            }
+            else {
+                let before = element._parent._children[index];
+                dom.insertBefore(element._parent._node, element._node, before._node);
+            }
+        }
+
         if (this._svg) {
             let svg = this._svg;
             super._unregister();
-            if (svg && this._parent && this._zOrder !== this._parent._zOrder) {
-                svg._removeFromLayer(this, this._zOrder);
-                dom.appendChild(this._parent._node, this._node);
+            if (svg && this._zLayer!==undefined) {
+                svg._removeFromLayer(this);
+                if (this._parent) {
+                    reinsertInRightLocation(this);
+                }
             }
             delete this._zOrder;
             return true;
@@ -3517,7 +3520,8 @@ export const Colors = {
     RED: "#F00F0F",
     BLUE: "#0F0FF0",
     GREEN: "#0FF00F",
-    WHITE: "#FFFFFF"
+    WHITE: "#FFFFFF",
+    PINK: "#FFD8CC"
 };
 
 export function l2m(matrix, ...points) {

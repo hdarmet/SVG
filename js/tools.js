@@ -12,7 +12,7 @@ import {
     M, Path, Z, Q, L, SVGElement, doc, AnyEvent
 } from "./graphics.js";
 import {
-    Context, Events, l2pBoundingBox, Memento, Canvas, makeObservable, makeNotCloneable,
+    Context, Events, l2pBoundingBox, Memento, Canvas, makeObservable, makeNotCloneable, ToolsLayer,
     Layers, makeSingleton, CopyPaste, Selection, getOwner
 } from "./toolkit.js";
 import {
@@ -2641,7 +2641,8 @@ export class SigmaItemBuilder extends ToolCell {
     _makeItems() {
         this._currentItems = CopyPaste.instance.duplicateForPaste(this._proto);
         for (let item of this._currentItems) {
-            item._parent = this;
+            Canvas.instance.toolsLayer.setZIndexes(item);
+            item._setParent(this);
             this._support.add(item._root);
         }
         return this._currentItems;
@@ -2651,7 +2652,8 @@ export class SigmaItemBuilder extends ToolCell {
 
     detachChild(element) {
         this._support.remove(element._root);
-        element._parent = null;
+        Canvas.instance.toolsLayer.unsetZIndexes(element);
+        element._setParent(null);
     }
 
     _adjustSize() {
@@ -2698,7 +2700,7 @@ export class SigmaItemBuilder extends ToolCell {
 
     _unexecuteDrop(element) {
         element._root.detach();
-        element._parent = null;
+        element._setParent(null);
     }
 
     get contentSelectionMark() {

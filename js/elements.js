@@ -7,7 +7,8 @@ import {
     Box, Matrix
 } from "./geometry.js";
 import {
-    Group, Rect, Fill, Stroke, Visibility, win, Colors, Circle, Line, AlignmentBaseline, TextAnchor, Translation, Text
+    Group, Rect, Fill, Stroke, Visibility, win, Colors, Circle, Line, AlignmentBaseline, TextAnchor, Translation, Text,
+    Rotation
 } from "./graphics.js";
 import {
     Memento, Context, Events, makeNotCloneable, Canvas, makeSingleton, Selection, l2pBoundingBox, computeGridStep
@@ -21,7 +22,7 @@ import {
 } from "./base-element.js";
 import {
     makeDraggable, makeSelectable, makeMovable, makeRotatable, makeClickable, makeFramed, makeSingleImaged,
-    makeMultiImaged, makeClipImaged, makeShaped, makeDeletable, Decoration
+    makeMultiImaged, makeClipImaged, makeShaped, makeDeletable, Decoration, makeElevable
 } from "./core-mixins.js";
 import {
     makeContainer, makeSupport, makePart, makeLayersWithContainers, makeLayered, makeContainerASandBox,
@@ -40,7 +41,7 @@ import {
     defineMethod, extendMethod, proposeMethod, defineGetProperty
 } from "./misc.js";
 import {
-    Bubble
+    Bubble, PlainArrow
 } from "./svgtools.js";
 
 Context.itemDrag = new DragSwitchOperation()
@@ -1357,21 +1358,94 @@ export function pdfModeCommand(toolPopup) {
     );
 }
 
+export class SigmaTrigger extends SigmaElement {
+
+    constructor(width, height, shaper, action) {
+        super(width, height);
+        let shape = shaper.call(this);
+        this._initShape(shape);
+        this._animageShape(shape);
+        this._setElevation(SigmaExpansion.ELEVATION);
+        this._clickHandler(action);
+    }
+
+    _animageShape(shape) {
+        shape.onDrag(
+            ()=>{console.log("start");shape.matrix = Matrix.scale(0.8, 0.8, 0, 0)},
+            ()=>{},
+            ()=>{console.log("stop");shape.matrix = Matrix.scale(1, 1, 0, 0)}
+        );
+    }
+
+    _cloned(copy, duplicata) {
+        super._cloned(copy, duplicata);
+        this._animageShape(copy.shape);
+    }
+
+}
+SigmaTrigger.STD_WIDTH = 12;
+SigmaTrigger.STD_HEIGHT = 12;
+makeShaped(SigmaTrigger);
+makePart(SigmaTrigger);
+makeClickable(SigmaTrigger);
+makeElevable(SigmaTrigger);
+
 export class SigmaExpansion extends SigmaElement {
 
-    constructor(width, height) {
+    constructor(width, height, spikeHeight) {
+        function closerShape() {
+            let closer = new Group().attrs({stroke:Colors.BLACK, stroke_width:2, stroke_linecap:Stroke.lineCap.ROUND});
+            closer.add(new Rect(-this.width/2, -this.height/2, this.width, this.height).attrs({opacity:0.001}));
+            closer.add(new Line(-this.width/2, -this.height/2, this.width/2, this.height/2));
+            closer.add(new Line(-this.width/2, this.height/2, this.width/2, -this.height/2));
+            return closer;
+        }
+
         super(width, height);
+        this._spikeHeight = spikeHeight;
         this._initShape(this._buildExpansionShape());
+        this._setElevation(SigmaExpansion.ELEVATION);
+        this._closer = new SigmaTrigger(SigmaTrigger.STD_WIDTH/2, SigmaTrigger.STD_HEIGHT/2, closerShape,
+            function() {
+                return ()=>this.parent.hide();
+            });
+        this._closer.matrix = Matrix.translate(this.width/2-SigmaTrigger.STD_WIDTH/2, -this.height/2+SigmaTrigger.STD_WIDTH/2);
+        this._addPart(this._closer);
     }
 
     _buildExpansionShape() {
-        return new Bubble(-this.width/2, -this.height/2, this.width, this.height, 0, this.height/2+20, 20, 5)
+        return new Bubble(-this.width/2, -this.height/2, this.width, this.height, 0, this.height/2+this._spikeHeight, 20, 5)
             .attrs({fill:Colors.WHITE, stroke:Colors.BLACK, filter:Canvas.instance.shadowFilter});
     }
+
+    get spikeHeight() {
+        return this._spikeHeight;
+    }
+
+    show() {
+        super.show();
+        if (this.parent._expansionShown) {
+            this.parent._expansionShown(this);
+        }
+        return this;
+    }
+
+    hide() {
+        super.hide();
+        if (this.parent._expansionHidden) {
+            this.parent._expansionHidden(this);
+        }
+        return this;
+    }
+
 }
-SigmaExpansion.MARGIN_FACTOR = 1.2;
+SigmaExpansion.ELEVATION = 2;
+SigmaExpansion.MARGIN_FACTOR = 1.4;
+SigmaExpansion.SPIKE_HEIGHT = 20;
 makeShaped(SigmaExpansion);
 makePart(SigmaExpansion);
+makePartsOwner(SigmaExpansion);
+makeElevable(SigmaExpansion);
 
 export function makeExpansionOwner(superClass) {
 
@@ -1379,12 +1453,70 @@ export function makeExpansionOwner(superClass) {
 
     extendMethod(superClass, $improve=>
         function _improve(...args) {
+            function triggerShape() {
+                let arrow = new PlainArrow(this.width/2, this.height, this.width, this.height/2, 0.25)
+                    .attrs({fill:Colors.PINK, stroke:Colors.CRIMSON, stroke_width:0.25, filter:Canvas.instance.highlightFilter});
+                return new Group().add(
+                    new Rotation(180, 0, this.height/2).add(
+                        new Translation(0, this.height/2).add(arrow)
+                    )
+                ).attrs({filter:Canvas.instance.highlightFilter});
+            }
+
             $improve.call(this, ...args);
             let expansionWidth = this.width*SigmaExpansion.MARGIN_FACTOR;
             let expansionHeight = this.height*SigmaExpansion.MARGIN_FACTOR;
-            this._expansion = new SigmaExpansion(expansionWidth, expansionHeight);
-            this._expansion.matrix = Matrix.translate(0, -expansionHeight-10);
+            this._expander = new SigmaTrigger(SigmaTrigger.STD_WIDTH, SigmaTrigger.STD_HEIGHT, triggerShape,
+                function() {
+                    return ()=>{
+                        this.parent._expansion.show();
+                    }
+                });
+            this._expander.matrix = Matrix.translate(0, -this.height/2+this._expander.height/6);
+            this._addPart(this._expander);
+            this._expander.hide();
+            this._expansion = new SigmaExpansion(expansionWidth, expansionHeight, SigmaExpansion.SPIKE_HEIGHT);
+            this._expansion.matrix = Matrix.translate(0, -this.height/2-expansionHeight/2-this._expansion.spikeHeight*0.9);
             this._addPart(this._expansion);
+            this._expansion.hide();
+        }
+    );
+
+    defineMethod(superClass,
+        function _expansionShown(expansion) {
+            this._expander.hide();
+        }
+    );
+
+    defineMethod(superClass,
+        function _expansionHidden(expansion) {
+            if (Selection.instance.selected(this)) {
+                this._expander.show();
+            }
+        }
+    );
+
+    extendMethod(superClass, $select=>
+        function select() {
+            $select && $select.call(this);
+            if (!this._expansion.visible) {
+                this._expander.show();
+            }
+        }
+    );
+
+    extendMethod(superClass, $unselect=>
+        function unselect() {
+            $unselect && $unselect.call(this);
+            this._expander.hide();
+        }
+    );
+
+    extendMethod(superClass, $cloned=>
+        function _cloned(copy, duplicata) {
+            $cloned && $cloned.call(this, copy, duplicata);
+            copy._expander.hide();
+            copy._expansion.hide();
         }
     );
 

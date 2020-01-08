@@ -431,6 +431,10 @@ export class CanvasLayer {
     _notified(source, type, ...values) {
     }
 
+    get zIndex() {
+        return this._root.z_index;
+    }
+
     get canvas() {
         return this._canvas;
     }
@@ -471,6 +475,25 @@ export class CanvasLayer {
 
     get globalMatrix() {
         return this._root.globalMatrix.clone();
+    }
+
+
+    setZIndexes(element) {
+        let zIndex = this._root.z_index;
+        element.visit({element}, function(context) {
+            if (this._root.z_index!==undefined) {
+                this._root.z_index += zIndex;
+            }
+        });
+    }
+
+    unsetZIndexes(element) {
+        let zIndex = this._root.z_index;
+        element.visit({element}, function(context) {
+            if (this._root.z_index !== undefined) {
+                this._root.z_index -= zIndex;
+            }
+        });
     }
 
 }
@@ -673,6 +696,7 @@ class GlassPedestal {
         return new List(...this._elementPedestals.keys());
     }
 
+    /*
     setGlassZIndexes(element) {
         element.visit({element}, function(context) {
             if (this._root.z_index!==undefined) {
@@ -688,6 +712,7 @@ class GlassPedestal {
             }
         });
     }
+*/
 
     putElement(element, x, y) {
         let zoom = Canvas.instance.zoom;
@@ -707,7 +732,7 @@ class GlassPedestal {
         let dX = invertedMatrix.x(fx, fy);
         let dY = invertedMatrix.y(fx, fy);
         element._setLocation(dX, dY);
-        this.setGlassZIndexes(element);
+        this._glass.setZIndexes(element);
     }
 
     moveElement(element, x, y) {
@@ -727,8 +752,7 @@ class GlassPedestal {
         element.rotate && element.rotate(element.globalAngle);
         this._elementPedestals.delete(element);
         this.removeArtifact(pedestal, element);
-        this.unsetGlassZIndexes(element);
-        //this.putArtifact(element._root, element);
+        this._glass.unsetZIndexes(element);
     }
 
     putArtifact(artifact, element) {
@@ -840,7 +864,6 @@ export class GlassLayer extends CanvasLayer {
                 this._content.add(pedestal._root);
                 pedestal._root.matrix = support._root.globalMatrix.multLeft(this._root.globalMatrix.invert());
             }
-            //this._content.add(pedestal._root);
         }
         return pedestal;
     }
@@ -1076,6 +1099,8 @@ export class Canvas {
         this._zoomOnWheel();
         this.shadowFilter = defineShadow("_shadow_", Colors.BLACK);
         this._root.addDef(this.shadowFilter);
+        this.highlightFilter = defineShadow("_highlight_", Colors.RED, 1);
+        this._root.addDef(this.highlightFilter);
     }
 
     _adjustContent(x=0, y=0) {
@@ -2029,7 +2054,9 @@ export class Groups extends Selection {
         element && elements.add(element);
         let result = this._groupSet(elements);
         for (let group of result) {
-            group.dismiss();
+            if (group instanceof ElementGroup) {
+                group.dismiss();
+            }
         }
     }
 

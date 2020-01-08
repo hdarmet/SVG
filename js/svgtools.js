@@ -41,7 +41,7 @@ export function __cancelForRefresh(element) {
     }
 }
 
-export function defineShadow(id, color) {
+export function defineShadow(id, color, deviation=3) {
 
     let shadowFilter = new Filter();
     shadowFilter.attrs({
@@ -53,7 +53,7 @@ export function defineShadow(id, color) {
         height:PC(140)
     });
     shadowFilter.feDropShadow = new FeDropShadow().attrs({
-        stdDeviation:[3, 3], in:FeIn.SOURCEGRAPHIC, dx:0, dy:0, flood_color:color, flood_opacity:1,
+        stdDeviation:[deviation, deviation], in:FeIn.SOURCEGRAPHIC, dx:0, dy:0, flood_color:color, flood_opacity:1,
     });
     return shadowFilter.add(shadowFilter.feDropShadow);
 }
@@ -412,7 +412,7 @@ export class PlainArrow extends Group {
         if (this._r) {
             let hr = this._r/this._hwidth*this._hheight*2;
             this.clear().add(
-                new Path(M(-this._width/2, 0), l(this._width/2-this._r, 0), q(this._r, 0, this._r, this._r),
+                new Path(M(0, 0), l(this._width/2-this._r, 0), q(this._r, 0, this._r, this._r),
                     l(0, this._height-this._hheight-this._r*2), q(0, this._r, this._r, this._r),
                     l((this._hwidth-this._width)/2-this._r*2, 0), q(this._r, 0, 0, hr),
                     l(-this._hwidth/2+this._r*2, this._hheight-hr*2), q(-this._r, hr, -this._r*2, 0),

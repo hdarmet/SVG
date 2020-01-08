@@ -999,9 +999,10 @@ export function makeElevable(superClass) {
 
     defineMethod(superClass,
         function _setZIndex(zIndex) {
-            if (zIndex) {
-                this._zIndex = zIndex;
-                this._root.z_index = zIndex;
+            if (zIndex!==undefined) {
+                let canvasZIndex = this.canvasLayer? this.canvasLayer.zIndex : 0;
+                this._zIndex = canvasZIndex + zIndex;
+                this._root.z_index = canvasZIndex + zIndex;
             }
             else {
                 delete this._zIndex;
@@ -1012,13 +1013,22 @@ export function makeElevable(superClass) {
 
     defineMethod(superClass,
         function _setElevation(elevation) {
-            let deltaElevation = elevation-this.elevation;
-            this._elevation = elevation;
-            this.visit({}, function(context) {
-                if (this._setZIndex) {
-                    this._setZIndex(this.zIndex + deltaElevation);
-                }
-            });
+            let deltaElevation = elevation===undefined ? -this.elevation : elevation-this.elevation;
+            if (elevation===undefined) {
+                delete this._elevation;
+                this._setZIndex(undefined);
+            }
+            else {
+                this._elevation = elevation;
+                if (this.zIndex===undefined) this._setZIndex(0);
+            }
+            if (deltaElevation) {
+                this.visit({}, function (context) {
+                    if (this._setZIndex && this.zIndex!==undefined) {
+                        this._setZIndex(this.zIndex + deltaElevation);
+                    }
+                });
+            }
         }
     );
 
@@ -1036,7 +1046,7 @@ export function makeElevable(superClass) {
 
     defineProperty(superClass,
         function zIndex() {
-            return this._zIndex ? this._zIndex : 0;
+            return this._zIndex;
         },
         function zIndex(zIndex) {
             if (this.zIndex !== zIndex) {
@@ -1050,7 +1060,9 @@ export function makeElevable(superClass) {
         function _getZOrder(element) {
             while (element) {
                 let zOrder = element.zOrder;
-                if (zOrder!=undefined) return zOrder;
+                if (zOrder!=undefined) {
+                    return zOrder;
+                }
                 element = element.parent;
             }
             return 0;
@@ -1061,18 +1073,6 @@ export function makeElevable(superClass) {
         function zOrder() {
             if (this.zIndex!==undefined) return this.zIndex;
             return this._getZOrder(this.parent);
-        }
-    );
-
-    extendMethod(superClass, $setParent=>
-        function _setParent(parent) {
-            let deltaZOrder = this._getZOrder(parent) - this._getZOrder(this.parent);
-            $setParent.call(this, parent);
-            this.visit({}, function(context) {
-                if (this._setZIndex) {
-                    this._setZIndex(this.zIndex + deltaZOrder);
-                }
-            });
         }
     );
 
