@@ -28,8 +28,11 @@ import {
     DragOperation, standardDrag
 } from "../../js/drag-and-drop.js";
 import {
-    assert
+    assert, extendMethod, replaceMethod
 } from "../../js/misc.js";
+import {
+    SigmaPolymorphicElement, makeEmbodiment
+} from "../../js/elements.js";
 
 export const DeltaLayers = {
     DOWN: "d",
@@ -240,14 +243,13 @@ export class DeltaMarksSupport extends SigmaElement {
 makeDecorationsOwner(DeltaMarksSupport);
 DeltaMarksSupport.SIZE = 10;
 
-export class DeltaItem extends SigmaElement {
+export class DeltaElement extends SigmaElement {
     constructor({width, height, ...args}) {
         super(width, height, args);
     }
 
     _init({...args}) {
         super._init({...args});
-        this._dragOperation(()=>standardDrag);
         this._createContextMenu();
         this._createMarksSupport();
         if (args.status) {
@@ -307,133 +309,72 @@ export class DeltaItem extends SigmaElement {
 
     _revertDrop(element) {
     }
-/*
-    get zIndex() {
-        return this._zIndex ? this._zIndex : 0;
-    }
-
-    _setZIndex(zIndex) {
-        if (zIndex) {
-            this._zIndex = zIndex;
-            this._root.z_index = zIndex;
-        }
-        else {
-            delete this._zIndex;
-            this._root.z_index = undefined;
-        }
-    }
-
-    set zIndex(zIndex) {
-        if (this.zIndex !== zIndex) {
-            Memento.register(this);
-            this._setZIndex(zIndex);
-        }
-    }
-
-    get zOrder() {
-        if (this.zIndex) return this.zIndex;
-        if (this.parent) return this.parent.zOrder;
-        return 0;
-    }
-
-    _draggedFrom() {
-        if (this.zIndex) {
-            let zIndex = this.zIndex;
-            this.visit({}, function(context) {
-                if (this.zIndex>0) {
-                    this.zIndex -= zIndex;
-                }
-            });
-        }
-    }
-
-    _droppedIn(target, dragSet, initialTarget) {
-        assert(!this.z_index);
-        if (FreePositioningMode.mode) {
-            this.visit({element:this}, function(context) {
-                if (this===context.element) {
-                    this.zIndex = DeltaItem.FREE_ZINDEX;
-                }
-                else if (this.zIndex) {
-                    this.zIndex += DeltaItem.FREE_ZINDEX;
-                }
-            });
-        }
-        let zIndex = target.zOrder;
-        if (zIndex) {
-            this.visit({}, function() {
-                if (this.zIndex) this.zIndex += zIndex;
-            });
-        }
-    }
-
-    _revertDroppedIn(parent) {
-        if (FreePositioningMode.mode) {
-            this.visit({element:this}, function(context) {
-                if (this===context.element) {
-                    this._setZIndex(DeltaItem.FREE_ZINDEX);
-                }
-                else if (this.zIndex) {
-                    this._setZIndex(this.zIndex+DeltaItem.FREE_ZINDEX);
-                }
-            });
-        }
-    }
-
-    _memento() {
-        let memento = super._memento();
-        memento._zIndex = this._zIndex;
-        return memento;
-    }
-
-    _revert(memento) {
-        super._revert(memento);
-        if (memento._zIndex !== this.zIndex) {
-            this._setZIndex(memento._zIndex);
-        }
-        return this;
-    }
-*/
-    _draggedFrom() {
-        this.elevation = 0;
-    }
-
-    _droppedIn(target, dragSet, initialTarget) {
-        if (FreePositioningMode.mode) {
-            this.elevation = DeltaItem.FREE_ZINDEX;
-        }
-    }
-
-    _revertDroppedIn(parent) {
-        if (FreePositioningMode.mode) {
-            this._setElevation(DeltaItem.FREE_ZINDEX);
-        }
-    }
 
     _setSize(width, height) {
         super._setSize(width, height);
         this._marksSupport._setSize(width, height);
     }
 }
-DeltaItem.FREE_ZINDEX = 5;
-makePartsOwner(DeltaItem);
-makeSelectable(DeltaItem);
-makeDraggable(DeltaItem);
-makeMovable(DeltaItem);
-makeElevable(DeltaItem);
-addDeleteFacility(DeltaItem);
-addLockFacility(DeltaItem);
-makeClickable(DeltaItem);
-makeMenuOwner(DeltaItem);
-addGroupFacility(DeltaItem);
-makeCommentOwner(DeltaItem);
-addHighlightFacility(DeltaItem);
-makeFreePositioningOwner(DeltaItem);
+makePartsOwner(DeltaElement);
+makeClickable(DeltaElement);
+makeMenuOwner(DeltaElement);
+makeCommentOwner(DeltaElement);
+addHighlightFacility(DeltaElement);
+makeFreePositioningOwner(DeltaElement);
+
+export function makeDeltaItem(superClass) {
+
+    let FREE_ZINDEX = 5;
+
+    extendMethod(superClass, $init=>
+        function _init(...args) {
+            $init && $init.call(this, ...args);
+            this._dragOperation(()=>standardDrag);
+        }
+    );
+
+    replaceMethod(superClass,
+        function _draggedFrom() {
+            this.elevation = 0;
+        }
+    );
+
+    replaceMethod(superClass,
+        function _droppedIn(target, dragSet, initialTarget) {
+            if (FreePositioningMode.mode) {
+                this.elevation = FREE_ZINDEX;
+            }
+        }
+    );
+
+    replaceMethod(superClass,
+        function _revertDroppedIn(parent) {
+            if (FreePositioningMode.mode) {
+                this._setElevation(FREE_ZINDEX);
+            }
+        }
+    );
+
+    makeSelectable(superClass);
+    makeDraggable(superClass);
+    makeMovable(superClass);
+    makeElevable(superClass);
+    addDeleteFacility(superClass);
+    addLockFacility(superClass);
+    addGroupFacility(superClass);
+}
+
+export class DeltaItem extends DeltaElement {}
+makeDeltaItem(DeltaItem);
+
+export class DeltaEmbodiment extends SigmaPolymorphicElement {}
+makeDeltaItem(DeltaEmbodiment);
+makeEmbodiment(DeltaEmbodiment);
 
 export class DeltaSupport extends SigmaElement {
 
-    constructor({width, height, strokeColor, backgroundColor}) {
-        super(width, height);
+    constructor({width, height, strokeColor, backgroundColor, ...args}) {
+        super(width, height, {strokeColor, backgroundColor, ...args});
         this._initFrame(width, height, strokeColor, backgroundColor);
         this._createContextMenu();
     }
@@ -443,18 +384,35 @@ export class DeltaSupport extends SigmaElement {
     get freeTarget() {
         return this.selectable;
     }
-/*
-    get zOrder() {
-        if (this.parent) return this.parent.zOrder;
-        return 0;
-    }
-    */
+
 }
 makeFramed(DeltaSupport);
 makeHighlightable(DeltaSupport);
 makePart(DeltaSupport);
 makeSupport(DeltaSupport);
 makeMenuOwner(DeltaSupport);
+
+export class DeltaExpansion extends SigmaElement {
+    constructor({width, depth, main, ...args}) {
+        super(width, depth, args);
+        this._main = main;
+    }
+
+    _init({...args}) {
+        super._init({...args});
+        this._createContextMenu();
+    }
+
+    get selectable() {
+        return this._main.selectable;
+    }
+
+    _createContextMenu() {}
+
+}
+makePartsOwner(DeltaExpansion);
+makeClickable(DeltaExpansion);
+makeMenuOwner(DeltaExpansion);
 
 export class KnobDragOperation extends DragOperation {
     constructor() {

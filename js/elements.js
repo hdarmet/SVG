@@ -11,7 +11,8 @@ import {
     Rotation
 } from "./graphics.js";
 import {
-    Memento, Context, Events, makeNotCloneable, Canvas, makeSingleton, Selection, l2pBoundingBox, computeGridStep
+    Memento, Context, Events, makeNotCloneable, Canvas, makeSingleton, Selection, l2pBoundingBox, computeGridStep,
+    CloneableObject, CopyPaste
 } from "./toolkit.js";
 import {
     DragSwitchOperation, DragOperation, DragMoveSelectionOperation, DragRotateSelectionOperation, DragAreaOperation,
@@ -38,7 +39,7 @@ import {
     makeStrokeUpdatable
 } from "./standard-mixins.js";
 import {
-    defineMethod, extendMethod, proposeMethod, defineGetProperty
+    assert, defineMethod, extendMethod, proposeMethod, defineGetProperty, proposeGetProperty, defineProperty
 } from "./misc.js";
 import {
     Bubble, PlainArrow
@@ -1143,121 +1144,135 @@ export function makeConfigurableMap(superClass, predicate, positionsFct) {
     makeContainerASupport(superClass);
     makeContainerASandBox(superClass);
 
-    let build = superClass.prototype._build;
-    superClass.prototype._build = function () {
-        build && build.call(this);
-        this._contextMenu();
-        this.configFrame = new SigmaFrame(100, 50);
-        this.add(this.configFrame);
-    };
+    extendMethod(superClass, $build=>
+        function _build() {
+            $build && $build.call(this);
+            this._contextMenu();
+            this.configFrame = new SigmaFrame(100, 50);
+            this.add(this.configFrame);
+        }
+    );
 
-    superClass.prototype._contextMenu = function() {
-        this.addMenuOption(new TextToggleMenuOption("Hide Configuration", "Show Configuration",
-            function () {
-                this.hideConfiguration();
-            },
-            function () {
-                this.showConfiguration();
-            },
-            function() { return !this.configurationShown; }));
-        this.addMenuOption(new TextMenuOption("Generate Hex Targets",
-            function () {
-                this.callForHexTargetsGeneration();
-            }));
-        this.addMenuOption(new TextMenuOption("Generate Square Targets",
-            function () {
-                this.callForSquareTargetsGeneration();
-            }));
-    };
+    defineMethod(superClass,
+        function _contextMenu() {
+            this.addMenuOption(new TextToggleMenuOption("Hide Configuration", "Show Configuration",
+                function () {
+                    this.hideConfiguration();
+                },
+                function () {
+                    this.showConfiguration();
+                },
+                function() { return !this.configurationShown; }));
+            this.addMenuOption(new TextMenuOption("Generate Hex Targets",
+                function () {
+                    this.callForHexTargetsGeneration();
+                }));
+            this.addMenuOption(new TextMenuOption("Generate Square Targets",
+                function () {
+                    this.callForSquareTargetsGeneration();
+                }));
+        }
+    );
 
-    superClass.prototype.callForHexTargetsGeneration = function () {
-        Canvas.instance.openModal(
-            generateHexTargets,
-            {
-                colCount: 10,
-                rowCount: 10,
-                type: 1
-            },
-            data => {
-                Memento.instance.open();
-                this.generateHexTargets(this.configFrame.box, data);
-            });
-    };
+    defineMethod(superClass,
+        function callForHexTargetsGeneration() {
+            Canvas.instance.openModal(
+                generateHexTargets,
+                {
+                    colCount: 10,
+                    rowCount: 10,
+                    type: 1
+                },
+                data => {
+                    Memento.instance.open();
+                    this.generateHexTargets(this.configFrame.box, data);
+                });
+        }
+    );
 
-    superClass.prototype.callForSquareTargetsGeneration = function () {
-        Canvas.instance.openModal(
-            generateSquareTargets,
-            {
-                colCount: 10,
-                rowCount: 10
-            },
-            data => {
-                Memento.instance.open();
-                this.generateSquareTargets(this.configFrame.box, data);
-            });
-    };
+    defineMethod(superClass,
+        function callForSquareTargetsGeneration() {
+            Canvas.instance.openModal(
+                generateSquareTargets,
+                {
+                    colCount: 10,
+                    rowCount: 10
+                },
+                data => {
+                    Memento.instance.open();
+                    this.generateSquareTargets(this.configFrame.box, data);
+                });
+        }
+    );
 
-    superClass.prototype.generateHexTargets = function(bounds, data) {
-        data.strokeColor=data.strokeColor||Colors.RED;
-        if (data.type===1 || data.type===2) {
-            let colSliceWidth = bounds.width/(data.colCount*3+1);
-            let rowHeight = bounds.height/data.rowCount;
-            let margin = data.type===1 ? 0 : rowHeight/2;
-            for (let x = colSliceWidth * 2; x < bounds.width; x += colSliceWidth*3) {
-                for (let y = margin + rowHeight / 2; y < bounds.height; y += rowHeight) {
-                    this.add(new SigmaTarget(16, data.strokeColor).move(x + bounds.x, y + bounds.y));
+    defineMethod(superClass,
+        function generateHexTargets(bounds, data) {
+            data.strokeColor=data.strokeColor||Colors.RED;
+            if (data.type===1 || data.type===2) {
+                let colSliceWidth = bounds.width/(data.colCount*3+1);
+                let rowHeight = bounds.height/data.rowCount;
+                let margin = data.type===1 ? 0 : rowHeight/2;
+                for (let x = colSliceWidth * 2; x < bounds.width; x += colSliceWidth*3) {
+                    for (let y = margin + rowHeight / 2; y < bounds.height; y += rowHeight) {
+                        this.add(new SigmaTarget(16, data.strokeColor).move(x + bounds.x, y + bounds.y));
+                    }
+                    margin = margin ? 0 : rowHeight/2;
                 }
-                margin = margin ? 0 : rowHeight/2;
+            }
+            else if (data.type===3 || data.type===4) {
+                let rowSliceHeight = bounds.height/(data.rowCount*3+1);
+                let colWidth = bounds.width/data.colCount;
+                let margin = data.type===3 ? 0 : colWidth/2;
+                for (let y = rowSliceHeight * 2; y < bounds.height; y += rowSliceHeight*3) {
+                    for (let x = margin + colWidth / 2; x < bounds.width; x += colWidth) {
+                        this.add(new SigmaTarget(16, data.strokeColor).move(x + bounds.x, y + bounds.y));
+                    }
+                    margin = margin ? 0 : colWidth/2;
+                }
             }
         }
-        else if (data.type===3 || data.type===4) {
-            let rowSliceHeight = bounds.height/(data.rowCount*3+1);
+    );
+
+    defineMethod(superClass,
+        function generateSquareTargets(bounds, data) {
+            data.strokeColor=data.strokeColor||Colors.RED;
             let colWidth = bounds.width/data.colCount;
-            let margin = data.type===3 ? 0 : colWidth/2;
-            for (let y = rowSliceHeight * 2; y < bounds.height; y += rowSliceHeight*3) {
-                for (let x = margin + colWidth / 2; x < bounds.width; x += colWidth) {
-                    this.add(new SigmaTarget(16, data.strokeColor).move(x + bounds.x, y + bounds.y));
+            let rowHeight = bounds.height/data.rowCount;
+            for (let x = colWidth/2; x<bounds.width; x+=colWidth) {
+                for (let y = rowHeight/2; y<bounds.height; y+=rowHeight) {
+                    this.add(new SigmaTarget(16, data.strokeColor).move(x+bounds.x, y+bounds.y));
                 }
-                margin = margin ? 0 : colWidth/2;
             }
         }
-    };
+    );
 
-    superClass.prototype.generateSquareTargets = function(bounds, data) {
-        data.strokeColor=data.strokeColor||Colors.RED;
-        let colWidth = bounds.width/data.colCount;
-        let rowHeight = bounds.height/data.rowCount;
-        for (let x = colWidth/2; x<bounds.width; x+=colWidth) {
-            for (let y = rowHeight/2; y<bounds.height; y+=rowHeight) {
-                this.add(new SigmaTarget(16, data.strokeColor).move(x+bounds.x, y+bounds.y));
-            }
+    defineMethod(superClass,
+        function showConfiguration() {
+            this.showLayer("configuration");
         }
-    };
+    );
 
-    superClass.prototype.showConfiguration = function() {
-        this.showLayer("configuration");
-    };
-
-    superClass.prototype.hideConfiguration = function() {
-        this.hideLayer("configuration");
-    };
-
-    if (!superClass.prototype.hasOwnProperty("configurationShown")) {
-        Object.defineProperty(superClass.prototype, "configurationShown", {
-            configurable:true,
-            get() {
-                return this.hidden("configuration");
-            }
-        });
-    }
-
-    let getLayer = superClass.prototype._getLayer;
-    superClass.prototype._getLayer = function(element) {
-        if (element.isSandBox) {
-            return "top";
+    defineMethod(superClass,
+        function hideConfiguration() {
+            this.hideLayer("configuration");
         }
-        else return getLayer.call(this, element);
-    }
+    );
+
+    proposeGetProperty(superClass,
+        function configurationShown() {
+            return this.hidden("configuration");
+        }
+    );
+
+    extendMethod(superClass, $getLayer=>
+        function _getLayer(element) {
+            if (element.isSandBox) {
+                return "top";
+            }
+            else return $getLayer.call(this, element);
+        }
+    );
+
 }
 
 export class DragPrintAreaOperation extends DragAreaOperation {
@@ -1365,15 +1380,15 @@ export class SigmaTrigger extends SigmaElement {
         let shape = shaper.call(this);
         this._initShape(shape);
         this._animageShape(shape);
-        this._setElevation(SigmaExpansion.ELEVATION);
+        this._setElevation(SigmaExpansionBubble.ELEVATION);
         this._clickHandler(action);
     }
 
     _animageShape(shape) {
         shape.onDrag(
-            ()=>{console.log("start");shape.matrix = Matrix.scale(0.8, 0.8, 0, 0)},
+            ()=>{shape.matrix = Matrix.scale(0.8, 0.8, 0, 0)},
             ()=>{},
-            ()=>{console.log("stop");shape.matrix = Matrix.scale(1, 1, 0, 0)}
+            ()=>{shape.matrix = Matrix.scale(1, 1, 0, 0)}
         );
     }
 
@@ -1390,7 +1405,7 @@ makePart(SigmaTrigger);
 makeClickable(SigmaTrigger);
 makeElevable(SigmaTrigger);
 
-export class SigmaExpansion extends SigmaElement {
+export class SigmaExpansionBubble extends SigmaElement {
 
     constructor(width, height, spikeHeight) {
         function closerShape() {
@@ -1404,7 +1419,7 @@ export class SigmaExpansion extends SigmaElement {
         super(width, height);
         this._spikeHeight = spikeHeight;
         this._initShape(this._buildExpansionShape());
-        this._setElevation(SigmaExpansion.ELEVATION);
+        this._setElevation(SigmaExpansionBubble.ELEVATION);
         this._closer = new SigmaTrigger(SigmaTrigger.STD_WIDTH/2, SigmaTrigger.STD_HEIGHT/2, closerShape,
             function() {
                 return ()=>this.parent.hide();
@@ -1439,13 +1454,14 @@ export class SigmaExpansion extends SigmaElement {
     }
 
 }
-SigmaExpansion.ELEVATION = 2;
-SigmaExpansion.MARGIN_FACTOR = 1.4;
-SigmaExpansion.SPIKE_HEIGHT = 20;
-makeShaped(SigmaExpansion);
-makePart(SigmaExpansion);
-makePartsOwner(SigmaExpansion);
-makeElevable(SigmaExpansion);
+SigmaExpansionBubble.ELEVATION = 2;
+SigmaExpansionBubble.MARGIN_FACTOR = 1.4;
+SigmaExpansionBubble.SPIKE_HEIGHT = 20;
+makeShaped(SigmaExpansionBubble);
+makePart(SigmaExpansionBubble);
+makePartsOwner(SigmaExpansionBubble);
+makeContainer(SigmaExpansionBubble);
+makeElevable(SigmaExpansionBubble);
 
 export function makeExpansionOwner(superClass) {
 
@@ -1464,21 +1480,22 @@ export function makeExpansionOwner(superClass) {
             }
 
             $improve.call(this, ...args);
-            let expansionWidth = this.width*SigmaExpansion.MARGIN_FACTOR;
-            let expansionHeight = this.height*SigmaExpansion.MARGIN_FACTOR;
+            let expansionWidth = this.width*SigmaExpansionBubble.MARGIN_FACTOR;
+            let expansionHeight = this.height*SigmaExpansionBubble.MARGIN_FACTOR;
             this._expander = new SigmaTrigger(SigmaTrigger.STD_WIDTH, SigmaTrigger.STD_HEIGHT, triggerShape,
                 function() {
                     return ()=>{
-                        this.parent._expansion.show();
+                        this.parent._expansionBubble.show();
                     }
                 });
             this._expander.matrix = Matrix.translate(0, -this.height/2+this._expander.height/6);
             this._addPart(this._expander);
             this._expander.hide();
-            this._expansion = new SigmaExpansion(expansionWidth, expansionHeight, SigmaExpansion.SPIKE_HEIGHT);
-            this._expansion.matrix = Matrix.translate(0, -this.height/2-expansionHeight/2-this._expansion.spikeHeight*0.9);
-            this._addPart(this._expansion);
-            this._expansion.hide();
+            this._expansionBubble = new SigmaExpansionBubble(expansionWidth, expansionHeight, SigmaExpansionBubble.SPIKE_HEIGHT);
+            this._expansionBubble.addChild(this._createExpansion(...args));
+            this._expansionBubble.matrix = Matrix.translate(0, -this.height/2-expansionHeight/2-this._expansionBubble.spikeHeight*0.9);
+            this._addPart(this._expansionBubble);
+            this._expansionBubble.hide();
         }
     );
 
@@ -1499,7 +1516,7 @@ export function makeExpansionOwner(superClass) {
     extendMethod(superClass, $select=>
         function select() {
             $select && $select.call(this);
-            if (!this._expansion.visible) {
+            if (!this._expansionBubble.visible) {
                 this._expander.show();
             }
         }
@@ -1516,8 +1533,292 @@ export function makeExpansionOwner(superClass) {
         function _cloned(copy, duplicata) {
             $cloned && $cloned.call(this, copy, duplicata);
             copy._expander.hide();
-            copy._expansion.hide();
+            copy._expansionBubble.hide();
         }
     );
+
+}
+
+export function makeSupportDual(superClass) {
+
+    extendMethod(superClass, $hover=>
+        function hover(elements) {
+            $hover.call(this, elements);
+            let lastSet = new ESet(this._hoveredEmbodiments ? this._hoveredEmbodiments : []);
+            let hoveredEmbodiments = new ESet();
+            for (let element of elements) {
+                if (element.isEmbodiment) {
+                    hoveredEmbodiments.add(element);
+                    if (lastSet.has(element)) {
+                        this.moveHovered(element);
+                        lastSet.delete(element);
+                    }
+                    else {
+                        this.addHovered(element);
+                    }
+                }
+            }
+            for (let element of lastSet) {
+                this.removeHovered(element);
+            }
+            this._hoveredEmbodiments = hoveredEmbodiments;
+        }
+    );
+
+    defineMethod(superClass,
+        function addHovered(element) {
+            let embodiment = element.entity.getEmbodiment(this.dual);
+            if (!embodiment) {
+                embodiment = element.entity.createEmbodiment(this.dual);
+            }
+            this.dual.addChild(embodiment);
+            embodiment.move(element.lx, 0);
+        }
+    );
+
+    defineMethod(superClass,
+        function moveHovered(element) {
+            let embodiment = element.entity.getEmbodiment(this.dual);
+            embodiment.move(element.lx, embodiment.ly);
+        }
+    );
+
+    defineMethod(superClass,
+        function removeHovered(element) {
+            if (!this.containsChild(element)) {
+                this.dual.removeChild(element.entity.removeEmbodiment(this.dual));
+            }
+        }
+    );
+
+}
+
+export class SigmaPolymorphicElement extends SigmaElement {
+
+    constructor(morphs, defaultMorph) {
+        super(0, 0);
+        this._morphs = new CloneableObject();
+        for (let key in morphs) {
+            this._addMorph(key, morphs[key]);
+        }
+        if (defaultMorph) this._defaultMorph = defaultMorph;
+    }
+
+    get width() {
+        return this._currentMorph ? this._currentMorph.width : 0;
+    }
+
+    get height() {
+        return this._currentMorph ? this._currentMorph.height : 0;
+    }
+
+    _addMorph(key, morph) {
+        this._morphs[key] = morph;
+        if (!this._defaultMorph) this._defaultMorph = morph;
+        return this;
+    }
+
+    addMorph(key, morph) {
+        Memento.register(this);
+        return this._addMorph(key, morph);
+    }
+
+    _removeMorph(key) {
+        delete this._morphs[key];
+        return this;
+    }
+
+    removeMorph(key) {
+        Memento.register(this);
+        return this._removeMorph(key);
+    }
+
+    get defaultMorph() {
+        return this._defaultMorph;
+    }
+
+    _setMorph(key) {
+        if (this._currentMorph) {
+            this.removeChild(this._currentMorph);
+        }
+        this._currentMorph = this._morphs[key];
+        assert(this._currentMorph);
+        this.addChild(this._currentMorph);
+        return this;
+    }
+
+    setMorph(key) {
+        Memento.register(this);
+        return this._setMorph(key);
+    }
+
+    setDefaultMorph() {
+        return this.setMorph(this.defaultMorph);
+    }
+
+    setMorphFromSupport(support) {
+        let elementMorph = support && support.elementMorph;
+        if (elementMorph) {
+            return this.setMorph(elementMorph);
+        }
+        else {
+            return this.setDefaultMorph();
+        }
+    }
+
+    _hoverOn(support) {
+        this.setMorphFromSupport(support);
+    }
+
+    _memento() {
+        let memento = super._memento();
+        memento._currentMorph = this._currentMorph;
+        memento._morphs = {...this._morphs};
+        return memento;
+    }
+
+    _revert(memento) {
+        super._revert(memento);
+        this._currentMorph = memento._currentMorph;
+        this._morphs = new CloneableObject(memento._morphs);
+    }
+
+}
+makeContainer(SigmaPolymorphicElement);
+
+export function makeEmbodiment(superClass) {
+
+    defineProperty(superClass,
+        function entity() {
+            return this._entity;
+        },
+        function entity(entity) {
+            Memento.register(this);
+            this._entity = entity;
+        }
+    );
+
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            memento._entity = this._entity;
+            return memento;
+        }
+    );
+
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            this._entity = new CloneableObject(memento._entity);
+        }
+    );
+
+    extendMethod(superClass, $setLocation=>
+        function setLocation(x, y) {
+            $setLocation.call(this, x, y);
+            this._entity && this._entity.setLocation(this, x, y);
+        }
+    );
+
+    defineGetProperty(superClass,
+        function isEmbodiment() {
+            return true;
+        }
+    );
+}
+
+export class SigmaEntity {
+
+    constructor() {
+        this._morphs = new CloneableObject();
+        this._embodiments = new EMap();
+    }
+
+    _addMorph(key, morph) {
+        this._morphs[key] = morph;
+        return this;
+    }
+
+    addMorph(key, morph) {
+        Memento.register(this);
+        return this._addMorph(key, morph);
+    }
+
+    _removeMorph(key) {
+        delete this._morphs[key];
+        return this;
+    }
+
+    removeMorph(key) {
+        Memento.register(this);
+        this._removeMorph(key);
+    }
+
+    createEmbodiment(support) {
+        assert(!this._embodiments.has(support));
+        this._createEmbodiment(support);
+        return this._embodiments.get(support);
+    }
+
+    getEmbodiment(support) {
+        return this._embodiments.get(support);
+    }
+
+    removeEmbodiment(support) {
+        let embodiment = this._embodiments.get(support);
+        if (embodiment) {
+            this._embodiments.delete(support);
+        }
+        return embodiment;
+    }
+
+    _makeEmbodiment(support, embodiment) {
+        assert(!this._embodiments.has(support));
+        this._embodiments.set(support, embodiment);
+        embodiment.setMorphFromSupport(support);
+        embodiment._entity = this;
+        return embodiment;
+    }
+
+    setLocation(embodiment, x, y) {
+        if (!this.__moveEmbodiments) {
+            try {
+                this.__moveEmbodiments = true;
+                for (let support of this._embodiments.keys()) {
+                    let aEmbodiment = this._embodiments.get(support);
+                    if (aEmbodiment !== embodiment) {
+                        aEmbodiment.move(x, aEmbodiment.ly);
+                    }
+                }
+            }
+            finally {
+                delete this.__moveEmbodiments;
+            }
+        }
+    }
+
+    get morphs() {
+        return this._morphs;
+    }
+
+    getMorph(key) {
+        return this._morphs[key];
+    }
+
+    _memento() {
+        let memento = {};
+        memento._morphs = {...this._morphs};
+        return memento;
+    }
+
+    _revert(memento) {
+        super._revert(memento);
+        this._morphs = new CloneableObject(memento._morphs);
+    }
+
+    clone(duplicata) {
+        let copy = CopyPaste.clone(this, duplicata);
+        return copy;
+    }
 
 }

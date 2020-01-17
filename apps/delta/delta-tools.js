@@ -4,7 +4,7 @@ import {
 import {
     DeltaAbstractModule, DeltaBasicModule, DeltaCell, DeltaColorOption, DeltaConfigurableModule, DeltaImageModule,
     DeltaRichCaddyModule, DeltaSlottedBoxModule, DeltaSlottedRichBoxModule, OptionItemBuilder, DeltaConfigurableOption,
-    OptionsExpandablePanel
+    OptionsExpandablePanel, DeltaModuleEntity
 } from "./delta-products.js";
 import {
     DeltaBlister, DeltaCover, DeltaDivider, DeltaDoubleLadder, DeltaFascia, DeltaFasciaSupport, DeltaFixing, DeltaHook,
@@ -266,24 +266,25 @@ export function createPalettePopup() {
         position_font_family:"arial", position_font_size:4, position_fill:Colors.GREY
     })]));
     paletteContent.addCell(new SigmaItemBuilder([new DeltaSlottedBox({
-        width:120, height:70, clips:[{x:0, y:15}], contentX:0, contentY:0, contentWidth:100, contentHeight:60, slotWidth:20,
+        width:120, height:70, depth:50, clips:[{x:0, y:15}],
+        contentX:0, contentY:0, contentWidth:100, contentHeight:60, contentDepth:45, slotWidth:20,
         status:{code:"N", color:Colors.RED}
     })]));
 
     paletteContent.addCell(new SigmaItemBuilder([new DeltaSlottedBoxModule({
-        width:120, height:70, contentX:0, contentY:0, contentWidth:100, contentHeight:60, slotWidth:20,
+        width:120, height:70, depth:45, contentX:0, contentY:0, contentWidth:100, contentHeight:60, slotWidth:20,
         status:{code:"B", color:Colors.BLUE}
     })]));
 
     paletteContent.addCell(new SigmaItemBuilder([new DeltaSlottedRichBox({
-        width:120, height:70, clips:[{x:0, y:15}],
-        contentX:0, contentY:0, contentWidth:100, contentHeight:60,
+        width:120, height:70, depth:50, clips:[{x:0, y:15}],
+        contentX:0, contentY:0, contentWidth:100, contentHeight:60, contentDepth:45,
         slotWidth:20,
         headerHeight:10, footerHeight:10,
         status:{code:"V", color:Colors.GREEN}
     })]));
     paletteContent.addCell(new SigmaItemBuilder([new DeltaSlottedRichBoxModule({
-        width:120, height:70,
+        width:120, height:70, depth:45,
         contentX:0, contentY:0, contentWidth:100, contentHeight:60,
         slotWidth:20,
         headerHeight:10, footerHeight:10,
@@ -291,14 +292,14 @@ export function createPalettePopup() {
     })]));
 
     paletteContent.addCell(new SigmaItemBuilder([new DeltaRichCaddy({
-        width:120, height:70, clips:[{x:0, y:15}],
-        contentX:0, contentY:0, contentWidth:100, contentHeight:60,
+        width:120, height:70, depth:50, clips:[{x:0, y:15}],
+        contentX:0, contentY:0, contentWidth:100, contentHeight:60, contentDepth:45,
         slotWidth:20,
         headerHeight:5, footerHeight:15
     })]));
 
     paletteContent.addCell(new SigmaItemBuilder([new DeltaRichCaddyModule({
-        width:120, height:70,
+        width:120, height:70, depth:45,
         contentX:0, contentY:0, contentWidth:100, contentHeight:60,
         slotWidth:20,
         headerHeight:5, footerHeight:15,
@@ -313,11 +314,8 @@ export function createPalettePopup() {
     paletteContent.addCell(new SigmaItemBuilder([new DeltaDivider({
         width:10, height:460, contentX:0
     })]));
-    paletteContent.addCell(new SigmaItemBuilder([new DeltaBox({
-        width:120, height:140, clips:[{x:0, y:-20}, {x:0, y:50}], contentX:0, contentY:0, contentWidth:100, contentHeight:130
-    })]));
     paletteContent.addCell(new SigmaItemBuilder([new DeltaConfigurableModule({
-        width:20, height:40, cells:[
+        width:20, height:40, depth:45, cells:[
             new DeltaCell({width:4, height:4, x:-5, y:-15,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["C"], family:"a"
@@ -357,7 +355,7 @@ export function createPalettePopup() {
         ]
     })]));
     paletteContent.addCell(new SigmaItemBuilder([new DeltaConfigurableModule({
-        width:20, height:40, cells:[
+        width:20, height:40, depth:45, cells:[
             new DeltaCell({width:4, height:10, x:-5, y:5,
                 shape:new Rect(-2, -10, 4, 20).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["O"]
@@ -373,7 +371,7 @@ export function createPalettePopup() {
         ]
     })]));
     paletteContent.addCell(new SigmaItemBuilder([new DeltaConfigurableModule({
-        width:20, height:40, cells:[
+        width:20, height:40, depth:45, cells:[
             new DeltaCell({width:4, height:4, x:-5, y:-15,
                 shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:Colors.LIGHTEST_GREY}),
                 compatibilities:["C"]
@@ -413,16 +411,16 @@ export function createPalettePopup() {
         ]
     })]));
     paletteContent.addCell(new SigmaItemBuilder([new DeltaImageModule({
-        width:20, height:40, realisticUrl:"./apps/delta/modules/eye liner c.png", url:{svg:"./apps/delta/modules/eye liner b.svg", rasterized:true}
+        width:20, height:40, depth:45, realisticUrl:"./apps/delta/modules/eye liner c.png", url:{svg:"./apps/delta/modules/eye liner b.svg", rasterized:true}
     })], null, "./apps/delta/modules/eye liner e.png", "Eye Liner\nLiner Eye\nAnd a big, very big line"));
     paletteContent.addCell(new SigmaItemBuilder([new DeltaBasicModule({
-        width:20, height:40, color:"#FF0000"
+        width:20, height:40, depth:45, color:"#FF0000"
     })], null, null, new Rect(-100, -50, 200, 100).attrs({fill:Colors.LIGHT_GREY})));
     paletteContent.addCell(new SigmaItemBuilder([new DeltaBasicModule({
-        width:40, height:40, color:"#00FF00"
+        width:40, height:40, depth:45, color:"#00FF00"
     })]));
     paletteContent.addCell(new SigmaItemBuilder([new DeltaBasicModule({
-        width:20, height:40, color:"#0000FF"
+        width:20, height:40, depth:45, color:"#0000FF"
     })]));
     paletteContent.addCell(new SigmaItemBuilder([new DeltaBlister({
         width:30, height:60, clip:{x:0, y:-15, radius:8}, color:"#FF0000"
@@ -451,6 +449,9 @@ export function createPalettePopup() {
     paletteContent.addCell(new SigmaItemBuilder([new DeltaFascia({
         width:120, height:60, color:"#FF00FF"
     })]));
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaModuleEntity({
+        width:20, height:40, depth:45, color:"#FF00FF"
+    }).defaultEmbodiment]));
     paletteContent.addCell(new OptionItemBuilder([new DeltaColorOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#FF0000"}),
         compatibilities:["C"]

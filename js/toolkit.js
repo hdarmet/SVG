@@ -696,24 +696,6 @@ class GlassPedestal {
         return new List(...this._elementPedestals.keys());
     }
 
-    /*
-    setGlassZIndexes(element) {
-        element.visit({element}, function(context) {
-            if (this._root.z_index!==undefined) {
-                this._root.z_index += GlassLayer.Z_INDEX;
-            }
-        });
-    }
-
-    unsetGlassZIndexes(element) {
-        element.visit({element}, function(context) {
-            if (this._root.z_index !== undefined) {
-                this._root.z_index -= GlassLayer.Z_INDEX;
-            }
-        });
-    }
-*/
-
     putElement(element, x, y) {
         let zoom = Canvas.instance.zoom;
         let ematrix = this._root.globalMatrix;

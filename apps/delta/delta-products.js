@@ -1,6 +1,6 @@
 
 import {
-    DeltaItem
+    DeltaItem, DeltaElement, DeltaEmbodiment
 } from "./delta-core.js";
 import {
     makeCarriable, makeCarrier
@@ -10,7 +10,7 @@ import {
     makeShaped
 } from "../../js/core-mixins.js";
 import {
-    Colors
+    Colors, Group, Rect
 } from "../../js/graphics.js";
 import {
     DeltaBoxContent, makeFasciaSupport, makeFooterOwner, makeHeaderOwner, DeltaSlottedBoxContent, DeltaCaddyContent
@@ -28,16 +28,99 @@ import {
     SigmaItemBuilder, ToolGridExpandablePanel
 } from "../../js/tools.js";
 import {
-    Canvas, CopyPaste, onCanvasLayer, Selection, Events
+    Canvas, CopyPaste, onCanvasLayer, Selection, Events, Memento
 } from "../../js/toolkit.js";
 import {
     SigmaElement
 } from "../../js/base-element.js";
 import {
-    assert, is
+    assert, is, defineGetProperty, defineMethod, extendMethod, replaceMethod
 } from "../../js/misc.js";
+import {
+    SigmaEntity
+} from "../../js/elements.js";
 
-export class DeltaAbstractModule extends DeltaItem {}
+export class DeltaModuleMorph extends DeltaElement {
+
+    constructor({width, height, color}) {
+        super({width, height, color});
+        this._initFrame(this.width, this.height, Colors.INHERIT, color);
+    }
+
+}
+makeFramed(DeltaModuleMorph);
+makePart(DeltaModuleMorph);
+
+export class DeltaModuleEntity extends SigmaEntity {
+
+    constructor({width, height, depth}) {
+        super();
+        this._width = width;
+        this._height = height;
+        this._depth = depth;
+        this._addMorph(DeltaModule.morphs.FACE, new DeltaModuleMorph({width, height, color:Colors.GREY}));
+        this._addMorph(DeltaModule.morphs.TOP, new DeltaModuleMorph({width, height:depth, color:Colors.LIGHT_GREY}));
+    }
+
+    _createEmbodiment(support) {
+        return this._makeEmbodiment(
+            support, new DeltaModule({width:this._width, height:this._height, depth:this._depth, morphs:this.morphs})
+        );
+    }
+
+    get defaultEmbodiment() {
+        return this.createEmbodiment(null);
+    }
+
+    _memento() {
+        let memento = super._memento();
+        return memento;
+    }
+
+    _revert(memento) {
+        super._revert(memento);
+        return this;
+    }
+
+}
+
+export class DeltaModule extends DeltaEmbodiment {
+
+    constructor({width, height, depth, morphs, key}) {
+        if (!morphs) {
+            morphs = {
+                face:new DeltaModuleMorph({width, height, color: Colors.GREY}),
+                top:new DeltaModuleMorph({width, height: depth, color: Colors.LIGHT_GREY})
+            };
+        }
+        super(morphs, DeltaModule.morphs.FACE);
+        this._depth = depth;
+        this._setMorph(key ? key : DeltaModule.morphs.FACE);
+    }
+
+    get depth() {
+        return this._depth;
+    }
+
+}
+DeltaModule.morphs = {
+    FACE : "face",
+    TOP : "top"
+};
+
+export class DeltaAbstractModule extends DeltaItem {
+
+    constructor({depth, ...specs}) {
+        super(specs);
+        this._depth = depth;
+        //this._alternative = new DeltaModuleAlternative({width:this.width, height:this.depth});
+    }
+
+    get depth() {
+        return this._depth;
+    }
+
+}
 makeCarrier(DeltaAbstractModule);
 makeCarriable(DeltaAbstractModule);
 makeGentleDropTarget(DeltaAbstractModule);
@@ -93,6 +176,10 @@ export class DeltaBoxModule extends DeltaAbstractModule {
 
     _buildBoxContent(contentWidth, contentHeight) {
         return new DeltaBoxContent({width:contentWidth, height:contentHeight});
+    }
+
+    get boxContent() {
+        return this._boxContent;
     }
 
     showRealistic() {
@@ -351,105 +438,117 @@ export class DeltaColorOption extends DeltaOption {
 
 export function makeCellsOwner(superClass) {
 
-    let init = superClass.prototype._init;
-    superClass.prototype._init = function({cells, ...args}) {
-        init && init.call(this, {cells, ...args});
-        this._cells = new List(...cells);
-        for (let cell of cells) {
-            this._addPart(cell);
+    extendMethod(superClass, $init=>
+        function _init({cells, ...args}) {
+            $init && $init.call(this, {cells, ...args});
+            this._cells = new List(...cells);
+            for (let cell of cells) {
+                this._addPart(cell);
+            }
         }
-    };
+    );
 
-    Object.defineProperty(superClass.prototype, "cells", {
-        configurable: true,
-        get() {
+    defineGetProperty(superClass,
+        function cells() {
             return this._cells;
         }
-    });
+    );
 
-    Object.defineProperty(superClass.prototype, "isCellsOwner", {
-        configurable: true,
-        get() {
+    defineGetProperty(superClass,
+        function isCellsOwner() {
             return true;
         }
-    });
+    );
 
-    let select = superClass.prototype.select;
-    superClass.prototype.select = function() {
-        select && select.call(this);
-        this.selectNextEmptyCell();
-    };
+    extendMethod(superClass, $select=>
+        function select() {
+            $select && $select.call(this);
+            this.selectNextEmptyCell();
+        }
+    );
 
-    superClass.prototype.selectNextEmptyCell = function(cell) {
+    defineMethod(superClass,
+        function selectNextEmptyCell(cell) {
 
-        function _deselectCells(owner) {
-            for (let aCell of [...owner.cells]) {
-                if (Selection.instance.selected(aCell)) {
-                    Selection.instance.unselect(aCell);
+            function _deselectCells(owner) {
+                for (let aCell of [...owner.cells]) {
+                    if (Selection.instance.selected(aCell)) {
+                        Selection.instance.unselect(aCell);
+                    }
+                }
+            }
+
+            for (let aCell of [...this.cells, ...this.cells]) {
+                if (aCell === cell) {
+                    cell = null;
+                }
+                else if (!cell) {
+                    if (aCell.children.length === 0) {
+                        _deselectCells(this);
+                        Selection.instance.select(aCell);
+                        break;
+                    }
                 }
             }
         }
+    );
 
-        for (let aCell of [...this.cells, ...this.cells]) {
-            if (aCell === cell) {
-                cell = null;
+    replaceMethod(superClass,
+        function cellCompatibilities() {
+            let result = new ESet();
+            for (let cell of this.cells) {
+                for (let compatibility of cell.cellCompatibilities()) {
+                    result.add(compatibility);
+                }
             }
-            else if (!cell) {
-                if (aCell.children.length === 0) {
-                    _deselectCells(this);
-                    Selection.instance.select(aCell);
-                    break;
+            return result;
+        }
+    );
+
+    defineMethod(superClass,
+        function dispatchAddOnFamily(cell, option) {
+            for (let aCell of this.cells) {
+                if (aCell !== cell && aCell.family === cell.family) {
+                    let anOption = CopyPaste.instance.duplicateElement(option);
+                    aCell.option = anOption;
                 }
             }
         }
-    };
+    );
 
-    superClass.prototype.cellCompatibilities = function() {
-        let result = new ESet();
-        for (let cell of this.cells) {
-            for (let compatibility of cell.cellCompatibilities()) {
-                result.add(compatibility);
-            }
-        }
-        return result;
-    };
-
-    superClass.prototype.dispatchAddOnFamily = function(cell, option) {
-        for (let aCell of this.cells) {
-            if (aCell !== cell && aCell.family === cell.family) {
-                let anOption = CopyPaste.instance.duplicateElement(option);
-                aCell.option = anOption;
-            }
-        }
-    };
-
-    superClass.prototype.dispatchRemoveOnFamily = function(cell) {
-        for (let aCell of this.cells) {
-            if (aCell !== cell && aCell.family === cell.family) {
-                aCell.option = null;
-            }
-        }
-    };
-
-    superClass.prototype.dispatchSelectOnFamily = function(cell) {
-        for (let aCell of this.cells) {
-            if (aCell !== cell && aCell.family === cell.family) {
-                if (!Selection.instance.selected(aCell)) {
-                    Selection.instance.select(aCell);
+    defineMethod(superClass,
+        function dispatchRemoveOnFamily(cell) {
+            for (let aCell of this.cells) {
+                if (aCell !== cell && aCell.family === cell.family) {
+                    aCell.option = null;
                 }
             }
         }
-    };
+    );
 
-    superClass.prototype.dispatchUnselectOnFamily = function(cell) {
-        for (let aCell of this.cells) {
-            if (aCell !== cell && aCell.family === cell.family) {
-                if (Selection.instance.selected(aCell)) {
-                    Selection.instance.unselect(aCell);
+    defineMethod(superClass,
+        function dispatchSelectOnFamily(cell) {
+            for (let aCell of this.cells) {
+                if (aCell !== cell && aCell.family === cell.family) {
+                    if (!Selection.instance.selected(aCell)) {
+                        Selection.instance.select(aCell);
+                    }
                 }
             }
         }
-    };
+    );
+
+    defineMethod(superClass,
+        function dispatchUnselectOnFamily(cell) {
+            for (let aCell of this.cells) {
+                if (aCell !== cell && aCell.family === cell.family) {
+                    if (Selection.instance.selected(aCell)) {
+                        Selection.instance.unselect(aCell);
+                    }
+                }
+            }
+        }
+    );
 }
 
 export class DeltaConfigurableOption extends DeltaOption {
@@ -461,8 +560,8 @@ export class DeltaConfigurableOption extends DeltaOption {
 makeCellsOwner(DeltaConfigurableOption);
 
 export class DeltaConfigurableModule extends DeltaBasicModule {
-    constructor({width, height, cells}) {
-        super({width, height, color:Colors.WHITE, cells});
+    constructor({width, height, depth, cells}) {
+        super({width, height, depth, color:Colors.WHITE, cells});
     }
 }
 makeCellsOwner(DeltaConfigurableModule);

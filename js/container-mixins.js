@@ -419,6 +419,12 @@ export function makeContainer(superClass) {
         }
     );
 
+    defineGetProperty(superClass,
+        function child() {
+            return this._children ? this._children[0] : null;
+        }
+    );
+
     defineMethod(superClass,
         function _memorizeContent(memento) {
             if (this._children) {
