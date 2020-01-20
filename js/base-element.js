@@ -7,7 +7,7 @@ import {
     ESet
 } from "./collections.js";
 import {
-    Box, getBox, Matrix
+    Box2D, getBox, Matrix2D
 } from "./geometry.js";
 import {
     Group, l2l, l2m, Rect, Translation, Visibility
@@ -131,7 +131,7 @@ export class SigmaElement {
     }
 
     _setLocation(x, y) {
-        this._matrix = Matrix.translate(x, y);
+        this._matrix = Matrix2D.translate(x, y);
         return this;
     }
 
@@ -183,7 +183,7 @@ export class SigmaElement {
     get diff() { return this.global.mult(this.local.invert()) }
 
     get lbbox() {
-        return new Box(this.left, this.top, this.right-this.left, this.bottom-this.top);
+        return new Box2D(this.left, this.top, this.right-this.left, this.bottom-this.top);
     }
     l2pbbox() {
         let result = l2m(this.matrix,
@@ -215,7 +215,7 @@ export class SigmaElement {
         right = x1>x2?x1:x2;
         top = y1>y2?y2:y1;
         bottom = y1>y2?y1:y2;
-        return new Box(left, top, right-left, bottom-top);
+        return new Box2D(left, top, right-left, bottom-top);
     }
 
     get localGeometry() { return this._geometry(this.matrix); }

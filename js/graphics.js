@@ -7,7 +7,7 @@ import {
     List
 } from "./collections.js";
 import {
-    Matrix, Box
+    Matrix2D
 } from "./geometry.js";
 
 console.log("Svgbase loaded");
@@ -1535,12 +1535,6 @@ export class Svg extends SVGElement {
         }
     }
 
-        /*
-        get globalMatrix() {
-            return new Matrix();
-        }
-        */
-
     attach(node) {
         matrixOp++;
         dom.appendChild(node, this._node);
@@ -1654,7 +1648,7 @@ export class SVGCoreElement extends SVGElement {
     get matrix() {
         let matrix = this._matrix;
         if (matrix===undefined) {
-            matrix = new Matrix();
+            matrix = new Matrix2D();
         }
         return matrix;
     }
@@ -1698,7 +1692,7 @@ export class SVGCoreElement extends SVGElement {
         if (!this._globalMatrix || this._globalMatrix.op!==matrixOp) {
             let globalMatrix = dom.getCTM(this._node);
             //let globalMatrix = this._parent ? this._matrix ? this._parent.globalMatrix.mult(this._matrix) : this._parent.globalMatrix : this.matrix;
-            this._globalMatrix = new Matrix(
+            this._globalMatrix = new Matrix2D(
                 globalMatrix.a, globalMatrix.b,
                 globalMatrix.c, globalMatrix.d,
                 globalMatrix.e, globalMatrix.f);
@@ -1841,7 +1835,7 @@ export class Translation extends Group {
     set(dx, dy) {
         this._attrs.dx = dx;
         this._attrs.dy = dy;
-        this.matrix = Matrix.translate(dx, dy);
+        this.matrix = Matrix2D.translate(dx, dy);
         return this;
     }
 
@@ -1849,7 +1843,7 @@ export class Translation extends Group {
     move(dx, dy) {
         this._attrs.dx += dx;
         this._attrs.dy += dy;
-        this.matrix = Matrix.translate(this._attrs.dx, this._attrs.dy);
+        this.matrix = Matrix2D.translate(this._attrs.dx, this._attrs.dy);
         return this;
     }
 
@@ -1886,7 +1880,7 @@ export class Rotation extends Group {
     center(cx, cy) {
         this._attrs.cx = cx;
         this._attrs.cy = cy;
-        this.matrix = Matrix.rotate(this._attrs.angle, cx, cy);
+        this.matrix = Matrix2D.rotate(this._attrs.angle, cx, cy);
         return this;
     }
 
@@ -1898,7 +1892,7 @@ export class Rotation extends Group {
     // Testé
     set angle(angle) {
         this._attrs.angle = angle;
-        this.matrix = Matrix.rotate(angle, this._attrs.cx, this._attrs.cy);
+        this.matrix = Matrix2D.rotate(angle, this._attrs.cx, this._attrs.cy);
         return this;
     }
 
@@ -1927,7 +1921,7 @@ export class Scaling extends Group {
     center(cx, cy) {
         this._attrs.cx = cx;
         this._attrs.cy = cy;
-        this.matrix = Matrix.scale(this._attrs.sx, this._attrs.sy, cx, cy);
+        this.matrix = Matrix2D.scale(this._attrs.sx, this._attrs.sy, cx, cy);
         return this;
     }
 
@@ -1935,7 +1929,7 @@ export class Scaling extends Group {
     scale(sx, sy) {
         this._attrs.sx = sx;
         this._attrs.sy = sy;
-        this.matrix = Matrix.scale(sx, sy, this._attrs.cx, this._attrs.cy);
+        this.matrix = Matrix2D.scale(sx, sy, this._attrs.cx, this._attrs.cy);
     }
 
     // Testé
@@ -2801,7 +2795,7 @@ export class SvgImage extends Shape {
     _posImage(x, y) {
         this._attrs.x = x;
         this._attrs.y = y;
-        this._node.setAttribute(Attrs.TRANSFORM, Matrix.translate(x, y));
+        this._node.setAttribute(Attrs.TRANSFORM, Matrix2D.translate(x, y));
     }
 
     _sizeImage(width, height) {
@@ -2811,7 +2805,7 @@ export class SvgImage extends Shape {
         this._attrs.height = height ? height : imgHeight;
         let sx = this._attrs.width/imgWidth;
         let sy = this._attrs.height/imgHeight;
-        this._sizer.setAttribute(Attrs.TRANSFORM, Matrix.scale(sx, sy, 0, 0).toString());
+        this._sizer.setAttribute(Attrs.TRANSFORM, Matrix2D.scale(sx, sy, 0, 0).toString());
     }
 
     get x() {

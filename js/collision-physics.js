@@ -12,10 +12,10 @@ import {
     CloneableObject, Events, Memento
 } from "./toolkit.js";
 import {
-    Box, Matrix
+    Box2D, Box3D, Matrix2D
 } from "./geometry.js";
 
-export class SAPRecord {
+export class SAPRecord2D {
 
     constructor(element, sweepAndPrune) {
         this._element = element;
@@ -36,10 +36,10 @@ export class SAPRecord {
         bound.left.index = this._sweepAndPrune._xAxis.length;
         bound.right.index = this._sweepAndPrune._xAxis.length + 1;
         this._sweepAndPrune._xAxis.push(bound.left, bound.right);
+        this._sweepAndPrune._xAxis.dirty = 2;
         bound.top.index = this._sweepAndPrune._yAxis.length;
         bound.bottom.index = this._sweepAndPrune._yAxis.length + 1;
         this._sweepAndPrune._yAxis.push(bound.top, bound.bottom);
-        this._sweepAndPrune._xAxis.dirty = 2;
         this._sweepAndPrune._yAxis.dirty = 2;
         return bound;
     }
@@ -114,9 +114,93 @@ export class SAPRecord {
         return this._y;
     }
 
+    get box() {
+        return new Box2D(
+            this._bound.left.value,
+            this._bound.top.value,
+            this._bound.right.value-this._bound.left.value,
+            this._bound.bottom.value-this._bound.top.value
+        );
+    }
+
 }
 
-export class SweepAndPrune {
+export class SAPRecord3D extends SAPRecord2D {
+
+    constructor(element, sweepAndPrune) {
+        super(element, sweepAndPrune);
+    }
+
+    _createBound(element) {
+        let bound = super._createBound(element);
+        let geometry = element.localGeometry;
+        let depthSlim = same(geometry.front, geometry.back);
+        bound.front = {first: true, value: geometry.front, slim:depthSlim, element, index: -1, opened: new ESet([element])};
+        bound.back = {first: false, value: geometry.back, slim:depthtSlim, element, index: -1, opened: new ESet()};
+        bound.front.index = this._sweepAndPrune._zAxis.length;
+        bound.back.index = this._sweepAndPrune._zAxis.length + 1;
+        this._sweepAndPrune._zAxis.push(bound.front, bound.back);
+        this._sweepAndPrune._zAxis.dirty = 2;
+        return bound;
+    }
+
+    createBounds() {
+        this._z = this._element.lz;
+        this._bound = super.createBounds();
+    }
+
+    _removeBound(bound) {
+        super._removeBound(bound);
+        bound.front.removed = true;
+        bound.back.removed = true;
+    }
+
+    remove() {
+        super.remove();
+        this._sweepAndPrune._zAxis.dirty = 2;
+    }
+
+    _updateBound(bound, box) {
+        super._updateBound(bound, box);
+        bound.front.value = box.front;
+        bound.back.value = box.back;
+    }
+
+    update() {
+        this._z = this._element.lz;
+        this.update();
+        if (!this._sweepAndPrune._zAxis.dirty) {
+            this._sweepAndPrune._zAxis.dirty=1;
+        } else {
+            this._sweepAndPrune._zAxis.dirty++;
+        }
+    }
+
+    front(element) {
+        return this._bound.front.value;
+    }
+
+    back(element) {
+        return this._bound.back.value;
+    }
+
+    z(element) {
+        return this._z;
+    }
+
+    get box() {
+        return new Box3D(
+            this._bound.left.value,
+            this._bound.top.value,
+            this._bound.front.value,
+            this._bound.right.value-this._bound.left.value,
+            this._bound.bottom.value-this._bound.top.value,
+            this._bound.back.value-this._bound.front.value
+        );
+    }
+}
+
+export class SweepAndPrune2D {
 
     constructor() {
         this._elements = new Map();
@@ -179,102 +263,115 @@ export class SweepAndPrune {
         return false;
     }
 
+    _updateOnAxis(axis, startBoundary, endBoundary) {
+        // 1st case : the starting bound is moved back
+        let index = startBoundary.index;
+        while (index > 0 && this._comparator(axis[index - 1], startBoundary) > 0) {
+            let otherBoundary = axis[index - 1];
+            axis[index - 1] = startBoundary;
+            axis[index] = otherBoundary;
+            startBoundary.index = index - 1;
+            otherBoundary.index = index;
+            otherBoundary.opened.add(startBoundary.element);
+            if (otherBoundary.first) {
+                startBoundary.opened.delete(otherBoundary.element);
+            } else {
+                startBoundary.opened.add(otherBoundary.element);
+            }
+            index--;
+        }
+
+        // 2nd case : the ending bound is moved forward
+        index = endBoundary.index;
+        while (
+            index < axis.length - 1 &&
+            this._comparator(axis[index + 1], endBoundary) < 0
+            ) {
+            let otherBoundary = axis[index + 1];
+            axis[index + 1] = endBoundary;
+            axis[index] = otherBoundary;
+            endBoundary.index = index + 1;
+            otherBoundary.index = index;
+            otherBoundary.opened.add(endBoundary.element);
+            if (otherBoundary.first) {
+                endBoundary.opened.add(otherBoundary.element);
+            } else {
+                endBoundary.opened.delete(otherBoundary.element);
+            }
+            index++;
+        }
+
+        // 3nd case : the starting bound is moved forward
+        index = startBoundary.index;
+        while (
+            index < axis.length - 1 &&
+            this._comparator(axis[index + 1], startBoundary) < 0
+            ) {
+            let otherBoundary = axis[index + 1];
+            axis[index + 1] = startBoundary;
+            axis[index] = otherBoundary;
+            startBoundary.index = index + 1;
+            otherBoundary.index = index;
+            otherBoundary.opened.delete(startBoundary.element);
+            if (otherBoundary.first) {
+                startBoundary.opened.add(otherBoundary.element);
+            } else {
+                startBoundary.opened.delete(otherBoundary.element);
+            }
+            index++;
+        }
+
+        // last case : the ending bound is moved back
+        index = endBoundary.index;
+        while (index > 0 && this._comparator(axis[index - 1], endBoundary) > 0) {
+            let otherBoundary = axis[index - 1];
+            axis[index - 1] = endBoundary;
+            axis[index] = otherBoundary;
+            endBoundary.index = index - 1;
+            otherBoundary.index = index;
+            otherBoundary.opened.delete(endBoundary.element);
+            if (otherBoundary.first) {
+                endBoundary.opened.delete(otherBoundary.element);
+            } else {
+                endBoundary.opened.add(otherBoundary.element);
+            }
+            index--;
+        }
+    };
+
+    _mustRefreshEverything() {
+        return this._xAxis.dirty >= 2 || this._yAxis.dirty >= 2;
+    }
+
+    _refreshRecord(record) {
+        for (let bound of record.bounds) {
+            this._updateOnAxis(this._xAxis, bound.left, bound.right);
+        }
+        delete this._xAxis.dirty;
+        for (let bound of record.bounds) {
+            this._updateOnAxis(this._xAxis, bound.left, bound.right);
+        }
+        delete this._yAxis.dirty;
+    }
+
     update(element) {
-
-        let updateOnAxis = (axis, startBoundary, endBoundary) => {
-            // 1st case : the starting bound is moved back
-            let index = startBoundary.index;
-            while (index > 0 && this._comparator(axis[index - 1], startBoundary) > 0) {
-                let otherBoundary = axis[index - 1];
-                axis[index - 1] = startBoundary;
-                axis[index] = otherBoundary;
-                startBoundary.index = index - 1;
-                otherBoundary.index = index;
-                otherBoundary.opened.add(startBoundary.element);
-                if (otherBoundary.first) {
-                    startBoundary.opened.delete(otherBoundary.element);
-                } else {
-                    startBoundary.opened.add(otherBoundary.element);
-                }
-                index--;
-            }
-
-            // 2nd case : the ending bound is moved forward
-            index = endBoundary.index;
-            while (
-                index < axis.length - 1 &&
-                this._comparator(axis[index + 1], endBoundary) < 0
-                ) {
-                let otherBoundary = axis[index + 1];
-                axis[index + 1] = endBoundary;
-                axis[index] = otherBoundary;
-                endBoundary.index = index + 1;
-                otherBoundary.index = index;
-                otherBoundary.opened.add(endBoundary.element);
-                if (otherBoundary.first) {
-                    endBoundary.opened.add(otherBoundary.element);
-                } else {
-                    endBoundary.opened.delete(otherBoundary.element);
-                }
-                index++;
-            }
-
-            // 3nd case : the starting bound is moved forward
-            index = startBoundary.index;
-            while (
-                index < axis.length - 1 &&
-                this._comparator(axis[index + 1], startBoundary) < 0
-                ) {
-                let otherBoundary = axis[index + 1];
-                axis[index + 1] = startBoundary;
-                axis[index] = otherBoundary;
-                startBoundary.index = index + 1;
-                otherBoundary.index = index;
-                otherBoundary.opened.delete(startBoundary.element);
-                if (otherBoundary.first) {
-                    startBoundary.opened.add(otherBoundary.element);
-                } else {
-                    startBoundary.opened.delete(otherBoundary.element);
-                }
-                index++;
-            }
-
-            // last case : the ending bound is moved back
-            index = endBoundary.index;
-            while (index > 0 && this._comparator(axis[index - 1], endBoundary) > 0) {
-                let otherBoundary = axis[index - 1];
-                axis[index - 1] = endBoundary;
-                axis[index] = otherBoundary;
-                endBoundary.index = index - 1;
-                otherBoundary.index = index;
-                otherBoundary.opened.delete(endBoundary.element);
-                if (otherBoundary.first) {
-                    endBoundary.opened.delete(otherBoundary.element);
-                } else {
-                    endBoundary.opened.add(otherBoundary.element);
-                }
-                index--;
-            }
-        };
-
         evaluate("SAP update element collisions", () => {
             let record = this._getRecord(element);
             record.update();
-            if (this._xAxis.dirty >= 2 || this._yAxis.dirty >= 2) {
+            if (this._mustRefreshEverything()) {
                 this.updateInternals();
             } else {
-                for (let bound of record.bounds) {
-                    updateOnAxis(this._xAxis, bound.left, bound.right);
-                    updateOnAxis(this._yAxis, bound.top, bound.bottom);
-                }
-                delete this._xAxis.dirty;
-                delete this._yAxis.dirty;
+                this._refreshRecord(record);
             }
         });
     }
 
+    _createDefaultRecord(element) {
+        return  new SAPRecord2D(element, this);
+    }
+
     _createRecord(element) {
-        let record = element._createSAPRecord ? element._createSAPRecord(this) : new SAPRecord(element, this);
+        let record = element._createSAPRecord ? element._createSAPRecord(this) : this._createDefaultRecord(element)
         record.createBounds();
         return record;
     }
@@ -311,14 +408,15 @@ export class SweepAndPrune {
     elementBox(element) {
         this.updateInternals();
         let record = this._getRecord(element);
-        let left = record.left(element);
-        let right = record.right(element);
-        let top = record.top(element);
-        let bottom = record.bottom(element);
-        return new Box(left, top, right-left, bottom-top)
+        console.log(record.box)
+        return record.box;
     }
 
-    elementsInBox(left, top, right, bottom) {
+    elementsInBox(box) {
+        let left = box.left;
+        let top = box.top;
+        let right = box.right;
+        let bottom = box.bottom;
         this.updateInternals();
         let collectedOnX = new ESet();
         let index = dichotomousSearch(this._xAxis, left, (v, b) => v - b.value);
@@ -369,76 +467,142 @@ export class SweepAndPrune {
         }
     }
 
+    _updateAxis(axis) {
+        if (axis.dirty) {
+            insertionSort(axis, this._comparator);
+            for (let index = 0; index < axis.length; index++) {
+                axis[index].index = index;
+            }
+            let opened = new List();
+            for (let boundary of axis) {
+                if (boundary.first) {
+                    opened.add(boundary.element);
+                    boundary.opened = new ESet(opened);
+                } else {
+                    opened.remove(boundary.element);
+                    boundary.opened = new ESet(opened);
+                }
+            }
+            delete axis.dirty;
+        }
+    }
+
     updateInternals() {
-        if (this._xAxis.dirty) {
-            insertionSort(this._xAxis, this._comparator);
-            for (let index = 0; index < this._xAxis.length; index++) {
-                this._xAxis[index].index = index;
-            }
-            let opened = new List();
-            for (let boundary of this._xAxis) {
-                if (boundary.first) {
-                    opened.add(boundary.element);
-                    boundary.opened = new ESet(opened);
-                } else {
-                    opened.remove(boundary.element);
-                    boundary.opened = new ESet(opened);
-                }
-            }
-            delete this._xAxis.dirty;
-        }
-        if (this._yAxis.dirty) {
-            insertionSort(this._yAxis, this._comparator);
-            for (let index = 0; index < this._yAxis.length; index++) {
-                this._yAxis[index].index = index;
-            }
-            let opened = new List();
-            for (let boundary of this._yAxis) {
-                if (boundary.first) {
-                    opened.add(boundary.element);
-                    boundary.opened = new ESet(opened);
-                } else {
-                    opened.remove(boundary.element);
-                    boundary.opened = new ESet(opened);
-                }
-            }
-            delete this._yAxis.dirty;
-        }
+        this._updateAxis(this._xAxis);
+        this._updateAxis(this._yAxis);
     }
 
     collideWith(box) {
-        let result = this.elementsInBox(
-            box.left+SweepAndPrune.COLLISION_MARGIN,
-            box.top+SweepAndPrune.COLLISION_MARGIN,
-            box.right-SweepAndPrune.COLLISION_MARGIN,
-            box.bottom-SweepAndPrune.COLLISION_MARGIN
-        );
-        return result;
+        return this.elementsInBox(box.grow(-SweepAndPrune2D.COLLISION_MARGIN));
     }
 
-    near(element, left=1, top=1, right=1, bottom=1) {
+    near(element, left) {
         let record = this._getRecord(element);
         if (!record) return new List();
-        let result = this.elementsInBox(
-            record.left(element) -left,
-            record.top(element) -top,
-            record.right(element) +right,
-            record.bottom(element) +bottom
-        );
+        let result = this.elementsInBox(record.box.grow(1));
         result.remove(element);
         return result;
     }
 }
-SweepAndPrune.COLLISION_MARGIN = 0.0001;
-SweepAndPrune.ADJUST_MARGIN = 40;
+SweepAndPrune2D.COLLISION_MARGIN = 0.0001;
+SweepAndPrune2D.ADJUST_MARGIN = 40;
+
+export class SweepAndPrune3D extends SweepAndPrune2D {
+
+    constructor() {
+        super();
+        this._zAxis = new List();
+    }
+
+    clear() {
+        super.clear();
+        this._zAxis.clear();
+    }
+
+    front(element) {
+        let record = this._getRecord(element);
+        return record ? record.front(element) : null;
+    }
+
+    back(element) {
+        let record = this._getRecord(element);
+        return record ? record.back(element) : null;
+    }
+
+    _mustRefreshEverything() {
+        return super._mustRefreshEverything() || this._zAxis.dirty >= 2;
+    }
+
+    _refreshRecord(record) {
+        super._refreshRecord(record);
+        for (let bound of record.bounds) {
+            this._updateOnAxis(this._zAxis, bound.front, bound.back);
+        }
+        delete this._zAxis.dirty;
+    }
+
+    _createDefaultRecord(element) {
+        return  new SAPRecord3D(element, this);
+    }
+
+    elementsInPoint(x, y, z) {
+        let result = super.elementsInPoint(x, y);
+        if (result.length) {
+            let collectedOnXY = new ESet(result);
+            let result = new List();
+            let index = dichotomousSearch(this._zAxis, z, (v, b) => v - b.value);
+            if (index > 0) {
+                for (let element of this._zAxis[index - 1].opened) {
+                    if (collectedOnXY.delete(element)) {
+                        result.add(element);
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    elementsInBox(box) {
+        let result = super.elementsInBox(box);
+        let front = box.front;
+        let back = box.back;
+        if (result.length) {
+            let collectedOnXY = new ESet(result);
+            let result = new List();
+            let index = dichotomousSearch(this._zAxis, front, (v, b) => v - b.value);
+            if (index > 0 && index < this._zAxis.length && this._zAxis[index].value > front) index--;
+            while (this._zAxis[index] && this._zAxis[index].value < back) {
+                for (let element of this._zAxis[index].opened) {
+                    if (collectedOnXY.delete(element)) {
+                        result.add(element);
+                    }
+                }
+                index++;
+            }
+        }
+        return result;
+    }
+
+    updateInternals() {
+        super.updateInternals();
+        this._updateAxis(this._zAxis);
+    }
+
+}
 
 export function makeCollisionPhysic(superClass) {
+
+    defineMethod(superClass,
+        function _createSweepAndPrunes() {
+            this._supportSAP = new SweepAndPrune2D();
+            this._dragAndDropSAP = new SweepAndPrune2D();
+        }
+    );
 
     replaceMethod(superClass,
         function _init(...args) {
             this._elements = new ESet();
-            this._supportSAP = new SweepAndPrune();
-            this._dragAndDropSAP = new SweepAndPrune();
+            this._createSweepAndPrunes();
             this._valids = new EMap();
         }
     );
@@ -576,10 +740,10 @@ export function makeCollisionPhysic(superClass) {
                 let sweepAndPrune = this.sweepAndPrune(target);
                 if (ox > hx) {
                     let rx = sweepAndPrune.right(target) + element.width / 2;
-                    return ox+SweepAndPrune.COLLISION_MARGIN < rx || same(rx, hx) ? null : rx;
+                    return ox+SweepAndPrune2D.COLLISION_MARGIN < rx || same(rx, hx) ? null : rx;
                 } else if (ox < hx) {
                     let rx = sweepAndPrune.left(target) - element.width / 2;
-                    return ox-SweepAndPrune.COLLISION_MARGIN > rx || same(rx, hx) ? null : rx;
+                    return ox-SweepAndPrune2D.COLLISION_MARGIN > rx || same(rx, hx) ? null : rx;
                 } else return null;
             };
 
@@ -596,9 +760,9 @@ export function makeCollisionPhysic(superClass) {
                 if (oy > hy) {
                     let ry = sweepAndPrune.bottom(target) + element.height / 2;
                     return oy < ry || same(ry, hy) ? null : ry;
-                } else if (oy+SweepAndPrune.COLLISION_MARGIN < hy) {
+                } else if (oy+SweepAndPrune2D.COLLISION_MARGIN < hy) {
                     let ry = sweepAndPrune.top(target) - element.height / 2;
-                    return oy-SweepAndPrune.COLLISION_MARGIN > ry || same(ry, hy) ? null : ry;
+                    return oy-SweepAndPrune2D.COLLISION_MARGIN > ry || same(ry, hy) ? null : ry;
                 } else return null;
             };
 
@@ -656,8 +820,8 @@ export function makeCollisionPhysic(superClass) {
             }
             // If final position is "too far" from "current" position, revert to current position, but mark element drag as
             // invalid.
-            if (Math.abs(hx - sx) > SweepAndPrune.ADJUST_MARGIN || Math.abs(hy - sy) > SweepAndPrune.ADJUST_MARGIN) {
-                put(element, sx, sy, true);
+            if (Math.abs(hx - sx) > SweepAndPrune2D.ADJUST_MARGIN || Math.abs(hy - sy) > SweepAndPrune2D.ADJUST_MARGIN) {
+                put(element, sx, sy);
                 record.invalid = true;
             } else {
                 // Fixing accepted: update drag infos.
@@ -689,8 +853,19 @@ export function makeCollisionPhysic(superClass) {
             }
             let exclude = new ESet(elements);
             for (let element of elements) {
-                this._avoidCollisionsForElement(element, exclude, this._supportSAP, this._valids.get(element), new Matrix());
+                this._avoidCollisionsForElement(element, exclude, this._supportSAP, this._valids.get(element), new Matrix2D());
             }
+        }
+    );
+
+}
+
+export function makeCollisionPhysic3D(superClass) {
+
+    defineMethod(superClass,
+        function _createSweepAndPrunes() {
+            this._supportSAP = new SweepAndPrune3D();
+            this._dragAndDropSAP = new SweepAndPrune3D();
         }
     );
 
@@ -739,7 +914,7 @@ export class PhysicBorder {
      * @returns {Box}
      */
     get localGeometry() {
-        return new Box(this._x()-this._width()/2, this._y()-this._height()/2, this._width(), this._height());
+        return new Box2D(this._x()-this._width()/2, this._y()-this._height()/2, this._width(), this._height());
     }
 
 }
@@ -915,19 +1090,71 @@ export function makeCollisionContainer(superClass, {predicate, bordersCollide = 
     return superClass;
 }
 
-class Ground {
+class GroundStructure {
 
-    constructor(physic) {
-        this._physic = physic;
+    constructor() {
+        this._id = 0;
         this._segments = new AVLTree((s1, s2)=>{
             let value = s1.right-s2.right;
             return value ? value : s1.id-s2.id;
         });
     }
 
+    duplicate(copy) {
+        copy._segments = new AVLTree(this._segments);
+    }
+
+    filter(element, record) {
+        let left = record.left(element);
+        let right = record.right(element);
+        let it = this._segments.inside({right:left+SweepAndPrune2D.COLLISION_MARGIN, id:0}, null);
+        let insideSegments = [];
+        let segment = it.next().value;
+        while (segment && segment.left+SweepAndPrune2D.COLLISION_MARGIN < right) {
+            insideSegments.push(segment);
+            segment = it.next().value;
+        }
+        return insideSegments;
+    }
+
+    update(element, record, segment) {
+        let left = record.left(element);
+        let right = record.right(element);
+        if (segment.left < left) {
+            this._segments.insert({
+                left:segment.left, right:left, id:this._id++, top:segment.top, element:segment.element
+            });
+        }
+        if (segment.right > right) {
+            segment.left = right;
+        }
+        else {
+            this._segments.delete(segment);
+        }
+    }
+
+    add(element, record) {
+        let left = record.left(element);
+        let right = record.right(element);
+        let top = record.top(element);
+        this._segments.insert({left, right, id:this._id++, top, element});
+    }
+}
+
+class Ground {
+
+    constructor(physic) {
+        this._physic = physic;
+        this._structure = this._createGroundStructure();
+    }
+
+    _createGroundStructure() {
+        return new GroundStructure();
+    }
+
     duplicate() {
         let duplicates = new Ground(this._physic);
-        duplicates._segments = new AVLTree(this._segments);
+        this._structure.duplicate(duplicates._structure);
         return duplicates;
     }
 
@@ -945,26 +1172,12 @@ class Ground {
             }
         }
 
-        function filterInside(segments, left, right) {
-            let it = segments.inside({right:left+SweepAndPrune.COLLISION_MARGIN, id:0}, null);
-            let insideSegments = [];
-            let segment = it.next().value;
-            while (segment && segment.left+SweepAndPrune.COLLISION_MARGIN < right) {
-                insideSegments.push(segment);
-                segment = it.next().value;
-            }
-            return insideSegments;
-        }
-
-        let id = 1;
         let record = this._physic._supportSAP._getRecord(element);
-        let left = record.left(element);
-        let right = record.right(element);
         let top = record.top(element);
         let ground = this._physic._host.bottom;
         let supports = new ESet();
         let under = new ESet();
-        for (let segment of filterInside(this._segments, left, right)) {
+        for (let segment of this._structure.filter(element, record)) {
             under.add(segment.element);
             if (same(segment.top, ground)) {
                 supports.add(segment.element);
@@ -973,17 +1186,7 @@ class Ground {
                 ground = segment.top;
                 supports = new ESet([segment.element]);
             }
-            if (segment.left < left) {
-                this._segments.insert({
-                    left:segment.left, right:left, id:id++, top:segment.top, element:segment.element
-                });
-            }
-            if (segment.right > right) {
-                segment.left = right;
-            }
-            else {
-                this._segments.delete(segment);
-            }
+            this._structure.update(element, record, segment);
         }
         if (update && this._physic._canFall(element)) {
             let ly = ground - (record.bottom(element) - record.y(element));
@@ -994,7 +1197,7 @@ class Ground {
             }
         }
         setCarriedBy(element, under, supports);
-        this._segments.insert({left, right, id:id++, top, element});
+        this._structure.add(element, record);
     }
 
 }
@@ -1334,124 +1537,139 @@ export function makeCarrier(superClass) {
 
 export function makeCarriable(superClass) {
 
-    Object.defineProperty(superClass.prototype, "isCarriable", {
-        configurable:true,
-        get() {
+    defineGetProperty(superClass,
+        function isCarriable() {
             return true;
         }
-    });
+    );
 
-    Object.defineProperty(superClass.prototype, "carriers", {
-        configurable:true,
-        get() {
+    defineGetProperty(superClass,
+        function carriers() {
             return this._carriedBy ? this._carriedBy.keys() : [];
         }
-    });
+    );
 
-    superClass.prototype._clearCarriedBy = function() {
-        delete this._carriedBy;
-    };
-
-    superClass.prototype.__addCarriedBy = function(element, record) {
-        if (!this._carriedBy) {
-            this._carriedBy = new Map();
+    defineMethod(superClass,
+        function _clearCarriedBy() {
+            delete this._carriedBy;
         }
-        this._carriedBy.set(element, record);
-    };
+    );
 
-    superClass.prototype.__moveCarriedBy = function(element, record) {
-        this._carriedBy.set(element, record);
-    };
+    defineMethod(superClass,
+        function __addCarriedBy(element, record) {
+            if (!this._carriedBy) {
+                this._carriedBy = new Map();
+            }
+            this._carriedBy.set(element, record);
+        }
+    );
 
-    superClass.prototype.__removeCarriedBy = function(element) {
-        if (this._carriedBy) {
-            this._carriedBy.delete(element);
-            if (!this._carriedBy.size) {
-                delete this._carriedBy;
+    defineMethod(superClass,
+        function __moveCarriedBy(element, record) {
+            this._carriedBy.set(element, record);
+        }
+    );
+
+    defineMethod(superClass,
+        function __removeCarriedBy(element) {
+            if (this._carriedBy) {
+                this._carriedBy.delete(element);
+                if (!this._carriedBy.size) {
+                    delete this._carriedBy;
+                }
             }
         }
-    };
+    );
 
-    superClass.prototype.carriedBy = function(support) {
-        return this._carriedBy && this._carriedBy.has(support);
-    };
-
-    superClass.prototype.clearCarriedBy = function() {
-        if (this._carriedBy) {
-            for (let support of [...this._carriedBy.keys()]) {
-                support.removeCarried(this);
-            }
+    defineMethod(superClass,
+        function carriedBy(support) {
+            return this._carriedBy && this._carriedBy.has(support);
         }
-    };
+    );
 
-    let draggedFrom = superClass.prototype._draggedFrom;
-    superClass.prototype._draggedFrom = function(support, dragSet) {
-        draggedFrom && draggedFrom.call(this, support, dragSet);
-        if (this._carriedBy) {
-            for (let support of [...this._carriedBy.keys()]) {
-                if (!dragSet.has(support)) {
+    defineMethod(superClass,
+        function clearCarriedBy() {
+            if (this._carriedBy) {
+                for (let support of [...this._carriedBy.keys()]) {
                     support.removeCarried(this);
                 }
             }
         }
-    };
+    );
 
-    let revertDroppedIn = superClass.prototype._revertDroppedIn;
-    superClass.prototype._revertDroppedIn = function () {
-        revertDroppedIn && revertDroppedIn.call(this);
-        if (this._carriedBy) {
-            for (let element of this._carriedBy.keys()) {
-                let record = this._carriedBy.get(element);
-                element.__addCarried(this, record);
+    extendMethod(superClass, $draggedFrom=>
+        function _draggedFrom(support, dragSet) {
+            $draggedFrom && $draggedFrom.call(this, support, dragSet);
+            if (this._carriedBy) {
+                for (let support of [...this._carriedBy.keys()]) {
+                    if (!dragSet.has(support)) {
+                        support.removeCarried(this);
+                    }
+                }
             }
         }
-    };
+    );
 
-    let cloned = superClass.prototype._cloned;
-    superClass.prototype._cloned = function (copy, duplicata) {
-        cloned && cloned.call(this, copy, duplicata);
-        if (this._carriedBy) {
-            for (let element of this._carriedBy.keys()) {
-                let childCopy = duplicata.get(element);
-                let record = this._carriedBy.get(element);
-                copy.__addCarriedBy(childCopy, record);
+    extendMethod(superClass, $revertDroppedIn=>
+        function _revertDroppedIn() {
+            $revertDroppedIn && $revertDroppedIn.call(this);
+            if (this._carriedBy) {
+                for (let element of this._carriedBy.keys()) {
+                    let record = this._carriedBy.get(element);
+                    element.__addCarried(this, record);
+                }
             }
         }
-    };
+    );
 
-    let superDelete = superClass.prototype.delete;
-    superClass.prototype.delete = function() {
-        let result = superDelete.call(this);
-        if (this._carriedBy) {
-            for (let element of this._carriedBy.keys()) {
-                element.removeCarried(this);
+    extendMethod(superClass, $cloned=>
+        function _cloned(copy, duplicata) {
+            $cloned && $cloned.call(this, copy, duplicata);
+            if (this._carriedBy) {
+                for (let element of this._carriedBy.keys()) {
+                    let childCopy = duplicata.get(element);
+                    let record = this._carriedBy.get(element);
+                    copy.__addCarriedBy(childCopy, record);
+                }
             }
         }
-        return result;
-    };
+    );
 
-    let superMemento = superClass.prototype._memento;
-    superClass.prototype._memento = function () {
-        let memento = superMemento.call(this);
-        if (this._carriedBy) {
-            memento._carriedBy = new Map(this._carriedBy);
+    extendMethod(superClass, $delete=>
+        function delete_() {
+            let result = $delete.call(this);
+            if (this._carriedBy) {
+                for (let element of this._carriedBy.keys()) {
+                    element.removeCarried(this);
+                }
+            }
+            return result;
         }
-        return memento;
-    };
+    );
 
-    let superRevert = superClass.prototype._revert;
-    superClass.prototype._revert = function (memento) {
-        superRevert.call(this, memento);
-        if (memento._carriedBy) {
-            this._carriedBy = new Map(memento._carriedBy);
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            if (this._carriedBy) {
+                memento._carriedBy = new Map(this._carriedBy);
+            }
+            return memento;
         }
-        else {
-            delete this._carriedBy;
-        }
-        return this;
-    };
+    );
 
-    return superClass;
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            if (memento._carriedBy) {
+                this._carriedBy = new Map(memento._carriedBy);
+            }
+            else {
+                delete this._carriedBy;
+            }
+            return this;
+        }
+    );
+
 }
 
 export const Glue = {
@@ -1462,228 +1680,251 @@ export const Glue = {
 
 export function makeDroppedElementsToGlue(superClass, {gluingStrategy=(element1, element2)=>Glue.EXTEND}={}) {
 
-    let receiveDrop = superClass.prototype._receiveDrop;
-    superClass.prototype._receiveDrop = function(element, dragSet) {
-        receiveDrop.call(this);
-        if (element.isGlueable) {
-            let alreadyGlued = element.getGlued(true, true, true, true);
-            let gluedElements = this._supportSAP.near(element, 1, 1, 1, 1);
-            for (let neighbour of gluedElements) {
-                if (!alreadyGlued.has(neighbour)) {
-                    if (gluingStrategy(element, neighbour)!==Glue.NONE) {
-                        element.glue(neighbour, gluingStrategy);
+    extendMethod(superClass, $receiveDrop=>
+        function _receiveDrop(element, dragSet) {
+            receiveDrop.call(this);
+            if (element.isGlueable) {
+                let alreadyGlued = element.getGlued(true, true, true, true);
+                let gluedElements = this._supportSAP.near(element, 1, 1, 1, 1);
+                for (let neighbour of gluedElements) {
+                    if (!alreadyGlued.has(neighbour)) {
+                        if (gluingStrategy(element, neighbour)!==Glue.NONE) {
+                            element.glue(neighbour, gluingStrategy);
+                        }
+                    }
+                    else {
+                        alreadyGlued.delete(neighbour);
                     }
                 }
-                else {
-                    alreadyGlued.delete(neighbour);
+                for (let neighbour of alreadyGlued) {
+                    element.unglue(neighbour);
                 }
             }
-            for (let neighbour of alreadyGlued) {
-                element.unglue(neighbour);
-            }
         }
-    };
+    );
 
-    return superClass;
 }
 
 export function makeGlueable(superClass) {
 
-    Object.defineProperty(superClass.prototype, "isGlueable", {
-        configurable:true,
-        get() {
+    defineGetProperty(superClass,
+        function isGlueable() {
             return true;
         }
-    });
+    );
 
-    superClass.prototype.__glue = function(element, record) {
-        if (!this._gluedWith) {
-            this._gluedWith = new Map();
-        }
-        this._gluedWith.set(element, record);
-    };
-
-    superClass.prototype.__unglue = function(element) {
-        if (this._gluedWith) {
-            this._gluedWith.delete(element);
-            if (!this._gluedWith.size) {
-                delete this._gluedWith;
+    defineMethod(superClass,
+        function __glue(element, record) {
+            if (!this._gluedWith) {
+                this._gluedWith = new Map();
             }
+            this._gluedWith.set(element, record);
         }
-    };
+    );
 
-    superClass.prototype._glue = function(element, strategy) {
-        this.__glue(element, this._createRecord(element, strategy));
-        element.__glue(this, element._createRecord(this, strategy));
-    };
-
-    superClass.prototype._unglue = function(element) {
-        this.__unglue(element);
-        element.__unglue(this);
-    };
-
-    superClass.prototype.glue = function(element, strategy=(element1, element2)=>Glue.EXTEND) {
-        if (element.isGlueable && (!this._gluedWith || !this._gluedWith.has(element))) {
-            Memento.register(this);
-            Memento.register(element);
-            this._glue(element, strategy);
-            element._fire(Events.ADD_GLUED, this);
-            this._fire(Events.ADD_GLUED, element);
-        }
-    };
-
-    superClass.prototype.unglue = function(element) {
-        if (element.isGlueable && this._gluedWith && this._gluedWith.has(element)) {
-            Memento.register(this);
-            Memento.register(element);
-            this._unglue(element);
-            element._fire(Events.REMOVE_GLUED, this);
-            this._fire(Events.REMOVE_GLUED, element);
-        }
-    };
-
-    superClass.prototype._createRecord = function(element, strategy) {
-        return new CloneableObject({
-            dx: element.lx - this.lx,
-            dy: element.ly - this.ly,
-            strategy
-        })
-    };
-
-    superClass.prototype.clearGlued = function() {
-        if (this._gluedWith) {
-            for (let element of [...this._gluedWith.keys()]) {
-                this.unglue(element);
-            }
-        }
-    };
-
-    Object.defineProperty(superClass.prototype, "gluedWith", {
-        configurable:true,
-        get() {
-            return this._gluedWith ? this._gluedWith.keys() : [];
-        }
-    });
-
-    superClass.prototype.getGlued = function(left = true, top = true, right = true, bottom = true) {
-        let gluedWidth = new ESet();
-        if (this._gluedWith) {
-            let tlx = this.lx, tly = this.ly,
-                tw = this.width/2-SweepAndPrune.COLLISION_MARGIN,
-                th = this.height/2-SweepAndPrune.COLLISION_MARGIN;
-            for (let neighbour of this._gluedWith) {
-                let nlx = neighbour.lx, nly = neighbour.ly,
-                    nw = neighbour.width / 2 - SweepAndPrune.COLLISION_MARGIN,
-                    nh = neighbour.height / 2 - SweepAndPrune.COLLISION_MARGIN;
-                if (left && nlx + nw <= tlx - tw) gluedWidth.add(neighbour);
-                else if (top && nly + nh <= tly - th) gluedWidth.add(neighbour);
-                else if (right && nlx - nw >= tlx + tw) gluedWidth.add(neighbour);
-                else if (bottom && nly - nh >= tly + th) gluedWidth.add(neighbour);
-            }
-        }
-        return gluedWidth;
-    };
-
-    let getExtension = superClass.prototype.getExtension;
-    superClass.prototype.getExtension = function(extension) {
-        let elemExtension = getExtension ? getExtension.call(this, extension) : new ESet();
-        extension = extension ? extension.merge(elemExtension) : elemExtension;
-        if (this._gluedWith) {
-            for (let element of this._gluedWith.keys()) {
-                let record = this._gluedWith.get(element);
-                if (!extension.has(element) && record.strategy(this, element, record.dx, record.dy)===Glue.EXTEND) {
-                    extension.add(element);
-                    if (element.getExtension) {
-                        for (let child of element.getExtension(extension)) {
-                            extension.add(child);
-                        }
-                    }
+    defineMethod(superClass,
+        function __unglue(element) {
+            if (this._gluedWith) {
+                this._gluedWith.delete(element);
+                if (!this._gluedWith.size) {
+                    delete this._gluedWith;
                 }
             }
         }
-        return extension
-    };
+    );
 
-    let draggedFrom = superClass.prototype._draggedFrom;
-    superClass.prototype._draggedFrom = function(support, dragSet) {
-        draggedFrom && draggedFrom.call(this, support, dragSet);
-        if (this._gluedWith) {
-            for (let element of [...this._gluedWith.keys()]) {
-                let record = this._gluedWith.get(element);
-                if (record.strategy(this, element, record.dx, record.dy)!==Glue.EXTEND && !dragSet.has(element)) {
+    defineMethod(superClass,
+        function _glue(element, strategy) {
+            this.__glue(element, this._createRecord(element, strategy));
+            element.__glue(this, element._createRecord(this, strategy));
+        }
+    );
+
+    defineMethod(superClass,
+        function _unglue(element) {
+            this.__unglue(element);
+            element.__unglue(this);
+        }
+    );
+
+    defineMethod(superClass,
+        function glue(element, strategy=(element1, element2)=>Glue.EXTEND) {
+            if (element.isGlueable && (!this._gluedWith || !this._gluedWith.has(element))) {
+                Memento.register(this);
+                Memento.register(element);
+                this._glue(element, strategy);
+                element._fire(Events.ADD_GLUED, this);
+                this._fire(Events.ADD_GLUED, element);
+            }
+        }
+    );
+
+    defineMethod(superClass,
+        function unglue(element) {
+            if (element.isGlueable && this._gluedWith && this._gluedWith.has(element)) {
+                Memento.register(this);
+                Memento.register(element);
+                this._unglue(element);
+                element._fire(Events.REMOVE_GLUED, this);
+                this._fire(Events.REMOVE_GLUED, element);
+            }
+        }
+    );
+
+    defineMethod(superClass,
+        function _createRecord(element, strategy) {
+            return new CloneableObject({
+                dx: element.lx - this.lx,
+                dy: element.ly - this.ly,
+                strategy
+            })
+        }
+    );
+
+    defineMethod(superClass,
+        function clearGlued() {
+            if (this._gluedWith) {
+                for (let element of [...this._gluedWith.keys()]) {
                     this.unglue(element);
                 }
             }
         }
-    };
+    );
 
-    let revertDroppedIn = superClass.prototype._revertDroppedIn;
-    superClass.prototype._revertDroppedIn = function () {
-        revertDroppedIn && revertDroppedIn.call(this);
-        if (this._gluedWith) {
-            for (let element of this._gluedWith.keys()) {
-                element.__glue(this, element._createRecord(this));
-            }
+    defineGetProperty(superClass,
+        function gluedWith() {
+            return this._gluedWith ? this._gluedWith.keys() : [];
         }
-    };
+    );
 
-    let cancelDrop = superClass.prototype._cancelDrop;
-    superClass.prototype._cancelDrop = function(dragOperation) {
-        cancelDrop && cancelDrop.call(this, dragOperation);
-        if (this._gluedWith) {
-            for (let element of this._gluedWith.keys()) {
-                if (!dragOperation.dropCancelled(element)) {
-                    dragOperation.cancelDrop(element);
+    defineMethod(superClass,
+        function getGlued(left = true, top = true, right = true, bottom = true) {
+            let gluedWidth = new ESet();
+            if (this._gluedWith) {
+                let tlx = this.lx, tly = this.ly,
+                    tw = this.width/2-SweepAndPrune2D.COLLISION_MARGIN,
+                    th = this.height/2-SweepAndPrune2D.COLLISION_MARGIN;
+                for (let neighbour of this._gluedWith) {
+                    let nlx = neighbour.lx, nly = neighbour.ly,
+                        nw = neighbour.width / 2 - SweepAndPrune2D.COLLISION_MARGIN,
+                        nh = neighbour.height / 2 - SweepAndPrune2D.COLLISION_MARGIN;
+                    if (left && nlx + nw <= tlx - tw) gluedWidth.add(neighbour);
+                    else if (top && nly + nh <= tly - th) gluedWidth.add(neighbour);
+                    else if (right && nlx - nw >= tlx + tw) gluedWidth.add(neighbour);
+                    else if (bottom && nly - nh >= tly + th) gluedWidth.add(neighbour);
+                }
+            }
+            return gluedWidth;
+        }
+    );
+
+    extendMethod(superClass, $getExtension=>
+        function getExtension(extension) {
+            let elemExtension = $getExtension ? $getExtension.call(this, extension) : new ESet();
+            extension = extension ? extension.merge(elemExtension) : elemExtension;
+            if (this._gluedWith) {
+                for (let element of this._gluedWith.keys()) {
+                    let record = this._gluedWith.get(element);
+                    if (!extension.has(element) && record.strategy(this, element, record.dx, record.dy)===Glue.EXTEND) {
+                        extension.add(element);
+                        if (element.getExtension) {
+                            for (let child of element.getExtension(extension)) {
+                                extension.add(child);
+                            }
+                        }
+                    }
+                }
+            }
+            return extension
+        }
+    );
+
+    extendMethod(superClass, $draggedFrom=>
+        function _draggedFrom(support, dragSet) {
+            $draggedFrom && $draggedFrom.call(this, support, dragSet);
+            if (this._gluedWith) {
+                for (let element of [...this._gluedWith.keys()]) {
+                    let record = this._gluedWith.get(element);
+                    if (record.strategy(this, element, record.dx, record.dy)!==Glue.EXTEND && !dragSet.has(element)) {
+                        this.unglue(element);
+                    }
                 }
             }
         }
-    };
+    );
 
-    let cloned = superClass.prototype._cloned;
-    superClass.prototype._cloned = function (copy, duplicata) {
-        cloned && cloned.call(this, copy, duplicata);
-        if (this._gluedWith) {
-            for (let element of this._gluedWith.keys()) {
-                let childCopy = duplicata.get(element);
-                let record = this._gluedWith.get(element);
-                copy.__glue(childCopy, record);
+    extendMethod(superClass, $revertDroppedIn=>
+        function _revertDroppedIn() {
+            $revertDroppedIn && $revertDroppedIn.call(this);
+            if (this._gluedWith) {
+                for (let element of this._gluedWith.keys()) {
+                    element.__glue(this, element._createRecord(this));
+                }
             }
         }
-    };
+    );
 
-    let superDelete = superClass.prototype.delete;
-    superClass.prototype.delete = function() {
-        let result = superDelete.call(this);
-        if (this._gluedWith) {
-            for (let element of this._gluedWith.keys()) {
-                element.removeCarried(this);
+    extendMethod(superClass, $cancelDrop=>
+        function _cancelDrop(dragOperation) {
+            $cancelDrop && $cancelDrop.call(this, dragOperation);
+            if (this._gluedWith) {
+                for (let element of this._gluedWith.keys()) {
+                    if (!dragOperation.dropCancelled(element)) {
+                        dragOperation.cancelDrop(element);
+                    }
+                }
             }
         }
-        return result;
-    };
+    );
 
-    let superMemento = superClass.prototype._memento;
-    superClass.prototype._memento = function () {
-        let memento = superMemento.call(this);
-        if (this._gluedWith) {
-            memento._gluedWith = new Map(this._gluedWith);
+    extendMethod(superClass, $cloned=>
+        function _cloned(copy, duplicata) {
+            $cloned && $cloned.call(this, copy, duplicata);
+            if (this._gluedWith) {
+                for (let element of this._gluedWith.keys()) {
+                    let childCopy = duplicata.get(element);
+                    let record = this._gluedWith.get(element);
+                    copy.__glue(childCopy, record);
+                }
+            }
         }
-        return memento;
-    };
+    );
 
-    let superRevert = superClass.prototype._revert;
-    superClass.prototype._revert = function (memento) {
-        superRevert.call(this, memento);
-        if (memento._gluedWith) {
-            this._gluedWith = new Map(memento._gluedWith);
+    extendMethod(superClass, $delete=>
+        function delete_() {
+            let result = $delete.call(this);
+            if (this._gluedWith) {
+                for (let element of this._gluedWith.keys()) {
+                    element.removeCarried(this);
+                }
+            }
+            return result;
         }
-        else {
-            delete this._gluedWith;
-        }
-        return this;
-    };
+    );
 
-    return superClass;
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            if (this._gluedWith) {
+                memento._gluedWith = new Map(this._gluedWith);
+            }
+            return memento;
+        }
+    );
+
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            if (memento._gluedWith) {
+                this._gluedWith = new Map(memento._gluedWith);
+            }
+            else {
+                delete this._gluedWith;
+            }
+            return this;
+        }
+    );
+
 }
 
 export function addGlueToGravitationPhysic(
@@ -1691,105 +1932,110 @@ export function addGlueToGravitationPhysic(
 
     addGravitationToCollisionPhysic(superClass);
 
-    superClass.prototype._getBlocks = function (elements) {
+    defineMethod(superClass,
+        function _getBlocks(elements) {
 
-        function setToBlock(blocks, element, block) {
-            block.elements.add(element);
-            blocks.set(element, block);
-            element._fall.block = block;
-        }
-
-        let blocks = new Map();
-        for (let element of elements) {
-            let block = element._fall.block;
-            if (!block) {
-                block = {
-                    elements : new ESet(),
-                    bottom : this._supportSAP.bottom(element)
-                };
-                setToBlock(blocks, element, block);
+            function setToBlock(blocks, element, block) {
+                block.elements.add(element);
+                blocks.set(element, block);
+                element._fall.block = block;
             }
-            if (element.isGlueable) {
-                for (let neighbour of element.gluedWith) {
-                    let nblock = neighbour._fall.block;
-                    if (nblock) {
-                        for (let friend of nblock.elements) {
-                            setToBlock(blocks, friend, block);
+
+            let blocks = new Map();
+            for (let element of elements) {
+                let block = element._fall.block;
+                if (!block) {
+                    block = {
+                        elements : new ESet(),
+                        bottom : this._supportSAP.bottom(element)
+                    };
+                    setToBlock(blocks, element, block);
+                }
+                if (element.isGlueable) {
+                    for (let neighbour of element.gluedWith) {
+                        let nblock = neighbour._fall.block;
+                        if (nblock) {
+                            for (let friend of nblock.elements) {
+                                setToBlock(blocks, friend, block);
+                            }
+                        }
+                        else {
+                            setToBlock(blocks, neighbour, block);
                         }
                     }
-                    else {
-                        setToBlock(blocks, neighbour, block);
+                }
+            }
+            return [...new ESet(blocks.values())];
+        }
+    );
+
+    defineMethod(superClass,
+        function _processBlock(block) {
+
+            function ascend(element, dy, carrier) {
+                if (same(dy, 0)) {
+                    if (carrier) {
+                        element._fall.carriers ? element._fall.carriers.add(carrier) : element._fall.carriers = new ESet([carrier]);
+                        carrier._fall.carried ? carrier._fall.carried.add(element) : carrier._fall.carried = new ESet([element]);
+                    }
+                }
+                else if (dy > 0) {
+                    let ly = element.ly - dy;
+                    let ely = ly - element._fall.ly;
+                    if (element._fall.block.dy>ely) {
+                        element._fall.block.dy = ely;
+                    }
+                    element.setLocation(element.lx, ly);
+                    this._supportSAP.update(element);
+                    if (element._fall.under) {
+                        for (let carried of element._fall.under) {
+                            let mdy = this._supportSAP.top(element)-this._supportSAP.bottom(carried);
+                            ascend.call(this, carried, -mdy, element);
+                        }
+                    }
+                    if (carrier) {
+                        element._fall.carriers = new ESet([carrier]);
+                        carrier._fall.carried = new ESet([element]);
                     }
                 }
             }
-        }
-        return [...new ESet(blocks.values())];
-    };
 
-    superClass.prototype._processBlock = function(block) {
-
-        function ascend(element, dy, carrier) {
-            if (same(dy, 0)) {
-                if (carrier) {
-                    element._fall.carriers ? element._fall.carriers.add(carrier) : element._fall.carriers = new ESet([carrier]);
-                    carrier._fall.carried ? carrier._fall.carried.add(element) : carrier._fall.carried = new ESet([element]);
-                }
-            }
-            else if (dy > 0) {
-                let ly = element.ly - dy;
-                let ely = ly - element._fall.ly;
-                if (element._fall.block.dy>ely) {
-                    element._fall.block.dy = ely;
-                }
-                element.setLocation(element.lx, ly);
-                this._supportSAP.update(element);
-                if (element._fall.under) {
-                    for (let carried of element._fall.under) {
-                        let mdy = this._supportSAP.top(element)-this._supportSAP.bottom(carried);
-                        ascend.call(this, carried, -mdy, element);
-                    }
-                }
-                if (carrier) {
-                    element._fall.carriers = new ESet([carrier]);
-                    carrier._fall.carried = new ESet([element]);
-                }
-            }
-        }
-
-        for (let element of block.elements) {
-            let dy = element.ly-element._fall.ly-block.dy;
-            ascend.call(this, element, dy, null);
-        }
-    };
-
-    superClass.prototype._processElements = function() {
-        function computeBlockFall(block) {
-            block.dy = Infinity;
             for (let element of block.elements) {
-                let dy = element.ly - element._fall.ly;
-                if (dy<block.dy) block.dy = dy;
+                let dy = element.ly-element._fall.ly-block.dy;
+                ascend.call(this, element, dy, null);
             }
         }
+    );
 
-        let elements = new List(...this._elements);
-        for (let element of elements) {
-            element._clearCarried && element._clearCarried();
-            element._clearCarriedBy && element._clearCarriedBy();
-            element._fall = {ly: element.ly};
-        }
-        let blocks = this._getBlocks(elements);
-        this._letFall(elements, new Ground(this));
-        for (let block of blocks) {
-            computeBlockFall(block);
-        }
-        blocks.sort((b1, b2)=>b1.dy - b2.dy);
-        for (let block of blocks) {
-            this._processBlock(block);
-        }
-        this._setCarried(this._elements);
-    };
+    defineMethod(superClass,
+        function _processElements() {
+            function computeBlockFall(block) {
+                block.dy = Infinity;
+                for (let element of block.elements) {
+                    let dy = element.ly - element._fall.ly;
+                    if (dy<block.dy) block.dy = dy;
+                }
+            }
 
-    return superClass;
+            let elements = new List(...this._elements);
+            for (let element of elements) {
+                element._clearCarried && element._clearCarried();
+                element._clearCarriedBy && element._clearCarriedBy();
+                element._fall = {ly: element.ly};
+            }
+            let blocks = this._getBlocks(elements);
+            this._letFall(elements, new Ground(this));
+            for (let block of blocks) {
+                computeBlockFall(block);
+            }
+            blocks.sort((b1, b2)=>b1.dy - b2.dy);
+            for (let block of blocks) {
+                this._processBlock(block);
+            }
+            this._setCarried(this._elements);
+        }
+    );
+
 }
 
 export function createStickyGravitationPhysic({

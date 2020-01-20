@@ -1,6 +1,6 @@
 import {
     assert, defineGetProperty, defineMethod, extendMethod, proposeGetProperty, replaceGetProperty, proposeMethod,
-    replaceMethod
+    replaceMethod, defined
 } from "./misc.js";
 import {
     Cloning, Events, Memento, makeCloneable, MutationObservers, CloneableObject
@@ -17,7 +17,7 @@ import {
 
 export function makePartsOwner(superClass) {
 
-    if (!superClass.prototype._initParts) {
+    if (!defined(superClass, function _initParts(){})) {
 
         extendMethod(superClass, $init=>
             function _init(...args) {
@@ -136,7 +136,7 @@ export function makePart(superClass) {
     );
 
 
-    if (!superClass.prototype._acceptDrop) {
+    if (!defined(superClass, function _acceptDrop(){})) {
         makeGentleDropTarget(superClass);
     }
 
@@ -150,7 +150,7 @@ export function makePart(superClass) {
 
 export function makeContainer(superClass) {
 
-    assert(!superClass.prototype._initContent);
+    assert(!defined(superClass, function _initContent(){}));
 
     extendMethod(superClass, $init=>
         function _init(...args) {

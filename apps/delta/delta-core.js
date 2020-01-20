@@ -28,7 +28,7 @@ import {
     DragOperation, standardDrag
 } from "../../js/drag-and-drop.js";
 import {
-    assert, extendMethod, replaceMethod
+    assert, extendMethod, replaceMethod, defineProperty, defineMethod
 } from "../../js/misc.js";
 import {
     SigmaPolymorphicElement, makeEmbodiment
@@ -67,13 +67,14 @@ export function makePositionEditable(superClass) {
             });
     }
 
-    let createContextMenu = superClass.prototype._createContextMenu;
-    superClass.prototype._createContextMenu = function() {
-        this._addMenuOption(new TextMenuOption("edit position",
-            function() { callForEditPosition(this); })
-        );
-        createContextMenu && createContextMenu.call(this);
-    };
+    extendMethod(superClass, $createContextMenu=>
+        function _createContextMenu() {
+            this._addMenuOption(new TextMenuOption("edit position",
+                function() { callForEditPosition(this); })
+            );
+            $createContextMenu && $createContextMenu.call(this);
+        }
+    );
 
 }
 
@@ -91,54 +92,57 @@ export function makeLabelOwner(superClass) {
             });
     }
 
-    let init = superClass.prototype._init;
-    superClass.prototype._init = function(...args) {
-        init.call(this, ...args);
-        this._label = args.label || "";
-    };
+    extendMethod(superClass, $init=>
+        function _init(...args) {
+            $init.call(this, ...args);
+            this._label = args.label || "";
+        }
+    );
 
-    Object.defineProperty(superClass.prototype, "label", {
-        configurable:true,
-        get() {
+    defineProperty(superClass,
+        function label() {
             return this._label;
         },
-        set(label) {
+        function label(label) {
             Memento.register(this);
             this._setLabel(label);
             return this;
         }
-    });
+    );
 
-    let createContextMenu = superClass.prototype._createContextMenu;
-    superClass.prototype._createContextMenu = function() {
-        this._addMenuOption(new TextMenuOption("rename",
-            function() { callForRename(this); })
-        );
-        createContextMenu && createContextMenu.call(this);
-    };
+    extendMethod(superClass, $createContextMenu=>
+        function _createContextMenu() {
+            this._addMenuOption(new TextMenuOption("rename",
+                function() { callForRename(this); })
+            );
+            $createContextMenu && $createContextMenu.call(this);
+        }
+    );
 
-    let setLabel = superClass.prototype._setLabel;
-    superClass.prototype._setLabel = function(label) {
-        this._label = label;
-        setLabel && setLabel.call(this, label);
-        return this;
-    };
+    extendMethod(superClass, $setLabel=>
+        function _setLabel(label) {
+            this._label = label;
+            $setLabel && $setLabel.call(this, label);
+            return this;
+        }
+    );
 
-    let superMemento = superClass.prototype._memento;
-    superClass.prototype._memento = function() {
-        let memento = superMemento.call(this);
-        memento._label = this._label;
-        return memento;
-    };
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            memento._label = this._label;
+            return memento;
+        }
+    );
 
-    let superRevert = superClass.prototype._revert;
-    superClass.prototype._revert = function(memento) {
-        superRevert.call(this, memento);
-        this._setLabel(memento._label);
-        return this;
-    };
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            this._setLabel(memento._label);
+            return this;
+        }
+    );
 
-    return superClass;
 }
 
 export function makeCommentOwner(superClass) {
@@ -155,54 +159,57 @@ export function makeCommentOwner(superClass) {
             });
     }
 
-    let init = superClass.prototype._init;
-    superClass.prototype._init = function(...args) {
-        init.call(this, ...args);
-        this._setComment(args.comment || "");
-    };
+    extendMethod(superClass, $init=>
+        function _init(...args) {
+            $init.call(this, ...args);
+            this._setComment(args.comment || "");
+        }
+    );
 
-    Object.defineProperty(superClass.prototype, "comment", {
-        configurable:true,
-        get() {
+    defineProperty(superClass,
+        function comment() {
             return this._comment;
         },
-        set(comment) {
+        function comment(comment) {
             Memento.register(this);
             this._setComment(comment);
             return this;
         }
-    });
+    );
 
-    let createContextMenu = superClass.prototype._createContextMenu;
-    superClass.prototype._createContextMenu = function() {
-        this._addMenuOption(new TextMenuOption("Add comment",
-            function() { callForComment(this); })
-        );
-        createContextMenu && createContextMenu.call(this);
-    };
+    extendMethod(superClass, $createContextMenu=>
+        function _createContextMenu() {
+            this._addMenuOption(new TextMenuOption("Add comment",
+                function() { callForComment(this); })
+            );
+            $createContextMenu && $createContextMenu.call(this);
+        }
+    );
 
-    let setComment = superClass.prototype._setComment;
-    superClass.prototype._setComment = function(comment) {
-        this._comment = comment;
-        setComment && setComment.call(this, comment);
-        return this;
-    };
+    extendMethod(superClass, $setComment=>
+        function _setComment(comment) {
+            this._comment = comment;
+            $setComment && $setComment.call(this, comment);
+            return this;
+        }
+    );
 
-    let superMemento = superClass.prototype._memento;
-    superClass.prototype._memento = function() {
-        let memento = superMemento.call(this);
-        memento._comment = this._comment;
-        return memento;
-    };
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            memento._comment = this._comment;
+            return memento;
+        }
+    );
 
-    let superRevert = superClass.prototype._revert;
-    superClass.prototype._revert = function(memento) {
-        superRevert.call(this, memento);
-        this._setComment(memento._comment);
-        return this;
-    };
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            this._setComment(memento._comment);
+            return this;
+        }
+    );
 
-    return superClass;
 }
 
 export let commentMark = new Mark(new RasterImage("./images/icons/comments.png", -5, -3.75, 10, 7.5), 0);
@@ -211,25 +218,31 @@ export function makeFreePositioningOwner(superClass) {
 
     makeFloatingContainer(superClass);
 
-    superClass.prototype._acceptDrop = function(element, dragSet, initialTarget) {
-        return FreePositioningMode.mode;
-    };
-
-    superClass.prototype._executeDrop = function(element, dragSet, initialTarget) {
-        if (FreePositioningMode.mode) {
-            this.addFloating(element);
-            return true;
+    defineMethod(superClass,
+        function _acceptDrop(element, dragSet, initialTarget) {
+            return FreePositioningMode.mode;
         }
-        return false;
-    };
+    );
 
-    superClass.prototype._unexecuteDrop = function(element) {
-        if (FreePositioningMode.mode) {
-            this._addFloating(element);
-            return true;
+    defineMethod(superClass,
+        function _executeDrop(element, dragSet, initialTarget) {
+            if (FreePositioningMode.mode) {
+                this.addFloating(element);
+                return true;
+            }
+            return false;
         }
-        return false;
-    };
+    );
+
+    defineMethod(superClass,
+        function _unexecuteDrop(element) {
+            if (FreePositioningMode.mode) {
+                this._addFloating(element);
+                return true;
+            }
+            return false;
+        }
+    );
 
 }
 

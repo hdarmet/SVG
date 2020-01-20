@@ -7,7 +7,7 @@ import {
     List, ESet, SpatialLocator, dichotomousSearch
 } from "./collections.js";
 import {
-    Matrix
+    Matrix2D
 } from "./geometry.js";
 import {
     win, Colors, Line, computePosition, Group, Fill, Translation, Rect, Text, TextAnchor, AlignmentBaseline
@@ -763,7 +763,7 @@ export class ClipDecoration extends Decoration {
         this._root.stroke = Colors.LIGHT_GREY;
         this._root.stroke_width = ClipDecoration.STROKE_WIDTH;
         let {x, y} = computePosition(this._element._root, this._box._root, this._clip.x, this._clip.y);
-        this._root.matrix = Matrix.translate(x, y);
+        this._root.matrix = Matrix2D.translate(x, y);
     }
 
     clone(duplicata) {

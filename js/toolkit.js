@@ -7,7 +7,7 @@ import {
     List, ESet
 } from "./collections.js";
 import {
-    Matrix, deg
+    Matrix2D
 } from "./geometry.js";
 import {win, doc, dom,
     MouseEvents, KeyboardEvents, Buttons,
@@ -512,7 +512,7 @@ export class BaseLayer extends CanvasLayer {
                 this.clientHeight / this.height
             );
             if (scale > matrix.scalex) {
-                matrix = Matrix.scale(scale, scale, 0, 0);
+                matrix = Matrix2D.scale(scale, scale, 0, 0);
             }
             let invertMatrix = matrix.invert();
             let dx = invertMatrix.x(-this.clientWidth / 2, -this.clientHeight / 2);
@@ -549,7 +549,7 @@ export class BaseLayer extends CanvasLayer {
     zoomIn(x, y) {
         let zoom = this.zoom*BaseLayer.ZOOM_STEP;
         if (zoom>this.maxZoom) zoom=this.maxZoom;
-        let zoomMatrix = Matrix.scale(zoom/this.zoom, zoom/this.zoom, x, y);
+        let zoomMatrix = Matrix2D.scale(zoom/this.zoom, zoom/this.zoom, x, y);
         let newMatrix = this._root.matrix.multLeft(zoomMatrix);
         this._adjustGeometry(newMatrix);
         this._fire(Events.ZOOM, newMatrix.scalex, newMatrix.x, newMatrix.y);
@@ -558,14 +558,14 @@ export class BaseLayer extends CanvasLayer {
     zoomOut(x, y) {
         let zoom = this.zoom/BaseLayer.ZOOM_STEP;
         if (zoom<this.minZoom) zoom=this.minZoom;
-        let zoomMatrix = Matrix.scale(this.zoom/zoom, this.zoom/zoom, x, y);
+        let zoomMatrix = Matrix2D.scale(this.zoom/zoom, this.zoom/zoom, x, y);
         let newMatrix = this._root.matrix.multLeft(zoomMatrix.invert());
         this._adjustGeometry(newMatrix);
         this._fire(Events.ZOOM, newMatrix.scalex, newMatrix.x, newMatrix.y);
     }
 
     zoomSet(scale, x, y) {
-        let newMatrix = Matrix.scale(scale, scale, x, y);
+        let newMatrix = Matrix2D.scale(scale, scale, x, y);
         this._adjustGeometry(newMatrix);
         this._fire(Events.ZOOM, newMatrix.scalex, newMatrix.x, newMatrix.y);
     }
@@ -1086,7 +1086,7 @@ export class Canvas {
     }
 
     _adjustContent(x=0, y=0) {
-        this._content.matrix = Matrix.translate(this.width/2+x, this.height/2+y);
+        this._content.matrix = Matrix2D.translate(this.width/2+x, this.height/2+y);
     }
 
     createBaseLayer() {

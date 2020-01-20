@@ -5,7 +5,7 @@ import {
     AlignmentBaseline, TextAnchor, Translation
 } from "./graphics.js";
 import {
-    Matrix, angle, intersectLinePolygon
+    Matrix2D, angle, intersectLinePolygon
 } from "./geometry.js";
 import {
     List, ESet
@@ -131,7 +131,7 @@ export class Arrow extends Group {
         let dx=this._x2-this._x1;
         let dy=this._y2-this._y1;
         let distance = Math.sqrt(dx*dx+dy*dy);
-        let matrix = Matrix.translate((this._x1+this._x2)/2, (this._y1+this._y2)/2);
+        let matrix = Matrix2D.translate((this._x1+this._x2)/2, (this._y1+this._y2)/2);
         if (dx || dy) {
             matrix = matrix.rotate(angle(dy, dx), 0, 0);
         }

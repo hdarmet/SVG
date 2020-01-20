@@ -4,7 +4,7 @@ import {
     List, ESet
 } from "./collections.js";
 import {
-    Matrix
+    Matrix2D
 } from "./geometry.js";
 import {
     Visibility, computePosition, RasterImage, SvgRasterImage, Group, ClipPath, Rect, Text, AlignmentBaseline,
@@ -71,7 +71,7 @@ export class Menu {
         if (y + menuGeometry.height + Menu.YMARGIN > Canvas.instance.clientHeight/2) {
             y = Canvas.instance.clientHeight/2 - menuGeometry.height - Menu.YMARGIN;
         }
-        this._root.matrix = new Matrix().translate(x, y);
+        this._root.matrix = new Matrix2D().translate(x, y);
     }
 
     close() {
@@ -492,10 +492,10 @@ export class ToolTitlePopup {
         this._dragOperation(function() {return DragPopupOperation.instance;});
         this._minimizeRestore.adjust(this.direction);
         if (this.direction) {
-            this._root.matrix = Matrix.translate(0, -popup.height / 2 + ToolPopup.HEADER_HEIGHT / 2);
+            this._root.matrix = Matrix2D.translate(0, -popup.height / 2 + ToolPopup.HEADER_HEIGHT / 2);
         }
         else {
-            this._root.matrix = Matrix.translate(-popup.width / 2 + ToolPopup.HEADER_HEIGHT / 2, 0);
+            this._root.matrix = Matrix2D.translate(-popup.width / 2 + ToolPopup.HEADER_HEIGHT / 2, 0);
         }
         this.adjustGeometry();
     }
@@ -554,7 +554,7 @@ export class ToolTitlePopup {
     minimize() {
         this._minimizeRestore.switchToAlt();
         this._titleBackground.attrs({ clip_path: this._minClip });
-        this._root.matrix = new Matrix();
+        this._root.matrix = new Matrix2D();
         this._root.filter = Canvas.instance.shadowFilter;
     }
 
@@ -562,10 +562,10 @@ export class ToolTitlePopup {
         this._minimizeRestore.switchToNormal();
         this._titleBackground.attrs({ clip_path: this._maxClip });
         if (this.direction) {
-            this._root.matrix = Matrix.translate(0, -height / 2 + ToolPopup.HEADER_HEIGHT/2);
+            this._root.matrix = Matrix2D.translate(0, -height / 2 + ToolPopup.HEADER_HEIGHT/2);
         }
         else {
-            this._root.matrix = Matrix.translate(-width / 2 + ToolPopup.HEADER_HEIGHT/2, 0);
+            this._root.matrix = Matrix2D.translate(-width / 2 + ToolPopup.HEADER_HEIGHT/2, 0);
         }
         this._root.filter = null;
     }
@@ -724,12 +724,12 @@ export class ToolPopup {
         this._content._root.detach();
         this._title.minimize();
         if (this.direction) {
-            this._root.matrix = Matrix.translate(
+            this._root.matrix = Matrix2D.translate(
                 this._root.matrix.dx,
                 this._root.matrix.dy - (this.height - ToolPopup.HEADER_HEIGHT) / 2);
         }
         else {
-            this._root.matrix = Matrix.translate(
+            this._root.matrix = Matrix2D.translate(
                 this._root.matrix.dx - (this.width - ToolPopup.HEADER_HEIGHT) / 2,
                 this._root.matrix.dy);
         }
@@ -741,12 +741,12 @@ export class ToolPopup {
         this._contentSupport.add(this._content._root);
         this._title.restore(this.width, this.height);
         if (this.direction) {
-            this._root.matrix = Matrix.translate(
+            this._root.matrix = Matrix2D.translate(
                 this._root.matrix.dx,
                 this._root.matrix.dy + (this.height - ToolPopup.HEADER_HEIGHT) / 2);
         }
         else {
-            this._root.matrix = Matrix.translate(
+            this._root.matrix = Matrix2D.translate(
                 this._root.matrix.dx + (this.width - ToolPopup.HEADER_HEIGHT) / 2,
                 this._root.matrix.dy);
         }
@@ -795,7 +795,7 @@ export class ToolPopup {
     move(x, y) {
         let clientWidth = Canvas.instance.clientWidth;
         let clientHeight = Canvas.instance.clientHeight;
-        this._root.matrix = Matrix.translate(x, y);
+        this._root.matrix = Matrix2D.translate(x, y);
         if (x<=0) {
             this._xAnchorage = clientWidth/2+x;
         }
@@ -907,7 +907,7 @@ export class DragPopupOperation extends DragOperation {
         let imatrix = pedestal.globalMatrix.invert();
         let pX = imatrix.x(x, y) - pedestal.dragX;
         let pY = imatrix.y(x, y) - pedestal.dragY;
-        popup._root.matrix = Matrix.translate(pX, pY);
+        popup._root.matrix = Matrix2D.translate(pX, pY);
         popup._adjustPosition();
     }
 
@@ -984,8 +984,8 @@ export class ToolCommand {
         this._root.on(MouseEvents.CLICK, ()=>{
             action.call(this)
         });
-        this._root.on(MouseEvents.MOUSE_DOWN, ()=>{this._iconSupport.matrix=Matrix.scale(0.95, 0.95, 0, 0)});
-        this._root.on(MouseEvents.MOUSE_UP, ()=>{this._iconSupport.matrix=Matrix.scale(1, 1, 0, 0)});
+        this._root.on(MouseEvents.MOUSE_DOWN, ()=>{this._iconSupport.matrix=Matrix2D.scale(0.95, 0.95, 0, 0)});
+        this._root.on(MouseEvents.MOUSE_UP, ()=>{this._iconSupport.matrix=Matrix2D.scale(1, 1, 0, 0)});
         this._iconSupport = new Group();
         this._icon = new SvgRasterImage(imageURL, -size/2, -size/2, size, size);
         this._root.add(this._iconSupport.add(this._icon));
@@ -994,7 +994,7 @@ export class ToolCommand {
     }
 
     move(x, y) {
-        this._root.matrix = Matrix.translate(x, y);
+        this._root.matrix = Matrix2D.translate(x, y);
         return this;
     }
 
@@ -1087,7 +1087,7 @@ export class ToolCommandPopupContent extends ToolPopupContent {
 
     _resize(width, height) {
         super._resize(width, height);
-        this._commands.matrix = Matrix.translate(0, -height/2);
+        this._commands.matrix = Matrix2D.translate(0, -height/2);
     }
 
     addMargin() {
@@ -1254,7 +1254,7 @@ export class ToolCard {
     }
 
     setLocation(x, y) {
-        this._root.matrix = Matrix.translate(x, y);
+        this._root.matrix = Matrix2D.translate(x, y);
     }
 
     get parent() {
@@ -1673,7 +1673,7 @@ export class ToolPanel {
     _refresh() {
         if (this._opened) {
             this._content._refresh();
-            this._content._root.matrix = Matrix.translate(0, 0)
+            this._content._root.matrix = Matrix2D.translate(0, 0)
         }
     }
 
@@ -1702,7 +1702,7 @@ export class ToolPanel {
     }
 
     setLocation(x, y) {
-        this._root.matrix = Matrix.translate(x, y);
+        this._root.matrix = Matrix2D.translate(x, y);
         return this;
     }
 
@@ -1994,7 +1994,7 @@ export class ToolFilterCard extends ToolCard {
         this._magnifierSupport.add(this._magnifier);
         this._root.add(this._magnifierSupport);
         this._magnifierSupport.on(MouseEvents.MOUSE_DOWN, event=>{
-            this._magnifier.matrix = Matrix.scale(0.9, 0.9, 0, 0);
+            this._magnifier.matrix = Matrix2D.scale(0.9, 0.9, 0, 0);
         });
         this._magnifierSupport.on(MouseEvents.CLICK, event=>{
             this._action && this._action(this._inputValue());
@@ -2020,7 +2020,7 @@ export class ToolFilterCard extends ToolCard {
         this._crossSupport.add(this._cross);
         this._root.add(this._crossSupport);
         this._crossSupport.on(MouseEvents.MOUSE_DOWN, event=>{
-            this._cross.matrix = Matrix.scale(0.9, 0.9, 0, 0);
+            this._cross.matrix = Matrix2D.scale(0.9, 0.9, 0, 0);
         });
         this._crossSupport.on(MouseEvents.CLICK, event=>{
             this._input._node.value = "";
@@ -2390,7 +2390,7 @@ export class ToolGridPanelContent extends ToolPanelContent {
                     startY += this._cellHeight;
                 }
                 index++;
-                cell._root.matrix = Matrix.translate(startX - this.width / 2, startY - this.height / 2);
+                cell._root.matrix = Matrix2D.translate(startX - this.width / 2, startY - this.height / 2);
                 startX += cellWidth;
                 this._cellsLayer.add(cell._root);
             }
@@ -2403,8 +2403,8 @@ export class ToolGridPanelContent extends ToolPanelContent {
     }
 
     move(x, y) {
-        this._content.matrix = Matrix.translate(x, y);
-        this._clipRect.matrix = Matrix.translate(0, -y);
+        this._content.matrix = Matrix2D.translate(x, y);
+        this._clipRect.matrix = Matrix2D.translate(0, -y);
     }
 
     addCell(cell) {
@@ -2567,7 +2567,7 @@ export class SigmaItemBuilder extends ToolCell {
             this._root.add(this._label);
             let factor = Math.min(this.width/this._label.width, this.height/this._label.height);
             if (factor>SigmaItemBuilder.MIN_TEXT_REDUCTION_FACTOR) factor=SigmaItemBuilder.MIN_TEXT_REDUCTION_FACTOR;
-            this._label.matrix = Matrix.translate(0, (this.height-this.textHeight)/2).mult(Matrix.scale(factor, factor));
+            this._label.matrix = Matrix2D.translate(0, (this.height-this.textHeight)/2).mult(Matrix2D.scale(factor, factor));
         }
         this._glass = new Rect(
             -width/2-SigmaItemBuilder.MARGIN, -height/2-SigmaItemBuilder.MARGIN,
@@ -2661,7 +2661,7 @@ export class SigmaItemBuilder extends ToolCell {
         let sizeWidthFactor = this.width / bbox.width;
         let sizeHeightFactor = this.itemHeight / bbox.height;
         this._zoom = Math.min(sizeWidthFactor, sizeHeightFactor, SigmaItemBuilder.MAX_ITEM_ENLARGMENT_FACTOR);
-        this._support.matrix = Matrix.translate(-bbox.cx, -bbox.cy - (this.height-this.itemHeight)/2)
+        this._support.matrix = Matrix2D.translate(-bbox.cx, -bbox.cy - (this.height-this.itemHeight)/2)
             .scale(this._zoom, this._zoom, 0, 0)
     }
 

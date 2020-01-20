@@ -4,7 +4,7 @@ import {
     List, ESet, EMap
 } from "./collections.js";
 import {
-    Box, Matrix
+    Box2D, Matrix2D
 } from "./geometry.js";
 import {
     Group, Rect, Fill, Stroke, Visibility, win, Colors, Circle, Line, AlignmentBaseline, TextAnchor, Translation, Text,
@@ -1044,7 +1044,7 @@ export class SigmaFrame extends SigmaElement {
     }
 
     get box() {
-        return new Box(this.lx-this.width/2, this.ly-this.height/2, this.width, this.height);
+        return new Box2D(this.lx-this.width/2, this.ly-this.height/2, this.width, this.height);
     }
 
     _cloned(copy, duplicata) {
@@ -1386,9 +1386,9 @@ export class SigmaTrigger extends SigmaElement {
 
     _animageShape(shape) {
         shape.onDrag(
-            ()=>{shape.matrix = Matrix.scale(0.8, 0.8, 0, 0)},
+            ()=>{shape.matrix = Matrix2D.scale(0.8, 0.8, 0, 0)},
             ()=>{},
-            ()=>{shape.matrix = Matrix.scale(1, 1, 0, 0)}
+            ()=>{shape.matrix = Matrix2D.scale(1, 1, 0, 0)}
         );
     }
 
@@ -1424,7 +1424,7 @@ export class SigmaExpansionBubble extends SigmaElement {
             function() {
                 return ()=>this.parent.hide();
             });
-        this._closer.matrix = Matrix.translate(this.width/2-SigmaTrigger.STD_WIDTH/2, -this.height/2+SigmaTrigger.STD_WIDTH/2);
+        this._closer.matrix = Matrix2D.translate(this.width/2-SigmaTrigger.STD_WIDTH/2, -this.height/2+SigmaTrigger.STD_WIDTH/2);
         this._addPart(this._closer);
     }
 
@@ -1488,12 +1488,12 @@ export function makeExpansionOwner(superClass) {
                         this.parent._expansionBubble.show();
                     }
                 });
-            this._expander.matrix = Matrix.translate(0, -this.height/2+this._expander.height/6);
+            this._expander.matrix = Matrix2D.translate(0, -this.height/2+this._expander.height/6);
             this._addPart(this._expander);
             this._expander.hide();
             this._expansionBubble = new SigmaExpansionBubble(expansionWidth, expansionHeight, SigmaExpansionBubble.SPIKE_HEIGHT);
             this._expansionBubble.addChild(this._createExpansion(...args));
-            this._expansionBubble.matrix = Matrix.translate(0, -this.height/2-expansionHeight/2-this._expansionBubble.spikeHeight*0.9);
+            this._expansionBubble.matrix = Matrix2D.translate(0, -this.height/2-expansionHeight/2-this._expansionBubble.spikeHeight*0.9);
             this._addPart(this._expansionBubble);
             this._expansionBubble.hide();
         }

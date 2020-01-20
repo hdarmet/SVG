@@ -20,7 +20,7 @@ import {
 } from "../../js/graphics.js";
 import {
     addBordersToCollisionPhysic, createGravitationPhysic, makeCarriable, makeCarrier,
-    SAPRecord
+    SAPRecord2D
 } from "../../js/collision-physics.js";
 import {
     TextDecoration
@@ -38,7 +38,7 @@ import {
     always, is, defineMethod, extendMethod, replaceMethod
 } from "../../js/misc.js";
 import {
-    Box
+    Box2D
 } from "../../js/geometry.js";
 import {
     DeltaAbstractModule, DeltaModule
@@ -854,7 +854,7 @@ export class Spike {
     }
 
     get localGeometry() {
-        return new Box(
+        return new Box2D(
             this._element.lx+this._deltaX,
             this._element.ly-this._element.height/2-this._size,
             0, this._size*2+this._element.height);
@@ -873,7 +873,7 @@ export class Spike {
     }
 }
 
-export class SpikedSAPRecord extends SAPRecord {
+export class SpikedSAPRecord extends SAPRecord2D {
     constructor(element, sweepAndPrune, spikeSize) {
         super(element, sweepAndPrune, spikeSize);
         this._spikeSize = spikeSize;
@@ -1146,7 +1146,7 @@ export function makeCaddy(superClass) {
 };
 
 export class DeltaCaddyContent extends DeltaBoxContent {};
-makeCaddy(DeltaCaddyContent);
+//makeCaddy(DeltaCaddyContent);
 
 export class DeltaCaddy extends DeltaBox {
 

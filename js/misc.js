@@ -72,6 +72,11 @@ function _name(artifact) {
     return name;
 }
 
+export function defined(superClass, methodImpl) {
+    let name = _name(methodImpl);
+    return !!superClass.prototype[name];
+}
+
 export function defineMethod(superClass, methodImpl) {
     let name = _name(methodImpl);
     console.assert(!superClass.prototype[name]);

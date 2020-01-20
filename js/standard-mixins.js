@@ -10,7 +10,7 @@ import {
     replaceGetProperty
 } from "./misc.js";
 import {
-    Matrix
+    Matrix2D
 } from "./geometry.js";
 import {
     ESet
@@ -195,7 +195,7 @@ export class TextDecoration extends Decoration {
             }
         );
         this._root.add(text);
-        this._root.matrix = Matrix.translate(x, y);
+        this._root.matrix = Matrix2D.translate(x, y);
     }
 
     refresh() {

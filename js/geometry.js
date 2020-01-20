@@ -1,6 +1,6 @@
 'use strict';
 import {
-    assert
+    assert, defineGetProperty
 } from "./misc.js";
 
 export function distanceToSegment(p, s1, s2) {
@@ -83,19 +83,37 @@ export function intersectLinePolygon(a1, a2, points) {
     return result;
 }
 
-
-function _norm(array) {
+function _norm2D(array) {
     return Math.sqrt(array[0] * array[0] + array[1] * array[1]);
 }
 
-function _normalize(array) {
-    var norm = _norm(array);
+function _normalize2D(array) {
+    var norm = _norm2D(array);
     array[0] /= norm;
     array[1] /= norm;
 }
 
-function _determinant(a, b, c, d) {
+function _determinant2D(a, b, c, d) {
     return a * d - b * c;
+}
+
+function _norm3D(array) {
+    return Math.sqrt(array[0] * array[0] + array[1] * array[1] + array[2] * array[2]);
+}
+
+function _normalize3D(array) {
+    var norm = _norm3D(array);
+    array[0] /= norm;
+    array[1] /= norm;
+    array[2] /= norm;
+}
+
+function _determinant3D(m11, m12, m13, m21, m22, m23, m31, m32, m33) {
+    let z20 = m12 * m23 - m22 * m13;
+    let z10 = m32 * m13 - m12 * m33;
+    let z00 = m22 * m33 - m32 * m23;
+
+    return m31 * z20 + m21 * z10 + m11 * z00;
 }
 
 export function rad(deg) {
@@ -106,7 +124,7 @@ export function deg(rad) {
     return ((rad * 180) / Math.PI) % 360;
 }
 
-export class Matrix {
+export class Matrix2D {
 
     constructor(a=1, b=0, c=0, d=1, e=0, f=0) {
         this.a = a;
@@ -125,24 +143,24 @@ export class Matrix {
     }
 
     clone() {
-        return new Matrix(this.a, this.b, this.c, this.d, this.e, this.f);
+        return new Matrix2D(this.a, this.b, this.c, this.d, this.e, this.f);
     }
 
     _compute() {
         if (!this._split) {
             let split = {};
             let row = [[this.a, this.b], [this.c, this.d]];
-            split.scalex = _norm(row[0]);
-            _normalize(row[0]);
+            split.scalex = _norm2D(row[0]);
+            _normalize2D(row[0]);
             split.shear = row[0][0] * row[1][0] + row[0][1] * row[1][1];
             row[1] = [
                 row[1][0] - row[0][0] * split.shear,
                 row[1][1] - row[0][1] * split.shear
             ];
-            split.scaley = _norm(row[1]);
-            _normalize(row[1]);
+            split.scaley = _norm2D(row[1]);
+            _normalize2D(row[1]);
             split.shear /= split.scaley;
-            if (_determinant(this.a, this.b, this.c, this.d) < 0) {
+            if (_determinant2D(this.a, this.b, this.c, this.d) < 0) {
                 split.scalex = -split.scalex;
             }
             let sin = row[0][1];
@@ -331,23 +349,118 @@ export class Matrix {
         return "matrix("+this.a+" "+this.b+" "+this.c+" "+this.d+" "+this.e+" "+this.f+")";
     }
 }
-Matrix.translate = function(dx, dy) {
-    return new Matrix()._translate(dx, dy);
+Matrix2D.translate = function(dx, dy) {
+    return new Matrix2D()._translate(dx, dy);
 };
-Matrix.scale = function(sx, sy, cx, cy) {
-    return new Matrix()._scale(sx, sy, cx, cy);
+Matrix2D.scale = function(sx, sy, cx, cy) {
+    return new Matrix2D()._scale(sx, sy, cx, cy);
 };
-Matrix.rotate = function(a, cx, cy) {
-    return new Matrix()._rotate(a, cx, cy);
+Matrix2D.rotate = function(a, cx, cy) {
+    return new Matrix2D()._rotate(a, cx, cy);
 };
-Matrix.skew = function(x, y) {
-    return new Matrix()._skew(x, y);
+Matrix2D.skew = function(x, y) {
+    return new Matrix2D()._skew(x, y);
 };
-Object.defineProperty(Matrix, "identity", {
-    get: function() {return new Matrix();}
-});
+defineGetProperty(Matrix2D,
+    function identity() {return new Matrix2D();}
+);
 
-export class Box {
+export class Matrix3D {
+
+    constructor(m11=1, m12=0, m13=0, m21=0, m22=1, m23=0, m31=0, m32=0, m33=1, o1=0, o2=0, o3=0) {
+        this.m11 = m11;
+        this.m12 = m12;
+        this.m13 = m13;
+        this.m21 = m21;
+        this.m22 = m22;
+        this.m23 = m23;
+        this.m31 = m31;
+        this.m32 = m32;
+        this.m33 = m33;
+        this.o1 = o1;
+        this.o2 = o2;
+        this.o3 = o3;
+        this._check();
+    }
+
+    _check() {
+        if (isNaN(
+            this.m11+this.m12+this.m13+
+            this.m21+this.m22+this.m23+
+            this.m31+this.m32+this.m33+
+            this.o1+this.o2+this.o3)) {
+            assert("Invalid matrix:", this);
+        }
+    }
+
+    clone() {
+        return new Matrix2D(
+            this.m11, this.m12, this.m13,
+            this.m21, this.m22, this.m23,
+            this.m31, this.m32, this.m33,
+            this.o1, this.o2, this.o3);
+    }
+
+    _invert() {
+        delete this._split;
+        let z20 = this.m12 * this.m23 - this.m22 * this.m13;
+        let z10 = this.m32 * this.m13 - this.m12 * this.m33;
+        let z00 = this.m22 * this.m33 - this.m32 * this.m23;
+        let x = this.m31 * z20 + this.m21 * z10 + this.m11 * z00;
+        // Compute 3x3 non-zero cofactors for the 2nd column
+        let z21 = this.m21 * this.m13 - this.m11 * this.m23;
+        let z11 = this.m11 * this.m33 - this.m31 * this.m13;
+        let z01 = this.m31 * this.m23 - this.m21 * this.m33;
+        // Compute all six 2x2 determinants of 1st two columns
+        let y01 = this.m11 * this.m22 - this.m21 * this.m12;
+        let y02 = this.m11 * this.m32 - this.m31 * this.m12;
+        let y03 = this.m11 * this.o2 - this.o1 * this.m12;
+        let y12 = this.m21 * this.m32 - this.m31 * this.m22;
+        let y13 = this.m21 * this.o2 - this.o1 * this.m22;
+        let y23 = this.m31 * this.o2 - this.o1 * this.m32;
+        // Compute all non-zero and non-one 3x3 cofactors for 2nd two columns
+        let z23 = this.m23 * y03 - this.o3 * y01 - this.m13 * y13;
+        let z13 = this.m13 * y23 - this.m33 * y03 + this.o3 * y02;
+        let z03 = this.m33 * y13 - this.o3 * y12 - this.m23 * y23;
+        let z22 = y01;
+        let z12 = -y02;
+        let z02 = y12;
+        // Multiply all 3x3 cofactors by reciprocal & transpose
+        this.m11 = z00/x;
+        this.m12 = z10/x;
+        this.m13 = z20/x;
+        this.m21 = z01/x;
+        this.m22 = z11/x;
+        this.m23 = z21/x;
+        this.m31 = z02/x;
+        this.m32 = z12/x;
+        this.m33 = z22/x;
+        this.o1 = z03/x;
+        this.o2 = z13/x;
+        this.o3 = z23/x;
+        this._check();
+        return this;
+    }
+
+    invert() {
+        return this.clone()._invert();
+    }
+
+    x(x, y, z) {
+        return this.m11*x+this.m12*y+this.m13*z+this.o1;
+    }
+
+    y(x, y, z) {
+        return this.m21*x+this.m22*y+this.m23*z+this.o2;
+    }
+
+    z(x, y, z) {
+        return this.m31*x+this.m32*y+this.m33*z+this.o3;
+    }
+}
+
+
+export class Box2D {
 
     constructor(x, y, width, height) {
         this.x = x;
@@ -385,7 +498,7 @@ export class Box {
         let top = Math.min(this.top, box.top);
         let right = Math.max(this.right, box.right);
         let bottom = Math.max(this.bottom, box.bottom);
-        return new Box(left, top, right-left, bottom-top);
+        return new Box2D(left, top, right-left, bottom-top);
     }
 
     intersects(box) {
@@ -406,6 +519,68 @@ export class Box {
         );
     }
 
+    grow(increment) {
+        return new Box2D(
+            this.x-increment,
+            this.y-increment,
+            this.width+increment*2,
+            this.height+increment*2
+        );
+    }
+}
+
+export class Box3D extends Box2D {
+
+    constructor(x, y, z, width, height, depth) {
+        super(x, y, width, height);
+        this.z = z;
+        this.depth = depth;
+    }
+
+    get front() {
+        return this.z;
+    }
+
+    get back() {
+        return this.z+this.depth;
+    }
+
+    get cz() {
+        return this.z+this.depth/2;
+    }
+
+    add(box) {
+        let left = Math.min(this.left, box.left);
+        let top = Math.min(this.top, box.top);
+        let front = Math.min(this.front, box.front);
+        let right = Math.max(this.right, box.right);
+        let bottom = Math.max(this.bottom, box.bottom);
+        let back = Math.max(this.back, box.back);
+        return new Box3D(left, top, front, right-left, bottom-top, back-front);
+    }
+
+    intersects(box) {
+        return super.intersects(box) &&
+            box.front < this.front &&
+            box.back > this.back;
+    }
+
+    includes(box) {
+        return super.includes(box) &&
+            box.front > this.front &&
+            box.back < this.back;
+    }
+
+    grow(increment) {
+        return new Box3D(
+            this.x-increment,
+            this.y-increment,
+            this.z-increment,
+            this.width+increment*2,
+            this.height+increment*2,
+            this.depth+increment*2
+        );
+    }
 }
 
 export function getBox(points) {
@@ -419,5 +594,5 @@ export function getBox(points) {
         if (points[index+1]<top) top=points[index+1];
         else if (points[index+1]>bottom) bottom=points[index+1];
     }
-    return new Box(left, top, right-left, bottom-top);
+    return new Box2D(left, top, right-left, bottom-top);
 }
