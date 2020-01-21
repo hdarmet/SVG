@@ -7,7 +7,7 @@ import {
     ESet
 } from "./collections.js";
 import {
-    Box2D, getBox, Matrix2D
+    Box2D, getBox, Matrix2D, Point2D
 } from "./geometry.js";
 import {
     Group, l2l, l2m, Rect, Translation, Visibility
@@ -222,8 +222,10 @@ export class SigmaElement {
     get globalGeometry() { return this._geometry(this.global); }
     get lx() { return this.matrix.x(0, 0); }
     get ly() { return this.matrix.y(0, 0); }
+    get lloc() { return new Point2D(this.lx, this.ly)}
     get gx() { return this.global.x(0, 0); }
     get gy() { return this.global.y(0, 0); }
+    get gloc() { return new Point2D(this.gx, this.gy)}
     get clx() { return this.canvasLayerMatrix.x(0, 0); }
     get cly() { return this.canvasLayerMatrix.y(0, 0); }
     get location() { return {x:this.lx, y:this.ly} }

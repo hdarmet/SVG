@@ -218,7 +218,7 @@ export function makeFreePositioningOwner(superClass) {
 
     makeFloatingContainer(superClass);
 
-    defineMethod(superClass,
+    replaceMethod(superClass,
         function _acceptDrop(element, dragSet, initialTarget) {
             return FreePositioningMode.mode;
         }

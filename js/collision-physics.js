@@ -12,7 +12,7 @@ import {
     CloneableObject, Events, Memento
 } from "./toolkit.js";
 import {
-    Box2D, Box3D, Matrix2D
+    Box2D, Box3D, Matrix2D, Point2D, Point3D
 } from "./geometry.js";
 
 export class SAPRecord2D {
@@ -408,7 +408,6 @@ export class SweepAndPrune2D {
     elementBox(element) {
         this.updateInternals();
         let record = this._getRecord(element);
-        console.log(record.box)
         return record.box;
     }
 
@@ -590,7 +589,7 @@ export class SweepAndPrune3D extends SweepAndPrune2D {
 
 }
 
-export function makeCollisionPhysic(superClass) {
+export function makeCollisionPhysic2D(superClass) {
 
     defineMethod(superClass,
         function _createSweepAndPrunes() {
@@ -620,7 +619,7 @@ export function makeCollisionPhysic(superClass) {
             this._valids.clear();
             for (let element of this._elements) {
                 this._supportSAP.add(element);
-                this._valids.set(element, {validX:element.lx, validY:element.ly});
+                this._valids.set(element, {valid: new Point2D(element.lx, element.ly)});
             }
         }
     );
@@ -656,7 +655,7 @@ export function makeCollisionPhysic(superClass) {
         function _add(element) {
             this._elements.add(element);
             this._supportSAP.add(element);
-            this._valids.set(element, {validX:element.lx, validY:element.ly});
+            this._valids.set(element, {valid:new Point2D(element.lx, element.ly)});
         }
     );
 
@@ -705,6 +704,80 @@ export function makeCollisionPhysic(superClass) {
     );
 
     /**
+     * Set the fixed position of the element and update physics internal structures accordingly. Note that this
+     * element is ALWAYS a DnD'ed one.
+     * @param element element to displace.
+     * @param x new X ccords of the element
+     * @param y new Y coords of the element.
+     */
+    defineMethod(superClass,
+        function _put(element, sap, {x, y}) {
+            // setLocation(), not move(), on order to keep the DnD fluid (floating elements not correlated).
+            element.setLocation(x, y);
+            sap.update(element);
+        }
+    );
+
+    /**
+     * Get a proposition on the a given axis. This proposition is the nearest position between the one given by
+     * "current" toward the "original" (= lasted valid) position of the element.
+     * @param target element to "avoid".
+     * @param o original position
+     * @param h the proposition.
+     * @returns {*}
+     */
+    defineMethod(superClass,
+        function _adjustOnAxis (target, o, h, sweepAndPrune, min, max, length) {
+            if (o > h) {
+                let r = max.call(sweepAndPrune, target) + length / 2;
+                return o+SweepAndPrune2D.COLLISION_MARGIN < r || same(r, h) ? null : r;
+            } else if (o < h) {
+                let r = min.call(sweepAndPrune, target) - length / 2;
+                return o-SweepAndPrune2D.COLLISION_MARGIN > r || same(r, h) ? null : r;
+            } else return null;
+        }
+    );
+
+    defineMethod(superClass,
+        function _adjustOnTarget(element, target, o, h) {
+            let sap = this.sweepAndPrune(target);
+            let fx = this._adjustOnAxis(target, o.x, h.x, sap, sap.left, sap.right, element.width);
+            let fy = this._adjustOnAxis(target, o.y, h.y, sap, sap.top, sap.bottom, element.height);
+            if (fx!==null || fy!==null) {
+                return {x:fx, y:fy};
+            }
+        }
+    );
+
+    defineMethod(superClass,
+        function _getPlacement(f, h, o) {
+            // First case : we have to choice between X and Y : we get the smallest
+            if (f.x!==null && f.y!==null) {
+                let d = new Point2D(
+                    f.x > h.x ? f.x - h.x : h.x - f.x,
+                    f.y > h.y ? f.y - h.y : h.y - f.y
+                );
+                if (d.x > d.y) {
+                    h.y = f.y;
+                } else {
+                    h.x = f.x;
+                }
+                // 2nd case : only one dimension is available
+            } else if (f.x !== null) {
+                h.x = f.x;
+            } else if (f.y !== null) {
+                h.y = f.y;
+            } else {
+                // Last case : no proposition is available. We revert to last valid position
+                h.x = o.x;
+                h.y = o.y;
+                return true;
+            }
+            return false;
+        }
+    );
+
+    /**
      * Fix the position of a MOVED element so this element (if possible...) does not collide with another one on
      * physic host.
      * @param element element to fix
@@ -715,76 +788,21 @@ export function makeCollisionPhysic(superClass) {
     defineMethod(superClass,
         function _avoidCollisionsForElement(element, exclude, sap, record, originMatrix) {
 
-            /**
-             * Set the fixed position of the element and update physics internal structures accordingly. Note that this
-             * element is ALWAYS a DnD'ed one.
-             * @param element element to displace.
-             * @param x new X ccords of the element
-             * @param y new Y coords of the element.
-             */
-            let put = (element, x, y) => {
-                // setLocation(), not move(), on order to keep the DnD fluid (floating elements not correlated).
-                element.setLocation(x, y);
-                sap.update(element);
-            };
-
-            /**
-             * Get a proposition on the X axis. This proposition is the nearest position between the one given by "current"
-             * toward the "original" (= lasted valid) position of the element.
-             * @param target element to "avoid".
-             * @param ox original position
-             * @param hx the proposition.
-             * @returns {*}
-             */
-            let adjustOnX = (target, ox, hx) => {
-                let sweepAndPrune = this.sweepAndPrune(target);
-                if (ox > hx) {
-                    let rx = sweepAndPrune.right(target) + element.width / 2;
-                    return ox+SweepAndPrune2D.COLLISION_MARGIN < rx || same(rx, hx) ? null : rx;
-                } else if (ox < hx) {
-                    let rx = sweepAndPrune.left(target) - element.width / 2;
-                    return ox-SweepAndPrune2D.COLLISION_MARGIN > rx || same(rx, hx) ? null : rx;
-                } else return null;
-            };
-
-            /**
-             * Get a proposition on the Y axis. This proposition is the nearest position between the one given by "current"
-             * toward the "original" (= lasted valid) position of the element.
-             * @param target element to "avoid".
-             * @param oy original position
-             * @param hy the proposition.
-             * @returns {*}
-             */
-            let adjustOnY = (target, oy, hy) => {
-                let sweepAndPrune = this.sweepAndPrune(target);
-                if (oy > hy) {
-                    let ry = sweepAndPrune.bottom(target) + element.height / 2;
-                    return oy < ry || same(ry, hy) ? null : ry;
-                } else if (oy+SweepAndPrune2D.COLLISION_MARGIN < hy) {
-                    let ry = sweepAndPrune.top(target) - element.height / 2;
-                    return oy-SweepAndPrune2D.COLLISION_MARGIN > ry || same(ry, hy) ? null : ry;
-                } else return null;
-            };
-
-            let adjust = function(targets) {
+            function adjust(targets, o, h) {
                 for (let target of targets) {
-                    let fx = adjustOnX(target, ox, hx);
-                    let fy = adjustOnY(target, oy, hy);
-                    if (fx!==null || fy!==null) {
-                        return {fx, fy};
-                    }
+                    let result = this._adjustOnTarget(element, target, o, h);
+                    if (result) return result;
                 }
-                return { fx:null, fy:null };
-            };
+                return { x:null, y:null };
+            }
 
             exclude.add(element);
-            let sx = element.lx, sy = element.ly;
-            let hx = sx, hy = sy;
+            let s = element.lloc;
+            let h = element.lloc;
             let finished = false;
-            let invertedMatrix = originMatrix.invert();
+            let invertedMatrix = originMatrix ? originMatrix.invert() : null;
             // Coords of last valid position of the element (we have to "go" in this direction...)
-            let ox = invertedMatrix.x(record.validX, record.validY);
-            let oy = invertedMatrix.y(record.validX, record.validY);
+            let o = invertedMatrix ? invertedMatrix.point(record.valid) : record.valid.duplicate();
             // In order to avoid (= bug ?) infinite loop
             let cycleCount = 0;
             while (!finished && cycleCount < 100) {
@@ -792,41 +810,21 @@ export function makeCollisionPhysic(superClass) {
                 let targets = this._collideWith(element, exclude, sap);
                 if (targets.length > 0) {
                     // Get a proposition
-                    let {fx, fy} = adjust(targets);
-                    // First case : we have to choice between X and Y : we get the smallest
-                    if (fx !== null && fy !== null) {
-                        let dx = hx > fx ? hx - fx : fx - hx;
-                        let dy = hy > fy ? hy - fy : fy - hy;
-                        if (dx > dy) {
-                            hy = fy;
-                        } else {
-                            hx = fx;
-                        }
-                        // 2nd case : only one dimension is available
-                    } else if (fx !== null) {
-                        hx = fx;
-                    } else if (fy !== null) {
-                        hy = fy;
-                    } else {
-                        // Last case : no proposition is available. We revert to last valid position
-                        hx = ox;
-                        hy = oy;
-                        finished = true;
-                    }
-                    put(element, hx, hy);
+                    let f = adjust.call(this, targets, o, h);
+                    finished = this._getPlacement(f, h, o);
+                    this._put(element, sap, h);
                 } else {
                     finished = true;
                 }
             }
-            // If final position is "too far" from "current" position, revert to current position, but mark element drag as
-            // invalid.
-            if (Math.abs(hx - sx) > SweepAndPrune2D.ADJUST_MARGIN || Math.abs(hy - sy) > SweepAndPrune2D.ADJUST_MARGIN) {
-                put(element, sx, sy);
+            // If proposed position is "too far" from "current" position, revert to current position, but mark element
+            // drag as invalid.
+            if (h.getDistance(s) > SweepAndPrune2D.ADJUST_MARGIN) {
+                this._put(element, sap, s);
                 record.invalid = true;
             } else {
                 // Fixing accepted: update drag infos.
-                record.validX = originMatrix.x(element.lx, element.ly);
-                record.validY = originMatrix.y(element.lx, element.ly);
+                record.valid = originMatrix ? originMatrix.point(element.lloc) : element.lloc;
                 delete record.invalid;
             }
             exclude.delete(element);
@@ -837,7 +835,8 @@ export function makeCollisionPhysic(superClass) {
         function _avoidCollisionsForDraggedElements(elements) {
             let exclude = new ESet(elements);
             for (let element of elements) {
-                this._avoidCollisionsForElement(element, exclude, this._dragAndDropSAP, element._drag, this._host.global);
+                this._avoidCollisionsForElement(
+                    element, exclude, this._dragAndDropSAP, element._drag, this._host.global);
             }
         }
     );
@@ -847,13 +846,14 @@ export function makeCollisionPhysic(superClass) {
             let elements = new List();
             for (let element of this._valids.keys()) {
                 let record = this._valids.get(element);
-                if (record.validX !== element.lx || record.validY !== element.ly) {
+                if (record.valid.equals(element.lloc)) {
                     elements.add(element);
                 }
             }
             let exclude = new ESet(elements);
             for (let element of elements) {
-                this._avoidCollisionsForElement(element, exclude, this._supportSAP, this._valids.get(element), new Matrix2D());
+                this._avoidCollisionsForElement(
+                    element, exclude, this._supportSAP, this._valids.get(element));
             }
         }
     );
@@ -862,10 +862,64 @@ export function makeCollisionPhysic(superClass) {
 
 export function makeCollisionPhysic3D(superClass) {
 
+    makeCollisionPhysic2D(superClass);
+
     defineMethod(superClass,
         function _createSweepAndPrunes() {
             this._supportSAP = new SweepAndPrune3D();
             this._dragAndDropSAP = new SweepAndPrune3D();
+        }
+    );
+
+    /**
+     * Set the fixed position of the element and update physics internal structures accordingly. Note that this
+     * element is ALWAYS a DnD'ed one.
+     * @param element element to displace.
+     * @param x new X ccords of the element
+     * @param y new Y coords of the element.
+     * @param z new Z coords of the element.
+     */
+    defineMethod(superClass,
+        function _put(element, sap, {x, y, z}) {
+            // setLocation(), not move(), on order to keep the DnD fluid (floating elements not correlated).
+            element.setLocation(x, y, z);
+            sap.update(element);
+        }
+    );
+
+    defineMethod(superClass,
+        function _adjustOnTarget(element, target, o, h) {
+            let sap = this.sweepAndPrune(target);
+            let fx = this._adjustOnAxis(target, o.x, h.x, sap, sap.left, sap.right, element.width);
+            let fy = this._adjustOnAxis(target, o.y, h.y, sap, sap.top, sap.bottom, element.height);
+            let fz = this._adjustOnAxis(target, o.z, h.z, sap, sap.front, sap.back, element.depth);
+            if (fx!==null || fy!==null || fz!==null) {
+                return {x:fx, y:fy, z:fz};
+            }
+        }
+    );
+
+    defineMethod(superClass,
+        function _getPlacement(f, h, o) {
+            let dx = f.x!==null ? (f.x > h.x ? f.x - h.x : h.x - f.x) : Infinity;
+            let dy = f.y!==null ? (f.y > h.y ? f.y - h.y : h.y - f.y) : Infinity;
+            let dz = f.z!==null ? (f.z > h.z ? f.z - h.z : h.z - f.z) : Infinity;
+            if (dx<dy && dx<dz) {
+                h.x = f.x;
+            }
+            else if (dy<dz) {
+                h.y = f.y
+            }
+            else if (dz<Infinity) {
+                h.z = f.z;
+            } else {
+                // Last case : no proposition is available. We revert to last valid position
+                h.x = o.x;
+                h.y = o.y;
+                h.z = o.z;
+                return true;
+            }
+            return false;
         }
     );
 
@@ -1073,7 +1127,7 @@ export function createCollisionPhysic({predicate}) {
             super(host, predicate, ...args);
         }
     }
-    makeCollisionPhysic(CollisionPhysic);
+    makeCollisionPhysic2D(CollisionPhysic);
     return CollisionPhysic;
 }
 

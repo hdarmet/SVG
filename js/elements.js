@@ -1358,11 +1358,13 @@ export function ifPrintRequested() {
     return ifStandardDragMode(StandardDragMode.PRINT);
 }
 
-Canvas.prototype.enablePrint = function() {
-    StandardDragMode.PRINT = "print";
-    standardDrag.addFirst(ifPrintRequested, DragPrintAreaOperation.instance);
-    areaDrag.addFirst(ifPrintRequested, DragPrintAreaOperation.instance);
-};
+defineMethod(Canvas,
+    function enablePrint() {
+        StandardDragMode.PRINT = "print";
+        standardDrag.addFirst(ifPrintRequested, DragPrintAreaOperation.instance);
+        areaDrag.addFirst(ifPrintRequested, DragPrintAreaOperation.instance);
+    }
+);
 
 export function pdfModeCommand(toolPopup) {
     toolPopup.add(new ToolToggleCommand("./images/icons/pdf_on.svg", "./images/icons/pdf_off.svg",

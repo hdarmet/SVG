@@ -9,7 +9,7 @@ import {
 } from "./collections.js";
 import {
     createUUID, assert, defineMethod, proposeGetProperty, extendMethod, defineProperty, defineGetProperty,
-    replaceGetProperty, replaceProperty, extendIfMethod, replaceMethod
+    replaceGetProperty, replaceProperty, extendIfMethod, replaceMethod, defined
 } from "./misc.js";
 
 export function makeDeletable(superClass) {
@@ -223,7 +223,7 @@ export function makeShaped(superClass) {
         }
     );
 
-    if (!superClass.prototype._buildShapeStructure) {
+    if (!defined(superClass,  function _buildShapeStructure() {})) {
 
         defineMethod(superClass,
             function _buildShapeStructure() {
@@ -325,7 +325,7 @@ export class Decoration {
 
 export function makeDecorationsOwner(superClass) {
 
-    assert(!superClass.prototype._initDecorations);
+    assert(!defined(superClass, function _initDecorations() {}));
 
     extendMethod(superClass, $init=>
         function _init(...args) {
@@ -547,7 +547,7 @@ export function makeDraggable(superClass) {
         }
     );
 
-    if (superClass.prototype._memento) {
+    if (defined(superClass, function _memento() {})) {
         extendIfMethod(superClass, $memento =>
             function _memento() {
                 let memento = $memento.call(this);
@@ -595,7 +595,7 @@ export function makeDraggable(superClass) {
         }
     );
 
-    if (superClass.prototype.clone) {
+    if (defined(superClass, function clone() {})) {
         extendMethod(superClass, $cloned =>
             function _cloned(copy, duplicata) {
                 $cloned && $cloned.call(this, copy, duplicata);

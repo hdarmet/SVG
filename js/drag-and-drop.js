@@ -12,6 +12,9 @@ import {
 import {
     ESet, List
 } from "./collections.js";
+import {
+    Point2D
+} from "./geometry.js";
 
 export class DragOperation {
 
@@ -169,18 +172,14 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 // selection.
                 origin: selectedElement._memento(),
                 // Delta from mouse position and element position
-                dragX: (x-gx)/zoom,
-                dragY: (y-gy)/zoom,
+                drag: new Point2D((x-gx)/zoom, (y-gy)/zoom),
                 // Original position of the element (when drag started). Never change.
-                originX: gx,
-                originY: gy,
+                start: new Point2D(gx, gy),
                 // Last position occupied by the element during the drag and drop process. Change for every mouse mouve
                 // event.
-                lastX: gx,
-                lastY: gy,
+                last: new Point2D(gx, gy),
                 // Last valid position occupied by the element
-                validX: gx,
-                validY: gy,
+                valid: new Point2D(gx, gy),
                 cloning: Cloning.IGNORE
             };
             let support = selectedElement.parent;
@@ -190,8 +189,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             selectedElement._fire(Events.DRAG_START);
         }
         this._drag = {
-            lastX : x,
-            lastY : y,
+            last : new Point2D(x, y),
             cloning: Cloning.IGNORE
         };
         Selection.instance.unselectAll();
@@ -250,8 +248,8 @@ export class DragMoveSelectionOperation extends DragElementOperation {
      * @param event mouse event
      */
     doDragMove(element, x, y, event) {
-        let dx = x - this._drag.lastX;
-        let dy = y - this._drag.lastY;
+        let dx = x - this._drag.last.x;
+        let dy = y - this._drag.last.y;
         // get initial supports and move elements on glass without changing support.
         for (let selectedElement of this._dragSet) {
             Canvas.instance.moveElementOnGlass(selectedElement, null, x, y);
@@ -264,11 +262,11 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             // No target at all : element is outside viewport
             if (!target) {
                 Canvas.instance.moveElementOnGlass(selectedElement, null,
-                    selectedElement._drag.lastX, selectedElement._drag.lastY);
+                    selectedElement._drag.last.x, selectedElement._drag.last.y);
             } else /* support changed */ if (target.effective!==selectedElement.parent) {
                 Canvas.instance.moveElementOnGlass(selectedElement, target.effective, x, y);
-                selectedElement._drag.lastX = selectedElement.gx;
-                selectedElement._drag.lastY = selectedElement.gy;
+                selectedElement._drag.last.x = selectedElement.gx;
+                selectedElement._drag.last.y = selectedElement.gy;
             }
         }
         for (let selectedElement of this._dragSet) {
@@ -276,13 +274,13 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             selectedElement._hoverOn(target.effective, this._dragSet, target.initial);
             selectedElement._fire(Events.DRAG_MOVE);
         }
-        this._drag.lastX = x;
-        this._drag.lastY = y;
+        this._drag.last.x = x;
+        this._drag.last.y = y;
         this._doHover(dx, dy);
         Canvas.instance._fire(DragMoveSelectionOperation.DRAG_MOVE_MOVE, this._dragSet);
         for (let selectedElement of this._dragSet) {
-            selectedElement._drag.validX = selectedElement.gx;
-            selectedElement._drag.validY = selectedElement.gy;
+            selectedElement._drag.valid.x = selectedElement.gx;
+            selectedElement._drag.valid.y = selectedElement.gy;
         }
     }
 
@@ -501,8 +499,8 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             Canvas.instance._fire(DragMoveSelectionOperation.DRAG_MOVE_DROP, new ESet(dropped.keys()));
         }
 
-        let dx = x - this._drag.lastX;
-        let dy = y - this._drag.lastY;
+        let dx = x - this._drag.last.x;
+        let dy = y - this._drag.last.y;
         let targets = this.getTargets(this._dragSet);
         let dragSet = [...this._dragSet];
         placeDroppedElements.call(this, dragSet, targets);

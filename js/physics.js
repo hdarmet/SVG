@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    always, assert, defineMethod, replaceMethod, defineGetProperty, extendMethod
+    always, assert, defineMethod, replaceMethod, defineGetProperty, extendMethod, defined
 } from "./misc.js";
 import {
     List, ESet, SpatialLocator, dichotomousSearch
@@ -289,7 +289,7 @@ export function makePhysicExclusive(superClass) {
 
 export function addPhysicToContainer(superClass, {physicBuilder}) {
 
-    assert(superClass.prototype._initContent);
+    assert(defined(superClass, function _initContent(){}));
 
     extendMethod(superClass, $initContent=>
         function _initContent(...args) {
@@ -438,53 +438,62 @@ export function makePositioningPhysic(superClass, {
     assert(positionsBuilder);
     makeAbstractPositioningPhysic(superClass);
 
-    superClass.prototype._elementPosition = function(element) {
-        let {x, y} = clipBuilder(element);
-        let distance = Infinity;
-        let position = null;
-        let positions = positionsBuilder.call(this, element);
-        for (let _position of positions) {
-            let _distance = (_position.x-x)*(_position.x-x)+(_position.y-y)*(_position.y-y);
-            if (_distance<distance) {
-                distance = _distance;
-                position = _position;
+    defineMethod(superClass,
+        function _elementPosition(element) {
+            let {x, y} = clipBuilder(element);
+            let distance = Infinity;
+            let position = null;
+            let positions = positionsBuilder.call(this, element);
+            for (let _position of positions) {
+                let _distance = (_position.x-x)*(_position.x-x)+(_position.y-y)*(_position.y-y);
+                if (_distance<distance) {
+                    distance = _distance;
+                    position = _position;
+                }
+            }
+            return position ? {
+                x:position.x-x+element.lx,
+                y:position.y-y+element.ly,
+                attachment:position.attachment
+            } : null;
+        }
+    );
+
+    defineMethod(superClass,
+        function _refreshHoverElement(element) {
+            let position = this._elementPosition(element);
+            if (this._acceptPosition(element, position)) {
+                element.move(position.x, position.y);
             }
         }
-        return position ? {
-            x:position.x-x+element.lx,
-            y:position.y-y+element.ly,
-            attachment:position.attachment
-        } : null;
-    };
+    );
 
-    superClass.prototype._refreshHoverElement = function(element) {
-        let position = this._elementPosition(element);
-        if (this._acceptPosition(element, position)) {
-            element.move(position.x, position.y);
-        }
-    };
-
-    superClass.prototype._refreshElement = function(element) {
-        let position = this._elementPosition(element);
-        if (this._acceptPosition(element, position)) {
-            element.move(position.x, position.y);
-            element._positioned && element._positioned(this, position);
-        }
-    };
-
-    superClass.prototype._acceptPosition = function(element, position) {
-        return element._acceptPosition ? element._acceptPosition(this, position) : !!position;
-    };
-
-    superClass.prototype._acceptDrop = function(element, dragSet) {
-        if (this.accept(element)) {
+    defineMethod(superClass,
+        function _refreshElement(element) {
             let position = this._elementPosition(element);
-            return this._acceptPosition(element, position);
+            if (this._acceptPosition(element, position)) {
+                element.move(position.x, position.y);
+                element._positioned && element._positioned(this, position);
+            }
         }
-        return true;
-    };
+    );
 
-    return superClass;
+    defineMethod(superClass,
+        function _acceptPosition(element, position) {
+            return element._acceptPosition ? element._acceptPosition(this, position) : !!position;
+        }
+    );
+
+    replaceMethod(superClass,
+        function _acceptDrop(element, dragSet) {
+            if (this.accept(element)) {
+                let position = this._elementPosition(element);
+                return this._acceptPosition(element, position);
+            }
+            return true;
+        }
+    );
+
 }
 
 export function createPositioningPhysic({
@@ -1343,23 +1352,21 @@ export function makeRulesContainer(superClass, {predicate, rulesBuilder, anchors
 
 export function makeCenteredRuler(superClass) {
 
-    Object.defineProperty(superClass.prototype, "rules", {
-        configurable:true,
-        get() {
+    defineGetProperty(superClass,
+        function rules() {
             return {
                 x: [{pos: this.lx, anchor: this}],
                 y: [{pos: this.ly, anchor: this}]
             }
         }
-    });
+    );
 
 }
 
 export function makeBoundedRuler(superClass) {
 
-    Object.defineProperty(superClass.prototype, "rules", {
-        configurable:true,
-        get() {
+    defineGetProperty(superClass,
+        function rules() {
             let lgeom = this.localGeometry();
             let lx = this.lx;
             let ly = this.ly;
@@ -1376,7 +1383,7 @@ export function makeBoundedRuler(superClass) {
                 }]
             }
         }
-    });
+    );
 
 }
 
@@ -1397,156 +1404,170 @@ export function makeRulersPhysic(superClass, {
         anchorsBuilder
     });
 
-    Object.defineProperty(superClass.prototype, "rules", {
-        configurable:true,
-        get() {
+    defineGetProperty(superClass,
+        function rules() {
             if (!this._rules) {
                 this._rules = this._collectRules();
             }
             return this._rules;
         }
-    });
+    );
 
-    let add = superClass.prototype.add;
-    superClass.prototype.add = function(element) {
-        if (this._addRules(element)) {
-            delete this._rules;
-        }
-        add.call(this, element);
-    };
-
-    superClass.prototype._addRules = function(element) {
-        if (this.accept.call(this, element) && rulerPredicate.call(this, element)) {
-            if (!this._rulesProviders) {
-                this._rulesProviders = new List(element);
-            }
-            else {
-                this._rulesProviders.add(element);
-            }
-            return true;
-        }
-        return false;
-    };
-
-    let reset = superClass.prototype._reset;
-    superClass.prototype._reset = function() {
-        delete this._rulesProviders;
-        for (let element of this._host.children) {
-            this._addRules(element);
-        }
-        this._rules = null;
-        reset.call(this);
-    };
-
-    let remove = superClass.prototype.remove;
-    superClass.prototype.remove = function(element) {
-        if (rulerPredicate.call(this, element)) {
-            if (this._rulesProviders) {
-                this._rulesProviders.remove(element);
+    extendMethod(superClass, $add=>
+        function add(element) {
+            if (this._addRules(element)) {
                 delete this._rules;
             }
+            $add.call(this, element);
         }
-        remove.call(this, element);
-    };
+    );
 
-    let move = superClass.prototype.move;
-    superClass.prototype.move = function(element) {
-        if (rulerPredicate.call(this, element)) {
+    defineMethod(superClass,
+        function _addRules(element) {
+            if (this.accept.call(this, element) && rulerPredicate.call(this, element)) {
+                if (!this._rulesProviders) {
+                    this._rulesProviders = new List(element);
+                }
+                else {
+                    this._rulesProviders.add(element);
+                }
+                return true;
+            }
+            return false;
+        }
+    );
+
+    extendMethod(superClass, $reset=>
+        function _reset() {
+            delete this._rulesProviders;
+            for (let element of this._host.children) {
+                this._addRules(element);
+            }
+            this._rules = null;
+            $reset.call(this);
+        }
+    );
+
+    extendMethod(superClass, $remove=>
+        function remove(element) {
+            if (rulerPredicate.call(this, element)) {
+                if (this._rulesProviders) {
+                    this._rulesProviders.remove(element);
+                    delete this._rules;
+                }
+            }
+            $remove.call(this, element);
+        }
+    );
+
+    extendMethod(superClass, $move=>
+        function move(element) {
+            if (rulerPredicate.call(this, element)) {
+                delete this._rules;
+            }
+            $move.call(this, element);
+        }
+    );
+
+    extendMethod(superClass, $resize=>
+        function _resize(width, height) {
             delete this._rules;
+            $resize.call(this, width, height);
         }
-        remove.call(this, element);
-    };
+    );
 
-    let resize = superClass.prototype._resize;
-    superClass.prototype._resize = function(width, height) {
-        delete this._rules;
-        resize.call(this, width, height);
-    };
-
-    superClass.prototype._findRules = function(element) {
-        let range = Attachments.RANGE / Canvas.instance.zoom;
-        let allRules = this.rules;
-        let rules = {
-            x:new List(),
-            y:new List()
-        };
-        let anchors = anchorsBuilder.call(this, element);
-        for (let anchor of anchors.x) {
-            let index = dichotomousSearch(allRules.x, anchor.pos-range);
-            while(index>=0 && index<allRules.x.length && allRules.x[index].pos<=anchor.pos+range) {
-                if (allRules.x[index].pos>=anchor.pos-range) {
-                    rules.x.add(allRules.x[index]);
+    defineMethod(superClass,
+        function _findRules(element) {
+            let range = Attachments.RANGE / Canvas.instance.zoom;
+            let allRules = this.rules;
+            let rules = {
+                x:new List(),
+                y:new List()
+            };
+            let anchors = anchorsBuilder.call(this, element);
+            for (let anchor of anchors.x) {
+                let index = dichotomousSearch(allRules.x, anchor.pos-range);
+                while(index>=0 && index<allRules.x.length && allRules.x[index].pos<=anchor.pos+range) {
+                    if (allRules.x[index].pos>=anchor.pos-range) {
+                        rules.x.add(allRules.x[index]);
+                    }
+                    index++;
                 }
-                index++;
+            }
+            for (let anchor of anchors.y) {
+                let index = dichotomousSearch(allRules.y, anchor.pos-range);
+                while(index>=0 && index<allRules.y.length && allRules.y[index].pos<=anchor.pos+range) {
+                    if (allRules.y[index].pos>=anchor.pos-range) {
+                        rules.y.add(allRules.y[index]);
+                    }
+                    index++;
+                }
+            }
+            return rules;
+        }
+    );
+
+    defineMethod(superClass,
+        function findRules(element) {
+            if (this._accept(element)) {
+                return this._findRules(element);
+            }
+            else {
+                return {x:new List(), y:new List()};
             }
         }
-        for (let anchor of anchors.y) {
-            let index = dichotomousSearch(allRules.y, anchor.pos-range);
-            while(index>=0 && index<allRules.y.length && allRules.y[index].pos<=anchor.pos+range) {
-                if (allRules.y[index].pos>=anchor.pos-range) {
-                    rules.y.add(allRules.y[index]);
-                }
-                index++;
-            }
-        }
-        return rules;
-    };
+    );
 
-    superClass.prototype.findRules = function(element) {
-        if (this._accept(element)) {
-            return this._findRules(element);
-        }
-        else {
-            return {x:new List(), y:new List()};
-        }
-    };
-
-    superClass.prototype._collectRules = function() {
-        let rules = {
-          x:new List(),
-          y:new List()
-        };
-        if (this._rulesProviders) {
-            for (let element of this._rulesProviders) {
-                let _rules = rulersBuilder.call(this, element);
-                if (_rules.x) {
-                    for (let _rule of _rules.x) {
-                        rules.x.add(_rule);
+    defineMethod(superClass,
+        function _collectRules() {
+            let rules = {
+                x:new List(),
+                y:new List()
+            };
+            if (this._rulesProviders) {
+                for (let element of this._rulesProviders) {
+                    let _rules = rulersBuilder.call(this, element);
+                    if (_rules.x) {
+                        for (let _rule of _rules.x) {
+                            rules.x.add(_rule);
+                        }
+                    }
+                    if (_rules.y) {
+                        for (let _rule of _rules.y) {
+                            rules.y.add(_rule);
+                        }
                     }
                 }
-                if (_rules.y) {
-                    for (let _rule of _rules.y) {
-                        rules.y.add(_rule);
-                    }
-                }
+                rules.x.sort((r1, r2)=>r1.pos-r2.pos);
+                rules.y.sort((r1, r2)=>r1.pos-r2.pos);
+                rules.x = this._extendsRules(-this._host.width/2, this._host.width/2, rules.x);
+                rules.y = this._extendsRules(-this._host.height/2, this._host.height/2, rules.y);
             }
-            rules.x.sort((r1, r2)=>r1.pos-r2.pos);
-            rules.y.sort((r1, r2)=>r1.pos-r2.pos);
-            rules.x = this._extendsRules(-this._host.width/2, this._host.width/2, rules.x);
-            rules.y = this._extendsRules(-this._host.height/2, this._host.height/2, rules.y);
+            return rules;
         }
-        return rules;
-    };
+    );
 
-    superClass.prototype._extendsRules = function(start, end, rules) {
-        let extendedRules = new List();
-        let previous = start;
-        for (let index=0; index<rules.length; index++) {
-            let current = rules[index].pos;
-            let next = index < rules.length-1 ? rules[index+1].pos : end;
-            if (next !== current) {
-                if (current - previous > next - current) {
-                    extendedRules.add({pos: current * 2 - next, reference:current});
+    defineMethod(superClass,
+        function _extendsRules(start, end, rules) {
+            let extendedRules = new List();
+            let previous = start;
+            for (let index=0; index<rules.length; index++) {
+                let current = rules[index].pos;
+                let next = index < rules.length-1 ? rules[index+1].pos : end;
+                if (next !== current) {
+                    if (current - previous > next - current) {
+                        extendedRules.add({pos: current * 2 - next, reference:current});
+                    }
+                    extendedRules.add(rules[index]);
+                    if (current - previous < next - current) {
+                        extendedRules.add({pos: current * 2 - previous, reference:current});
+                    }
+                    previous = current;
                 }
-                extendedRules.add(rules[index]);
-                if (current - previous < next - current) {
-                    extendedRules.add({pos: current * 2 - previous, reference:current});
-                }
-                previous = current;
             }
+            return extendedRules;
         }
-        return extendedRules;
-    };
+    );
 }
 
 export function createRulersPhysic({predicate, rulerPredicate, anchorsBuilder}) {

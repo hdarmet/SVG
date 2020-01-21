@@ -709,8 +709,8 @@ class GlassPedestal {
             element.detach();
         }
         pedestal.add(element._root);
-        let fx = x-element._drag.dragX*zoom;
-        let fy = y-element._drag.dragY*zoom;
+        let fx = x-element._drag.drag.x*zoom;
+        let fy = y-element._drag.drag.y*zoom;
         let dX = invertedMatrix.x(fx, fy);
         let dY = invertedMatrix.y(fx, fy);
         element._setLocation(dX, dY);
@@ -721,8 +721,8 @@ class GlassPedestal {
         let zoom = Canvas.instance.zoom;
         let pedestal = this._elementPedestals.get(element);
         let invertedMatrix = pedestal.globalMatrix.invert();
-        let fx = x-element._drag.dragX*zoom;
-        let fy = y-element._drag.dragY*zoom;
+        let fx = x-element._drag.drag.x*zoom;
+        let fy = y-element._drag.drag.y*zoom;
         let dX = invertedMatrix.x(fx, fy);
         let dY = invertedMatrix.y(fx, fy);
         element._setLocation(dX, dY);

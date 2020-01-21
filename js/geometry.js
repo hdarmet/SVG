@@ -215,9 +215,11 @@ export class Matrix2D {
         let aNew = matrix.a * this.a + matrix.c * this.b;
         let cNew = matrix.a * this.c + matrix.c * this.d;
         let eNew = matrix.a * this.e + matrix.c * this.f + matrix.e;
+
         this.b = matrix.b * this.a + matrix.d * this.b;
         this.d = matrix.b * this.c + matrix.d * this.d;
         this.f = matrix.b * this.e + matrix.d * this.f + matrix.f;
+
         this.a = aNew;
         this.c = cNew;
         this.e = eNew;
@@ -314,6 +316,13 @@ export class Matrix2D {
 
     y(x, y) {
         return this.b*x+this.d*y+this.f;
+    }
+
+    point(point) {
+        return new Point2D(
+            this.x(point.x, point.y),
+            this.y(point.x, point.y)
+        );
     }
 
     get dx() {
@@ -446,19 +455,114 @@ export class Matrix3D {
         return this.clone()._invert();
     }
 
+    _add(m11, m12, m13, m21, m22, m23, m31, m32, m33, o1, o2, o3) {
+        delete this._split;
+        let m11New = this.m11*m11 + this.m21*m12 + this.m31*m13;
+        let m12New = this.m12*m11 + this.m22*m12 + this.m32*m13;
+        let m13New = this.m13*m11 + this.m23*m12 + this.m33*m13;
+        let m21New = this.m11*m21 + this.m21*m22 + this.m31*m23;
+        let m22New = this.m12*m21 + this.m22*m22 + this.m31*m23;
+        let m23New = this.m13*m21 + this.m23*m22 + this.m33*m23;
+        let m31New = this.m11*m31 + this.m21*m32 + this.m31*m33;
+        let m32New = this.m12*m31 + this.m22*m32 + this.m32*m33;
+        let m33New = this.m13*m31 + this.m23*m32 + this.m33*m33;
+        this.o1 += this.m11*o1 + this.m21*o2 + this.m31*o3;
+        this.o2 += this.m12*o1 + this.m22*o2 + this.m32*o3;
+        this.o3 += this.m13*o1 + this.m23*o2 + this.m33*o3;
+        this.m11 = m11New;
+        this.m12 = m12New;
+        this.m13 = m13New;
+        this.m21 = m21New;
+        this.m22 = m22New;
+        this.m23 = m23New;
+        this.m31 = m31New;
+        this.m32 = m32New;
+        this.m33 = m33New;
+        this._check();
+        return this;
+    };
+
+    add(matrix) {
+        return this.clone()._add(
+            matrix.m11, matrix.m12, matrix.m13,
+            matrix.m21, matrix.m22, matrix.m23,
+            matrix.m31, matrix.m32, matrix.m33,
+            matrix.o1, matrix.o2, matrix.o3);
+    }
+
+    diff(matrix) {
+        return this.add(matrix.invert());
+    }
+
+    _mult(matrix) {
+        delete this._split;
+        this._add(
+            matrix.m11, matrix.m12, matrix.m13,
+            matrix.m21, matrix.m22, matrix.m23,
+            matrix.m31, matrix.m32, matrix.m33,
+            matrix.o1, matrix.o2, matrix.o3);
+        return this;
+    };
+
+    mult(matrix) {
+        return this.clone()._mult(matrix);
+    }
+
+    _multLeft(m11, m12, m13, m21, m22, m23, m31, m32, m33, o1, o2, o3) {
+        delete this._split;
+        let m11New = m11*this.m11 + m21*this.m12 + m31*this.m13;
+        let m12New = m12*this.m11 + m22*this.m12 + m32*this.m13;
+        let m13New = m13*this.m11 + m23*this.m12 + m33*this.m13;
+        let m21New = m11*this.m21 + m21*this.m22 + m31*this.m23;
+        let m22New = m12*this.m21 + m22*this.m22 + m31*this.m23;
+        let m23New = m13*this.m21 + m23*this.m22 + m33*this.m23;
+        let m31New = m11*this.m31 + m21*this.m32 + m31*this.m33;
+        let m32New = m12*this.m31 + m22*this.m32 + m32*this.m33;
+        let m33New = m13*this.m31 + m23*this.m32 + m33*this.m33;
+        this.o1 = m11*this.o1 + m21*this.o2 + m31*this.o3 + o1;
+        this.o2 = m12*this.o1 + m22*this.o2 + m32*this.o3 + o2;
+        this.o3 = m13*this.o1 + m23*this.o2 + m33*this.o3 + o3;
+        this.m11 = m11New;
+        this.m12 = m12New;
+        this.m13 = m13New;
+        this.m21 = m21New;
+        this.m22 = m22New;
+        this.m23 = m23New;
+        this.m31 = m31New;
+        this.m32 = m32New;
+        this.m33 = m33New;
+        this._check();
+        return this;
+    };
+
+    multLeft(matrix) {
+        return this.clone()._multLeft(
+            matrix.m11, matrix.m12, matrix.m13,
+            matrix.m21, matrix.m22, matrix.m23,
+            matrix.m31, matrix.m32, matrix.m33,
+            matrix.o1, matrix.o2, matrix.o3);
+    }
+
     x(x, y, z) {
-        return this.m11*x+this.m12*y+this.m13*z+this.o1;
+        return this.m11*x+this.m21*y+this.m31*z+this.o1;
     }
 
     y(x, y, z) {
-        return this.m21*x+this.m22*y+this.m23*z+this.o2;
+        return this.m12*x+this.m22*y+this.m32*z+this.o2;
     }
 
     z(x, y, z) {
-        return this.m31*x+this.m32*y+this.m33*z+this.o3;
+        return this.m13*x+this.m23*y+this.m33*z+this.o3;
+    }
+
+    point(point) {
+        return new Point3D(
+            this.x(point.x, point.y, point.z),
+            this.y(point.x, point.y, point.z),
+            this.z(point.x, point.y, point.z)
+        );
     }
 }
-
 
 export class Box2D {
 
@@ -582,6 +686,51 @@ export class Box3D extends Box2D {
         );
     }
 }
+
+export class Point2D {
+
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    getDistance(point) {
+        return Math.sqrt((point.x-this.x)*(point.x-this.x)+(point.y-this.y)*(point.y-this.y));
+    }
+
+    equals(point) {
+        return this.x===point.x && this.y===point.y;
+    }
+
+    duplicate() {
+        return new Point3D(this.x, this.y);
+    }
+}
+
+export class Point3D {
+
+    constructor(x, y, z) {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
+
+    getDistance(point) {
+        return Math.sqrt(
+            (point.x-this.x)*(point.x-this.x)+
+            (point.y-this.y)*(point.y-this.y)+
+            (point.z-this.z)*(point.z-this.z));
+    }
+
+    equals(point) {
+        return this.x===point.x && this.y===point.y && this.z===point.z;
+    }
+
+    duplicate() {
+        return new Point3D(this.x, this.y, this.z);
+    }
+}
+
 
 export function getBox(points) {
     let left = points[0];
