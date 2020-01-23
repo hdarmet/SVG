@@ -18,10 +18,7 @@ import {
     defineShadow
 } from "./svgtools.js";
 import {
-    defineMethod, defineGetProperty
-} from "./misc.js";
-import {
-    extendIfMethod
+    defineMethod, defineGetProperty, extendIfMethod, replaceMethod
 } from "./misc.js";
 
 export const Context = {
@@ -751,38 +748,48 @@ export function makeMultiLayeredGlass(superClass, {layers}) {
 
     let defaultLayer = layers[0];
 
-    superClass.prototype._initContent = function() {
-        this._content = new Group();
-        this._layers = {};
-        for (let layer of layers) {
-            this._layers[layer] = new Group();
-            this._content.add(this._layers[layer]);
+    replaceMethod(superClass,
+        function _initContent() {
+            this._content = new Group();
+            this._layers = {};
+            for (let layer of layers) {
+                this._layers[layer] = new Group();
+                this._content.add(this._layers[layer]);
+            }
+            this._root.add(this._content);
         }
-        this._root.add(this._content);
-    };
+    );
 
-    superClass.prototype._getLayer = function (element) {
-        let layer = element.getLayer && element.getLayer(this);
-        if (!layer) layer = defaultLayer;
-        if (!this._layers[layer]) layer = defaultLayer;
-        return layer;
-    };
+    defineMethod(superClass,
+        function _getLayer(element) {
+            let layer = element.getLayer && element.getLayer(this);
+            if (!layer) layer = defaultLayer;
+            if (!this._layers[layer]) layer = defaultLayer;
+            return layer;
+        }
+    );
 
-    superClass.prototype._addPedestal = function(pedestal) {
-        let layer = this._getLayer(pedestal._support);
-        this._layers[layer].add(pedestal._root);
-        pedestal._root.matrix = pedestal._support._root.globalMatrix.multLeft(this._root.globalMatrix.invert());
-    };
+    replaceMethod(superClass,
+        function _addPedestal(pedestal) {
+            let layer = this._getLayer(pedestal._support);
+            this._layers[layer].add(pedestal._root);
+            pedestal._root.matrix = pedestal._support._root.globalMatrix.multLeft(this._root.globalMatrix.invert());
+        }
+    );
 
-    superClass.prototype.putArtifact = function(artifact, element) {
-        let layer = this._getLayer(element);
-        this._layers[layer].add(artifact);
-    };
+    replaceMethod(superClass,
+        function putArtifact(artifact, element) {
+            let layer = this._getLayer(element);
+            this._layers[layer].add(artifact);
+        }
+    );
 
-    superClass.prototype.removeArtifact = function(artifact, element) {
-        let layer = this._getLayer(element);
-        this._layers[layer].remove(artifact);
-    };
+    replaceMethod(superClass,
+        function removeArtifact(artifact, element) {
+            let layer = this._getLayer(element);
+            this._layers[layer].remove(artifact);
+        }
+    );
 
 }
 
@@ -813,7 +820,6 @@ export class GlassLayer extends CanvasLayer {
     }
 
     show() {
-        //this._root.visibility = null;
         this._root.add(this._content);
         return true;
     }
@@ -926,20 +932,22 @@ GlassLayer.Z_INDEX = 1000;
 
 export function setGlassStrategy(superClass, {glassStrategy}) {
 
-    Object.defineProperty(superClass.prototype, "glassStrategy", {
-        configurable: true,
-        enumerable: false,
-        get: function () {
-            return glassStrategy;
+    let strategy = glassStrategy;
+
+    defineGetProperty(superClass,
+        function glassStrategy() {
+            return strategy;
         }
-    });
+    );
 
 }
 
 export function setLayeredGlassStrategy(superClass, {layers}) {
 
     let glassStrategy = class extends GlassPedestal {
-        constructor(glass, support, ...args) {super(glass, support, ...args);}
+        constructor(glass, support, ...args) {
+            super(glass, support, ...args);
+        }
     };
     makeMultiLayeredGlass(glassStrategy, {layers});
     setGlassStrategy(superClass, {glassStrategy});

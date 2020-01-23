@@ -1144,7 +1144,7 @@ export function makeCollisionContainer(superClass, {predicate, bordersCollide = 
     return superClass;
 }
 
-class GroundStructure {
+class GroundStructure2D {
 
     constructor() {
         this._id = 0;
@@ -1152,10 +1152,6 @@ class GroundStructure {
             let value = s1.right-s2.right;
             return value ? value : s1.id-s2.id;
         });
-    }
-
-    duplicate(copy) {
-        copy._segments = new AVLTree(this._segments);
     }
 
     filter(element, record) {
@@ -1203,13 +1199,7 @@ class Ground {
     }
 
     _createGroundStructure() {
-        return new GroundStructure();
-    }
-
-    duplicate() {
-        let duplicates = new Ground(this._physic);
-        this._structure.duplicate(duplicates._structure);
-        return duplicates;
+        return new GroundStructure2D();
     }
 
     process(element, update=true) {
@@ -1358,6 +1348,51 @@ export function makeGravitationContainer(superClass, {
     });
 
     return superClass;
+}
+
+class GroundStructure3D {
+
+    constructor() {
+        this._id = 0;
+        this._sweepAndPrune = new SweepAndPrune2D();
+    }
+
+    filter(element, record) {
+        let left = record.left(element);
+        let right = record.right(element);
+        let front = record.front(element);
+        let back = record.back(element);
+        let box = new Box2D(left, front, right-left, back-front);
+        let collides = this._sweepAndPrune.elementsInBox(box);
+        let result = new List();
+        for (let element of collides) {
+            result.add({element, top:element.localGeometry.top});
+        }
+        return result;
+    }
+
+    update(element, record, segment) {
+        let left = record.left(element);
+        let right = record.right(element);
+        if (segment.left < left) {
+            this._segments.insert({
+                left:segment.left, right:left, id:this._id++, top:segment.top, element:segment.element
+            });
+        }
+        if (segment.right > right) {
+            segment.left = right;
+        }
+        else {
+            this._segments.delete(segment);
+        }
+    }
+
+    add(element, record) {
+        let left = record.left(element);
+        let right = record.right(element);
+        let top = record.top(element);
+        this._segments.insert({left, right, id:this._id++, top, element});
+    }
 }
 
 export function makeCarrier(superClass) {
@@ -1736,7 +1771,7 @@ export function makeDroppedElementsToGlue(superClass, {gluingStrategy=(element1,
 
     extendMethod(superClass, $receiveDrop=>
         function _receiveDrop(element, dragSet) {
-            receiveDrop.call(this);
+            $receiveDrop.call(this);
             if (element.isGlueable) {
                 let alreadyGlued = element.getGlued(true, true, true, true);
                 let gluedElements = this._supportSAP.near(element, 1, 1, 1, 1);

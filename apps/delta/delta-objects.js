@@ -536,7 +536,7 @@ export class DeltaBoxExpansionContent extends DeltaSupport {
     }
 
     get elementMorph() {
-        return DeltaBoxExpansion.KEY;
+        return DeltaBoxExpansion.PROJECTION;
     }
 
     get dual() {
@@ -571,7 +571,7 @@ export class DeltaBoxExpansion extends DeltaExpansion {
     }
 
     get elementMorph() {
-        return DeltaBoxExpansion.KEY;
+        return DeltaBoxExpansion.PROJECTION;
     }
 
     _buildBoxContent({contentWidth, contentDepth}) {
@@ -579,7 +579,7 @@ export class DeltaBoxExpansion extends DeltaExpansion {
     }
 
 }
-DeltaBoxExpansion.KEY = "top";
+DeltaBoxExpansion.PROJECTION = "top";
 makeShaped(DeltaBoxExpansion);
 
 export class DeltaBoxContent extends DeltaSupport {

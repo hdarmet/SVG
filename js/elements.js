@@ -4,7 +4,7 @@ import {
     List, ESet, EMap
 } from "./collections.js";
 import {
-    Box2D, Matrix2D
+    Box2D, Matrix2D, Matrix3D, Point2D, Point3D
 } from "./geometry.js";
 import {
     Group, Rect, Fill, Stroke, Visibility, win, Colors, Circle, Line, AlignmentBaseline, TextAnchor, Translation, Text,
@@ -1574,14 +1574,14 @@ export function makeSupportDual(superClass) {
                 embodiment = element.entity.createEmbodiment(this.dual);
             }
             this.dual.addChild(embodiment);
-            embodiment.move(element.lx, 0);
+            element.entity._setLocation(new Point3D(0, 0, 0));
+            element.entity.adjustEmbodimentsLocations(element, element.lx, element.ly);
         }
     );
 
     defineMethod(superClass,
         function moveHovered(element) {
-            let embodiment = element.entity.getEmbodiment(this.dual);
-            embodiment.move(element.lx, embodiment.ly);
+            element.entity.adjustEmbodimentsLocations(element, element.lx, element.ly);
         }
     );
 
@@ -1643,7 +1643,8 @@ export class SigmaPolymorphicElement extends SigmaElement {
         if (this._currentMorph) {
             this.removeChild(this._currentMorph);
         }
-        this._currentMorph = this._morphs[key];
+        this._morphKey = key;
+        this._currentMorph = this._morphs[this._morphKey];
         assert(this._currentMorph);
         this.addChild(this._currentMorph);
         return this;
@@ -1656,6 +1657,10 @@ export class SigmaPolymorphicElement extends SigmaElement {
 
     setDefaultMorph() {
         return this.setMorph(this.defaultMorph);
+    }
+
+    get morphKey() {
+        return this._morphKey;
     }
 
     setMorphFromSupport(support) {
@@ -1674,6 +1679,7 @@ export class SigmaPolymorphicElement extends SigmaElement {
 
     _memento() {
         let memento = super._memento();
+        memento._morphKey = this._morphKey;
         memento._currentMorph = this._currentMorph;
         memento._morphs = {...this._morphs};
         return memento;
@@ -1681,6 +1687,7 @@ export class SigmaPolymorphicElement extends SigmaElement {
 
     _revert(memento) {
         super._revert(memento);
+        this._morphKey = memento._morphKey;
         this._currentMorph = memento._currentMorph;
         this._morphs = new CloneableObject(memento._morphs);
     }
@@ -1696,6 +1703,7 @@ export function makeEmbodiment(superClass) {
         },
         function entity(entity) {
             Memento.register(this);
+            assert(entity instanceof SigmaEntity);
             this._entity = entity;
         }
     );
@@ -1711,14 +1719,14 @@ export function makeEmbodiment(superClass) {
     extendMethod(superClass, $revert=>
         function _revert(memento) {
             $revert.call(this, memento);
-            this._entity = new CloneableObject(memento._entity);
+            this._entity = memento._entity;
         }
     );
 
     extendMethod(superClass, $setLocation=>
         function setLocation(x, y) {
             $setLocation.call(this, x, y);
-            this._entity && this._entity.setLocation(this, x, y);
+            this._entity && this._entity.adjustEmbodimentsLocations(this, x, y);
         }
     );
 
@@ -1731,29 +1739,91 @@ export function makeEmbodiment(superClass) {
 
 export class SigmaEntity {
 
-    constructor() {
+    constructor(width, height, depth) {
+        this._width = width;
+        this._height = height;
+        this._depth = depth;
+        this._matrix = new Matrix3D();
+    }
+
+    _setLocation(point) {
+        this._matrix = Matrix3D.translate(point.x, point.y, point.z);
+    }
+
+    setLocation(point) {
+        Memento.register(this);
+        this._setLocation(point);
+    }
+
+    get matrix() { return this._matrix; }
+    set matrix(matrix) {
+        Memento.register(this);
+        this._matrix = matrix;
+    }
+    get lx() { return this.matrix.x(0, 0, 0); }
+    get ly() { return this.matrix.y(0, 0, 0); }
+    get lz() { return this.matrix.z(0, 0, 0); }
+    get lloc() { return new Point3D(this.lx, this.ly, this.lz)}
+
+    _memento() {
+        let memento = {
+            _width: this._width,
+            _height: this._height,
+            _depth: this._depth,
+            _matrix: this._matrix.clone()
+        };
+        return memento;
+    }
+
+    _revert(memento) {
+        this._width = memento._width;
+        this._height = memento._height;
+        this._depth = memento._depth;
+        this._matrix = memento._matrix.clone();
+    }
+
+    clone(duplicata) {
+        let copy = CopyPaste.clone(this, duplicata);
+        return copy;
+    }
+
+}
+SigmaEntity.projections = {
+    FRONT : "front",
+    LEFT: "left",
+    TOP : "top",
+    BACK : "back",
+    RIGHT: "right",
+    BOTTOM : "bottom"
+};
+
+export class SigmaPolymorphicEntity extends SigmaEntity {
+
+    constructor(...args) {
+        super(...args);
         this._morphs = new CloneableObject();
         this._embodiments = new EMap();
     }
 
-    _addMorph(key, morph) {
-        this._morphs[key] = morph;
+    _addMorph(projection, morph) {
+        this._morphs[projection] = morph;
         return this;
     }
 
-    addMorph(key, morph) {
+    addMorph(projection, morph, dimension) {
         Memento.register(this);
-        return this._addMorph(key, morph);
+        morph._projections = dimension;
+        return this._addMorph(projection, morph);
     }
 
-    _removeMorph(key) {
-        delete this._morphs[key];
+    _removeMorph(projection) {
+        delete this._morphs[projection];
         return this;
     }
 
-    removeMorph(key) {
+    removeMorph(projection) {
         Memento.register(this);
-        this._removeMorph(key);
+        this._removeMorph(projection);
     }
 
     createEmbodiment(support) {
@@ -1782,14 +1852,56 @@ export class SigmaEntity {
         return embodiment;
     }
 
-    setLocation(embodiment, x, y) {
+    _getEntityLocationFromEmbodimentLocation(embodiment, {x, y}) {
+        let key = embodiment.morphKey;
+        let ex, ey, ez;
+        if (key===SigmaEntity.projections.FRONT || key===SigmaEntity.projections.BACK) {
+            ex = key===SigmaEntity.projections.FRONT ? x : -x;
+            ey = y;
+            ez = this.lz;
+        }
+        else if (key===SigmaEntity.projections.TOP || key===SigmaEntity.projections.BOTTOM) {
+            ex = x;
+            ey = this.ly;
+            ez = key===SigmaEntity.projections.TOP ? y : -y;
+        }
+        else if (key===SigmaEntity.projections.LEFT || key===SigmaEntity.projections.RIGHT) {
+            ex = this.lx;
+            ey = y;
+            ez = key===SigmaEntity.projections.RIGHT ? x : -x;
+        }
+        return new Point3D(ex, ey, ez);
+    }
+
+    _getEmbodimentLocationFromEntityLocation(embodiment, {x, y, z}) {
+        let key = embodiment.morphKey;
+        let lx, ly;
+        if (key===SigmaEntity.projections.FRONT || key===SigmaEntity.projections.BACK) {
+            lx = key===SigmaEntity.projections.FRONT ? x : -x;
+            ly = y;
+        }
+        else if (key===SigmaEntity.projections.TOP || key===SigmaEntity.projections.BOTTOM) {
+            lx = x;
+            ly = key===SigmaEntity.projections.TOP ? z : -z;
+        }
+        else if (key===SigmaEntity.projections.LEFT || key===SigmaEntity.projections.RIGHT) {
+            ly = y;
+            lx = key===SigmaEntity.projections.RIGHT ? x : -x;
+        }
+        return new Point2D(lx, ly);
+    }
+
+    adjustEmbodimentsLocations(embodiment, x, y) {
         if (!this.__moveEmbodiments) {
             try {
                 this.__moveEmbodiments = true;
+                let entityLocation = this._getEntityLocationFromEmbodimentLocation(embodiment, new Point2D(x, y));
+                this._setLocation(entityLocation);
                 for (let support of this._embodiments.keys()) {
                     let aEmbodiment = this._embodiments.get(support);
                     if (aEmbodiment !== embodiment) {
-                        aEmbodiment.move(x, aEmbodiment.ly);
+                        let location = this._getEmbodimentLocationFromEntityLocation(aEmbodiment, entityLocation);
+                        aEmbodiment.move(location.x, location.y);
                     }
                 }
             }
@@ -1799,12 +1911,27 @@ export class SigmaEntity {
         }
     }
 
+    setLocation(point) {
+        super.setLocation(point);
+        try {
+            this.__moveEmbodiments = true;
+            for (let support of this._embodiments.keys()) {
+                let aEmbodiment = this._embodiments.get(support);
+                let location = this._getEmbodimentLocationFromEntityLocation(aEmbodiment, point);
+                aEmbodiment.move(location.x, location.y);
+            }
+        }
+        finally {
+            delete this.__moveEmbodiments;
+        }
+    }
+
     get morphs() {
         return this._morphs;
     }
 
-    getMorph(key) {
-        return this._morphs[key];
+    getMorph(projection) {
+        return this._morphs[projection];
     }
 
     _memento() {
@@ -1818,9 +1945,7 @@ export class SigmaEntity {
         this._morphs = new CloneableObject(memento._morphs);
     }
 
-    clone(duplicata) {
-        let copy = CopyPaste.clone(this, duplicata);
-        return copy;
-    }
-
 }
+
+
+

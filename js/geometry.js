@@ -398,12 +398,12 @@ export class Matrix3D {
             this.m21+this.m22+this.m23+
             this.m31+this.m32+this.m33+
             this.o1+this.o2+this.o3)) {
-            assert("Invalid matrix:", this);
+            assert(false);
         }
     }
 
     clone() {
-        return new Matrix2D(
+        return new Matrix3D(
             this.m11, this.m12, this.m13,
             this.m21, this.m22, this.m23,
             this.m31, this.m32, this.m33,
@@ -562,7 +562,47 @@ export class Matrix3D {
             this.z(point.x, point.y, point.z)
         );
     }
+
+    _translate(dx, dy, dz) {
+        delete this._split;
+        this.o1 += dx * this.m11 + dy * this.m21 + dz * this.m31;
+        this.o2 += dx * this.m12 + dy * this.m22 + dz * this.m32;
+        this.o3 += dx * this.m13 + dy * this.m23 + dz * this.m33;
+        this._check();
+        return this;
+    }
+
+    translate(dx, dy, dz) {
+        return this.clone()._translate(dx, dy, dz);
+    }
+
+    _scale(sx, sy, sz, cx, cy, cz) {
+        delete this._split;
+        (cx || cy || cz) && this._translate(cx, cy, cz);
+        this.m11 *= sx;
+        this.m12 *= sx;
+        this.m13 *= sx;
+        this.m21 *= sy;
+        this.m22 *= sy;
+        this.m23 *= sy;
+        this.m31 *= sz;
+        this.m32 *= sz;
+        this.m33 *= sz;
+        (cx || cy || cz) && this._translate(-cx, -cy, -cz);
+        this._check();
+        return this;
+    }
+
+    scale(x, y, z, cx, cy, cz) {
+        return this.clone()._scale(x, y, cx, cy, cz);
+    }
 }
+Matrix3D.translate = function(x, y, z) {
+    return new Matrix3D()._translate(x, y, z);
+};
+Matrix3D.scale = function(sx, sy, sz, cx, cy, cz) {
+    return new Matrix3D()._scale(sx, sy, sz, cx, cy, cz);
+};
 
 export class Box2D {
 

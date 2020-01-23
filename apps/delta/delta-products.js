@@ -37,7 +37,7 @@ import {
     assert, is, defineGetProperty, defineMethod, extendMethod, replaceMethod
 } from "../../js/misc.js";
 import {
-    SigmaEntity
+    SigmaEntity, SigmaPolymorphicEntity
 } from "../../js/elements.js";
 
 export class DeltaModuleMorph extends DeltaElement {
@@ -51,15 +51,12 @@ export class DeltaModuleMorph extends DeltaElement {
 makeFramed(DeltaModuleMorph);
 makePart(DeltaModuleMorph);
 
-export class DeltaModuleEntity extends SigmaEntity {
+export class DeltaModuleEntity extends SigmaPolymorphicEntity {
 
     constructor({width, height, depth}) {
-        super();
-        this._width = width;
-        this._height = height;
-        this._depth = depth;
-        this._addMorph(DeltaModule.morphs.FACE, new DeltaModuleMorph({width, height, color:Colors.GREY}));
-        this._addMorph(DeltaModule.morphs.TOP, new DeltaModuleMorph({width, height:depth, color:Colors.LIGHT_GREY}));
+        super(width, height, depth);
+        this._addMorph(SigmaEntity.projections.FRONT, new DeltaModuleMorph({width, height, color:Colors.GREY}));
+        this._addMorph(SigmaEntity.projections.TOP, new DeltaModuleMorph({width, height:depth, color:Colors.LIGHT_GREY}));
     }
 
     _createEmbodiment(support) {
@@ -89,13 +86,13 @@ export class DeltaModule extends DeltaEmbodiment {
     constructor({width, height, depth, morphs, key}) {
         if (!morphs) {
             morphs = {
-                face:new DeltaModuleMorph({width, height, color: Colors.GREY}),
+                front:new DeltaModuleMorph({width, height, color: Colors.GREY}),
                 top:new DeltaModuleMorph({width, height: depth, color: Colors.LIGHT_GREY})
             };
         }
-        super(morphs, DeltaModule.morphs.FACE);
+        super(morphs, SigmaEntity.projections.FRONT);
         this._depth = depth;
-        this._setMorph(key ? key : DeltaModule.morphs.FACE);
+        this._setMorph(key ? key : SigmaEntity.projections.FRONT);
     }
 
     get depth() {
@@ -103,10 +100,6 @@ export class DeltaModule extends DeltaEmbodiment {
     }
 
 }
-DeltaModule.morphs = {
-    FACE : "face",
-    TOP : "top"
-};
 
 export class DeltaAbstractModule extends DeltaItem {
 

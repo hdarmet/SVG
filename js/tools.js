@@ -25,7 +25,7 @@ import {
     defineShadow, MultiLineText
 } from "./svgtools.js";
 import {
-    assert, defineMethod, extendMethod
+    assert, defineMethod, extendMethod, defined, defineProperty, proposeGetProperty
 } from "./misc.js";
 
 export class Menu {
@@ -91,146 +91,168 @@ export class Menu {
 Menu.XMARGIN = 5;
 Menu.YMARGIN = 5;
 
-Canvas.prototype.manageMenus = function() {
-    win.addEventListener(MouseEvents.MOUSE_DOWN, event => {
-        if (!this._menu || !this._menu.insideMenu(
-                Canvas.instance.canvasX(event.pageX),
-                Canvas.instance.canvasY(event.pageY))
-        ) {
-            this._closeMenu();
-        }
-    });
-    win.addEventListener(MouseEvents.MOUSE_UP, event => {
-        if (this._menu && (this._menu.closeOnSelect || !this._menu.insideMenu(
-                Canvas.instance.canvasX(event.pageX),
-                Canvas.instance.canvasY(event.pageY)))
-        ) {
-            this._closeMenu();
-        } else {
-            this._refreshMenu();
-        }
-    });
-    win.addEventListener(MouseEvents.WHEEL, event => {
-        this._closeMenu();
-    });
-
-    Canvas.prototype.openMenu = function(x, y, menuOptions, closeOnSelect = true) {
-        this._closeMenu();
-        let {x:mx, y:my} = this._toolsLayer.global2local(x, y);
-        this._menu = new Menu(mx, my, menuOptions, closeOnSelect);
-        this.putArtifactOnToolsLayer(this._menu._root);
-    };
-
-    //FIXME May I use one day ?
-    Canvas.prototype.askForClosingMenu = function() {
-        let menu = this._menu;
-        win.setTimeout(() => {
-            if (menu) {
-                menu.close();
-                if (this._menu === menu) delete this._menu;
+defineMethod(Canvas,
+    function manageMenus() {
+        win.addEventListener(MouseEvents.MOUSE_DOWN, event => {
+            if (!this._menu || !this._menu.insideMenu(
+                    Canvas.instance.canvasX(event.pageX),
+                    Canvas.instance.canvasY(event.pageY))
+            ) {
+                this._closeMenu();
             }
-        }, 200);
-    };
+        });
+        win.addEventListener(MouseEvents.MOUSE_UP, event => {
+            if (this._menu && (this._menu.closeOnSelect || !this._menu.insideMenu(
+                    Canvas.instance.canvasX(event.pageX),
+                    Canvas.instance.canvasY(event.pageY)))
+            ) {
+                this._closeMenu();
+            } else {
+                this._refreshMenu();
+            }
+        });
+        win.addEventListener(MouseEvents.WHEEL, event => {
+            this._closeMenu();
+        });
 
-    Canvas.prototype._refreshMenu = function(x, y) {
-        if (this._menu) {
-            return this._menu.refresh();
-        }
-        return false;
-    };
+        defineMethod(Canvas,
+            function openMenu(x, y, menuOptions, closeOnSelect = true) {
+                this._closeMenu();
+                let {x:mx, y:my} = this._toolsLayer.global2local(x, y);
+                this._menu = new Menu(mx, my, menuOptions, closeOnSelect);
+                this.putArtifactOnToolsLayer(this._menu._root);
+            }
+        );
 
-    Canvas.prototype._closeMenu = function() {
-        if (this._menu) {
-            this._menu.close();
-            delete this._menu;
-        }
+        defineMethod(Canvas,
+            //FIXME May I use one day ?
+            function askForClosingMenu() {
+                let menu = this._menu;
+                win.setTimeout(() => {
+                    if (menu) {
+                        menu.close();
+                        if (this._menu === menu) delete this._menu;
+                    }
+                }, 200);
+            }
+        );
+
+        defineMethod(Canvas,
+            function _refreshMenu(x, y) {
+                if (this._menu) {
+                    return this._menu.refresh();
+                }
+                return false;
+            }
+        );
+
+        defineMethod(Canvas,
+            function _closeMenu() {
+                if (this._menu) {
+                    this._menu.close();
+                    delete this._menu;
+                }
+            }
+        );
     }
-};
+);
 
 export function makeMenuOwner(superClass) {
 
-    superClass.prototype.addMenuOption = function(menuOption, readOnly = true) {
-        Memento.register(this);
-        this._addMenuOption(menuOption, readOnly);
-    };
+    defineMethod(superClass,
+        function addMenuOption(menuOption, readOnly = true) {
+            Memento.register(this);
+            this._addMenuOption(menuOption, readOnly);
+        }
+    );
 
-    superClass.prototype._triggerContextMenu = function() {
-        this._root.on(MouseEvents.CONTEXT_MENU,
-            event => {
-                this.openMenu(
-                    Canvas.instance.canvasX(event.pageX),
-                    Canvas.instance.canvasY(event.pageY));
-                event.preventDefault();
-                event.stopPropagation();
-                return false;
-            },
-            true
+    defineMethod(superClass,
+        function _triggerContextMenu() {
+            this._root.on(MouseEvents.CONTEXT_MENU,
+                event => {
+                    this.openMenu(
+                        Canvas.instance.canvasX(event.pageX),
+                        Canvas.instance.canvasY(event.pageY));
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return false;
+                },
+                true
+            );
+        }
+    );
+
+    defineMethod(superClass,
+        function _addMenuOption(menuOption, readOnly = true) {
+            menuOption.readOnly = readOnly;
+            if (!this._menuOptions) {
+                this._menuOptions = new List();
+                this._triggerContextMenu();
+            }
+            this._menuOptions.add(menuOption);
+        }
+    );
+
+    defineMethod(superClass,
+        function _getOwnMenuOptions() {
+            return this._menuOptions.map(option=>{return {line:option, that:this}});
+        }
+    );
+
+    proposeGetProperty(superClass,
+        function menuOptions() {
+            return this._getOwnMenuOptions();
+        }
+    );
+
+    defineMethod(superClass,
+        function openMenu(x, y) {
+            let menuOptions = this.menuOptions;
+            if (menuOptions && menuOptions.length > 0) {
+                Canvas.instance.openMenu(x, y, menuOptions);
+            }
+        }
+    );
+
+
+    if (defined(superClass , function _memento() {})) {
+        extendMethod(superClass, $memento=>
+            function _memento() {
+                let memento = $memento.call(this);
+                if (this._menuOptions) {
+                    memento._menuOptions = new List(...this._menuOptions);
+                }
+                return memento;
+            }
         );
-    };
 
-    superClass.prototype._addMenuOption = function(menuOption, readOnly = true) {
-        menuOption.readOnly = readOnly;
-        if (!this._menuOptions) {
-            this._menuOptions = new List();
-            this._triggerContextMenu();
-        }
-        this._menuOptions.add(menuOption);
-    };
-
-    superClass.prototype._getOwnMenuOptions = function() {
-        return this._menuOptions.map(option=>{return {line:option, that:this}});
-    };
-
-    if (!superClass.prototype.hasOwnProperty("menuOptions")) {
-        Object.defineProperty(superClass.prototype, "menuOptions", {
-            get: function () {
-                return this._getOwnMenuOptions();
+        extendMethod(superClass, $revert=>
+            function _revert(memento) {
+                $revert.call(this, memento);
+                if (memento._menuOptions) {
+                    this._menuOptions = new List(...memento._menuOptions);
+                }
+                else {
+                    delete this._menuOptions;
+                }
+                return this;
             }
-        });
+        );
     }
 
-    superClass.prototype.openMenu = function(x, y) {
-        let menuOptions = this.menuOptions;
-        if (menuOptions && menuOptions.length > 0) {
-            Canvas.instance.openMenu(x, y, menuOptions);
+    extendMethod(superClass, $cloned=>
+        function _cloned(copy, duplicata) {
+            $cloned && $cloned.call(this, copy, duplicata);
+            copy._triggerContextMenu();
         }
-    };
+    );
 
-    let superMemento = superClass.prototype._memento;
-    if (superMemento) {
-        superClass.prototype._memento = function () {
-            let memento = superMemento.call(this);
-            if (this._menuOptions) {
-                memento._menuOptions = new List(...this._menuOptions);
-            }
-            return memento;
-        };
-
-        let superRevert = superClass.prototype._revert;
-        superClass.prototype._revert = function (memento) {
-            superRevert.call(this, memento);
-            if (memento._menuOptions) {
-                this._menuOptions = new List(...memento._menuOptions);
-            }
-            else {
-                delete this._menuOptions;
-            }
-            return this;
-        };
-    }
-
-    let superCloned = superClass.prototype._cloned;
-    superClass.prototype._cloned = function(copy, duplicata) {
-        superCloned && superCloned.call(this, copy, duplicata);
-        copy._triggerContextMenu();
-    };
-
-    Object.defineProperty(superClass.prototype, "isMenuOwner", {
-        configurable: true,
-        get() {
+    defineProperty(superClass,
+        function isMenuOwner() {
             return true;
         }
-    });
+    );
+
 }
 
 export class MenuOption {
