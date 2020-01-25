@@ -856,6 +856,15 @@ export function makeContainerASupport(superClass) {
         }
     );
 
+    extendMethod(superClass, $executeDrag=>
+        function _executeDrag(element, dragSet, initialTarget) {
+            if (!$executeDrag || !$executeDrag.call(this, element, dragSet)) {
+                this.removeChild(element);
+            }
+            return true;
+        }
+    );
+
     extendMethod(superClass, $executeDrop=>
         function _executeDrop(element, dragSet, initialTarget) {
             if (!$executeDrop || !$executeDrop.call(this, element, dragSet, initialTarget)) {

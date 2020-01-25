@@ -992,6 +992,12 @@ export function makeClipsOwner(superClass) {
     );
 
     defineGetProperty(superClass,
+        function isClipOnCapable() {
+            return true;
+        }
+    );
+
+    defineGetProperty(superClass,
         function clips() {
             return new List(...this._clips);
         }

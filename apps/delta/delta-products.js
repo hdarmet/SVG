@@ -38,7 +38,7 @@ import {
 } from "../../js/misc.js";
 import {
     SigmaEntity, SigmaPolymorphicEntity
-} from "../../js/elements.js";
+} from "../../js/entity.js";
 
 export class DeltaModuleMorph extends DeltaElement {
 

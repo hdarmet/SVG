@@ -185,6 +185,8 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             let support = selectedElement.parent;
             selectedElement._draggedFrom(support, this._dragSet);
             // IMPORTANT ! Puts element on Glass AFTER eventual updates made by _draggedFrom
+            // TODO make _executeDrag mandatory
+            selectedElement._parent._executeDrag && selectedElement._parent._executeDrag(selectedElement, this._dragSet);
             Canvas.instance.putElementOnGlass(selectedElement, support, x, y);
             selectedElement._fire(Events.DRAG_START);
         }

@@ -1,6 +1,6 @@
 
 import {
-    same, evaluate, defineMethod, extendMethod, replaceMethod, defineGetProperty
+    same, evaluate, defineMethod, extendMethod, replaceMethod, defineGetProperty, assert
 } from "./misc.js";
 import {
     AVLTree, ESet, List, EMap, dichotomousSearch, insertionSort

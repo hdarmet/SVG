@@ -710,7 +710,7 @@ class GlassPedestal {
         let fy = y-element._drag.drag.y*zoom;
         let dX = invertedMatrix.x(fx, fy);
         let dY = invertedMatrix.y(fx, fy);
-        element._setLocation(dX, dY);
+        element.setLocation(dX, dY);
         this._glass.setZIndexes(element);
     }
 
@@ -722,7 +722,7 @@ class GlassPedestal {
         let fy = y-element._drag.drag.y*zoom;
         let dX = invertedMatrix.x(fx, fy);
         let dY = invertedMatrix.y(fx, fy);
-        element._setLocation(dX, dY);
+        element.setLocation(dX, dY);
     }
 
     removeElement(element) {
@@ -814,7 +814,6 @@ export class GlassLayer extends CanvasLayer {
     }
 
     hide() {
-        //this._root.visibility = Visibility.HIDDEN;
         this._root.remove(this._content);
         return true;
     }

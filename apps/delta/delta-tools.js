@@ -9,7 +9,7 @@ import {
 import {
     DeltaBlister, DeltaCover, DeltaDivider, DeltaDoubleLadder, DeltaFascia, DeltaFasciaSupport, DeltaFixing, DeltaHook,
     DeltaLadder, DeltaPane, DeltaRichCaddy, DeltaRichPane, DeltaRichShelf, DeltaShelf, DeltaSlottedRichBox, DeltaVisual,
-    DeltaSlottedBox, DeltaBox, DeltaAbstractLadder, DeltaFrame
+    DeltaSlottedBox, DeltaBox, DeltaAbstractLadder, DeltaFrame, DeltaRichCaddyEntity
 } from "./delta-objects.js";
 import {
     Layers, Context, Layer
@@ -298,6 +298,13 @@ export function createPalettePopup() {
         headerHeight:5, footerHeight:15
     })]));
 
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaRichCaddyEntity({
+        width:120, height:70, depth:50, clips:[{x:0, y:15}],
+        contentX:0, contentY:0, contentWidth:100, contentHeight:60, contentDepth:45,
+        slotWidth:20,
+        headerHeight:5, footerHeight:15
+    }).defaultEmbodiment]));
+
     paletteContent.addCell(new SigmaItemBuilder([new DeltaRichCaddyModule({
         width:120, height:70, depth:45,
         contentX:0, contentY:0, contentWidth:100, contentHeight:60,
@@ -450,7 +457,7 @@ export function createPalettePopup() {
         width:120, height:60, color:"#FF00FF"
     })]));
     paletteContent.addCell(new SigmaItemBuilder([new DeltaModuleEntity({
-        width:20, height:40, depth:45, color:"#FF00FF"
+        width:20, height:40, depth:44, color:"#FF00FF"
     }).defaultEmbodiment]));
     paletteContent.addCell(new OptionItemBuilder([new DeltaColorOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#FF0000"}),

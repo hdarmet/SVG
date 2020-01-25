@@ -32,7 +32,7 @@ import {
 } from "../../js/misc.js";
 import {
     SigmaPolymorphicElement, makeEmbodiment
-} from "../../js/elements.js";
+} from "../../js/entity.js";
 
 export const DeltaLayers = {
     DOWN: "d",
@@ -380,9 +380,21 @@ export function makeDeltaItem(superClass) {
 export class DeltaItem extends DeltaElement {}
 makeDeltaItem(DeltaItem);
 
-export class DeltaEmbodiment extends SigmaPolymorphicElement {}
+export class DeltaEmbodiment extends SigmaPolymorphicElement {
+
+    select() {
+        this._currentMorph.select && this._currentMorph.select();
+    }
+
+    unselect() {
+        this._currentMorph.unselect && this._currentMorph.unselect();
+    }
+}
 makeDeltaItem(DeltaEmbodiment);
 makeEmbodiment(DeltaEmbodiment);
+
+export class DeltaStaticEmbodiment extends SigmaPolymorphicElement {}
+makeEmbodiment(DeltaStaticEmbodiment);
 
 export class DeltaSupport extends SigmaElement {
 
