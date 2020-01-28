@@ -9,7 +9,7 @@ import {
     makeClickable, makeElevable, makeShaped
 } from "./core-mixins.js";
 import {
-    Group, Rect,Rotation, Translation, Colors, Stroke, Line
+    Group, Rect,Rotation, Translation, Colors, Stroke, Line, defer
 } from "./graphics.js";
 import {
     assert, defined,
@@ -135,22 +135,18 @@ export function makeExpansionOwner(superClass, expansionBubbleClass = SigmaExpan
             }
 
             $improve.call(this, ...args);
-            let expansionWidth = this.width*SigmaExpansionBubble.MARGIN_FACTOR;
-            let expansionHeight = this.height*SigmaExpansionBubble.MARGIN_FACTOR;
             this._expander = new SigmaTrigger(SigmaTrigger.STD_WIDTH, SigmaTrigger.STD_HEIGHT, triggerShape,
                 function() {
                     return ()=>{
+                        if (!this.parent._expansionBubble) {
+                            this.parent._buildExpansion();
+                        }
                         this.parent._expansionBubble.show();
                     }
                 });
             this._expander.matrix = Matrix2D.translate(0, -this.height/2+this._expander.height/6);
             this._addPart(this._expander);
             this._expander.hide();
-            this._expansionBubble = this._createExpansionBubble(expansionWidth, expansionHeight, SigmaExpansionBubble.SPIKE_HEIGHT);
-            this._expansionBubble.addChild(this._createExpansion(...args));
-            this._expansionBubble.matrix = Matrix2D.translate(0, -this.height/2-expansionHeight/2-this._expansionBubble.spikeHeight*0.9);
-            this._addPart(this._expansionBubble);
-            this._expansionBubble.hide();
         }
     );
 
@@ -163,6 +159,18 @@ export function makeExpansionOwner(superClass, expansionBubbleClass = SigmaExpan
     defineMethod(superClass,
         function _createExpansionBubble(width, height, spikeHeight) {
             return new expansionBubbleClass(width, height, spikeHeight);
+        }
+    );
+
+    defineMethod(superClass,
+        function _buildExpansion() {
+            let expansionWidth = this.width*SigmaExpansionBubble.MARGIN_FACTOR;
+            let expansionHeight = this.height*SigmaExpansionBubble.MARGIN_FACTOR;
+            this._expansionBubble = this._createExpansionBubble(expansionWidth, expansionHeight, SigmaExpansionBubble.SPIKE_HEIGHT);
+            this._expansionBubble.addChild(this._createExpansion());
+            this._expansionBubble.matrix = Matrix2D.translate(0, -this.height / 2 - expansionHeight / 2 - this._expansionBubble.spikeHeight * 0.9);
+            this._addPart(this._expansionBubble);
+            this._expansionBubble.hide();
         }
     );
 
@@ -180,10 +188,16 @@ export function makeExpansionOwner(superClass, expansionBubbleClass = SigmaExpan
         }
     );
 
+    defineGetProperty(superClass,
+        function expansionVisible() {
+            return this._expansionBubble && this._expansionBubble.visible;
+        }
+    );
+
     extendMethod(superClass, $select=>
         function select() {
             $select && $select.call(this);
-            if (!this._expansionBubble.visible) {
+            if (!this.expansionVisible) {
                 this._expander.show();
             }
         }
@@ -200,7 +214,9 @@ export function makeExpansionOwner(superClass, expansionBubbleClass = SigmaExpan
         function _cloned(copy, duplicata) {
             $cloned && $cloned.call(this, copy, duplicata);
             copy._expander.hide();
-            copy._expansionBubble.hide();
+            if (copy.expansionVisible) {
+                copy._expansionBubble.hide();
+            }
         }
     );
 

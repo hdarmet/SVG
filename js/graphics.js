@@ -125,6 +125,23 @@ export let win = {
     }
 };
 
+let deferred = new List();
+export function defer(action) {
+    if (!deferred.length) {
+        win.setTimeout(function() {
+            do {
+                let actions = new List(...deferred);
+                deferred.clear();
+                for (let action of actions) {
+                    console.log("action", action)
+                    action();
+                }
+            } while (deferred.length);
+        }, 0);
+    }
+    deferred.add(action);
+}
+
 export function localOffset(svgNode) {
     let box = dom.getBoundingClientRect(svgNode._node);
     let body = doc.body;
@@ -182,7 +199,7 @@ export function computeAngle(source, target) {
 }
 export let AnyEvent = "event";
 
-export let MouseEvents = {
+export const MouseEvents = {
     CLICK : "click",
     CONTEXT_MENU : "contextmenu",
     DOUBLE_CLICK : "dblclick",
@@ -196,18 +213,25 @@ export let MouseEvents = {
     WHEEL : "wheel"
 };
 
-export let KeyboardEvents = {
+export const KeyboardEvents = {
     KEY_DOWN : "keydown",
     KEY_UP : "keyup",
     INPUT : "input"
 };
 
-export let Buttons = {
+export const Buttons = {
     LEFT_BUTTON : 0,
     WHEEL_BUTTON : 1,
     RIGHT_BUTTON : 2,
     FOURTH_BUTTON : 3,
     FIFTH_BUTTON : 4
+};
+
+export let SVGEvents = {
+    SVG_IN : "svg-in",
+    SVG_OUT : "svg-out",
+    SVGIn : new Event("svg-in"),
+    SVGOut : new Event("svg-out")
 };
 
 export const Attrs = {
@@ -1005,7 +1029,9 @@ export class DOMElement {
 
     _register() {
         if (this._svg !== this._parent._svg) {
+            if (this._svg) this.emit(SVGEvents.SVGOut);
             this._svg = this._parent._svg;
+            if (this._svg) this.emit(SVGEvents.SVGIn);
             if (this._children) {
                 for (let child of this._children) {
                     child._register();
@@ -1018,6 +1044,7 @@ export class DOMElement {
 
     _unregister() {
         if (this._svg) {
+            this.emit(SVGEvents.SVGOut);
             delete this._svg;
             if (this._children) {
                 for (let child of this._children) {
@@ -1130,6 +1157,13 @@ export class DOMElement {
 
     get outerHTML() {
         return this._node.outerHTML;
+    }
+
+    emit(event) {
+        if (this._events && this._events.get(event.type)) {
+            this._node.dispatchEvent(event);
+        }
+        return this;
     }
 
     on(event, action) {

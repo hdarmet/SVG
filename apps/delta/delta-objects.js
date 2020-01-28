@@ -699,8 +699,8 @@ export class DeltaSlottedBox extends DeltaBox {
         return new DeltaSlottedBoxContent({width:contentWidth, height:contentHeight, slotWidth, ...args});
     }
 
-    _createExpansion(args) {
-        return new DeltaSlottedBoxExpansion({width:this.width, depth:this.depth, main:this, ...args});
+    _createExpansion() {
+        return new DeltaSlottedBoxExpansion({width:this.width, depth:this.depth, main:this});
     }
 }
 
@@ -1181,8 +1181,8 @@ export class DeltaCaddy extends DeltaBox {
         return new DeltaCaddyContent({width:contentWidth, height:contentHeight, color:Colors.LIGHTEST_GREY});
     }
 
-    _createExpansion(args) {
-        return new DeltaCaddyExpansion({width:this.width, depth:this.depth, main:this, ...args});
+    _createExpansion() {
+        return new DeltaCaddyExpansion({width:this.width, depth:this.depth, main:this});
     }
 
 }
@@ -1252,7 +1252,7 @@ export class DeltaRichCaddyFrontMorph extends DeltaMorphElement {
         this.shape.fill = Colors.WHITE;
     }
 
-    _createExpansion(args) {
+    _createExpansion() {
         return this._entity.createEmbodiment(this.expansionBubble)
     }
 }
@@ -1362,17 +1362,17 @@ export class DeltaRichCaddyEntity extends DeltaCaddyEntity {
 
     _init({clips, color, headerHeight, footerHeight, contentX, contentY, contentWidth, contentHeight, contentDepth}) {
         super._init({clips});
-        this._addMorph(SigmaEntity.projections.TOP, new DeltaRichCaddyTopMorph({
-            entity:this,
-            width:this.width, depth:this.depth,
-            color,
-            contentX, contentWidth, contentDepth
-        }));
         this._addMorph(SigmaEntity.projections.FRONT, new DeltaRichCaddyFrontMorph({
             entity:this,
             width:this.width, height:this.height,
             color, headerHeight, footerHeight,
             contentX, contentY, contentWidth, contentHeight
+        }));
+        this._addMorph(SigmaEntity.projections.TOP, new DeltaRichCaddyTopMorph({
+            entity:this,
+            width:this.width, depth:this.depth,
+            color,
+            contentX, contentWidth, contentDepth
         }));
     }
 

@@ -584,190 +584,217 @@ function glassFollowersUpdater() {
 
 export function makeFollowed(superClass) {
 
-    Object.defineProperty(superClass.prototype, "isFollowed", {
-        configurable:true,
-        get() {
+    defineGetProperty(superClass,
+        function isFollowed() {
             return true;
         }
-    });
+    );
 
-    Object.defineProperty(superClass.prototype, "followers", {
-        configurable:true,
-        get() {
+    defineGetProperty(superClass,
+        function followers() {
             return this._followers ? this._followers.keys() : [];
         }
-    });
+    );
 
-    superClass.prototype.addFollower = function(element) {
-        if (element.isFollower) {
-            Memento.register(this);
-            Memento.register(element);
+    defineMethod(superClass,
+        function addFollower(element) {
+            if (element.isFollower) {
+                Memento.register(this);
+                Memento.register(element);
+                if (element.followed) {
+                    Memento.register(element.followed);
+                }
+                this._addFollower(element);
+                this._fire(Events.ADD_FOLLOWER, element);
+                element._fire(Events.ADD_FOLLOWER, this);
+            }
+        }
+    );
+
+    defineMethod(superClass,
+        function moveFollower(element) {
+            if (element.isFollower) {
+                Memento.register(this);
+                Memento.register(element);
+                this._moveFollower(element);
+                this._fire(Events.MOVE_FOLLOWER, element);
+                element._fire(Events.MOVE_FOLLOWER, this);
+            }
+        }
+    );
+
+    defineMethod(superClass,
+        function removeFollower(element) {
+            if (element.isFollower) {
+                Memento.register(this);
+                Memento.register(element);
+                this._removeFollower(element);
+                this._fire(Events.REMOVE_FOLLOWER, element);
+                element._fire(Events.REMOVE_FOLLOWER, this);
+            }
+        }
+    );
+
+    defineMethod(superClass,
+        function __addFollower(element, record) {
+            if (!this._followers) {
+                this._followers = new Map();
+            }
+            this._followers.set(element, record);
+        }
+    );
+
+    defineMethod(superClass,
+        function __moveFollower(element, record) {
+            this._followers.set(element, record);
+        }
+    );
+
+    defineMethod(superClass,
+        function __removeFollower(element) {
+            if (this._followers) {
+                this._followers.delete(element);
+                if (!this._followers.size) {
+                    delete this._followers;
+                }
+            }
+        }
+    );
+
+    defineMethod(superClass,
+        function isFollowedBy(element) {
+            return this._followers && this._followers.has(element);
+        }
+    );
+
+    defineMethod(superClass,
+        function _addFollower(element) {
+            let record = new CloneableObject({
+                matrix: this.global.invert().mult(element.global)
+            });
+            this.__addFollower(element, record);
             if (element.followed) {
-                Memento.register(element.followed);
+                element.followed.__removeFollower(element);
             }
-            this._addFollower(element);
-            this._fire(Events.ADD_FOLLOWER, element);
-            element._fire(Events.ADD_FOLLOWER, this);
+            element.__setFollowed(this, record);
         }
-    };
+    );
 
-    superClass.prototype.moveFollower = function(element) {
-        if (element.isFollower) {
-            Memento.register(this);
-            Memento.register(element);
-            this._moveFollower(element);
-            this._fire(Events.MOVE_FOLLOWER, element);
-            element._fire(Events.MOVE_FOLLOWER, this);
+    defineMethod(superClass,
+        function _moveFollower(element) {
+            let record = new CloneableObject({
+                matrix: this.global.invert().mult(element.global)
+            });
+            this.__moveFollower(element, record);
+            element.__moveFollowed(this, record);
         }
-    };
+    );
 
-    superClass.prototype.removeFollower = function(element) {
-        if (element.isFollower) {
-            Memento.register(this);
-            Memento.register(element);
-            this._removeFollower(element);
-            this._fire(Events.REMOVE_FOLLOWER, element);
-            element._fire(Events.REMOVE_FOLLOWER, this);
+    defineMethod(superClass,
+        function _removeFollower(element) {
+            this.__removeFollower(element);
+            element.__setFollowed(null);
         }
-    };
+    );
 
-    superClass.prototype.__addFollower = function(element, record) {
-        if (!this._followers) {
-            this._followers = new Map();
+    defineMethod(superClass,
+        function _clearFollowers() {
+            delete this._followers;
         }
-        this._followers.set(element, record);
-    };
+    );
 
-    superClass.prototype.__moveFollower = function(element, record) {
-        this._followers.set(element, record);
-    };
-
-    superClass.prototype.__removeFollower = function(element) {
-        if (this._followers) {
-            this._followers.delete(element);
-            if (!this._followers.size) {
-                delete this._followers;
-            }
-        }
-    };
-
-    superClass.prototype.isFollowedBy = function(element) {
-        return this._followers && this._followers.has(element);
-    };
-
-    superClass.prototype._addFollower = function(element) {
-        let record = new CloneableObject({
-            matrix: this.global.invert().mult(element.global)
-        });
-        this.__addFollower(element, record);
-        if (element.followed) {
-            element.followed.__removeFollower(element);
-        }
-        element.__setFollowed(this, record);
-    };
-
-    superClass.prototype._moveFollower = function(element) {
-        let record = new CloneableObject({
-            matrix: this.global.invert().mult(element.global)
-        });
-        this.__moveFollower(element, record);
-        element.__moveFollowed(this, record);
-    };
-
-    superClass.prototype._removeFollower = function(element) {
-        this.__removeFollower(element);
-        element.__setFollowed(null);
-    };
-
-    superClass.prototype._clearFollowers = function() {
-        delete this._followers;
-    };
-
-    let getExtension = superClass.prototype.getExtension;
-    superClass.prototype.getExtension = function(extension) {
-        let elemExtension = getExtension ? getExtension.call(this, extension) : new ESet();
-        extension = extension ? extension.merge(elemExtension) : elemExtension;
-        if (this._followers) {
-            for (let element of this._followers.keys()) {
-                if (!extension.has(element)) {
-                    extension.add(element);
-                    if (element.getExtension) {
-                        for (let child of element.getExtension(extension)) {
-                            extension.add(child);
+    extendMethod(superClass, $getExtension=>
+        function getExtension(extension) {
+            let elemExtension = $getExtension ? $getExtension.call(this, extension) : new ESet();
+            extension = extension ? extension.merge(elemExtension) : elemExtension;
+            if (this._followers) {
+                for (let element of this._followers.keys()) {
+                    if (!extension.has(element)) {
+                        extension.add(element);
+                        if (element.getExtension) {
+                            for (let child of element.getExtension(extension)) {
+                                extension.add(child);
+                            }
                         }
                     }
                 }
             }
+            return extension
         }
-        return extension
-    };
+    );
 
-    let cancelDrop = superClass.prototype._cancelDrop;
-    superClass.prototype._cancelDrop = function(dragOperation) {
-        cancelDrop && cancelDrop.call(this, dragOperation);
-        if (this._followers) {
-            for (let element of this._followers.keys()) {
-                if (!dragOperation.dropCancelled(element)) {
-                    dragOperation.cancelDrop(element);
+    extendMethod(superClass, $cancelDrop=>
+        function _cancelDrop(dragOperation) {
+            $cancelDrop && $cancelDrop.call(this, dragOperation);
+            if (this._followers) {
+                for (let element of this._followers.keys()) {
+                    if (!dragOperation.dropCancelled(element)) {
+                        dragOperation.cancelDrop(element);
+                    }
                 }
             }
         }
-    };
+    );
 
-    let cloned = superClass.prototype._cloned;
-    superClass.prototype._cloned = function (copy, duplicata) {
-        cloned && cloned.call(this, copy, duplicata);
-        if (this._followers) {
-            for (let element of this._followers.keys()) {
-                let childCopy = duplicata.get(element);
-                let record = this._followers.get(element);
-                copy.__addFollower(childCopy, record);
+    extendMethod(superClass, $cloned=>
+        function _cloned(copy, duplicata) {
+            $cloned && $cloned.call(this, copy, duplicata);
+            if (this._followers) {
+                for (let element of this._followers.keys()) {
+                    let childCopy = duplicata.get(element);
+                    let record = this._followers.get(element);
+                    copy.__addFollower(childCopy, record);
+                }
             }
         }
-    };
+    );
 
-    let revertDroppedIn = superClass.prototype._revertDroppedIn;
-    superClass.prototype._revertDroppedIn = function () {
-        revertDroppedIn && revertDroppedIn.call(this);
-        if (this._followers) {
-            for (let element of this._followers.keys()) {
-                let record = this._followers.get(element);
-                element.__setFollowed(this, record);
+    extendMethod(superClass, $revertDroppedIn=>
+        function _revertDroppedIn() {
+            $revertDroppedIn && $revertDroppedIn.call(this);
+            if (this._followers) {
+                for (let element of this._followers.keys()) {
+                    let record = this._followers.get(element);
+                    element.__setFollowed(this, record);
+                }
             }
         }
-    };
+    );
 
-    let superDelete = superClass.prototype.delete;
-    superClass.prototype.delete = function() {
-        let result = superDelete.call(this);
-        if (this._followers) {
-            for (let element of this._followers.keys()) {
-                this.removeFollower(element);
+    extendMethod(superClass, $delete=>
+        function delete_() {
+            let result = $delete.call(this);
+            if (this._followers) {
+                for (let element of this._followers.keys()) {
+                    this.removeFollower(element);
+                }
             }
+            return result;
         }
-        return result;
-    };
+    );
 
-    let superMemento = superClass.prototype._memento;
-    superClass.prototype._memento = function () {
-        let memento = superMemento.call(this);
-        if (this._followers) {
-            memento._followers = new Map(this._followers);
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            if (this._followers) {
+                memento._followers = new Map(this._followers);
+            }
+            return memento;
         }
-        return memento;
-    };
+    );
 
-    let superRevert = superClass.prototype._revert;
-    superClass.prototype._revert = function (memento) {
-        superRevert.call(this, memento);
-        if (memento._followers) {
-            this._followers = new Map(memento._followers);
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            if (memento._followers) {
+                this._followers = new Map(memento._followers);
+            }
+            else {
+                delete this._followers;
+            }
+            return this;
         }
-        else {
-            delete this._followers;
-        }
-        return this;
-    };
+    );
 
     Context.addStarter(()=>{
         Memento.instance.addFinalizer(adjustAllFollowers);
@@ -775,143 +802,159 @@ export function makeFollowed(superClass) {
         Canvas.instance.glassLayer.addMutationsCallback(glassFollowersUpdater);
     });
 
-    return superClass;
 }
 
 export function makeFollower(superClass) {
 
-    Object.defineProperty(superClass.prototype, "isFollower", {
-        configurable:true,
-        get() {
+    defineProperty(superClass,
+        function isFollower() {
             return true;
         }
-    });
+    );
 
-    Object.defineProperty(superClass.prototype, "followed", {
-        configurable:true,
-        get() {
+    defineProperty(superClass,
+        function followed() {
             return this._followed ? this._followed.element : undefined;
         }
-    });
+    );
 
-    superClass.prototype._registerFollower = function(canvasLayer) {
-        this._unregisterFollower();
-        if (!canvasLayer._followers) {
-            canvasLayer._followers = new ESet();
-        }
-        canvasLayer._followers.add(this);
-        this._followed.layer = canvasLayer;
-    };
-
-    superClass.prototype.__unregisterFollower = function(canvasLayer) {
-        if (canvasLayer && canvasLayer._followers) {
-            canvasLayer._followers.delete(this);
-            if (canvasLayer._followers.size===0) {
-                delete canvasLayer._followers;
-            }
-            delete this._followed.layer;
-        }
-    };
-
-    superClass.prototype._unregisterFollower = function() {
-        let canvasLayer = this._followed ? this._followed.layer : null;
-        this.__unregisterFollower(canvasLayer);
-    };
-
-    superClass.prototype.__setFollowed = function(element, record) {
-        if (element) {
-            this._followed = new CloneableObject({element, record});
-            this._registerFollower(this.canvasLayer);
-        }
-        else if (this._followed) {
+    defineMethod(superClass,
+        function _registerFollower(canvasLayer) {
             this._unregisterFollower();
-            delete this._followed;
+            if (!canvasLayer._followers) {
+                canvasLayer._followers = new ESet();
+            }
+            canvasLayer._followers.add(this);
+            this._followed.layer = canvasLayer;
         }
-    };
+    );
 
-    superClass.prototype.__moveFollowed = function(element, record) {
-        this._followed = new CloneableObject({element:this.follow, record});
-    };
+    defineMethod(superClass,
+        function __unregisterFollower(canvasLayer) {
+            if (canvasLayer && canvasLayer._followers) {
+                canvasLayer._followers.delete(this);
+                if (canvasLayer._followers.size===0) {
+                    delete canvasLayer._followers;
+                }
+                delete this._followed.layer;
+            }
+        }
+    );
 
-    superClass.prototype.follow = function(support) {
-        return this._followed.element === support;
-    };
+    defineMethod(superClass,
+        function _unregisterFollower() {
+            let canvasLayer = this._followed ? this._followed.layer : null;
+            this.__unregisterFollower(canvasLayer);
+        }
+    );
 
-    let draggedFrom = superClass.prototype._draggedFrom;
-    superClass.prototype._draggedFrom = function(support, dragSet) {
-        draggedFrom.call(this, support, dragSet);
-        if (this._followed) {
-            if (!dragSet.has(this._followed.element)) {
+    defineMethod(superClass,
+        function __setFollowed(element, record) {
+            if (element) {
+                this._followed = new CloneableObject({element, record});
+                this._registerFollower(this.canvasLayer);
+            }
+            else if (this._followed) {
+                this._unregisterFollower();
+                delete this._followed;
+            }
+        }
+    );
+
+    defineMethod(superClass,
+        function __moveFollowed(element, record) {
+            this._followed = new CloneableObject({element:this.follow, record});
+        }
+    );
+
+    defineMethod(superClass,
+        function follow(support) {
+            return this._followed.element === support;
+        }
+    );
+
+    extendMethod(superClass, $draggedFrom=>
+        function(support, dragSet) {
+            $draggedFrom.call(this, support, dragSet);
+            if (this._followed) {
+                if (!dragSet.has(this._followed.element)) {
+                    this._followed.element.removeFollower(this);
+                }
+                else {
+                    this._registerFollower(Canvas.instance.glassLayer);
+                }
+            }
+        }
+    );
+
+    extendMethod(superClass, $droppedIn=>
+        function _droppedIn(support, dragSet) {
+            $droppedIn.call(this, support, dragSet);
+            if (this._followed) {
+                this._registerFollower(Canvas.instance.baseLayer);
+            }
+        }
+    );
+
+    extendMethod(superClass, $revertDroppedIn=>
+        function _revertDroppedIn() {
+            $revertDroppedIn.call(this);
+            if (this._followed) {
+                this._followed.element.__addFollower(this, this._followed.record);
+            }
+        }
+    );
+
+    extendMethod(superClass, $cloned=>
+        function _cloned(copy, duplicata) {
+            $cloned && $cloned.call(this, copy, duplicata);
+            if (this._followed) {
+                let childCopy = duplicata.get(this._followed.element);
+                let record = CopyPaste.clone(this._followed.record, duplicata);
+                copy.__addFollower(childCopy, record);
+            }
+        }
+    );
+
+    extendMethod(superClass, $delete=>
+        function delete_() {
+            let result = $delete.call(this);
+            if (this._followed) {
                 this._followed.element.removeFollower(this);
             }
-            else {
-                this._registerFollower(Canvas.instance.glassLayer);
+            return result;
+        }
+    );
+
+    extendMethod(superClass, $memento=>
+        function () {
+            let memento = $memento.call(this);
+            if (this._followed) {
+                memento._followed = this._followed;
             }
+            return memento;
         }
-    };
+    );
 
-    let droppedIn = superClass.prototype._droppedIn;
-    superClass.prototype._droppedIn = function(support, dragSet) {
-        droppedIn.call(this, support, dragSet);
-        if (this._followed) {
-            this._registerFollower(Canvas.instance.baseLayer);
+    extendMethod(superClass, $revert=>
+        function (memento) {
+            $revert.call(this, memento);
+            if (this._followed) {
+                this.__unregisterFollower(Canvas.instance.baseLayer);
+            }
+            this._followed = memento._followed;
+            return this;
         }
-    };
+    );
 
-    let revertDroppedIn = superClass.prototype._revertDroppedIn;
-    superClass.prototype._revertDroppedIn = function () {
-        revertDroppedIn.call(this);
-        if (this._followed) {
-            this._followed.element.__addFollower(this, this._followed.record);
+    extendMethod(superClass, $recover=>
+        function _recover(memento) {
+            $recover.call(this, memento);
+            if (this.parent && memento._followed) {
+                this._registerFollower(Canvas.instance.baseLayer);
+            }
+            return this;
         }
-    };
+    );
 
-    let cloned = superClass.prototype._cloned;
-    superClass.prototype._cloned = function (copy, duplicata) {
-        cloned && cloned.call(this, copy, duplicata);
-        if (this._followed) {
-            let childCopy = duplicata.get(this._followed.element);
-            let record = CopyPaste.clone(this._followed.record, duplicata);
-            copy.__addFollower(childCopy, record);
-        }
-    };
-
-    let superDelete = superClass.prototype.delete;
-    superClass.prototype.delete = function() {
-        let result = superDelete.call(this);
-        if (this._followed) {
-            this._followed.element.removeFollower(this);
-        }
-        return result;
-    };
-
-    let superMemento = superClass.prototype._memento;
-    superClass.prototype._memento = function () {
-        let memento = superMemento.call(this);
-        if (this._followed) {
-            memento._followed = this._followed;
-        }
-        return memento;
-    };
-
-    let superRevert = superClass.prototype._revert;
-    superClass.prototype._revert = function (memento) {
-        superRevert.call(this, memento);
-        if (this._followed) {
-            this.__unregisterFollower(Canvas.instance.baseLayer);
-        }
-        this._followed = memento._followed;
-        return this;
-    };
-
-    let superRecover = superClass.prototype._recover;
-    superClass.prototype._recover = function (memento) {
-        superRecover.call(this, memento);
-        if (this.parent && memento._followed) {
-            this._registerFollower(Canvas.instance.baseLayer);
-        }
-        return this;
-    };
-
-    return superClass;
 }
