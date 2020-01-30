@@ -25,7 +25,7 @@ import {
     Matrix2D, Matrix3D, Point2D, Point3D
 } from "./geometry.js";
 import {
-    EMap
+    EMap, ESet
 } from "./collections.js";
 
 export class SigmaTrigger extends SigmaElement {
@@ -302,13 +302,13 @@ export function makeSupportDual(superClass) {
 
 export class SigmaPolymorphicElement extends SigmaElement {
 
-    constructor(morphs, defaultMorph) {
+    constructor(morphs, defaultMorphKey) {
         super(0, 0);
         this._morphs = new CloneableObject();
         for (let key in morphs) {
             this._addMorph(key, morphs[key]);
         }
-        if (defaultMorph) this._defaultMorph = defaultMorph;
+        if (defaultMorphKey) this._defaultMorphKey = defaultMorphKey;
     }
 
     get width() {
@@ -321,7 +321,7 @@ export class SigmaPolymorphicElement extends SigmaElement {
 
     _addMorph(key, morph) {
         this._morphs[key] = morph;
-        if (!this._defaultMorph) this._defaultMorph = morph;
+        if (!this._defaultMorphKey) this._defaultMorphKey = key;
         return this;
     }
 
@@ -340,8 +340,8 @@ export class SigmaPolymorphicElement extends SigmaElement {
         return this._removeMorph(key);
     }
 
-    get defaultMorph() {
-        return this._defaultMorph;
+    get defaultMorphKey() {
+        return this._defaultMorphKey;
     }
 
     _setMorph(key) {
@@ -360,8 +360,12 @@ export class SigmaPolymorphicElement extends SigmaElement {
         return this._setMorph(key);
     }
 
+    get currentMorph() {
+        return this._currentMorph;
+    }
+
     setDefaultMorph() {
-        return this.setMorph(this.defaultMorph);
+        return this.setMorph(this.defaultMorphKey);
     }
 
     get morphKey() {
@@ -522,6 +526,7 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
         super._init(...args);
         this._morphs = new CloneableObject();
         this._embodiments = new EMap();
+        this._supports = new EMap();
     }
 
     _addMorph(projection, morph) {
@@ -547,7 +552,8 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
 
     createEmbodiment(support) {
         assert(!this._embodiments.has(support));
-        this._createEmbodiment(support);
+        let embodiment = this._createEmbodiment(support);
+        this._registerEmbodiment(embodiment, support);
         return this._embodiments.get(support);
     }
 
@@ -555,17 +561,33 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
         return this._embodiments.get(support);
     }
 
-    removeEmbodiment(support) {
-        let embodiment = this._embodiments.get(support);
-        if (embodiment) {
-            this._embodiments.delete(support);
-        }
+    getSupport(embodiment) {
+        return this._supports.get(embodiment);
+    }
+
+    removeEmbodiment(embodiment) {
+        this._unregisterEmbodiment(embodiment);
         return embodiment;
     }
 
-    _makeEmbodiment(support, embodiment) {
+    _hoverOn(support, embodiment) {
+        let currentSupport = this._supports.get(embodiment);
+        if (support !== currentSupport) {
+            this._unregisterEmbodiment(embodiment);
+            this._registerEmbodiment(embodiment, support);
+        }
+    }
+
+    _unregisterEmbodiment(embodiment) {
+        let support = this._supports.get(embodiment);
+        this._embodiments.delete(support);
+        this._supports.delete(embodiment);
+    }
+
+    _registerEmbodiment(embodiment, support) {
         assert(!this._embodiments.has(support));
         this._embodiments.set(support, embodiment);
+        this._supports.set(embodiment, support);
         embodiment.setMorphFromSupport(support);
         embodiment._entity = this;
         return embodiment;
@@ -669,79 +691,124 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
 export function makeEntityASupport(superClass) {
 
     extendMethod(superClass, $hover=>
-        function hover(elements) {
-            $hover.call(this, elements);
-            let lastSet = new ESet(this._hoveredEmbodiments ? this._hoveredEmbodiments : []);
+        function hover(embodiment, elements) {
+            $hover && $hover.call(this, elements);
+            let lastSet = this._hoveredEmbodiments && this._hoveredEmbodiments.get(embodiment) || new ESet();
             let hoveredEmbodiments = new ESet();
             for (let element of elements) {
                 if (element.isEmbodiment) {
                     hoveredEmbodiments.add(element);
                     if (lastSet.has(element)) {
-                        this.moveHovered(element);
+                        this._moveHovered(element);
                         lastSet.delete(element);
                     }
                     else {
-                        this.addHovered(element);
+                        this._addHovered(element);
                     }
                 }
             }
             for (let element of lastSet) {
-                this.removeHovered(element);
+                this._removeHovered(element);
             }
-            this._hoveredEmbodiments = hoveredEmbodiments;
-        }
-    );
-
-    defineMethod(superClass,
-        function _addEmbodiment(element) {
-            for (let support of this._embodiments.keys()) {
-                let supportEmbodiment = this._embodiments.get(support);
-                let embodiment = element.entity.getEmbodiment(supportEmbodiment);
-                if (!embodiment) {
-                    embodiment = element.entity.createEmbodiment(supportEmbodiment);
-                    supportEmbodiment.addChild(embodiment);
+            if (hoveredEmbodiments.size) {
+                if (!this._hoveredEmbodiments) this._hoveredEmbodiments = new EMap();
+                this._hoveredEmbodiments.set(embodiment, hoveredEmbodiments);
+            }
+            else {
+                if (this._hoveredEmbodiments) {
+                    this._hoveredEmbodiments.delete(embodiment);
+                    if (!this._hoveredEmbodiments.size) delete this._hoveredEmbodiments;
                 }
-                this.adjustEmbodimentsLocations(element, element.lx, element.ly);
             }
         }
     );
 
     defineMethod(superClass,
-        function addHovered(element) {
-            element.entity._setLocation(new Point3D(0, 0, 0));
-            this._addEmbodiment(element);
+        function _addChildrenEmbodiments(element) {
+            if (!this.__addChildenEmbodiments) {
+                try {
+                    this.__addChildenEmbodiments = true;
+                    for (let support of this._embodiments.keys()) {
+                        let supportEmbodiment = this._embodiments.get(support).currentMorph.getContainer(element.entity);
+                        let embodiment = element.entity.getEmbodiment(supportEmbodiment);
+                        if (!embodiment) {
+                            embodiment = element.entity.createEmbodiment(supportEmbodiment);
+                            supportEmbodiment.addChild(embodiment);
+                        }
+                        element.entity.adjustEmbodimentsLocations(element, element.lx, element.ly);
+                    }
+                }
+                finally {
+                    delete this.__addChildenEmbodiments;
+                }
+            }
         }
     );
 
     defineMethod(superClass,
-        function moveHovered(element) {
+        function _removeChildrenEmbodiments(element) {
+            if (!this.__removeChildenEmbodiments) {
+                try {
+                    this.__removeChildenEmbodiments = true;
+                    for (let support of this._embodiments.keys()) {
+                        let supportEmbodiment = this._embodiments.get(support).currentMorph.getContainer(element.entity);
+                        let embodiment = element.entity.getEmbodiment(supportEmbodiment);
+                        if (embodiment) {
+                            element.entity.removeEmbodiment(embodiment);
+                            supportEmbodiment.removeChild(embodiment);
+                        }
+                    }
+                }
+                finally {
+                    delete this.__removeChildenEmbodiments;
+                }
+            }
+        }
+    );
+
+    defineMethod(superClass,
+        function _getEntity(element) {
+            while (element) {
+                if (element.entity) return element.entity;
+                element = element.parent;
+            }
+            return null;
+        }
+    );
+
+    defineMethod(superClass,
+        function _addHovered(element) {
+            element.entity._setLocation(new Point3D(0, 0, 0));
+            this._addChildrenEmbodiments(element);
+        }
+    );
+
+    defineMethod(superClass,
+        function _moveHovered(element) {
             element.entity.adjustEmbodimentsLocations(element, element.lx, element.ly);
         }
     );
 
     defineMethod(superClass,
-        function removeHovered(element) {
-            if (!this.containsChild(element)) {
-                this.dual.removeChild(element.entity.removeEmbodiment(this.dual));
+        function _removeHovered(element) {
+            if (this._getEntity(element.parent)!==this) {
+                console.log("remove child")
+                this.removeChild(element);
             }
         }
     );
 
     extendMethod(superClass, $addChild=>
         function addChild(element) {
-            if (!this.containsChild(element)) {
-                $addChild.call(this, element);
-                this._addEmbodiment(element);
-            }
+            $addChild && $addChild.call(this, element);
+            this._addChildrenEmbodiment(element);
         }
     );
 
     extendMethod(superClass, $removeChild=>
         function removeChild(element) {
-            if (this.containsChild(element)) {
-                $removeChild.call(this, element);
-                this.dual.removeChild(element.entity.removeEmbodiment(this.dual));
-            }
+            $removeChild && $removeChild.call(this, element);
+            this._removeChildrenEmbodiments(element);
         }
     );
 

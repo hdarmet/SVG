@@ -50,7 +50,7 @@ import {
     makeResizeable, makeResizeableContent, SigmaHandle, SizerDecoration
 } from "../../js/elements.js";
 import {
-    makeExpansionOwner, SigmaEntity, SigmaPolymorphicEntity, SigmaTopExpansionBubble
+    makeExpansionOwner, SigmaEntity, SigmaPolymorphicEntity, SigmaTopExpansionBubble, makeEntityASupport
 } from "../../js/entity.js";
 
 
@@ -436,6 +436,7 @@ export class DeltaBoxEntity extends SigmaPolymorphicEntity {
     }
 
 }
+makeEntityASupport(DeltaBoxEntity);
 
 export function makeCellsOwner(superClass) {
 
@@ -574,6 +575,10 @@ export class DeltaBoxExpansionContent extends DeltaSupport {
         return DeltaBoxExpansion.PROJECTION;
     }
 
+    hover(elements) {
+        this.parent._entity.hover(this.parent, elements);
+    }
+
 }
 makePart(DeltaBoxExpansionContent);
 makeDecorationsOwner(DeltaBoxExpansionContent);
@@ -631,6 +636,10 @@ export class DeltaBoxContent extends DeltaSupport {
 
     showSchematic() {
         this.shape.fill = Colors.LIGHTEST_GREY;
+    }
+
+    hover(elements) {
+        this.parent._entity.hover(this.parent, elements);
     }
 
 }
@@ -1206,6 +1215,7 @@ export class DeltaMorphElement extends DeltaElement {
         super._init(args);
         this._entity = entity;
     }
+
 }
 
 export class DeltaRichCaddyFrontMorph extends DeltaMorphElement {
@@ -1242,6 +1252,10 @@ export class DeltaRichCaddyFrontMorph extends DeltaMorphElement {
 
     get boxContent() {
         return this._boxContent;
+    }
+
+    getContainer(entity) {
+        return this.boxContent;
     }
 
     showRealistic() {
@@ -1289,6 +1303,10 @@ export class DeltaRichCaddyTopMorph extends DeltaMorphElement {
 
     get elementMorph() {
         return SigmaEntity.projections.TOP;
+    }
+
+    getContainer(entity) {
+        return this.boxContent;
     }
 
     _buildBoxContent({contentWidth, contentDepth}) {
@@ -1378,10 +1396,10 @@ export class DeltaRichCaddyEntity extends DeltaCaddyEntity {
 
     _createEmbodiment(support) {
         if (support instanceof SigmaTopExpansionBubble) {
-            return this._makeEmbodiment(support, new DeltaCaddyTopEmbodiment({morphs: this.morphs}));
+            return new DeltaCaddyTopEmbodiment({morphs: this.morphs});
         }
         else {
-            return this._makeEmbodiment(support, new DeltaCaddyEmbodiment({morphs: this.morphs}));
+            return new DeltaCaddyEmbodiment({morphs: this.morphs});
         }
     }
 
