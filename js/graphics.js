@@ -133,7 +133,6 @@ export function defer(action) {
                 let actions = new List(...deferred);
                 deferred.clear();
                 for (let action of actions) {
-                    console.log("action", action)
                     action();
                 }
             } while (deferred.length);

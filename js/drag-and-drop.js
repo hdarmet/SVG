@@ -763,7 +763,7 @@ export class DragSelectAreaOperation extends DragAreaOperation {
             Selection.instance.unselectAll();
         }
         for (let child of Canvas.instance.baseChildren) {
-            _doSelection(area, child);
+            _doSelection(selectArea, child);
         }
     }
 

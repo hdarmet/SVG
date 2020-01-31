@@ -9,7 +9,7 @@ import {
 import {
     Visibility, computePosition, RasterImage, SvgRasterImage, Group, ClipPath, Rect, Text, AlignmentBaseline,
     Colors, MouseEvents, TextAnchor, win, Cursor, ForeignObject, DOMElement, Translation, KeyboardEvents,
-    M, Path, Z, Q, L, SVGElement, doc, AnyEvent
+    M, Path, Z, Q, L, SVGElement, doc, AnyEvent, defer
 } from "./graphics.js";
 import {
     Context, Events, l2pBoundingBox, Memento, Canvas, makeObservable, makeNotCloneable, ToolsLayer,
@@ -1166,10 +1166,10 @@ export class ToolMenuPopupContent extends ToolPopupContent {
     _askForRefresh() {
         if (!this._dirty) {
             this._dirty = true;
-            win.setTimeout(()=>{
+            defer(()=>{
                 this._dirty = false;
                 this.refresh();
-            }, 0);
+            });
         }
     }
 
@@ -1922,10 +1922,10 @@ export class ToolCardPopup extends ToolPopup {
     requestRefresh() {
         if (!this._dirty) {
             this._dirty = true;
-            win.setTimeout(()=>{
+            defer(()=>{
                 this._content._refresh();
                 delete this._dirty;
-            }, 0);
+            });
         }
     }
 
@@ -2446,11 +2446,11 @@ export class ToolGridPanelContent extends ToolPanelContent {
 
     _requestRefresh() {
         if (!this._dirty) {
-            win.setTimeout(
+            defer(
                 () => {
                     this._dirty = false;
                     this._refresh()
-                }, 0);
+                });
             this._dirty = true;
         }
     }

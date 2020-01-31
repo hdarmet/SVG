@@ -1,5 +1,5 @@
 import {
-    win, ClippedRasterImage, Fill, Group, MouseEvents, RasterImage, Rect, Rotation, SvgRasterImage, Visibility
+    defer, ClippedRasterImage, Fill, Group, MouseEvents, RasterImage, Rect, Rotation, SvgRasterImage, Visibility
 } from "./graphics.js";
 import {
     Cloning, Events, Memento, Selection
@@ -311,10 +311,10 @@ export class Decoration {
     _askForRefresh() {
         if (!this._dirty) {
             this._dirty = true;
-            win.setTimeout(()=>{
+            defer(()=>{
                 this._dirty = false;
                 this.refresh();
-            }, 0);
+            });
         }
     }
 

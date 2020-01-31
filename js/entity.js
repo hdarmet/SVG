@@ -22,7 +22,7 @@ import {
     PlainArrow, Bubble
 } from "./svgtools.js";
 import {
-    Matrix2D, Matrix3D, Point2D, Point3D
+    Matrix2D, Matrix3D, Point2D, Point3D, Box3D
 } from "./geometry.js";
 import {
     EMap, ESet
@@ -222,84 +222,6 @@ export function makeExpansionOwner(superClass, expansionBubbleClass = SigmaExpan
 
 }
 
-export function makeSupportDual(superClass) {
-
-    extendMethod(superClass, $hover=>
-        function hover(elements) {
-            $hover.call(this, elements);
-            let lastSet = new ESet(this._hoveredEmbodiments ? this._hoveredEmbodiments : []);
-            let hoveredEmbodiments = new ESet();
-            for (let element of elements) {
-                if (element.isEmbodiment) {
-                    hoveredEmbodiments.add(element);
-                    if (lastSet.has(element)) {
-                        this.moveHovered(element);
-                        lastSet.delete(element);
-                    }
-                    else {
-                        this.addHovered(element);
-                    }
-                }
-            }
-            for (let element of lastSet) {
-                this.removeHovered(element);
-            }
-            this._hoveredEmbodiments = hoveredEmbodiments;
-        }
-    );
-
-    defineMethod(superClass,
-        function _addEmbodiment(element) {
-            let embodiment = element.entity.getEmbodiment(this.dual);
-            if (!embodiment) {
-                embodiment = element.entity.createEmbodiment(this.dual);
-                this.dual.addChild(embodiment);
-            }
-            element.entity.adjustEmbodimentsLocations(element, element.lx, element.ly);
-        }
-    );
-
-    defineMethod(superClass,
-        function addHovered(element) {
-            element.entity._setLocation(new Point3D(0, 0, 0));
-            this._addEmbodiment(element);
-        }
-    );
-
-    defineMethod(superClass,
-        function moveHovered(element) {
-            element.entity.adjustEmbodimentsLocations(element, element.lx, element.ly);
-        }
-    );
-
-    defineMethod(superClass,
-        function removeHovered(element) {
-            if (!this.containsChild(element)) {
-                this.dual.removeChild(element.entity.removeEmbodiment(this.dual));
-            }
-        }
-    );
-
-    extendMethod(superClass, $addChild=>
-        function addChild(element) {
-            if (!this.containsChild(element)) {
-                $addChild.call(this, element);
-                this._addEmbodiment(element);
-            }
-        }
-    );
-
-    extendMethod(superClass, $removeChild=>
-        function removeChild(element) {
-            if (this.containsChild(element)) {
-                $removeChild.call(this, element);
-                this.dual.removeChild(element.entity.removeEmbodiment(this.dual));
-            }
-        }
-    );
-
-}
-
 export class SigmaPolymorphicElement extends SigmaElement {
 
     constructor(morphs, defaultMorphKey) {
@@ -439,6 +361,13 @@ export function makeEmbodiment(superClass) {
                 this._entity && this._entity.adjustEmbodimentsLocations(this, x, y);
             }
         );
+
+        extendMethod(superClass, $hoverOn =>
+            function _hoverOn(support) {
+                $hoverOn && $hoverOn.call(this, support);
+                this.entity._hoverOn(support, this);
+            }
+        );
     }
 
     defineGetProperty(superClass,
@@ -446,6 +375,31 @@ export function makeEmbodiment(superClass) {
             return true;
         }
     );
+}
+
+export function makeEmbodimentContainerPart(superClass) {
+
+    makePart(superClass);
+
+    defineGetProperty(superClass,
+        function entity() {
+            let element = this.parent;
+            while (element) {
+                let entity = element.entity;
+                if (entity) return entity;
+                element = element.parent;
+            }
+            assert(false);
+        }
+    );
+
+    extendMethod(superClass, $hover=>
+        function hover(elements) {
+            $hover && $hover.call(this, elements);
+            this.entity.hover(this.parent, elements);
+        }
+    );
+
 }
 
 export class SigmaEntity {
@@ -473,9 +427,39 @@ export class SigmaEntity {
         this._setLocation(point);
     }
 
+    _geometry(matrix) {
+        let v = [this.left, this.right],
+            h = [this.top, this.bottom],
+            d = [this.back, this.front];
+        let left, right, top, bottom, front, back;
+        for (let x of v) {
+            for (let y of h) {
+                for (let z of d) {
+                    let {x:lx, y:ly, z:lz} = matrix.point(new Point3D(x, y, z));
+                    if (!left || left>lx) left = lx;
+                    if (!right || right<lx) right = lx;
+                    if (!top || top>ly) top = ly;
+                    if (!bottom || bottom<ly) bottom = ly;
+                    if (!back || back<lz) back = lz;
+                    if (!front || front>lz) front = lz;
+                }
+            }
+        }
+        return new Box3D(left, top, back, right-left, bottom-top, front-back);
+    }
+
+    get x() {return 0;}
+    get y() {return 0;}
+    get z() {return 0;}
     get width() { return this._width; }
     get height() { return this._height; }
     get depth() { return this._depth; }
+    get left() {return this.x - this.width/2;}
+    get right() {return this.x + this.width/2;}
+    get top() {return this.y - this.height/2;}
+    get bottom() {return this.y + this.height/2;}
+    get back() {return this.z - this.depth/2;}
+    get front() {return this.z + this.depth/2;}
 
     get matrix() { return this._matrix; }
     set matrix(matrix) {
@@ -486,6 +470,7 @@ export class SigmaEntity {
     get ly() { return this.matrix.y(0, 0, 0); }
     get lz() { return this.matrix.z(0, 0, 0); }
     get lloc() { return new Point3D(this.lx, this.ly, this.lz)}
+    get localGeometry() { return this._geometry(this.matrix); }
 
     _memento() {
         let memento = {
@@ -792,7 +777,6 @@ export function makeEntityASupport(superClass) {
     defineMethod(superClass,
         function _removeHovered(element) {
             if (this._getEntity(element.parent)!==this) {
-                console.log("remove child")
                 this.removeChild(element);
             }
         }

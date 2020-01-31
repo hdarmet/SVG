@@ -214,6 +214,24 @@ export class SigmaElement {
     }
 
     _geometry(matrix) {
+        let v = [this.left, this.right],
+            h = [this.top, this.bottom];
+        let left, right, top, bottom;
+        for (let x of v) {
+            for (let y of h) {
+                let {x:lx, y:ly, z:lz} = matrix.point(new Point2D(x, y));
+                if (!left || left>lx) left = lx;
+                if (!right || right<lx) right = lx;
+                if (!top || top>ly) top = ly;
+                if (!bottom || bottom<ly) bottom = ly;
+            }
+        }
+        return new Box2D(left, top, right-left, bottom-top);
+    }
+
+    /*
+    _geometry(matrix) {
+        // TODO ne fonctionne pas si rotation
         let left = this.left, right = this.right, top = this.top, bottom = this.bottom;
         let x1 = matrix.x(left, top);
         let y1 = matrix.y(left, top);
@@ -225,6 +243,7 @@ export class SigmaElement {
         bottom = y1>y2?y1:y2;
         return new Box2D(left, top, right-left, bottom-top);
     }
+    */
 
     get localGeometry() { return this._geometry(this.matrix); }
     get globalGeometry() { return this._geometry(this.global); }

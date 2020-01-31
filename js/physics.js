@@ -10,7 +10,7 @@ import {
     Matrix2D
 } from "./geometry.js";
 import {
-    win, Colors, Line, computePosition, Group, Fill, Translation, Rect, Text, TextAnchor, AlignmentBaseline
+    defer, Colors, Line, computePosition, Group, Fill, Translation, Rect, Text, TextAnchor, AlignmentBaseline
 } from "./graphics.js";
 import {
     Canvas, Memento, Events, makeObservable, Context, Cloning, computeGridStep
@@ -43,9 +43,12 @@ export class Physic {
     _trigger() {
         if (!this._triggered) {
             this._triggered = true;
-            win.setTimeout(()=>{
+            defer(()=>{
                 this.refresh();
-            }, 0);
+            });
+            /*
+            win.setTimeout(, 0);
+            */
         }
     }
 

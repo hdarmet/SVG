@@ -60,7 +60,7 @@ export class DeltaModuleEntity extends SigmaPolymorphicEntity {
     }
 
     _createEmbodiment(support) {
-        return new DeltaModule({width:this._width, height:this._height, depth:this._depth, morphs:this.morphs});
+        return new DeltaModuleEmbodiment({width:this._width, height:this._height, depth:this._depth, morphs:this.morphs});
     }
 
     get defaultEmbodiment() {
@@ -79,7 +79,7 @@ export class DeltaModuleEntity extends SigmaPolymorphicEntity {
 
 }
 
-export class DeltaModule extends DeltaEmbodiment {
+export class DeltaModuleEmbodiment extends DeltaEmbodiment {
 
     constructor({width, height, depth, morphs}) {
         if (!morphs) {
@@ -96,10 +96,6 @@ export class DeltaModule extends DeltaEmbodiment {
         return this._depth;
     }
 
-    _hoverOn(support) {
-        super._hoverOn(support);
-        this.entity._hoverOn(support, this);
-    }
 }
 
 export class DeltaAbstractModule extends DeltaItem {
@@ -107,7 +103,6 @@ export class DeltaAbstractModule extends DeltaItem {
     constructor({depth, ...specs}) {
         super(specs);
         this._depth = depth;
-        //this._alternative = new DeltaModuleAlternative({width:this.width, height:this.depth});
     }
 
     get depth() {

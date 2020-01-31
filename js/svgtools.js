@@ -2,7 +2,7 @@
 
 import {
     win, Group, Rect, Line, Path, Filter, FeDropShadow, PC, FilterUnits, FeIn, M, L, l, Z, Q, q, Colors, Fill, Text, Tspan, doc, SVG_NS,
-    AlignmentBaseline, TextAnchor, Translation
+    defer, TextAnchor, Translation
 } from "./graphics.js";
 import {
     Matrix2D, angle, intersectLinePolygon
@@ -25,12 +25,12 @@ ghost.appendChild(rect._node);
 export function __askForRefresh(element) {
     if (!win.__toRefresh) {
         win.__toRefresh = new ESet();
-        win.setTimeout(function() {
+        defer(function() {
             for (let element of win.__toRefresh) {
                 element._build();
             }
             delete win.__toRefresh;
-        }, 0);
+        });
     }
     win.__toRefresh.add(element);
 }
