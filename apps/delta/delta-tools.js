@@ -457,7 +457,7 @@ export function createPalettePopup() {
         width:120, height:60, color:"#FF00FF"
     })]));
     paletteContent.addCell(new SigmaItemBuilder([new DeltaModuleEntity({
-        width:20, height:40, depth:44, color:"#FF00FF"
+        width:20, height:40, depth:20, color:"#FF00FF"
     }).defaultEmbodiment]));
     paletteContent.addCell(new OptionItemBuilder([new DeltaColorOption({width:4, height:4,
         shape:new Circle(0, 0, 2).attrs({stroke_width:0.25, stroke:Colors.MIDDLE_GREY, fill:"#FF0000"}),

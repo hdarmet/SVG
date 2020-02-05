@@ -51,7 +51,7 @@ import {
 } from "../../js/elements.js";
 import {
     makeExpansionOwner, SigmaEntity, SigmaPolymorphicEntity, SigmaTopExpansionBubble, makeEntityASupport,
-    makeEmbodimentContainerPart
+    makeEmbodimentContainerPart, makeEntityMovable
 } from "../../js/entity.js";
 import {
     addPhysicToEntity, createCollisionEntityPhysic, EmbodimentPhysic
@@ -453,6 +453,7 @@ addPhysicToEntity(DeltaBoxEntity,  {
         return this._createPhysic();
     }
 });
+makeEntityMovable(DeltaBoxEntity);
 
 export function makeCellsOwner(superClass) {
 
@@ -597,7 +598,7 @@ export class DeltaBoxExpansionContent extends DeltaSupport {
 }
 makeEmbodimentContainerPart(DeltaBoxExpansionContent);
 makeDecorationsOwner(DeltaBoxExpansionContent);
-    addPhysicToContainer(DeltaBoxExpansionContent, {
+addPhysicToContainer(DeltaBoxExpansionContent, {
         physicBuilder: function() {
             return this._createPhysic();
         }
@@ -639,6 +640,7 @@ export class DeltaBoxExpansion extends DeltaExpansion {
 DeltaBoxExpansion.PROJECTION = "top";
 makeShaped(DeltaBoxExpansion);
 
+
 export class DeltaBoxContent extends DeltaSupport {
     constructor({width, height, ...args}) {
         super({width, height, strokeColor:Colors.GREY, backgroundColor:Colors.LIGHTEST_GREY, ...args});
@@ -659,9 +661,18 @@ export class DeltaBoxContent extends DeltaSupport {
         this.shape.fill = Colors.LIGHTEST_GREY;
     }
 
+    _createPhysic() {
+        return new EmbodimentPhysic(this);
+    }
 }
 makeEmbodimentContainerPart(DeltaBoxContent);
 makeDecorationsOwner(DeltaBoxContent);
+addPhysicToContainer(DeltaBoxContent, {
+        physicBuilder: function() {
+            return this._createPhysic();
+        }
+    }
+);
 
 export class DeltaBox extends DeltaItem {
 
@@ -721,7 +732,7 @@ makeCarrier(DeltaBox);
 makeExpansionOwner(DeltaBox);
 
 export class DeltaSlottedBoxContent extends DeltaBoxContent {}
-makeCellsOwner(DeltaSlottedBoxContent);
+//makeCellsOwner(DeltaSlottedBoxContent);
 
 export class DeltaSlottedBox extends DeltaBox {
 

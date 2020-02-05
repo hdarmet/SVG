@@ -178,10 +178,9 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 // Last position occupied by the element during the drag and drop process. Change for every mouse mouve
                 // event.
                 last: new Point2D(gx, gy),
-                // Last valid position occupied by the element
-                valid: new Point2D(gx, gy),
                 cloning: Cloning.IGNORE
             };
+            selectedElement.registerValidLocation();
             let support = selectedElement.parent;
             selectedElement._draggedFrom(support, this._dragSet);
             // IMPORTANT ! Puts element on Glass AFTER eventual updates made by _draggedFrom
@@ -281,8 +280,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
         this._doHover(dx, dy);
         Canvas.instance._fire(DragMoveSelectionOperation.DRAG_MOVE_MOVE, this._dragSet);
         for (let selectedElement of this._dragSet) {
-            selectedElement._drag.valid.x = selectedElement.gx;
-            selectedElement._drag.valid.y = selectedElement.gy;
+            selectedElement.registerValidLocation();
         }
     }
 
@@ -471,6 +469,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                     selectedElement._recover && selectedElement._recover(selectedElement._drag.origin);
                 }
                 delete selectedElement._drag;
+                selectedElement.unregisterValidLocation();
             }
             return dropped;
         }

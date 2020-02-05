@@ -676,16 +676,17 @@ export class Box2D {
 export class Box3D extends Box2D {
 
     constructor(x, y, z, width, height, depth) {
+        assert(!isNaN(x+y+z+width+height+depth));
         super(x, y, width, height);
         this.z = z;
         this.depth = depth;
     }
 
-    get front() {
+    get back() {
         return this.z;
     }
 
-    get back() {
+    get front() {
         return this.z+this.depth;
     }
 
@@ -696,23 +697,23 @@ export class Box3D extends Box2D {
     add(box) {
         let left = Math.min(this.left, box.left);
         let top = Math.min(this.top, box.top);
-        let front = Math.min(this.front, box.front);
+        let back = Math.min(this.back, box.back);
         let right = Math.max(this.right, box.right);
         let bottom = Math.max(this.bottom, box.bottom);
-        let back = Math.max(this.back, box.back);
+        let front = Math.max(this.front, box.front);
         return new Box3D(left, top, front, right-left, bottom-top, back-front);
     }
 
     intersects(box) {
         return super.intersects(box) &&
-            box.front < this.front &&
-            box.back > this.back;
+            box.back < this.front &&
+            box.front > this.back;
     }
 
     includes(box) {
         return super.includes(box) &&
-            box.front > this.front &&
-            box.back < this.back;
+            box.back > this.back &&
+            box.front < this.front;
     }
 
     grow(increment) {

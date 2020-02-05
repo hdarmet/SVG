@@ -448,8 +448,13 @@ export function makeCollisionPhysic2D(superClass) {
         }
     );
 
+    let nb=0;
+
     replaceMethod(superClass,
         function _refresh() {
+            if ((++nb%1000)===0) {
+                nb=0;
+            }
             this._avoidCollisionsForElements();
         }
     );
@@ -461,7 +466,7 @@ export function makeCollisionPhysic2D(superClass) {
             this._valids.clear();
             for (let element of this._elements) {
                 this._supportSAP.add(element);
-                this._valids.set(element, {valid: new Point2D(element.lx, element.ly)});
+                this._valids.set(element, element.validLocation);
             }
         }
     );
@@ -477,20 +482,60 @@ export function makeCollisionPhysic2D(superClass) {
         }
     );
 
+    defineMethod(superClass,
+        /**
+         * Adjust physic's internals when a dragged element moves inside the physic's host area.
+         * @param element moving element
+         * @private
+         */
+        function _moveHovered(element) {
+            this._dragAndDropSAP.update(element);
+        }
+    );
+
+    defineMethod(superClass,
+        /**
+         * Adjust physic's internals when a dragged element enters the physic's host area.
+         * @param element entering element
+         * @private
+         */
+        function _addHovered(element) {
+            this._dragAndDropSAP.add(element);
+        }
+    );
+
+    defineMethod(superClass,
+        /**
+         * Adjust physic's internals when a dragged element leaves the physic's host area.
+         * @param element leaving element
+         * @private
+         */
+        function _removeHovered(element) {
+            this._dragAndDropSAP.remove(element);
+        }
+    );
+
     replaceMethod(superClass,
-        function _hover(previousElements, elements) {
+        /**
+         * Adjust physic's internal when elements hovers physic's host.
+         * @param previousElements elements that hover physic's host when previous mouse event occurred.
+         * This data is important to identify elements that enter or leave the physic's host area.
+         * @param elements elements that currently hover physic's host.
+         * @private
+         */
+        function _hover(previousElements=new ESet(), elements) {
             let hoveredElements = new List(...elements);
             for (let element of hoveredElements) {
                 if (previousElements.has(element)) {
                     previousElements.delete(element);
-                    this._dragAndDropSAP.update(element);
+                    this._moveHovered(element);
                 }
                 else {
-                    this._dragAndDropSAP.add(element);
+                    this._addHovered(element);
                 }
             }
             for (let element of previousElements) {
-                this._dragAndDropSAP.remove(element);
+                this._removeHovered(element);
             }
             this._dragAndDropSAP.updateInternals();
             this._avoidCollisionsForDraggedElements(hoveredElements);
@@ -498,14 +543,24 @@ export function makeCollisionPhysic2D(superClass) {
     );
 
     replaceMethod(superClass,
+        /**
+         * Adjust physic's internals when an element id added to physic's host.
+         * @param element added element
+         * @private
+         */
         function _add(element) {
             this._elements.add(element);
             this._supportSAP.add(element);
-            this._valids.set(element, {valid:new Point2D(element.lx, element.ly)});
+            this._valids.set(element, element.validLocation);
         }
     );
 
     replaceMethod(superClass,
+        /**
+         * Adjust physic's internals when an element previously owned by physic's host is removed.
+         * @param element removed element
+         * @private
+         */
         function _remove(element) {
             this._elements.delete(element);
             this._supportSAP.remove(element);
@@ -514,12 +569,27 @@ export function makeCollisionPhysic2D(superClass) {
     );
 
     replaceMethod(superClass,
+        /**
+         * Adjust physic's internals when an element owned by physic's host is moved.
+         * @param element moved element
+         * @private
+         */
         function _move(element) {
             this._supportSAP.update(element);
         }
     );
 
     defineMethod(superClass,
+        /**
+         * Gets the elements owned by physic's host or those which are currently dragged on it AND which
+         * collide with a given element.
+         * @param element element to check.
+         * @param exclude elements to exclude from processing (these element are those that are not already processed so
+         * their positions are not relevant).
+         * @param sap Sweep And Prune object that manages the element's location.
+         * @returns {List} list of elements which collide with the given element
+         * @private
+         */
         function _collideWith(element, exclude, sap) {
             let elementBox = sap.elementBox(element);
             let collisions = new List(
@@ -539,6 +609,12 @@ export function makeCollisionPhysic2D(superClass) {
     );
 
     defineMethod(superClass,
+        /**
+         * Gets the "Sweep And Prune" (SAP) that manage the element location. If the element is currently dragged,
+         * this SAP is the one which manages dragged elements, otherwise, it's the one for managed elements
+         * owned by physic's host.
+         * @param element
+         */
         function sweepAndPrune(element) {
             if (this._dragAndDropSAP.has(element)) {
                 return this._dragAndDropSAP;
@@ -564,15 +640,15 @@ export function makeCollisionPhysic2D(superClass) {
         }
     );
 
-    /**
-     * Get a proposition on the a given axis. This proposition is the nearest position between the one given by
-     * "current" toward the "original" (= lasted valid) position of the element.
-     * @param target element to "avoid".
-     * @param o original position
-     * @param h the proposition.
-     * @returns {*}
-     */
     defineMethod(superClass,
+        /**
+         * Get a proposition on the a given axis. This proposition is the nearest position between the one given by
+         * "current" toward the "original" (= lasted valid) position of the element.
+         * @param target element to "avoid".
+         * @param o original position
+         * @param h the proposition.
+         * @returns {*}
+         */
         function _adjustOnAxis (target, o, h, sweepAndPrune, min, max, length) {
             if (o > h) {
                 let r = max.call(sweepAndPrune, target) + length / 2;
@@ -596,6 +672,16 @@ export function makeCollisionPhysic2D(superClass) {
     );
 
     defineMethod(superClass,
+        /**
+         * Looks for a valid location, using a proposed location (f) and an original - valid- location (o).
+         * The result is given by the "h" point which is between f (best option) and o (worst option). for
+         * ONE dimension (x OR y).
+         * @param f proposal
+         * @param h final location
+         * @param o original (= last valid) location
+         * @returns true if the final location is valid, false otherwise
+         * @private
+         */
         function _getPlacement(f, h, o) {
             // First case : we have to choice between X and Y : we get the smallest
             if (f.x!==null && f.y!==null) {
@@ -623,16 +709,16 @@ export function makeCollisionPhysic2D(superClass) {
         }
     );
 
-    /**
-     * Fix the position of a MOVED element so this element (if possible...) does not collide with another one on
-     * physic host.
-     * @param element element to fix
-     * @param exclude elements to exclude from processing (these element are those that are not already processed so
-     * their positions are not relevant).
-     * @private
-     */
     defineMethod(superClass,
-        function _avoidCollisionsForElement(element, exclude, sap, record, originMatrix) {
+        /**
+         * Fix the position of a MOVED element so this element (if possible...) does not collide with another one on
+         * physic host.
+         * @param element element to fix
+         * @param exclude elements to exclude from processing (these element are those that are not already processed so
+         * their positions are not relevant).
+         * @private
+         */
+        function _avoidCollisionsForElement(element, exclude, sap, record) {
 
             function adjust(targets, o, h) {
                 for (let target of targets) {
@@ -646,9 +732,8 @@ export function makeCollisionPhysic2D(superClass) {
             let s = element.lloc;
             let h = element.lloc;
             let finished = false;
-            let invertedMatrix = originMatrix ? originMatrix.invert() : null;
             // Coords of last valid position of the element (we have to "go" in this direction...)
-            let o = invertedMatrix ? invertedMatrix.point(record.valid) : record.valid.duplicate();
+            let o = record.duplicate();
             // In order to avoid (= bug ?) infinite loop
             let cycleCount = 0;
             while (!finished && cycleCount < 100) {
@@ -670,19 +755,24 @@ export function makeCollisionPhysic2D(superClass) {
                 record.invalid = true;
             } else {
                 // Fixing accepted: update drag infos.
-                record.valid = originMatrix ? originMatrix.point(element.lloc) : element.lloc;
+                record = element.lloc;
                 delete record.invalid;
             }
             exclude.delete(element);
         }
     );
 
+    /**
+     * Sets locations of dragged elements in order to avoid collisions between these dragged elements and
+     * those already on physic's host, and dragged elements between them.
+     * @param elements dragged elements
+     */
     defineMethod(superClass,
         function _avoidCollisionsForDraggedElements(elements) {
             let exclude = new ESet(elements);
             for (let element of elements) {
                 this._avoidCollisionsForElement(
-                    element, exclude, this._dragAndDropSAP, element._drag, this._host.global);
+                    element, exclude, this._dragAndDropSAP, element.validLocation);
             }
         }
     );
@@ -692,7 +782,7 @@ export function makeCollisionPhysic2D(superClass) {
             let elements = new List();
             for (let element of this._valids.keys()) {
                 let record = this._valids.get(element);
-                if (record.valid.equals(element.lloc)) {
+                if (record.equals(element.lloc)) {
                     elements.add(element);
                 }
             }

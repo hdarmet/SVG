@@ -37,7 +37,7 @@ import {
     assert, is, defineGetProperty, defineMethod, extendMethod, replaceMethod
 } from "../../js/misc.js";
 import {
-    SigmaEntity, SigmaPolymorphicEntity
+    SigmaEntity, SigmaPolymorphicEntity, makeEntityMovable
 } from "../../js/entity.js";
 
 export class DeltaModuleMorph extends DeltaElement {
@@ -45,6 +45,10 @@ export class DeltaModuleMorph extends DeltaElement {
     constructor({width, height, color}) {
         super({width, height, color});
         this._initFrame(this.width, this.height, Colors.INHERIT, color);
+    }
+
+    _dropTarget(element) {
+        return this.parent._dropTarget(element);
     }
 
 }
@@ -77,7 +81,11 @@ export class DeltaModuleEntity extends SigmaPolymorphicEntity {
         return this;
     }
 
+    _dropTarget(element) {
+        return this.parent._dropTarget(element);
+    }
 }
+makeEntityMovable(DeltaModuleEntity);
 
 export class DeltaModuleEmbodiment extends DeltaEmbodiment {
 

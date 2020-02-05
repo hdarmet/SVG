@@ -355,10 +355,14 @@ export function makeEmbodiment(superClass) {
     );
 
     if (defined(superClass, function movable() {})) {
+
         extendMethod(superClass, $setLocation =>
             function setLocation(x, y) {
-                $setLocation.call(this, x, y);
-                this._entity && this._entity.adjustEmbodimentsLocations(this, x, y);
+                let result = $setLocation.call(this, x, y);
+                if (result) {
+                    this._entity && this._entity.adjustEmbodimentsLocations(this, x, y);
+                }
+                return result;
             }
         );
 
@@ -368,6 +372,23 @@ export function makeEmbodiment(superClass) {
                 this.entity._hoverOn(support, this);
             }
         );
+
+        extendMethod(superClass, $registerValidLocation=>
+            function registerValidLocation() {
+                $registerValidLocation.call(this);
+                this.entity.registerValidLocation();
+                return this;
+            }
+        );
+
+        extendMethod(superClass, $unregisterValidLocation=>
+            function unregisterValidLocation() {
+                $unregisterValidLocation.call(this);
+                this.entity.unregisterValidLocation();
+                return this;
+            }
+        );
+
     }
 
     defineGetProperty(superClass,
@@ -440,8 +461,8 @@ export class SigmaEntity {
                     if (!right || right<lx) right = lx;
                     if (!top || top>ly) top = ly;
                     if (!bottom || bottom<ly) bottom = ly;
-                    if (!back || back<lz) back = lz;
-                    if (!front || front>lz) front = lz;
+                    if (!back || back>lz) back = lz;
+                    if (!front || front<lz) front = lz;
                 }
             }
         }
@@ -504,6 +525,30 @@ SigmaEntity.projections = {
     RIGHT: "right",
     BOTTOM : "bottom"
 };
+
+export function makeEntityMovable(superClass) {
+
+    defineMethod(superClass,
+        function registerValidLocation() {
+            this._validLocation = new Point3D(this.lx, this.ly, this.lz);
+            return this;
+        }
+    );
+
+    defineMethod(superClass,
+        function unregisterValidLocation() {
+            delete this._validLocation;
+            return this;
+        }
+    );
+
+    defineGetProperty(superClass,
+        function validLocation() {
+            return this._validLocation ? this._validLocation : new Point2D(this.lx, this.ly, this.lz);
+        }
+    );
+
+}
 
 export class SigmaPolymorphicEntity extends SigmaEntity {
 
@@ -596,6 +641,7 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
             ey = y;
             ez = key===SigmaEntity.projections.RIGHT ? x : -x;
         }
+        assert(!isNaN(ex+ey+ez));
         return new Point3D(ex, ey, ez);
     }
 
@@ -644,6 +690,7 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
             for (let support of this._embodiments.keys()) {
                 let aEmbodiment = this._embodiments.get(support);
                 let location = this._getEmbodimentLocationFromEntityLocation(aEmbodiment, point);
+                console.log(location.x, aEmbodiment.lx, location.y, aEmbodiment.ly);
                 aEmbodiment.move(location.x, location.y);
             }
         }

@@ -5,10 +5,10 @@ import {
     SAPRecord2D, SweepAndPrune2D, makeCollisionPhysic2D
 } from "./collision-physics.js";
 import {
-    Box2D, Box3D
+    Box2D, Box3D, Point3D
 } from "./geometry.js";
 import {
-    defineMethod, replaceMethod, defineGetProperty, extendMethod, same
+    defineMethod, replaceMethod, defineGetProperty, extendMethod, same, assert
 } from "./misc.js";
 import {
     Physic
@@ -68,9 +68,10 @@ export class SAPRecord3D extends SAPRecord2D {
     _createBound(element) {
         let bound = super._createBound(element);
         let geometry = element.localGeometry;
+        assert(geometry.back);
         let depthSlim = same(geometry.front, geometry.back);
-        bound.back = {first: true, value: geometry.front, slim:depthSlim, element, index: -1, opened: new ESet([element])};
-        bound.front = {first: false, value: geometry.back, slim:depthSlim, element, index: -1, opened: new ESet()};
+        bound.back = {first: true, value: geometry.back, slim:depthSlim, element, index: -1, opened: new ESet([element])};
+        bound.front = {first: false, value: geometry.front, slim:depthSlim, element, index: -1, opened: new ESet()};
         bound.back.index = this._sweepAndPrune._zAxis.length;
         bound.front.index = this._sweepAndPrune._zAxis.length + 1;
         this._sweepAndPrune._zAxis.push(bound.back, bound.front);
@@ -195,10 +196,10 @@ export class SweepAndPrune3D extends SweepAndPrune2D {
         let back = box.back;
         if (result.length) {
             let collectedOnXY = new ESet(result);
-            let result = new List();
-            let index = dichotomousSearch(this._zAxis, front, (v, b) => v - b.value);
-            if (index > 0 && index < this._zAxis.length && this._zAxis[index].value > front) index--;
-            while (this._zAxis[index] && this._zAxis[index].value < back) {
+            result = new List();
+            let index = dichotomousSearch(this._zAxis, back, (v, b) => v - b.value);
+            if (index > 0 && index < this._zAxis.length && this._zAxis[index].value > back) index--;
+            while (this._zAxis[index] && this._zAxis[index].value < front) {
                 for (let element of this._zAxis[index].opened) {
                     if (collectedOnXY.delete(element)) {
                         result.add(element);
@@ -232,8 +233,46 @@ export function makeCollisionPhysic3D(superClass) {
         function hover(previousEntities, entities) {
             this._hover(previousEntities, entities);
             this._refresh();
-            this._host._fire(Physic.events.REFRESH_HOVER, this, managedElements);
+            this._host._fire(Physic.events.REFRESH_HOVER, this, entities);
             return this;
+        }
+    );
+
+    extendMethod(superClass, $removeHovered=>
+        function _removeHovered(element) {
+            $removeHovered.call(this, element);
+            if (this._elements.has(element)) {
+                this._supportSAP.add(element);
+                this._valids.set(element, element.validLocation);
+            }
+        }
+    );
+
+    replaceMethod(superClass,
+        function _add(element) {
+            this._elements.add(element);
+            if (!this._dragAndDropSAP.has(element)) {
+                this._supportSAP.add(element);
+                this._valids.set(element, element.validLocation);
+            }
+        }
+    );
+
+    replaceMethod(superClass,
+        function _remove(element) {
+            this._elements.delete(element);
+            if (this._supportSAP.has(element)) {
+                this._supportSAP.remove(element);
+                this._valids.delete(element);
+            }
+        }
+    );
+
+    replaceMethod(superClass,
+        function _move(element) {
+            if (this._supportSAP.has(element)) {
+                this._supportSAP.update(element);
+            }
         }
     );
 
@@ -248,7 +287,7 @@ export function makeCollisionPhysic3D(superClass) {
     replaceMethod(superClass,
         function _put(element, sap, {x, y, z}) {
             // setLocation(), not move(), on order to keep the DnD fluid (floating elements not correlated).
-            element.setLocation(x, y, z);
+            element.setLocation(new Point3D(x, y, z));
             sap.update(element);
         }
     );
@@ -258,7 +297,7 @@ export function makeCollisionPhysic3D(superClass) {
             let sap = this.sweepAndPrune(target);
             let fx = this._adjustOnAxis(target, o.x, h.x, sap, sap.left, sap.right, element.width);
             let fy = this._adjustOnAxis(target, o.y, h.y, sap, sap.top, sap.bottom, element.height);
-            let fz = this._adjustOnAxis(target, o.z, h.z, sap, sap.front, sap.back, element.depth);
+            let fz = this._adjustOnAxis(target, o.z, h.z, sap, sap.back, sap.front, element.depth);
             if (fx!==null || fy!==null || fz!==null) {
                 return {x:fx, y:fy, z:fz};
             }
@@ -319,7 +358,7 @@ export class EmbodimentPhysic {
         let managedEntities = new List();
         for (let element of elements) {
             if (this.entityPhysic.accept(element.entity)) {
-                managedEntities.add(element);
+                managedEntities.add(element.entity);
             }
         }
         return managedEntities;
@@ -328,7 +367,7 @@ export class EmbodimentPhysic {
     hover(elements) {
         let managedEntities = this.managedEntities(elements);
         this.entityPhysic.hover(this._managedEntities, managedEntities);
-        this._managedEntities = managedEntities;
+        this._managedEntities = new ESet(managedEntities);
         this._host._fire(Physic.events.REFRESH_HOVER, this, managedEntities);
         return this;
     }

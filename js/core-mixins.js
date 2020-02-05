@@ -11,6 +11,9 @@ import {
     createUUID, assert, defineMethod, proposeGetProperty, extendMethod, defineProperty, defineGetProperty,
     replaceGetProperty, replaceProperty, extendIfMethod, replaceMethod, defined
 } from "./misc.js";
+import {
+    Point2D
+} from "./geometry.js";
 
 export function makeDeletable(superClass) {
 
@@ -34,11 +37,13 @@ export function makeMovable(superClass) {
     defineMethod(superClass,
         function move(x, y) {
             let result = this.setLocation(x, y);
-            this._fire(Events.MOVED, {x, y});
-            if (this.parent && this.parent._shift) {
-                this.parent._shift(this, x, y);
-                if (this.parent._fire) {
-                    this.parent._fire(Events.MOVE, this);
+            if (result) {
+                this._fire(Events.MOVED, {x, y});
+                if (this.parent && this.parent._shift) {
+                    this.parent._shift(this, x, y);
+                    if (this.parent._fire) {
+                        this.parent._fire(Events.MOVE, this);
+                    }
                 }
             }
             return result;
@@ -51,6 +56,26 @@ export function makeMovable(superClass) {
             let lx = invertDiff.x(x, y);
             let ly = invertDiff.y(x, y);
             return this.move(lx, ly);
+        }
+    );
+
+    defineMethod(superClass,
+        function registerValidLocation() {
+            this._validLocation = new Point2D(this.lx, this.ly);
+            return this;
+        }
+    );
+
+    defineMethod(superClass,
+        function unregisterValidLocation() {
+            delete this._validLocation;
+            return this;
+        }
+    );
+
+    defineGetProperty(superClass,
+        function validLocation() {
+            return this._validLocation ? this._validLocation : new Point2D(this.lx, this.ly);
         }
     );
 
