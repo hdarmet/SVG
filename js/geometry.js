@@ -735,6 +735,10 @@ export class Point2D {
         this.y = y;
     }
 
+    _check() {
+        assert(!isNaN(this.x+this.y));
+    }
+
     getDistance(point) {
         return Math.sqrt((point.x-this.x)*(point.x-this.x)+(point.y-this.y)*(point.y-this.y));
     }
@@ -744,7 +748,7 @@ export class Point2D {
     }
 
     duplicate() {
-        return new Point3D(this.x, this.y);
+        return new Point2D(this.x, this.y);
     }
 }
 
@@ -754,6 +758,10 @@ export class Point3D {
         this.x = x;
         this.y = y;
         this.z = z;
+    }
+
+    _check() {
+        assert(!isNaN(this.x+this.y+this.z));
     }
 
     getDistance(point) {

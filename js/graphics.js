@@ -1120,6 +1120,10 @@ export class DOMElement {
         return this;
     }
 
+    get(index) {
+        if (this._children) return this._children[index];
+    }
+
     contains(element) {
         return this._children && this._children.contains(element);
     }

@@ -229,22 +229,6 @@ export class SigmaElement {
         return new Box2D(left, top, right-left, bottom-top);
     }
 
-    /*
-    _geometry(matrix) {
-        // TODO ne fonctionne pas si rotation
-        let left = this.left, right = this.right, top = this.top, bottom = this.bottom;
-        let x1 = matrix.x(left, top);
-        let y1 = matrix.y(left, top);
-        let x2 = matrix.x(right, bottom);
-        let y2 = matrix.y(right, bottom);
-        left = x1>x2?x2:x1;
-        right = x1>x2?x1:x2;
-        top = y1>y2?y2:y1;
-        bottom = y1>y2?y1:y2;
-        return new Box2D(left, top, right-left, bottom-top);
-    }
-    */
-
     get localGeometry() { return this._geometry(this.matrix); }
     get globalGeometry() { return this._geometry(this.global); }
     get lx() { return this.matrix.x(0, 0); }

@@ -448,13 +448,8 @@ export function makeCollisionPhysic2D(superClass) {
         }
     );
 
-    let nb=0;
-
     replaceMethod(superClass,
         function _refresh() {
-            if ((++nb%1000)===0) {
-                nb=0;
-            }
             this._avoidCollisionsForElements();
         }
     );
@@ -709,6 +704,12 @@ export function makeCollisionPhysic2D(superClass) {
         }
     );
 
+    defineGetProperty(superClass,
+        function _noResult() {
+            return { x:null, y:null }
+        }
+    );
+
     defineMethod(superClass,
         /**
          * Fix the position of a MOVED element so this element (if possible...) does not collide with another one on
@@ -725,7 +726,7 @@ export function makeCollisionPhysic2D(superClass) {
                     let result = this._adjustOnTarget(element, target, o, h);
                     if (result) return result;
                 }
-                return { x:null, y:null };
+                return this._noResult;
             }
 
             exclude.add(element);
@@ -800,7 +801,7 @@ export function makeCollisionPhysic2D(superClass) {
  * Class of objects that materialize a container border, in order to prevent contained elements to collide with such
  * borders. Borders help to "box" contained element inside their container.
  */
-export class PhysicBorder {
+export class PhysicBorder2D {
 
     /**
      * Creates a new Border
@@ -850,7 +851,7 @@ export class PhysicBorder {
  * @param superClass collision phuysic class
  * @param bordersCollide specify which borders may be "activated".
  */
-export function addBordersToCollisionPhysic(superClass, {bordersCollide}) {
+export function addBordersTo2DCollisionPhysic(superClass, {bordersCollide}) {
 
     /**
      * Extends physic's init method in order to create the borders objects (inside collision physic) and bounds (inside
@@ -881,7 +882,7 @@ export function addBordersToCollisionPhysic(superClass, {bordersCollide}) {
      */
     defineMethod(superClass,
         function _addLeftBorder() {
-            this._leftBorder = new PhysicBorder(
+            this._leftBorder = new PhysicBorder2D(
                 this,
                 () => -this.host.width / 2,
                 () => 0,
@@ -899,7 +900,7 @@ export function addBordersToCollisionPhysic(superClass, {bordersCollide}) {
      */
     defineMethod(superClass,
         function _addRightBorder() {
-            this._rightBorder = new PhysicBorder(
+            this._rightBorder = new PhysicBorder2D(
                 this,
                 () => this.host.width / 2,
                 () => 0,
@@ -917,7 +918,7 @@ export function addBordersToCollisionPhysic(superClass, {bordersCollide}) {
      */
     defineMethod(superClass,
         function _addTopBorder() {
-            this._topBorder = new PhysicBorder(
+            this._topBorder = new PhysicBorder2D(
                 this,
                 () => 0,
                 () => -this.host.height / 2,
@@ -935,7 +936,7 @@ export function addBordersToCollisionPhysic(superClass, {bordersCollide}) {
      */
     defineMethod(superClass,
         function _addBottomBorder() {
-            this._bottomBorder = new PhysicBorder(
+            this._bottomBorder = new PhysicBorder2D(
                 this,
                 () => 0,
                 () => this.host.height / 2,
@@ -992,7 +993,7 @@ export function addBordersToCollisionPhysic(superClass, {bordersCollide}) {
  * @param predicate prdicate used by the new collision physic class to select elements subject to its placement logic.
  * @returns {CollisionPhysic}
  */
-export function createCollisionPhysic({predicate}) {
+export function create2DCollisionPhysic({predicate}) {
     class CollisionPhysic extends Physic {
         constructor(host, ...args) {
             super(host, predicate, ...args);
@@ -1002,10 +1003,10 @@ export function createCollisionPhysic({predicate}) {
     return CollisionPhysic;
 }
 
-export function makeCollisionContainer(superClass, {predicate, bordersCollide = null}) {
+export function make2DCollisionContainer(superClass, {predicate, bordersCollide = null}) {
     let ContainerPhysic = createCollisionPhysic({predicate});
     if (bordersCollide) {
-        addBordersToCollisionPhysic(ContainerPhysic, {bordersCollide});
+        addBordersTo2DCollisionPhysic(ContainerPhysic, {bordersCollide});
     }
     addPhysicToContainer(superClass, {
         physicBuilder: function() {
@@ -1117,7 +1118,7 @@ class Ground {
 
 }
 
-export function addGravitationToCollisionPhysic(superClass, {
+export function addGravitationTo2DCollisionPhysic(superClass, {
     gravitationPredicate = element=>true,
     carryingPredicate = (carrier, carried, dx, dy)=>true
 }={}) {
@@ -1193,23 +1194,23 @@ export function addGravitationToCollisionPhysic(superClass, {
 
 }
 
-export function createGravitationPhysic({predicate, gravitationPredicate, carryingPredicate}) {
-    class GravitationPhysic extends createCollisionPhysic({predicate}) {
+export function create2DGravitationPhysic({predicate, gravitationPredicate, carryingPredicate}) {
+    class GravitationPhysic extends create2DCollisionPhysic({predicate}) {
 
         constructor(host, ...args) {
             super(host, ...args);
         }
     }
-    addGravitationToCollisionPhysic(GravitationPhysic, {gravitationPredicate, carryingPredicate});
+    addGravitationTo2DCollisionPhysic(GravitationPhysic, {gravitationPredicate, carryingPredicate});
     return GravitationPhysic;
 }
 
-export function makeGravitationContainer(superClass, {
+export function make2DGravitationContainer(superClass, {
     predicate, gravitationPredicate, carryingPredicate, bordersCollide = null
 }) {
-    let ContainerPhysic = createGravitationPhysic({predicate, gravitationPredicate, carryingPredicate});
+    let ContainerPhysic = create2DGravitationPhysic({predicate, gravitationPredicate, carryingPredicate});
     if (bordersCollide) {
-        addBordersToCollisionPhysic(ContainerPhysic, {bordersCollide});
+        addBordersTo2DCollisionPhysic(ContainerPhysic, {bordersCollide});
     }
 
     addPhysicToContainer(superClass, {
@@ -1971,7 +1972,7 @@ export function createStickyGravitationPhysic({
     return StickyGravitationPhysic;
 }
 
-export function makeStickyGravitationContainer(superClass, {
+export function make2DStickyGravitationContainer(superClass, {
     predicate, gravitationPredicate, carryingPredicate,
     gluingStrategy = null,
     bordersCollide
@@ -1981,7 +1982,7 @@ export function makeStickyGravitationContainer(superClass, {
     }) {}
 
     if (bordersCollide) {
-        addBordersToCollisionPhysic(ContainerPhysic, bordersCollide);
+        addBordersTo2DCollisionPhysic(ContainerPhysic, bordersCollide);
     }
     addPhysicToContainer(superClass, {
         physicBuilder: function() {

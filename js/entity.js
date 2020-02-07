@@ -13,7 +13,7 @@ import {
 } from "./graphics.js";
 import {
     assert, defined,
-    defineGetProperty, defineMethod, defineProperty, extendMethod
+    defineGetProperty, defineMethod, defineProperty, extendMethod, replaceMethod
 } from "./misc.js";
 import {
     makeObservable, Memento, Canvas, Selection, CloneableObject, CopyPaste
@@ -25,7 +25,7 @@ import {
     Matrix2D, Matrix3D, Point2D, Point3D, Box3D
 } from "./geometry.js";
 import {
-    EMap, ESet
+    List, EMap, ESet
 } from "./collections.js";
 
 export class SigmaTrigger extends SigmaElement {
@@ -360,7 +360,8 @@ export function makeEmbodiment(superClass) {
             function setLocation(x, y) {
                 let result = $setLocation.call(this, x, y);
                 if (result) {
-                    this._entity && this._entity.adjustEmbodimentsLocations(this, x, y);
+                    let entityLocation = this._entity.getEntityLocationFromEmbodimentLocation(this, new Point2D(x, y));
+                    this._entity && this._entity.adjustEmbodimentsLocations(this, entityLocation);
                 }
                 return result;
             }
@@ -402,25 +403,27 @@ export function makeEmbodimentContainerPart(superClass) {
 
     makePart(superClass);
 
-    defineGetProperty(superClass,
-        function entity() {
-            let element = this.parent;
-            while (element) {
-                let entity = element.entity;
-                if (entity) return entity;
-                element = element.parent;
-            }
-            assert(false);
-        }
-    );
-
     extendMethod(superClass, $hover=>
         function hover(elements) {
             $hover && $hover.call(this, elements);
-            this.entity.hover(this.parent, elements);
+            this.entity.hover(this, elements);
         }
     );
 
+    replaceMethod(superClass,
+        function _executeDrag(element) {
+            this.entity.executeDrag(element, this);
+            return true;
+
+        }
+    );
+
+    replaceMethod(superClass,
+        function _executeDrop(element) {
+            this.entity.executeDrop(element, this);
+            return true;
+        }
+    );
 }
 
 export class SigmaEntity {
@@ -544,7 +547,7 @@ export function makeEntityMovable(superClass) {
 
     defineGetProperty(superClass,
         function validLocation() {
-            return this._validLocation ? this._validLocation : new Point2D(this.lx, this.ly, this.lz);
+            return this._validLocation ? this._validLocation : new Point3D(this.lx, this.ly, this.lz);
         }
     );
 
@@ -623,7 +626,7 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
         return embodiment;
     }
 
-    _getEntityLocationFromEmbodimentLocation(embodiment, {x, y}) {
+    getEntityLocationFromEmbodimentLocation(embodiment, {x, y}) {
         let key = embodiment.morphKey;
         let ex, ey, ez;
         if (key===SigmaEntity.projections.FRONT || key===SigmaEntity.projections.BACK) {
@@ -645,7 +648,7 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
         return new Point3D(ex, ey, ez);
     }
 
-    _getEmbodimentLocationFromEntityLocation(embodiment, {x, y, z}) {
+    getEmbodimentLocationFromEntityLocation(embodiment, {x, y, z}) {
         let key = embodiment.morphKey;
         let lx, ly;
         if (key===SigmaEntity.projections.FRONT || key===SigmaEntity.projections.BACK) {
@@ -663,16 +666,15 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
         return new Point2D(lx, ly);
     }
 
-    adjustEmbodimentsLocations(embodiment, x, y) {
+    adjustEmbodimentsLocations(entity, entityLocation) {
         if (!this.__moveEmbodiments) {
             try {
                 this.__moveEmbodiments = true;
-                let entityLocation = this._getEntityLocationFromEmbodimentLocation(embodiment, new Point2D(x, y));
                 this._setLocation(entityLocation);
                 for (let support of this._embodiments.keys()) {
                     let aEmbodiment = this._embodiments.get(support);
-                    if (aEmbodiment !== embodiment && aEmbodiment.movable) {
-                        let location = this._getEmbodimentLocationFromEntityLocation(aEmbodiment, entityLocation);
+                    if (aEmbodiment.movable) {
+                        let location = this.getEmbodimentLocationFromEntityLocation(aEmbodiment, entityLocation);
                         aEmbodiment.move(location.x, location.y);
                     }
                 }
@@ -689,8 +691,7 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
             this.__moveEmbodiments = true;
             for (let support of this._embodiments.keys()) {
                 let aEmbodiment = this._embodiments.get(support);
-                let location = this._getEmbodimentLocationFromEntityLocation(aEmbodiment, point);
-                console.log(location.x, aEmbodiment.lx, location.y, aEmbodiment.ly);
+                let location = this.getEmbodimentLocationFromEntityLocation(aEmbodiment, point);
                 aEmbodiment.move(location.x, location.y);
             }
         }
@@ -708,7 +709,7 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
     }
 
     _memento() {
-        let memento = {};
+        let memento = super._memento();
         memento._morphs = {...this._morphs};
         return memento;
     }
@@ -756,18 +757,27 @@ export function makeEntityASupport(superClass) {
     );
 
     defineMethod(superClass,
-        function _addChildrenEmbodiments(element) {
+        function getSupportEmbodiments(entity) {
+            let embodiments = new List();
+            for (let support of this.parent._embodiments.keys()) {
+                embodiments.add(this.parent._embodiments.get(support).getContainer(entity));
+            }
+            return embodiments;
+        }
+    );
+
+    defineMethod(superClass,
+        function _addChildrenEmbodiments(entity) {
             if (!this.__addChildenEmbodiments) {
                 try {
                     this.__addChildenEmbodiments = true;
-                    for (let support of this._embodiments.keys()) {
-                        let supportEmbodiment = this._embodiments.get(support).currentMorph.getContainer(element.entity);
-                        let embodiment = element.entity.getEmbodiment(supportEmbodiment);
+                    for (let supportEmbodiment of this.getSupportEmbodiments(entity)) {
+                        let embodiment = entity.getEmbodiment(supportEmbodiment);
                         if (!embodiment) {
-                            embodiment = element.entity.createEmbodiment(supportEmbodiment);
+                            embodiment = entity.createEmbodiment(supportEmbodiment);
                             supportEmbodiment.addChild(embodiment);
                         }
-                        element.entity.adjustEmbodimentsLocations(element, element.lx, element.ly);
+                        entity.adjustEmbodimentsLocations(entity, entity.lloc);
                     }
                 }
                 finally {
@@ -778,15 +788,14 @@ export function makeEntityASupport(superClass) {
     );
 
     defineMethod(superClass,
-        function _removeChildrenEmbodiments(element) {
+        function _removeChildrenEmbodiments(entity) {
             if (!this.__removeChildenEmbodiments) {
                 try {
                     this.__removeChildenEmbodiments = true;
-                    for (let support of this._embodiments.keys()) {
-                        let supportEmbodiment = this._embodiments.get(support).currentMorph.getContainer(element.entity);
-                        let embodiment = element.entity.getEmbodiment(supportEmbodiment);
+                    for (let supportEmbodiment of this.getSupportEmbodiments(entity)) {
+                        let embodiment = entity.getEmbodiment(supportEmbodiment);
                         if (embodiment) {
-                            element.entity.removeEmbodiment(embodiment);
+                            entity.removeEmbodiment(embodiment);
                             supportEmbodiment.removeChild(embodiment);
                         }
                     }
@@ -810,39 +819,95 @@ export function makeEntityASupport(superClass) {
 
     defineMethod(superClass,
         function _addHovered(element) {
-            element.entity._setLocation(new Point3D(0, 0, 0));
-            this._addChildrenEmbodiments(element);
+            console.log("hovered")
+            this.addChild(element.entity);
         }
     );
 
     defineMethod(superClass,
         function _moveHovered(element) {
-            element.entity.adjustEmbodimentsLocations(element, element.lx, element.ly);
+            element.entity.adjustEmbodimentsLocations(element.entity, element.entity.lloc);
         }
     );
 
     defineMethod(superClass,
         function _removeHovered(element) {
-            if (this._getEntity(element.parent)!==this) {
-                this.removeChild(element);
-            }
+            //if (element.entity!==this) {
+                this.removeChild(element.entity);
+            //}
+        }
+    );
+
+    defineMethod(superClass,
+        function executeDrag(element, target) {
+            console.log("execute Drag")
+            target.removeChild(element);
+        }
+    );
+
+    defineMethod(superClass,
+        function executeDrop(element, target) {
+            console.log("execute Drop")
+            this._hoveredEmbodiments.get(target).delete(element);
+            target.addChild(element);
         }
     );
 
     extendMethod(superClass, $addChild=>
-        function addChild(element) {
-            $addChild && $addChild.call(this, element);
-            this._addChildrenEmbodiment(element);
+        function addChild(entity) {
+            if (!this._children || !this._children.has(entity)) {
+                console.log("Add child")
+                if (!this._children) {
+                    this._children = new ESet();
+                }
+                this._children.add(entity);
+                entity._setLocation(new Point3D(0, 0, 0));
+                $addChild && $addChild.call(this, entity);
+                this._addChildrenEmbodiments(entity);
+            }
         }
     );
 
     extendMethod(superClass, $removeChild=>
-        function removeChild(element) {
-            $removeChild && $removeChild.call(this, element);
-            this._removeChildrenEmbodiments(element);
+        function removeChild(entity) {
+            if (this._children && this._children.has(entity)) {
+                this._children.delete(entity);
+                if (!this._children.size) {
+                    delete this._children;
+                }
+                console.log("Remove child")
+                this._removeChildrenEmbodiments(entity);
+                $removeChild && $removeChild.call(this, entity);
+            }
         }
     );
 
+    extendMethod(superClass, $memento=>
+        function _memento() {
+            let memento = $memento.call(this);
+            if (this._children) {
+                memento._children = new ESet(this._children);
+            }
+            return memento;
+        }
+    );
+
+    extendMethod(superClass, $revert=>
+        function _revert(memento) {
+            $revert.call(this, memento);
+            delete this._children;
+            if (memento._children) {
+                this._children = new ESet(memento._children);
+            }
+            return this;
+        }
+    );
+
+    defineGetProperty(superClass,
+        function children() {
+            return this._children ? this._children : new ESet();
+        }
+    );
 }
 
 export function changePolymorphicProjection(superClass, projection) {

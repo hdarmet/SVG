@@ -389,11 +389,19 @@ export class DeltaEmbodiment extends SigmaPolymorphicElement {
     unselect() {
         this._currentMorph.unselect && this._currentMorph.unselect();
     }
+
+    getContainer(entity) {
+        return this._currentMorph.getContainer(entity);
+    }
 }
 makeDeltaItem(DeltaEmbodiment);
 makeEmbodiment(DeltaEmbodiment);
 
-export class DeltaStaticEmbodiment extends SigmaPolymorphicElement {}
+export class DeltaStaticEmbodiment extends SigmaPolymorphicElement {
+    getContainer(entity) {
+        return this._currentMorph.getContainer(entity);
+    }
+}
 makeEmbodiment(DeltaStaticEmbodiment);
 
 export class DeltaSupport extends SigmaElement {

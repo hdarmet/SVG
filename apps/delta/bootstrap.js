@@ -34,7 +34,7 @@ import {
     Facilities
 } from "../../js/standard-facilities.js";
 import {
-    makeGravitationContainer
+    make2DGravitationContainer
 } from "../../js/collision-physics.js";
 import {
     SigmaPrintArea, makeResizeable, makeResizeableContent, SigmaHandle, SizerDecoration
@@ -75,7 +75,7 @@ class DeltaPaperContent extends DeltaSupport {
         return this.parent;
     }
 }
-makeGravitationContainer(DeltaPaperContent, {
+make2DGravitationContainer(DeltaPaperContent, {
     predicate: is(DeltaPane, DeltaAbstractModule, DeltaBox),
     carryingPredicate: always,
     bordersCollide:{all:true}

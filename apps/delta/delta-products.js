@@ -84,6 +84,7 @@ export class DeltaModuleEntity extends SigmaPolymorphicEntity {
     _dropTarget(element) {
         return this.parent._dropTarget(element);
     }
+
 }
 makeEntityMovable(DeltaModuleEntity);
 
@@ -104,6 +105,9 @@ export class DeltaModuleEmbodiment extends DeltaEmbodiment {
         return this._depth;
     }
 
+    get elementMorph() {
+        return this.parent.elementMorph;
+    }
 }
 
 export class DeltaAbstractModule extends DeltaItem {

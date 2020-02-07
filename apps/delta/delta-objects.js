@@ -19,7 +19,7 @@ import {
     Rect, Attrs, Circle, Line, Text, win, Polygon
 } from "../../js/graphics.js";
 import {
-    addBordersToCollisionPhysic, createGravitationPhysic, makeCarriable, makeCarrier,
+    addBordersTo2DCollisionPhysic, create2DGravitationPhysic, makeCarriable, makeCarrier,
     SAPRecord2D
 } from "../../js/collision-physics.js";
 import {
@@ -38,7 +38,7 @@ import {
     always, is, defineMethod, extendMethod, replaceMethod, defineGetProperty, assert, proposeMethod
 } from "../../js/misc.js";
 import {
-    Box2D
+    Box2D, Point3D
 } from "../../js/geometry.js";
 import {
     DeltaAbstractModule, DeltaModuleEmbodiment, DeltaModuleEntity
@@ -54,9 +54,9 @@ import {
     makeEmbodimentContainerPart, makeEntityMovable
 } from "../../js/entity.js";
 import {
-    addPhysicToEntity, createCollisionEntityPhysic, EmbodimentPhysic
+    addPhysicToEntity, createCollisionEntityPhysic, EmbodimentPhysic, makeContainerYSorted, makeContainerZSorted,
+    addBordersTo3DCollisionPhysic
 } from "../../js/entity-physics.js";
-
 
 export class DeltaFasciaSupport extends SigmaElement {
     constructor({width, height}) {
@@ -267,7 +267,6 @@ export function makeFrameSupport(superClass) {
 
 }
 
-
 export function makeKnobOwner(superClass, {size, predicate}) {
 
     makePartsOwner(superClass);
@@ -409,21 +408,68 @@ DeltaHook.HEIGHT = 10;
 DeltaHook.RADIUS = 6;
 DeltaHook.SIZE = 2;
 
+export class DeltaBoxEntityContent extends SigmaEntity {
+
+    _createPhysic() {
+        let CollisionPhysic = createCollisionEntityPhysic({
+            predicate:is(DeltaModuleEntity)
+        });
+        addBordersTo3DCollisionPhysic(CollisionPhysic, {
+            bordersCollide: {left: true, right: true, top: true, bottom: true, back:true}
+        });
+        return new CollisionPhysic(this);
+    }
+
+    get parent() {
+        return this._parent;
+    }
+
+    set parent(parent) {
+        Memento.register(this);
+        this._setParent(parent);
+    }
+
+    _setParent(parent) {
+        this._parent = parent;
+    }
+
+    _memento() {
+        let memento = super._memento();
+        memento._parent = parent;
+        return memento;
+    }
+
+    _revert(memento) {
+        super._revert(memento);
+        this._parent = memento._parent;
+        return this;
+    }
+
+}
+makeEntityASupport(DeltaBoxEntityContent);
+addPhysicToEntity(DeltaBoxEntityContent,  {
+    physicBuilder: function() {
+        return this._createPhysic();
+    }
+});
+
 export class DeltaBoxEntity extends SigmaPolymorphicEntity {
 
-    constructor({width, height, depth, ...args}) {
-        super(width, height, depth, args);
-        //this._addMorph(SigmaEntity.projections.FRONT, new DeltaModuleMorph({width, height, color:Colors.GREY}));
-        //this._addMorph(SigmaEntity.projections.TOP, new DeltaModuleMorph({width, height:depth, color:Colors.LIGHT_GREY}));
+    constructor({width, height, depth, contentX, contentY, contentWidth, contentHeight, contentDepth, ...args}) {
+        super(width, height, depth, {contentX, contentY, contentWidth, contentHeight, contentDepth, ...args});
+        this._createContent(contentWidth, contentHeight, contentDepth);
+        let contentZ = (depth-contentDepth)/2;
+        this._content.setLocation(new Point3D(contentX, contentY, contentZ))
     }
 
-    /*
-    _createEmbodiment(support) {
-        return this._makeEmbodiment(
-            support, new DeltaModuleEmbodiment({width:this._width, height:this._height, depth:this._depth, morphs:this.morphs})
-        );
+    _createContent(width, height, depth) {
+        this._content = new DeltaBoxEntityContent(width, height, depth);
+        this._content._setParent(this);
     }
-*/
+
+    get content() {
+        return this._content;
+    }
 
     get defaultEmbodiment() {
         return this.createEmbodiment(null);
@@ -439,20 +485,7 @@ export class DeltaBoxEntity extends SigmaPolymorphicEntity {
         return this;
     }
 
-    _createPhysic() {
-        let CollisionPhysic = createCollisionEntityPhysic({
-            predicate:is(DeltaModuleEntity)
-        });
-        return new CollisionPhysic(this);
-    }
-
 }
-makeEntityASupport(DeltaBoxEntity);
-addPhysicToEntity(DeltaBoxEntity,  {
-    physicBuilder: function() {
-        return this._createPhysic();
-    }
-});
 makeEntityMovable(DeltaBoxEntity);
 
 export function makeCellsOwner(superClass) {
@@ -592,6 +625,10 @@ export class DeltaBoxExpansionContent extends DeltaSupport {
         return DeltaBoxExpansion.PROJECTION;
     }
 
+    get entity() {
+        return this.parent.entity.content;
+    }
+
     _createPhysic() {
         return new EmbodimentPhysic(this);
     }
@@ -604,6 +641,7 @@ addPhysicToContainer(DeltaBoxExpansionContent, {
         }
     }
 );
+makeContainerYSorted(DeltaBoxExpansionContent);
 
 export class DeltaBoxExpansion extends DeltaExpansion {
 
@@ -640,7 +678,6 @@ export class DeltaBoxExpansion extends DeltaExpansion {
 DeltaBoxExpansion.PROJECTION = "top";
 makeShaped(DeltaBoxExpansion);
 
-
 export class DeltaBoxContent extends DeltaSupport {
     constructor({width, height, ...args}) {
         super({width, height, strokeColor:Colors.GREY, backgroundColor:Colors.LIGHTEST_GREY, ...args});
@@ -661,6 +698,10 @@ export class DeltaBoxContent extends DeltaSupport {
         this.shape.fill = Colors.LIGHTEST_GREY;
     }
 
+    get entity() {
+        return this.parent.entity.content;
+    }
+
     _createPhysic() {
         return new EmbodimentPhysic(this);
     }
@@ -673,6 +714,7 @@ addPhysicToContainer(DeltaBoxContent, {
         }
     }
 );
+makeContainerZSorted(DeltaBoxContent);
 
 export class DeltaBox extends DeltaItem {
 
@@ -1187,11 +1229,11 @@ export function makeCaddy(superClass) {
 
     defineMethod(superClass,
         function _createPhysic() {
-            let ModulePhysic = createGravitationPhysic({
+            let ModulePhysic = create2DGravitationPhysic({
                 predicate:is(DeltaAbstractModule, DeltaModuleEmbodiment, DeltaShelf),
                 gravitationPredicate:is(DeltaAbstractModule, DeltaModuleEmbodiment),
                 carryingPredicate:always});
-            addBordersToCollisionPhysic(ModulePhysic, {
+            addBordersTo2DCollisionPhysic(ModulePhysic, {
                 bordersCollide: {all: true}
             });
             let LadderPhysic = createSlotsAndClipsPhysic({
@@ -1248,6 +1290,9 @@ export class DeltaMorphElement extends DeltaElement {
         this._entity = entity;
     }
 
+    get entity() {
+        return this.parent ? this.parent.entity : null;
+    }
 }
 
 export class DeltaRichCaddyFrontMorph extends DeltaMorphElement {
@@ -1708,14 +1753,14 @@ export class DeltaPaneContent extends DeltaSupport {
     }
 
     _createPhysic() {
-        let ModulePhysic = createGravitationPhysic({
+        let ModulePhysic = create2DGravitationPhysic({
             predicate:function(element) {
                 return element.isClipOnCapable
                     || is(DeltaAbstractModule, DeltaModuleEmbodiment, DeltaShelf, DeltaBlister)(element);
             },
             gravitationPredicate:is(DeltaAbstractModule, DeltaModuleEmbodiment),
             carryingPredicate:always});
-        addBordersToCollisionPhysic(ModulePhysic, {
+        addBordersTo2DCollisionPhysic(ModulePhysic, {
             bordersCollide: {all: true}
         });
         let AttachmentPhysic = createRulersPhysic({

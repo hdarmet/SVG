@@ -8,7 +8,7 @@ import {
     Box2D, Box3D, Point3D
 } from "./geometry.js";
 import {
-    defineMethod, replaceMethod, defineGetProperty, extendMethod, same, assert
+    defineMethod, replaceMethod, defineGetProperty, extendMethod, replaceGetProperty, same, assert
 } from "./misc.js";
 import {
     Physic
@@ -164,7 +164,7 @@ export class SweepAndPrune3D extends SweepAndPrune2D {
     _refreshRecord(record) {
         super._refreshRecord(record);
         for (let bound of record.bounds) {
-            this._updateOnAxis(this._zAxis, bound.front, bound.back);
+            this._updateOnAxis(this._zAxis, bound.back, bound.front);
         }
         delete this._zAxis.dirty;
     }
@@ -276,6 +276,12 @@ export function makeCollisionPhysic3D(superClass) {
         }
     );
 
+    replaceGetProperty(superClass,
+        function _noResult() {
+            return { x:null, y:null, z:null }
+        }
+    );
+
     /**
      * Set the fixed position of the element and update physics internal structures accordingly. Note that this
      * element is ALWAYS a DnD'ed one.
@@ -322,6 +328,7 @@ export function makeCollisionPhysic3D(superClass) {
                 h.x = o.x;
                 h.y = o.y;
                 h.z = o.z;
+                h._check();
                 return true;
             }
             return false;
@@ -428,9 +435,9 @@ export function addPhysicToEntity(superClass, {physicBuilder}) {
         }
     );
 
-    extendMethod(superClass, $setsize=>
+    extendMethod(superClass, $setSize=>
         function _setSize(width, height, depth) {
-            $setsize && $setsize.call(this, width, height, depth);
+            $setSize && $setSize.call(this, width, height, depth);
             this.physic.resize(width, height, depth);
         }
     );
@@ -452,4 +459,350 @@ export function createCollisionEntityPhysic({predicate}) {
     }
     makeCollisionPhysic3D(CollisionEntityPhysic);
     return CollisionEntityPhysic;
+}
+
+export function makeContainerSorted(superClass, comparator) {
+
+    defineMethod(superClass,
+        function _sortChildren() {
+            if (this._children) {
+                this._children.sort(comparator);
+                for (let index = 0; index < this._children.length; index++) {
+                    let child = this._content.get(index);
+                    if (this._children[index] != child.owner) {
+                        this._content.insert(child, this._children[index]._root);
+                    }
+                }
+            }
+        }
+    );
+
+    extendMethod(superClass, $addChild=>
+        function _addChild(element) {
+            $addChild.call(this, element);
+            this._sortChildren();
+        }
+    );
+
+    extendMethod(superClass, $insertChild=>
+        function _insertChild(previous, element) {
+            $insertChild.call(this, previous, element);
+            this._sortChildren();
+        }
+    );
+
+    extendMethod(superClass, $replaceChild=>
+        function _replaceChild(previous, element) {
+            $replaceChild.call(this, previous, element);
+            this._sortChildren();
+        }
+    );
+
+    extendMethod(superClass, $removeChild=>
+        function _removeChild(element) {
+            $removeChild.call(this, element);
+            this._sortChildren();
+        }
+    );
+
+    extendMethod(superClass, $shiftChild=>
+        function _shiftChild(element, x, y) {
+            $shiftChild.call(this, element, x, y);
+            this._sortChildren();
+        }
+    );
+
+}
+
+export function makeContainerYSorted(superClass, comparator) {
+
+    makeContainerSorted(superClass, function(e1, e2) {
+       let diff = e1.entity.ly-e2.entity.ly;
+       if (diff) return diff;
+       return e1.id<e2.id ? -1 : 1;
+    });
+
+}
+
+export function makeContainerZSorted(superClass, comparator) {
+
+    makeContainerSorted(superClass, function(e1, e2) {
+        let diff = e1.entity.lz-e2.entity.lz;
+        if (diff) return diff;
+        return e1.id<e2.id ? -1 : 1;
+    });
+
+}
+
+/**
+ * Class of objects that materialize a 3D container border, in order to prevent contained elements to collide with such
+ * borders. Borders help to "box" contained element inside their container.
+ */
+export class PhysicBorder3D {
+
+    /**
+     * Creates a new SD Border
+     * @param physic collision physic which this border object belong.
+     * @param x <b>function, not value<b> that compute the central point location of the border on horizontal axis.
+     * @param y <b>function, not value<b> that compute the central point location of the border on vertical axis.
+     * @param z <b>function, not value<b> that compute the central point location of the border on depth axis.
+     * @param width <b>function, not value<b> that compute the width of the border (0 or host's width, depending on border).
+     * @param height <b>function, not value<b> that compute the height of the border (0 or host's height, depending on border).
+     * @param depth <b>function, not value<b> that compute the depth of the border (0 or host's depth, depending on border).
+     */
+    constructor(physic, x, y, z, width, height, depth) {
+        this._physic = physic;
+        this._x = x;
+        this._y = y;
+        this._z = z;
+        this._width = width;
+        this._height = height;
+        this._depth = depth;
+    }
+
+    /**
+     * Returns the border central point location on horizontal axis (in host's coordinate system).
+     * @returns {*}
+     */
+    get lx() {
+        return this._x();
+    }
+
+    /**
+     * Returns the border central point location on vertical axis (in host's coordinate system).
+     * @returns {*}
+     */
+    get ly() {
+        return this._y();
+    }
+
+    /**
+     * Returns the border central point location on depth axis (in host's coordinate system).
+     * @returns {*}
+     */
+    get lz() {
+        return this._z();
+    }
+
+    /**
+     * Returns the bounding box of the border (in host's coordinate system)
+     * @returns
+     */
+    get localGeometry() {
+        return new Box3D(
+            this._x()-this._width()/2,
+            this._y()-this._height()/2,
+            this._z()-this._depth()/2,
+            this._width(),
+            this._height(),
+            this._depth());
+    }
+
+}
+
+/**
+ * This Trait add the "Borders" capability to a 3D collision physic. A collision physic (only) with this capability may
+ * prevent a contained element to collide with all or some of its (collision physic's) host borders
+ * (left/right/top/bottom/front/back).
+ * @param superClass 3D collision physic class
+ * @param bordersCollide specify which borders may be "activated".
+ */
+export function addBordersTo3DCollisionPhysic(superClass, {bordersCollide}) {
+
+    /**
+     * Extends physic's init method in order to create the borders objects (inside collision physic) and bounds (inside
+     * "supportSAP" object). Note that only borders mentioned in the borderCollide specificaion ave created.
+     */
+    extendMethod(superClass, $init=>
+        function _init(...args) {
+            $init.call(this, ...args);
+            if (bordersCollide.left || bordersCollide.all) {
+                this._addLeftBorder();
+            }
+            if (bordersCollide.right || bordersCollide.all) {
+                this._addRightBorder();
+            }
+            if (bordersCollide.top || bordersCollide.all) {
+                this._addTopBorder();
+            }
+            if (bordersCollide.bottom || bordersCollide.all) {
+                this._addBottomBorder();
+            }
+            if (bordersCollide.back || bordersCollide.all) {
+                this._addBackBorder();
+            }
+            if (bordersCollide.front || bordersCollide.all) {
+                this._addFrontBorder();
+            }
+            this._trigger();
+        }
+    );
+
+    /**
+     * Add a "left" border to collision physic.
+     * @private
+     */
+    defineMethod(superClass,
+        function _addLeftBorder() {
+            this._leftBorder = new PhysicBorder3D(
+                this,
+                () => -this.host.width / 2,
+                () => 0,
+                () => 0,
+                () => 0,
+                () => this.host.height,
+                () => this.host.depth
+            );
+            this._supportSAP.add(this._leftBorder);
+            return this;
+        }
+    );
+
+    /**
+     * Add a "right" border to collision physic.
+     * @private
+     */
+    defineMethod(superClass,
+        function _addRightBorder() {
+            this._rightBorder = new PhysicBorder3D(
+                this,
+                () => this.host.width / 2,
+                () => 0,
+                () => 0,
+                () => 0,
+                () => this.host.height,
+                () => this.host.depth
+            );
+            this._supportSAP.add(this._rightBorder);
+            return this;
+        }
+    );
+
+    /**
+     * Add a "top" border to collision physic.
+     * @private
+     */
+    defineMethod(superClass,
+        function _addTopBorder() {
+            this._topBorder = new PhysicBorder3D(
+                this,
+                () => 0,
+                () => -this.host.height / 2,
+                () => 0,
+                () => this.host.width,
+                () => 0,
+                () => this.host.depth
+            );
+            this._supportSAP.add(this._topBorder);
+            return this;
+        }
+    );
+
+    /**
+     * Add a "bottom" border to collision physic.
+     * @private
+     */
+    defineMethod(superClass,
+        function _addBottomBorder() {
+            this._bottomBorder = new PhysicBorder3D(
+                this,
+                () => 0,
+                () => this.host.height / 2,
+                () => 0,
+                () => this.host.width,
+                () => 0,
+                () => this.host.depth
+            );
+            this._supportSAP.add(this._bottomBorder);
+            return this;
+        }
+    );
+
+    /**
+     * Add a "back" border to collision physic.
+     * @private
+     */
+    defineMethod(superClass,
+        function _addBackBorder() {
+            this._backBorder = new PhysicBorder3D(
+                this,
+                () => 0,
+                () => 0,
+                () => -this.host.depth / 2,
+                () => this.host.width,
+                () => this.host.height,
+                () => 0
+            );
+            this._supportSAP.add(this._backBorder);
+            return this;
+        }
+    );
+
+    /**
+     * Add a "front" border to collision physic.
+     * @private
+     */
+    defineMethod(superClass,
+        function _addFrontBorder() {
+            this._frontBorder = new PhysicBorder3D(
+                this,
+                () => 0,
+                () => 0,
+                () => this.host.depth / 2,
+                () => this.host.width,
+                () => this.host.height,
+                () => 0
+            );
+            this._supportSAP.add(this._frontBorder);
+            return this;
+        }
+    );
+
+    /**
+     * Extends collision physic resize method so that method can warn the "support Sweep And Prune" object that borders
+     * have moved (according to new host dimension) and their related bounds must be updated.
+     * @param widrh new collision physic's host width
+     * @param height new collision physic's host height
+     * @param depth new collision physic's host depth
+     */
+    extendMethod(superClass, $resize=>
+        function resize(width, height, depth) {
+            $resize && $resize.call(this, width, height, depth);
+            if (this._leftBorder) {
+                this._supportSAP.update(this._leftBorder);
+            }
+            if (this._rightBorder) {
+                this._supportSAP.update(this._rightBorder);
+            }
+            if (this._topBorder) {
+                this._supportSAP.update(this._topBorder);
+            }
+            if (this._bottomBorder) {
+                this._supportSAP.update(this._bottomBorder);
+            }
+            if (this._backBorder) {
+                this._supportSAP.update(this._backBorder);
+            }
+            if (this._frontBorder) {
+                this._supportSAP.update(this._frontBorder);
+            }
+        }
+    );
+
+    /**
+     * Extends collision physic reset method so that method includes borders object and bounds in the
+     * (re-)initialisation process.
+     */
+    extendMethod(superClass, $reset=>
+        function _reset() {
+            $reset.call(this);
+            this._leftBorder && this._supportSAP.add(this._leftBorder);
+            this._rightBorder && this._supportSAP.add(this._rightBorder);
+            this._topBorder && this._supportSAP.add(this._topBorder);
+            this._bottomBorder && this._supportSAP.add(this._bottomBorder);
+            this._backBorder && this._supportSAP.add(this._backBorder);
+            this._frontBorder && this._supportSAP.add(this._frontBorder);
+        }
+    );
+
 }
