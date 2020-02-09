@@ -2,7 +2,7 @@ import {
     dichotomousSearch, List, ESet
 } from "./collections.js";
 import {
-    SAPRecord2D, SweepAndPrune2D, makeCollisionPhysic2D
+    SAPRecord2D, SweepAndPrune2D, makeAbstractCollisionPhysic
 } from "./collision-physics.js";
 import {
     Box2D, Box3D, Point3D
@@ -142,6 +142,11 @@ export class SweepAndPrune3D extends SweepAndPrune2D {
         this._zAxis = new List();
     }
 
+    log() {
+        super.log();
+        console.log("Z Axis: ", [...this._zAxis]);
+    }
+
     clear() {
         super.clear();
         this._zAxis.clear();
@@ -218,11 +223,11 @@ export class SweepAndPrune3D extends SweepAndPrune2D {
 
 }
 
-export function makeCollisionPhysic3D(superClass) {
+export function makeCollisionPhysicForEntities(superClass) {
 
-    makeCollisionPhysic2D(superClass);
+    makeAbstractCollisionPhysic(superClass);
 
-    replaceMethod(superClass,
+    defineMethod(superClass,
         function _createSweepAndPrunes() {
             this._supportSAP = new SweepAndPrune3D();
             this._dragAndDropSAP = new SweepAndPrune3D();
@@ -276,7 +281,7 @@ export function makeCollisionPhysic3D(superClass) {
         }
     );
 
-    replaceGetProperty(superClass,
+    defineGetProperty(superClass,
         function _noResult() {
             return { x:null, y:null, z:null }
         }
@@ -290,7 +295,7 @@ export function makeCollisionPhysic3D(superClass) {
      * @param y new Y coords of the element.
      * @param z new Z coords of the element.
      */
-    replaceMethod(superClass,
+    defineMethod(superClass,
         function _put(element, sap, {x, y, z}) {
             // setLocation(), not move(), on order to keep the DnD fluid (floating elements not correlated).
             element.setLocation(new Point3D(x, y, z));
@@ -298,7 +303,7 @@ export function makeCollisionPhysic3D(superClass) {
         }
     );
 
-    replaceMethod(superClass,
+    defineMethod(superClass,
         function _adjustOnTarget(element, target, o, h) {
             let sap = this.sweepAndPrune(target);
             let fx = this._adjustOnAxis(target, o.x, h.x, sap, sap.left, sap.right, element.width);
@@ -310,7 +315,7 @@ export function makeCollisionPhysic3D(superClass) {
         }
     );
 
-    replaceMethod(superClass,
+    defineMethod(superClass,
         function _getPlacement(f, h, o) {
             let dx = f.x!==null ? (f.x > h.x ? f.x - h.x : h.x - f.x) : Infinity;
             let dy = f.y!==null ? (f.y > h.y ? f.y - h.y : h.y - f.y) : Infinity;
@@ -457,7 +462,7 @@ export function createCollisionEntityPhysic({predicate}) {
             super(host, predicate, ...args);
         }
     }
-    makeCollisionPhysic3D(CollisionEntityPhysic);
+    makeCollisionPhysicForEntities(CollisionEntityPhysic);
     return CollisionEntityPhysic;
 }
 
@@ -514,17 +519,17 @@ export function makeContainerSorted(superClass, comparator) {
 
 }
 
-export function makeContainerYSorted(superClass, comparator) {
+export function makeContainerSortedFromTop(superClass, comparator) {
 
     makeContainerSorted(superClass, function(e1, e2) {
-       let diff = e1.entity.ly-e2.entity.ly;
+       let diff = e2.entity.ly-e1.entity.ly;
        if (diff) return diff;
        return e1.id<e2.id ? -1 : 1;
     });
 
 }
 
-export function makeContainerZSorted(superClass, comparator) {
+export function makeContainerSortedFromFront(superClass, comparator) {
 
     makeContainerSorted(superClass, function(e1, e2) {
         let diff = e1.entity.lz-e2.entity.lz;

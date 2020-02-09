@@ -460,12 +460,12 @@ export class SigmaEntity {
             for (let y of h) {
                 for (let z of d) {
                     let {x:lx, y:ly, z:lz} = matrix.point(new Point3D(x, y, z));
-                    if (!left || left>lx) left = lx;
-                    if (!right || right<lx) right = lx;
-                    if (!top || top>ly) top = ly;
-                    if (!bottom || bottom<ly) bottom = ly;
-                    if (!back || back>lz) back = lz;
-                    if (!front || front<lz) front = lz;
+                    if (left===undefined || left>lx) left = lx;
+                    if (right===undefined || right<lx) right = lx;
+                    if (top===undefined || top>ly) top = ly;
+                    if (bottom===undefined || bottom<ly) bottom = ly;
+                    if (back===undefined || back>lz) back = lz;
+                    if (front===undefined || front<lz) front = lz;
                 }
             }
         }
@@ -737,6 +737,7 @@ export function makeEntityASupport(superClass) {
                     }
                     else {
                         this._addHovered(element);
+                        this._moveHovered(element);
                     }
                 }
             }
@@ -819,8 +820,10 @@ export function makeEntityASupport(superClass) {
 
     defineMethod(superClass,
         function _addHovered(element) {
-            console.log("hovered")
-            this.addChild(element.entity);
+            if (!this.containsChild(element.entity)) {
+                element.entity._setLocation(new Point3D(0, 0, 0));
+                this.addChild(element.entity);
+            }
         }
     );
 
@@ -832,36 +835,36 @@ export function makeEntityASupport(superClass) {
 
     defineMethod(superClass,
         function _removeHovered(element) {
-            //if (element.entity!==this) {
-                this.removeChild(element.entity);
-            //}
+            this.removeChild(element.entity);
         }
     );
 
     defineMethod(superClass,
         function executeDrag(element, target) {
-            console.log("execute Drag")
             target.removeChild(element);
         }
     );
 
     defineMethod(superClass,
         function executeDrop(element, target) {
-            console.log("execute Drop")
             this._hoveredEmbodiments.get(target).delete(element);
             target.addChild(element);
+        }
+    );
+
+    defineMethod(superClass,
+        function containsChild(entity) {
+            return this._children && this._children.has(entity);
         }
     );
 
     extendMethod(superClass, $addChild=>
         function addChild(entity) {
             if (!this._children || !this._children.has(entity)) {
-                console.log("Add child")
                 if (!this._children) {
                     this._children = new ESet();
                 }
                 this._children.add(entity);
-                entity._setLocation(new Point3D(0, 0, 0));
                 $addChild && $addChild.call(this, entity);
                 this._addChildrenEmbodiments(entity);
             }
@@ -875,7 +878,6 @@ export function makeEntityASupport(superClass) {
                 if (!this._children.size) {
                     delete this._children;
                 }
-                console.log("Remove child")
                 this._removeChildrenEmbodiments(entity);
                 $removeChild && $removeChild.call(this, entity);
             }

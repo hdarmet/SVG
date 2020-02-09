@@ -139,6 +139,12 @@ export class SweepAndPrune2D {
         this._yAxis.clear();
     }
 
+    log() {
+        console.log("-------------------")
+        console.log("X Axis: ", [...this._xAxis]);
+        console.log("Y Axis: ", [...this._yAxis]);
+    }
+
     get elements() {
         return this._elements.keys();
     }
@@ -431,14 +437,7 @@ export class SweepAndPrune2D {
 SweepAndPrune2D.COLLISION_MARGIN = 0.0001;
 SweepAndPrune2D.ADJUST_MARGIN = 40;
 
-export function makeCollisionPhysic2D(superClass) {
-
-    defineMethod(superClass,
-        function _createSweepAndPrunes() {
-            this._supportSAP = new SweepAndPrune2D();
-            this._dragAndDropSAP = new SweepAndPrune2D();
-        }
-    );
+export function makeAbstractCollisionPhysic(superClass) {
 
     replaceMethod(superClass,
         function _init(...args) {
@@ -620,21 +619,6 @@ export function makeCollisionPhysic2D(superClass) {
         }
     );
 
-    /**
-     * Set the fixed position of the element and update physics internal structures accordingly. Note that this
-     * element is ALWAYS a DnD'ed one.
-     * @param element element to displace.
-     * @param x new X ccords of the element
-     * @param y new Y coords of the element.
-     */
-    defineMethod(superClass,
-        function _put(element, sap, {x, y}) {
-            // setLocation(), not move(), on order to keep the DnD fluid (floating elements not correlated).
-            element.setLocation(x, y);
-            sap.update(element);
-        }
-    );
-
     defineMethod(superClass,
         /**
          * Get a proposition on the a given axis. This proposition is the nearest position between the one given by
@@ -652,61 +636,6 @@ export function makeCollisionPhysic2D(superClass) {
                 let r = min.call(sweepAndPrune, target) - length / 2;
                 return o-SweepAndPrune2D.COLLISION_MARGIN > r || same(r, h) ? null : r;
             } else return null;
-        }
-    );
-
-    defineMethod(superClass,
-        function _adjustOnTarget(element, target, o, h) {
-            let sap = this.sweepAndPrune(target);
-            let fx = this._adjustOnAxis(target, o.x, h.x, sap, sap.left, sap.right, element.width);
-            let fy = this._adjustOnAxis(target, o.y, h.y, sap, sap.top, sap.bottom, element.height);
-            if (fx!==null || fy!==null) {
-                return {x:fx, y:fy};
-            }
-        }
-    );
-
-    defineMethod(superClass,
-        /**
-         * Looks for a valid location, using a proposed location (f) and an original - valid- location (o).
-         * The result is given by the "h" point which is between f (best option) and o (worst option). for
-         * ONE dimension (x OR y).
-         * @param f proposal
-         * @param h final location
-         * @param o original (= last valid) location
-         * @returns true if the final location is valid, false otherwise
-         * @private
-         */
-        function _getPlacement(f, h, o) {
-            // First case : we have to choice between X and Y : we get the smallest
-            if (f.x!==null && f.y!==null) {
-                let d = new Point2D(
-                    f.x > h.x ? f.x - h.x : h.x - f.x,
-                    f.y > h.y ? f.y - h.y : h.y - f.y
-                );
-                if (d.x > d.y) {
-                    h.y = f.y;
-                } else {
-                    h.x = f.x;
-                }
-                // 2nd case : only one dimension is available
-            } else if (f.x !== null) {
-                h.x = f.x;
-            } else if (f.y !== null) {
-                h.y = f.y;
-            } else {
-                // Last case : no proposition is available. We revert to last valid position
-                h.x = o.x;
-                h.y = o.y;
-                return true;
-            }
-            return false;
-        }
-    );
-
-    defineGetProperty(superClass,
-        function _noResult() {
-            return { x:null, y:null }
         }
     );
 
@@ -797,6 +726,89 @@ export function makeCollisionPhysic2D(superClass) {
 
 }
 
+export function makeCollisionPhysicForElements(superClass) {
+
+    makeAbstractCollisionPhysic(superClass);
+
+    defineMethod(superClass,
+        function _createSweepAndPrunes() {
+            this._supportSAP = new SweepAndPrune2D();
+            this._dragAndDropSAP = new SweepAndPrune2D();
+        }
+    );
+
+    defineGetProperty(superClass,
+        function _noResult() {
+            return {x: null, y: null}
+        }
+    );
+
+    defineMethod(superClass,
+        /**
+         * Set the fixed position of the element and update physics internal structures accordingly. Note that this
+         * element is ALWAYS a DnD'ed one.
+         * @param element element to displace.
+         * @param x new X ccords of the element
+         * @param y new Y coords of the element.
+         */
+        function _put(element, sap, {x, y}) {
+            // setLocation(), not move(), on order to keep the DnD fluid (floating elements not correlated).
+            element.setLocation(x, y);
+            sap.update(element);
+        }
+    );
+
+    defineMethod(superClass,
+        function _adjustOnTarget(element, target, o, h) {
+            let sap = this.sweepAndPrune(target);
+            let fx = this._adjustOnAxis(target, o.x, h.x, sap, sap.left, sap.right, element.width);
+            let fy = this._adjustOnAxis(target, o.y, h.y, sap, sap.top, sap.bottom, element.height);
+            if (fx !== null || fy !== null) {
+                return {x: fx, y: fy};
+            }
+        }
+    );
+
+    defineMethod(superClass,
+        /**
+         * Looks for a valid location, using a proposed location (f) and an original - valid- location (o).
+         * The result is given by the "h" point which is between f (best option) and o (worst option). for
+         * ONE dimension (x OR y).
+         * @param f proposal
+         * @param h final location
+         * @param o original (= last valid) location
+         * @returns true if the final location is valid, false otherwise
+         * @private
+         */
+
+        function _getPlacement(f, h, o) {
+            // First case : we have to choice between X and Y : we get the smallest
+            if (f.x !== null && f.y !== null) {
+                let d = new Point2D(
+                    f.x > h.x ? f.x - h.x : h.x - f.x,
+                    f.y > h.y ? f.y - h.y : h.y - f.y
+                );
+                if (d.x > d.y) {
+                    h.y = f.y;
+                } else {
+                    h.x = f.x;
+                }
+                // 2nd case : only one dimension is available
+            } else if (f.x !== null) {
+                h.x = f.x;
+            } else if (f.y !== null) {
+                h.y = f.y;
+            } else {
+                // Last case : no proposition is available. We revert to last valid position
+                h.x = o.x;
+                h.y = o.y;
+                return true;
+            }
+            return false;
+        }
+    );
+}
+
 /**
  * Class of objects that materialize a container border, in order to prevent contained elements to collide with such
  * borders. Borders help to "box" contained element inside their container.
@@ -851,7 +863,7 @@ export class PhysicBorder2D {
  * @param superClass collision phuysic class
  * @param bordersCollide specify which borders may be "activated".
  */
-export function addBordersTo2DCollisionPhysic(superClass, {bordersCollide}) {
+export function addBordersToCollisionPhysicForElements(superClass, {bordersCollide}) {
 
     /**
      * Extends physic's init method in order to create the borders objects (inside collision physic) and bounds (inside
@@ -993,20 +1005,20 @@ export function addBordersTo2DCollisionPhysic(superClass, {bordersCollide}) {
  * @param predicate prdicate used by the new collision physic class to select elements subject to its placement logic.
  * @returns {CollisionPhysic}
  */
-export function create2DCollisionPhysic({predicate}) {
+export function createCollisionPhysicForElements({predicate}) {
     class CollisionPhysic extends Physic {
         constructor(host, ...args) {
             super(host, predicate, ...args);
         }
     }
-    makeCollisionPhysic2D(CollisionPhysic);
+    makeCollisionPhysicForElements(CollisionPhysic);
     return CollisionPhysic;
 }
 
-export function make2DCollisionContainer(superClass, {predicate, bordersCollide = null}) {
+export function makeCollisionContainerForElements(superClass, {predicate, bordersCollide = null}) {
     let ContainerPhysic = createCollisionPhysic({predicate});
     if (bordersCollide) {
-        addBordersTo2DCollisionPhysic(ContainerPhysic, {bordersCollide});
+        addBordersToCollisionPhysicForElements(ContainerPhysic, {bordersCollide});
     }
     addPhysicToContainer(superClass, {
         physicBuilder: function() {
@@ -1118,7 +1130,7 @@ class Ground {
 
 }
 
-export function addGravitationTo2DCollisionPhysic(superClass, {
+export function addGravitationToCollisionPhysicForElements(superClass, {
     gravitationPredicate = element=>true,
     carryingPredicate = (carrier, carried, dx, dy)=>true
 }={}) {
@@ -1194,23 +1206,23 @@ export function addGravitationTo2DCollisionPhysic(superClass, {
 
 }
 
-export function create2DGravitationPhysic({predicate, gravitationPredicate, carryingPredicate}) {
-    class GravitationPhysic extends create2DCollisionPhysic({predicate}) {
+export function createGravitationPhysicForElements({predicate, gravitationPredicate, carryingPredicate}) {
+    class GravitationPhysic extends createCollisionPhysicForElements({predicate}) {
 
         constructor(host, ...args) {
             super(host, ...args);
         }
     }
-    addGravitationTo2DCollisionPhysic(GravitationPhysic, {gravitationPredicate, carryingPredicate});
+    addGravitationToCollisionPhysicForElements(GravitationPhysic, {gravitationPredicate, carryingPredicate});
     return GravitationPhysic;
 }
 
-export function make2DGravitationContainer(superClass, {
+export function makeGravitationContainerForElements(superClass, {
     predicate, gravitationPredicate, carryingPredicate, bordersCollide = null
 }) {
-    let ContainerPhysic = create2DGravitationPhysic({predicate, gravitationPredicate, carryingPredicate});
+    let ContainerPhysic = createGravitationPhysicForElements({predicate, gravitationPredicate, carryingPredicate});
     if (bordersCollide) {
-        addBordersTo2DCollisionPhysic(ContainerPhysic, {bordersCollide});
+        addBordersToCollisionPhysicForElements(ContainerPhysic, {bordersCollide});
     }
 
     addPhysicToContainer(superClass, {
@@ -1972,7 +1984,7 @@ export function createStickyGravitationPhysic({
     return StickyGravitationPhysic;
 }
 
-export function make2DStickyGravitationContainer(superClass, {
+export function makeStickyGravitationContainerForElements(superClass, {
     predicate, gravitationPredicate, carryingPredicate,
     gluingStrategy = null,
     bordersCollide
@@ -1982,7 +1994,7 @@ export function make2DStickyGravitationContainer(superClass, {
     }) {}
 
     if (bordersCollide) {
-        addBordersTo2DCollisionPhysic(ContainerPhysic, bordersCollide);
+        addBordersToCollisionPhysicForElements(ContainerPhysic, bordersCollide);
     }
     addPhysicToContainer(superClass, {
         physicBuilder: function() {

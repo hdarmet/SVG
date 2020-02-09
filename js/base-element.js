@@ -220,10 +220,10 @@ export class SigmaElement {
         for (let x of v) {
             for (let y of h) {
                 let {x:lx, y:ly, z:lz} = matrix.point(new Point2D(x, y));
-                if (!left || left>lx) left = lx;
-                if (!right || right<lx) right = lx;
-                if (!top || top>ly) top = ly;
-                if (!bottom || bottom<ly) bottom = ly;
+                if (left===undefined || left>lx) left = lx;
+                if (right===undefined || right<lx) right = lx;
+                if (top===undefined || top>ly) top = ly;
+                if (bottom===undefined || bottom<ly) bottom = ly;
             }
         }
         return new Box2D(left, top, right-left, bottom-top);

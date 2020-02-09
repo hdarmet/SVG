@@ -19,7 +19,7 @@ import {
     Rect, Attrs, Circle, Line, Text, win, Polygon
 } from "../../js/graphics.js";
 import {
-    addBordersTo2DCollisionPhysic, create2DGravitationPhysic, makeCarriable, makeCarrier,
+    addBordersToCollisionPhysicForElements, createGravitationPhysicForElements, makeCarriable, makeCarrier,
     SAPRecord2D
 } from "../../js/collision-physics.js";
 import {
@@ -54,7 +54,7 @@ import {
     makeEmbodimentContainerPart, makeEntityMovable
 } from "../../js/entity.js";
 import {
-    addPhysicToEntity, createCollisionEntityPhysic, EmbodimentPhysic, makeContainerYSorted, makeContainerZSorted,
+    addPhysicToEntity, createCollisionEntityPhysic, EmbodimentPhysic, makeContainerSortedFromTop, makeContainerSortedFromFront,
     addBordersTo3DCollisionPhysic
 } from "../../js/entity-physics.js";
 
@@ -641,7 +641,7 @@ addPhysicToContainer(DeltaBoxExpansionContent, {
         }
     }
 );
-makeContainerYSorted(DeltaBoxExpansionContent);
+makeContainerSortedFromTop(DeltaBoxExpansionContent);
 
 export class DeltaBoxExpansion extends DeltaExpansion {
 
@@ -714,7 +714,7 @@ addPhysicToContainer(DeltaBoxContent, {
         }
     }
 );
-makeContainerZSorted(DeltaBoxContent);
+makeContainerSortedFromFront(DeltaBoxContent);
 
 export class DeltaBox extends DeltaItem {
 
@@ -1229,11 +1229,11 @@ export function makeCaddy(superClass) {
 
     defineMethod(superClass,
         function _createPhysic() {
-            let ModulePhysic = create2DGravitationPhysic({
+            let ModulePhysic = createGravitationPhysicForElements({
                 predicate:is(DeltaAbstractModule, DeltaModuleEmbodiment, DeltaShelf),
                 gravitationPredicate:is(DeltaAbstractModule, DeltaModuleEmbodiment),
                 carryingPredicate:always});
-            addBordersTo2DCollisionPhysic(ModulePhysic, {
+            addBordersToCollisionPhysicForElements(ModulePhysic, {
                 bordersCollide: {all: true}
             });
             let LadderPhysic = createSlotsAndClipsPhysic({
@@ -1753,14 +1753,14 @@ export class DeltaPaneContent extends DeltaSupport {
     }
 
     _createPhysic() {
-        let ModulePhysic = create2DGravitationPhysic({
+        let ModulePhysic = createGravitationPhysicForElements({
             predicate:function(element) {
                 return element.isClipOnCapable
                     || is(DeltaAbstractModule, DeltaModuleEmbodiment, DeltaShelf, DeltaBlister)(element);
             },
             gravitationPredicate:is(DeltaAbstractModule, DeltaModuleEmbodiment),
             carryingPredicate:always});
-        addBordersTo2DCollisionPhysic(ModulePhysic, {
+        addBordersToCollisionPhysicForElements(ModulePhysic, {
             bordersCollide: {all: true}
         });
         let AttachmentPhysic = createRulersPhysic({

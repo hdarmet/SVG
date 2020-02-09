@@ -393,6 +393,11 @@ export class DeltaEmbodiment extends SigmaPolymorphicElement {
     getContainer(entity) {
         return this._currentMorph.getContainer(entity);
     }
+
+    _dropTarget(element) {
+        return this.parent._dropTarget(element);
+    }
+
 }
 makeDeltaItem(DeltaEmbodiment);
 makeEmbodiment(DeltaEmbodiment);
