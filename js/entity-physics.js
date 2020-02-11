@@ -2,7 +2,7 @@ import {
     dichotomousSearch, List, ESet
 } from "./collections.js";
 import {
-    SAPRecord2D, SweepAndPrune2D, makeAbstractCollisionPhysic
+    SAPRecord2D, SweepAndPrune2D, makeAbstractCollisionPhysic, AbstractGround, addGravitationToCollisionPhysic
 } from "./collision-physics.js";
 import {
     Box2D, Box3D, Point3D
@@ -14,6 +14,38 @@ import {
     Physic
 } from "./physics.js";
 
+class GroundStructure3DZone {
+
+    constructor(left, top, right, bottom, elevation) {
+        this._left = left;
+        this._top = top;
+        this._right = right;
+        this._bottom = bottom;
+        this._elevation = elevation;
+    }
+
+    get left() {
+        return this._left;
+    }
+
+    get right() {
+        return this._right;
+    }
+
+    get top() {
+        return this._top;
+    }
+
+    get bottom() {
+        return this.bottom;
+    }
+
+
+    get localGeometry() {
+        return new Box2D(this._left, this._top, this._right-this._left, this._bottom-this._top);
+    }
+}
+
 class GroundStructure3D {
 
     constructor() {
@@ -21,42 +53,50 @@ class GroundStructure3D {
         this._sweepAndPrune = new SweepAndPrune2D();
     }
 
-    filter(element, record) {
+    filter(entiy, record) {
+        let left = record.left(entiy);
+        let right = record.right(entiy);
+        let front = record.front(entiy);
+        let back = record.back(entiy);
+        let box = new Box2D(left, back, right-left, front-back);
+        let collides = this._sweepAndPrune.elementsInBox(box);
+        let result = new List();
+        for (let zone of collides) {
+            result.add({element:zone.entity, top:zone.elevation});
+        }
+        console.log([...result]);
+        return result;
+    }
+
+    update(element, record, zone) {
         let left = record.left(element);
         let right = record.right(element);
         let front = record.front(element);
         let back = record.back(element);
-        let box = new Box2D(left, front, right-left, back-front);
-        let collides = this._sweepAndPrune.elementsInBox(box);
-        let result = new List();
-        for (let element of collides) {
-            result.add({element, top:element.localGeometry.top});
+        if (zone.left<left) {
+            this._sweepAndPrune.add(new GroundStructure3DZone(left, back, zone.left, front, zone.elevation));
         }
-        return result;
-    }
-
-    update(element, record, segment) {
-        let left = record.left(element);
-        let right = record.right(element);
-        if (segment.left < left) {
-            this._segments.insert({
-                left:segment.left, right:left, id:this._id++, top:segment.top, element:segment.element
-            });
+        if (zone.right>right) {
+            this._sweepAndPrune.add(new GroundStructure3DZone(zone.right, back, right, front, zone.elevation));
         }
-        if (segment.right > right) {
-            segment.left = right;
+        if (zone.top<back) {
+            this._sweepAndPrune.add(new GroundStructure3DZone(zone.left, back, zone.right, zone.top, zone.elevation));
         }
-        else {
-            this._segments.delete(segment);
+        if (zone.bottom>front) {
+            this._sweepAndPrune.add(new GroundStructure3DZone(zone.left, zone.bottom, zone.right, front, zone.elevation));
         }
+        this._sweepAndPrune.remove(zone);
     }
 
     add(element, record) {
         let left = record.left(element);
         let right = record.right(element);
-        let top = record.top(element);
-        this._segments.insert({left, right, id:this._id++, top, element});
+        let front = record.front(element);
+        let back = record.back(element);
+        let elevation = record.top(element);
+        this._sweepAndPrune.add(new GroundStructure3DZone(left, back, right, front, elevation));
     }
+
 }
 
 export class SAPRecord3D extends SAPRecord2D {
@@ -456,7 +496,7 @@ export function addPhysicToEntity(superClass, {physicBuilder}) {
 
 }
 
-export function createCollisionEntityPhysic({predicate}) {
+export function createCollisionPhysicForEntities({predicate}) {
     class CollisionEntityPhysic extends Physic {
         constructor(host, ...args) {
             super(host, predicate, ...args);
@@ -511,8 +551,8 @@ export function makeContainerSorted(superClass, comparator) {
     );
 
     extendMethod(superClass, $shiftChild=>
-        function _shiftChild(element, x, y) {
-            $shiftChild.call(this, element, x, y);
+        function _shiftChild(element, point) {
+            $shiftChild.call(this, element, point);
             this._sortChildren();
         }
     );
@@ -810,4 +850,40 @@ export function addBordersTo3DCollisionPhysic(superClass, {bordersCollide}) {
         }
     );
 
+}
+
+class GroundForEntities extends AbstractGround {
+
+    _createGroundStructure() {
+        return new GroundStructure3D();
+    }
+
+    _fallingPoint(element, y) {
+        let record = this._physic._supportSAP._getRecord(element);
+        return new Point3D(record.x(element), y, record.z(element));
+    }
+}
+
+
+export function addGravitationToCollisionPhysicForEntities(superClass, {gravitationPredicate, carryingPredicate}) {
+
+    addGravitationToCollisionPhysic(superClass, {gravitationPredicate, carryingPredicate});
+
+    defineMethod(superClass,
+        function _createGround() {
+            return new GroundForEntities(this);
+        }
+    );
+
+}
+
+export function createGravitationPhysicForEntities({predicate, gravitationPredicate, carryingPredicate}) {
+    class GravitationPhysic extends createCollisionPhysicForEntities({predicate}) {
+
+        constructor(host, ...args) {
+            super(host, ...args);
+        }
+    }
+    addGravitationToCollisionPhysicForEntities(GravitationPhysic, {gravitationPredicate, carryingPredicate});
+    return GravitationPhysic;
 }

@@ -7,7 +7,7 @@ import {
     List, ESet
 } from "./collections.js";
 import {
-    Matrix2D
+    Matrix2D, Point2D
 } from "./geometry.js";
 import {win, doc, dom,
     MouseEvents, KeyboardEvents, Buttons,
@@ -710,7 +710,7 @@ class GlassPedestal {
         let fy = y-element._drag.drag.y*zoom;
         let dX = invertedMatrix.x(fx, fy);
         let dY = invertedMatrix.y(fx, fy);
-        element.setLocation(dX, dY);
+        element.setLocation(new Point2D(dX, dY));
         this._glass.setZIndexes(element);
     }
 
@@ -722,7 +722,7 @@ class GlassPedestal {
         let fy = y-element._drag.drag.y*zoom;
         let dX = invertedMatrix.x(fx, fy);
         let dY = invertedMatrix.y(fx, fy);
-        element.setLocation(dX, dY);
+        element.setLocation(new Point2D(dX, dY));
     }
 
     removeElement(element) {
@@ -1378,7 +1378,7 @@ export class CopyPaste {
             for (let element of elements) {
                 let copy = duplicata.get(element);
                 let { x, y } = computePosition(element._root, element.canvasLayer._root);
-                copy._setLocation(x - cx, y - cy);
+                copy._setLocation(new Point2D(x - cx, y - cy));
                 result.add(copy);
             }
         }
@@ -1424,7 +1424,7 @@ export class CopyPaste {
         this._duplicate(elements, duplicata);
         for (let element of elements) {
             let copy = duplicata.get(element);
-            copy._setLocation(element.lx, element.ly);
+            copy._setLocation(element.lloc);
             pasted.add(copy);
         }
         return pasted;
@@ -1440,7 +1440,7 @@ export class CopyPaste {
         let vx = matrix.x(cx, cy);
         let vy = matrix.y(cx, cy);
         for (let copy of pasted) {
-            copy.setLocation(copy.lx + vx, copy.ly + vy);
+            copy.setLocation(new Point2D(copy.lx + vx, copy.ly + vy));
         }
         this._fire(CopyPaste.events.PASTE_MODEL, pasted);
     }

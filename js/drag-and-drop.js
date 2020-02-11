@@ -408,7 +408,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
                 if (!this.dropCancelled(selectedElement)) {
                     if (target && target.effective && getCanvasLayer(target.effective._root) instanceof BaseLayer) {
                         let { x, y } = computePosition(selectedElement._root, target.effective._root);
-                        selectedElement.setLocation(x, y);
+                        selectedElement.setLocation(new Point2D(x, y));
                         selectedElement._drag.target = target.effective;
                     } else {
                         this.cancelDrop(selectedElement);

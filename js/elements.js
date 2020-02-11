@@ -123,7 +123,7 @@ export class AbstractSigmaContent extends SigmaSupport {
         if (box.x+box.width>this.right) box.x=this.right-box.width;
         if (box.y<this.top) box.y=this.top;
         if (box.y+box.height>this.bottom) box.y=this.bottom-box.height;
-        element.move(box.x+box.width/2, box.y+box.height/2);
+        element.move(new Point2D(box.x+box.width/2, box.y+box.height/2));
     }
 }
 makePart(AbstractSigmaContent);
@@ -471,7 +471,7 @@ export class DragHandleOperation extends DragOperation {
         let invertedMatrix = handle.parent.global.invert();
         let dX = invertedMatrix.x(x, y) - this.dragX;
         let dY = invertedMatrix.y(x, y) - this.dragY;
-        handle._setLocation(dX, dY);
+        handle._setLocation(new Point2D(dX, dY));
         handle.parent._receiveMoveHandle && handle.parent._receiveMoveHandle(handle);
         handle.parent._fire(DragHandleOperation.events.DRAG_HANDLE, handle);
     }
@@ -606,14 +606,14 @@ export function makeResizeable(superClass, spec=SigmaHandle.ALL, computeStep = n
 
     defineMethod(superClass,
         function _placeHandles() {
-            this._leftTopHandle._setLocation(-this.width/2, -this.height/2);
-            this._topHandle._setLocation(0, -this.height/2);
-            this._rightTopHandle._setLocation(this.width/2, -this.height/2);
-            this._rightHandle._setLocation(this.width/2, 0);
-            this._rightBottomHandle._setLocation(this.width/2, this.height/2);
-            this._bottomHandle._setLocation(0, this.height/2);
-            this._leftBottomHandle._setLocation(-this.width/2, this.height/2);
-            this._leftHandle._setLocation(-this.width/2, 0);
+            this._leftTopHandle._setLocation(new Point2D(-this.width/2, -this.height/2));
+            this._topHandle._setLocation(new Point2D(0, -this.height/2));
+            this._rightTopHandle._setLocation(new Point2D(this.width/2, -this.height/2));
+            this._rightHandle._setLocation(new Point2D(this.width/2, 0));
+            this._rightBottomHandle._setLocation(new Point2D(this.width/2, this.height/2));
+            this._bottomHandle._setLocation(new Point2D(0, this.height/2));
+            this._leftBottomHandle._setLocation(new Point2D(-this.width/2, this.height/2));
+            this._leftHandle._setLocation(new Point2D(-this.width/2, 0));
         }
     );
 
@@ -688,7 +688,7 @@ export function makeResizeable(superClass, spec=SigmaHandle.ALL, computeStep = n
                 if (ly>bounds.bottom) ly = bounds.bottom;
                 if (lx!==element.lx || ly!==element.ly) {
                     Memento.register(element);
-                    element._setLocation(lx, ly);
+                    element._setLocation(new Point2D(lx, ly));
                 }
             }
 
@@ -763,7 +763,7 @@ export function makeResizeable(superClass, spec=SigmaHandle.ALL, computeStep = n
                 else if (this.resizeBottom) {
                     ly += (this.height-height)/2;
                 }
-                this.setLocation(lx, ly);
+                this.setLocation(new Point2D(lx, ly));
                 this.placeHandles();
             }
         }
@@ -851,7 +851,7 @@ export function makeResizeableContent(superClass) {
             }
             for (let element of this.children) {
                 let position = positions.get(element);
-                element.move(position.x + dx/2, position.y + dy/2);
+                element.move(new Point2D(position.x + dx/2, position.y + dy/2));
             }
         }
     );
@@ -1085,7 +1085,7 @@ export class SigmaTarget extends SigmaElement {
 
     update(data) {
         Memento.register(this);
-        this.move(data.x, data.y);
+        this.move(data);
         this._initStroke(data);
     }
 
@@ -1214,7 +1214,7 @@ export function makeConfigurableMap(superClass, predicate, positionsFct) {
                 let margin = data.type===1 ? 0 : rowHeight/2;
                 for (let x = colSliceWidth * 2; x < bounds.width; x += colSliceWidth*3) {
                     for (let y = margin + rowHeight / 2; y < bounds.height; y += rowHeight) {
-                        this.add(new SigmaTarget(16, data.strokeColor).move(x + bounds.x, y + bounds.y));
+                        this.add(new SigmaTarget(16, data.strokeColor).move(new Point2D(x + bounds.x, y + bounds.y)));
                     }
                     margin = margin ? 0 : rowHeight/2;
                 }
@@ -1225,7 +1225,7 @@ export function makeConfigurableMap(superClass, predicate, positionsFct) {
                 let margin = data.type===3 ? 0 : colWidth/2;
                 for (let y = rowSliceHeight * 2; y < bounds.height; y += rowSliceHeight*3) {
                     for (let x = margin + colWidth / 2; x < bounds.width; x += colWidth) {
-                        this.add(new SigmaTarget(16, data.strokeColor).move(x + bounds.x, y + bounds.y));
+                        this.add(new SigmaTarget(16, data.strokeColor).move(new Point2D(x + bounds.x, y + bounds.y)));
                     }
                     margin = margin ? 0 : colWidth/2;
                 }
@@ -1240,7 +1240,7 @@ export function makeConfigurableMap(superClass, predicate, positionsFct) {
             let rowHeight = bounds.height/data.rowCount;
             for (let x = colWidth/2; x<bounds.width; x+=colWidth) {
                 for (let y = rowHeight/2; y<bounds.height; y+=rowHeight) {
-                    this.add(new SigmaTarget(16, data.strokeColor).move(x+bounds.x, y+bounds.y));
+                    this.add(new SigmaTarget(16, data.strokeColor).move(new Point2D(x+bounds.x, y+bounds.y)));
                 }
             }
         }

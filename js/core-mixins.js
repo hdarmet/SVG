@@ -35,12 +35,12 @@ export function makeDeletable(superClass) {
 export function makeMovable(superClass) {
 
     defineMethod(superClass,
-        function move(x, y) {
-            let result = this.setLocation(x, y);
+        function move(point) {
+            let result = this.setLocation(point);
             if (result) {
-                this._fire(Events.MOVED, {x, y});
+                this._fire(Events.MOVED, point);
                 if (this.parent && this.parent._shift) {
-                    this.parent._shift(this, x, y);
+                    this.parent._shift(this, point);
                     if (this.parent._fire) {
                         this.parent._fire(Events.MOVE, this);
                     }
@@ -55,7 +55,7 @@ export function makeMovable(superClass) {
             let invertDiff = this.diff.invert();
             let lx = invertDiff.x(x, y);
             let ly = invertDiff.y(x, y);
-            return this.move(lx, ly);
+            return this.move(new Point2D(lx, ly));
         }
     );
 

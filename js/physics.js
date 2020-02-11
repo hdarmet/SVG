@@ -7,7 +7,7 @@ import {
     List, ESet, SpatialLocator, dichotomousSearch
 } from "./collections.js";
 import {
-    Matrix2D
+    Matrix2D, Point2D
 } from "./geometry.js";
 import {
     defer, Colors, Line, computePosition, Group, Fill, Translation, Rect, Text, TextAnchor, AlignmentBaseline
@@ -323,8 +323,8 @@ export function addPhysicToContainer(superClass, {physicBuilder}) {
     );
 
     extendMethod(superClass, $shiftChild=>
-        function _shiftChild(element, x, y) {
-            $shiftChild.call(this, element, x, y);
+        function _shiftChild(element, point) {
+            $shiftChild.call(this, element, point);
             this.physic.move(element);
         }
     );
@@ -466,7 +466,7 @@ export function makePositioningPhysic(superClass, {
         function _refreshHoverElement(element) {
             let position = this._elementPosition(element);
             if (this._acceptPosition(element, position)) {
-                element.move(position.x, position.y);
+                element.move(position);
             }
         }
     );
@@ -475,7 +475,7 @@ export function makePositioningPhysic(superClass, {
         function _refreshElement(element) {
             let position = this._elementPosition(element);
             if (this._acceptPosition(element, position)) {
-                element.move(position.x, position.y);
+                element.move(position);
                 element._positioned && element._positioned(this, position);
             }
         }
@@ -1301,7 +1301,7 @@ export function makeRulesPhysic(superClass, {
             if (this._acceptPosition(element, position)) {
                 let x = position.x!==undefined ? position.x : element.lx;
                 let y = position.y!==undefined ? position.y : element.ly;
-                element.move(x, y);
+                element.move(new Point2D(x, y));
             }
         }
     );

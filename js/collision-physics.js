@@ -751,9 +751,9 @@ export function makeCollisionPhysicForElements(superClass) {
          * @param x new X ccords of the element
          * @param y new Y coords of the element.
          */
-        function _put(element, sap, {x, y}) {
+        function _put(element, sap, point) {
             // setLocation(), not move(), on order to keep the DnD fluid (floating elements not correlated).
-            element.setLocation(x, y);
+            element.setLocation(point);
             sap.update(element);
         }
     );
@@ -1032,7 +1032,7 @@ class GroundStructure2D {
 
     constructor() {
         this._id = 0;
-        this._segments = new AVLTree((s1, s2)=>{
+        this._zones = new AVLTree((s1, s2)=>{
             let value = s1.right-s2.right;
             return value ? value : s1.id-s2.id;
         });
@@ -1041,29 +1041,29 @@ class GroundStructure2D {
     filter(element, record) {
         let left = record.left(element);
         let right = record.right(element);
-        let it = this._segments.inside({right:left+SweepAndPrune2D.COLLISION_MARGIN, id:0}, null);
-        let insideSegments = [];
-        let segment = it.next().value;
-        while (segment && segment.left+SweepAndPrune2D.COLLISION_MARGIN < right) {
-            insideSegments.push(segment);
-            segment = it.next().value;
+        let it = this._zones.inside({right:left+SweepAndPrune2D.COLLISION_MARGIN, id:0}, null);
+        let insideZones = [];
+        let zone = it.next().value;
+        while (zone && zone.left+SweepAndPrune2D.COLLISION_MARGIN < right) {
+            insideZones.push(zone);
+            zone = it.next().value;
         }
-        return insideSegments;
+        return insideZones;
     }
 
-    update(element, record, segment) {
+    update(element, record, zone) {
         let left = record.left(element);
         let right = record.right(element);
-        if (segment.left < left) {
-            this._segments.insert({
-                left:segment.left, right:left, id:this._id++, top:segment.top, element:segment.element
+        if (zone.left < left) {
+            this._zones.insert({
+                left:zone.left, right:left, id:this._id++, top:zone.top, element:zone.element
             });
         }
-        if (segment.right > right) {
-            segment.left = right;
+        if (zone.right > right) {
+            zone.left = right;
         }
         else {
-            this._segments.delete(segment);
+            this._zones.delete(zone);
         }
     }
 
@@ -1071,19 +1071,15 @@ class GroundStructure2D {
         let left = record.left(element);
         let right = record.right(element);
         let top = record.top(element);
-        this._segments.insert({left, right, id:this._id++, top, element});
+        this._zones.insert({left, right, id:this._id++, top, element});
     }
 }
 
-class Ground {
+export class AbstractGround {
 
     constructor(physic) {
         this._physic = physic;
         this._structure = this._createGroundStructure();
-    }
-
-    _createGroundStructure() {
-        return new GroundStructure2D();
     }
 
     process(element, update=true) {
@@ -1119,7 +1115,7 @@ class Ground {
         if (update && this._physic._canFall(element)) {
             let ly = ground - (record.bottom(element) - record.y(element));
             if (ly !== element.ly) {
-                element.setLocation(record.x(element), ly);
+                element.setLocation(this._fallingPoint(element, ly));
                 this._physic._supportSAP.update(element);
                 top = record.top(element);
             }
@@ -1130,9 +1126,22 @@ class Ground {
 
 }
 
-export function addGravitationToCollisionPhysicForElements(superClass, {
+export class GroundForElements extends AbstractGround {
+
+    _createGroundStructure() {
+        return new GroundStructure2D();
+    }
+
+    _fallingPoint(element, y) {
+        let record = this._physic._supportSAP._getRecord(element);
+        return new Point2D(record.x(element), y);
+    }
+
+}
+
+export function addGravitationToCollisionPhysic(superClass, {
     gravitationPredicate = element=>true,
-    carryingPredicate = (carrier, carried, dx, dy)=>true
+    carryingPredicate = (carrier, carried, dpoint)=>true
 }={}) {
 
     defineMethod(superClass,
@@ -1140,9 +1149,8 @@ export function addGravitationToCollisionPhysicForElements(superClass, {
             for (let element of elements) {
                 if (element.isCarriable && element._fall.carriers) {
                     for (let support of element._fall.carriers) {
-                        let dx = element.lx - support.lx;
-                        let dy = element.ly - support.ly;
-                        if (support.isCarrier && carryingPredicate(support, element, dx, dy)) {
+                        let dpoint = element.lloc;
+                        if (support.isCarrier && carryingPredicate(support, element, dpoint)) {
                             if (!element.carriedBy(support)) {
                                 support.addCarried(element);
                             }
@@ -1192,7 +1200,7 @@ export function addGravitationToCollisionPhysicForElements(superClass, {
     defineMethod(superClass,
         function _processElements() {
             let elements = new List(...this._elements);
-            this._letFall(elements, new Ground(this));
+            this._letFall(elements, this._createGround());
             this._setCarried(elements);
         }
     );
@@ -1201,6 +1209,18 @@ export function addGravitationToCollisionPhysicForElements(superClass, {
         function _refresh() {
             $refresh.call(this);
             this._processElements();
+        }
+    );
+
+}
+
+export function addGravitationToCollisionPhysicForElements(superClass, {gravitationPredicate, carryingPredicate}) {
+
+    addGravitationToCollisionPhysic(superClass, {gravitationPredicate, carryingPredicate});
+
+    defineMethod(superClass,
+        function _createGround() {
+            return new GroundForElements(this);
         }
     );
 
@@ -1372,13 +1392,13 @@ export function makeCarrier(superClass) {
     );
 
     extendMethod(superClass, $move=>
-        function move(x, y) {
-            if ($move.call(this, x, y)) {
+        function move(point) {
+            if ($move.call(this, point)) {
                 if (this._carried) {
                     for (let element of this._carried.keys()) {
                         let record = this._carried.get(element);
                         if (element.support === this.support) {
-                            element.move(this.lx + record.dx, this.ly + record.dy);
+                            element.move(new Point2D(this.lx + record.dx, this.ly + record.dy));
                         }
                     }
                 }
@@ -1913,7 +1933,7 @@ export function addGlueToGravitationPhysic(
                     if (element._fall.block.dy>ely) {
                         element._fall.block.dy = ely;
                     }
-                    element.setLocation(element.lx, ly);
+                    element.setLocation(new Point2D(element.lx, ly));
                     this._supportSAP.update(element);
                     if (element._fall.under) {
                         for (let carried of element._fall.under) {

@@ -39,6 +39,9 @@ import {
 import {
     SigmaEntity, SigmaPolymorphicEntity, makeEntityMovable
 } from "../../js/entity.js";
+import {
+    Point2D
+} from "../../js/geometry.js";
 
 export class DeltaModuleMorph extends DeltaElement {
 
@@ -171,7 +174,7 @@ export class DeltaBoxModule extends DeltaAbstractModule {
         super._improve({...args});
         this._initFrame(this.width, this.height, Colors.INHERIT, Colors.WHITE);
         this._boxContent = this._buildBoxContent(contentWidth, contentHeight, args);
-        this._boxContent._setLocation(contentX, contentY);
+        this._boxContent._setLocation(new Point2D(contentX, contentY));
         this._addPart(this._boxContent);
     }
 
@@ -250,7 +253,7 @@ export class DeltaAbstractCell extends SigmaElement {
     constructor({width, height, x, y, shape, compatibilities}) {
         super(width, height);
         this._initShape(shape.clone());
-        this._setLocation(x, y);
+        this._setLocation(new Point2D(x, y));
         this._compatibilities = new ESet(compatibilities);
     }
 

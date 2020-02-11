@@ -138,15 +138,15 @@ export class SigmaElement {
         return this;
     }
 
-    _setLocation(x, y) {
-        this._matrix = Matrix2D.translate(x, y);
+    _setLocation(point) {
+        this._matrix = Matrix2D.translate(point.x, point.y);
         return this;
     }
 
-    setLocation(x, y) {
-        if (!same(x, this.lx) || !same(y, this.ly)) {
+    setLocation(point) {
+        if (!same(point.x, this.lx) || !same(point.y, this.ly)) {
             Memento.register(this);
-            this._setLocation(x, y);
+            this._setLocation(point);
             this._fire(Events.GEOMETRY, this.lx, this.ly, this.width, this.height);
             return true;
         }

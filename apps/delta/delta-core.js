@@ -63,7 +63,7 @@ export function makePositionEditable(superClass) {
                 y: element.ly
             },
             data => {
-                element.move(data.x, data.y);
+                element.move(data);
             });
     }
 
@@ -395,6 +395,7 @@ export class DeltaEmbodiment extends SigmaPolymorphicElement {
     }
 
     _dropTarget(element) {
+        if (!this.parent || !(this.parent instanceof SigmaElement)) return this;
         return this.parent._dropTarget(element);
     }
 

@@ -388,15 +388,15 @@ export function makeContainer(superClass) {
     );
 
     defineMethod(superClass,
-        function _shiftChild(element, x, y) {
+        function _shiftChild(element, point) {
         }
     );
 
     extendMethod(superClass, $shift=>
-        function _shift(element, x, y) {
-            if ($shift && $shift.call(this, element, x, y)) return true;
+        function _shift(element, point) {
+            if ($shift && $shift.call(this, element, point)) return true;
             if (!this.containsChild(element)) return false;
-            this._shiftChild(element, x, y);
+            this._shiftChild(element, point);
             return true;
         }
     );
@@ -729,15 +729,15 @@ export function makeFloatingContainer(superClass) {
     );
 
     defineMethod(superClass,
-        function _shiftFloating(element, x, y) {
+        function _shiftFloating(element, point) {
         }
     );
 
     extendMethod(superClass, $shift=>
-        function shift(element, x, y) {
-            if ($shift && $shift.call(this, element, x, y)) return true;
+        function shift(element, point) {
+            if ($shift && $shift.call(this, element, point)) return true;
             if (!this.containsFloating(element)) return false;
-            this._shiftFloating(element, x, y);
+            this._shiftFloating(element, point);
             return true;
         }
     );
@@ -1176,15 +1176,15 @@ export function makeLayersWithContainers(superClass, {layersBuilder}) {
     );
 
     defineMethod(superClass,
-        function _shiftChild(element, x, y) {
+        function _shiftChild(element, point) {
         }
     );
 
     extendMethod(superClass, $shift=>
-        function _shift(element, x, y) {
-            if (shift && shift.call(this, element, x, y)) return true;
+        function _shift(element, point) {
+            if (shift && shift.call(this, element, point)) return true;
             if (!this.containsChild(element)) return false;
-            this._shiftChild(element, x, y);
+            this._shiftChild(element, point);
             return true;
         }
     );
@@ -1416,8 +1416,8 @@ export class Pedestal {
             __clearChildren() {
                 pedestal.clear();
             },
-            _setLocation(x, y) {
-                super._setLocation(x, y);
+            _setLocation(point) {
+                super._setLocation(point);
                 pedestal.refresh();
                 return this;
             },

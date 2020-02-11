@@ -55,8 +55,8 @@ import {
     makeSelectable
 } from "../../js/core-mixins.js";
 import {
-    Bubble, PlainArrow
-} from "../../js/svgtools.js";
+    Point2D
+} from "../../js/geometry.js";
 
 class SigmaPaper extends SigmaArea {
     constructor(width, height, backgroundColor) {
@@ -134,8 +134,8 @@ class DeltaPaper extends SigmaPaper {
         this._contentPane.resize(width-DeltaPaper.MARGIN*2, height-DeltaPaper.MARGIN*2, direction);
     }
 
-    setLocation(x, y) {
-        super.setLocation(0, 0);
+    setLocation(point) {
+        super.setLocation(new Point2D(0, 0));
     }
 
     setSize(width, height) {
@@ -386,7 +386,7 @@ function makePdfAreasOwner(superClass) {
             if (type === SigmaPrintArea.events.NEW_AREA) {
                 let printArea = new DeltaPrintArea(value.width, value.height);
                 printArea.order = this._pdfAreas.length+1;
-                printArea.setLocation(value.x, value.y);
+                printArea.setLocation(value);
                 this.addChild(printArea);
                 win.setTimeout(function() {
                     Selection.instance.selectOnly(printArea);

@@ -38,7 +38,7 @@ import {
     always, is, defineMethod, extendMethod, replaceMethod, defineGetProperty, assert, proposeMethod
 } from "../../js/misc.js";
 import {
-    Box2D, Point3D
+    Box2D, Point3D, Point2D
 } from "../../js/geometry.js";
 import {
     DeltaAbstractModule, DeltaModuleEmbodiment, DeltaModuleEntity
@@ -54,7 +54,7 @@ import {
     makeEmbodimentContainerPart, makeEntityMovable
 } from "../../js/entity.js";
 import {
-    addPhysicToEntity, createCollisionEntityPhysic, EmbodimentPhysic, makeContainerSortedFromTop, makeContainerSortedFromFront,
+    addPhysicToEntity, createGravitationPhysicForEntities, EmbodimentPhysic, makeContainerSortedFromTop, makeContainerSortedFromFront,
     addBordersTo3DCollisionPhysic
 } from "../../js/entity-physics.js";
 
@@ -158,7 +158,7 @@ export function makeHeaderOwner(superClass) {
         function _initHeader(headerHeight) {
             if (headerHeight) {
                 this._header = this._createHeader(this.width, headerHeight);
-                this._header.setLocation(0, -this.height/2+headerHeight/2);
+                this._header.setLocation(new Point2D(0, -this.height/2+headerHeight/2));
                 this._addPart(this._header);
             }
         }
@@ -174,7 +174,7 @@ export function makeHeaderOwner(superClass) {
         function _setSize(width, height) {
             $setSize.call(this, width, height);
             this._header._setSize(width, this._header.height);
-            this._header.setLocation(0, -height/2+this._header.height/2);
+            this._header.setLocation(new Point2D(0, -height/2+this._header.height/2));
         }
     );
 }
@@ -187,7 +187,7 @@ export function makeFooterOwner(superClass) {
         function _initFooter(footerHeight) {
             if (footerHeight) {
                 this._footer = this._createFooter(this.width, footerHeight);
-                this._footer.setLocation(0, this.height/2-footerHeight/2);
+                this._footer.setLocation(new Point2D(0, this.height/2-footerHeight/2));
                 this._addPart(this._footer);
             }
         }
@@ -203,7 +203,7 @@ export function makeFooterOwner(superClass) {
         function _setSize(width, height) {
             $setSize.call(this, width, height);
             this._footer._setSize(width, this._footer.height);
-            this._footer.setLocation(0, height/2-this._footer.height/2);
+            this._footer.setLocation(new Point2D(0, height/2-this._footer.height/2));
         }
     );
 
@@ -217,7 +217,7 @@ export function makeFasciaSupport(superClass) {
         function _initFasciaSupport(headerHeight=0, footerHeight=0) {
             let height = this.height-headerHeight-footerHeight;
             this._fasciaSupport = this._createFasciaSupport(this.width, height);
-            this._fasciaSupport.setLocation(0, -this.height/2+headerHeight+height/2);
+            this._fasciaSupport.setLocation(new Point2D(0, -this.height/2+headerHeight+height/2));
             this._addPart(this._fasciaSupport);
         }
     );
@@ -245,7 +245,7 @@ export function makeFrameSupport(superClass) {
     defineMethod(superClass,
         function _initFrameSupport() {
             this._frameSupport = this._createFrameSupport(this.width, this.height);
-            this._frameSupport.setLocation(0, 0);
+            this._frameSupport.setLocation(new Point2D(0, 0));
             this._addPart(this._frameSupport);
         }
     );
@@ -275,7 +275,7 @@ export function makeKnobOwner(superClass, {size, predicate}) {
         function _init({...args}) {
             $init && $init.call(this, {...args});
             let knob = this._createKnob(size, this.height);
-            knob._setLocation(-this.width/2+size/2, 0);
+            knob._setLocation(new Point2D(-this.width/2+size/2, 0));
             this._addPart(knob);
         }
     );
@@ -411,7 +411,7 @@ DeltaHook.SIZE = 2;
 export class DeltaBoxEntityContent extends SigmaEntity {
 
     _createPhysic() {
-        let CollisionPhysic = createCollisionEntityPhysic({
+        let CollisionPhysic = createGravitationPhysicForEntities({
             predicate:is(DeltaModuleEntity)
         });
         addBordersTo3DCollisionPhysic(CollisionPhysic, {
@@ -649,7 +649,7 @@ export class DeltaBoxExpansion extends DeltaExpansion {
         super._improve({color:Colors.WHITE});
         this._initShape(this._buildShape());
         this._boxContent = this._buildBoxContent({contentWidth, contentDepth, ...args});
-        this._boxContent._setLocation(contentX, (this.height-contentDepth)/2);
+        this._boxContent._setLocation(new Point2D(contentX, (this.height-contentDepth)/2));
         this._addPart(this._boxContent);
     }
 
@@ -723,7 +723,7 @@ export class DeltaBox extends DeltaItem {
         super._improve({color:Colors.WHITE});
         this._initShape(this._buildShape());
         this._boxContent = this._buildBoxContent(contentWidth, contentHeight, args);
-        this._boxContent._setLocation(contentX, contentY);
+        this._boxContent._setLocation(new Point2D(contentX, contentY));
         this._addPart(this._boxContent);
         for (let clipSpec of clips) {
             let clip = new Clip(this, clipSpec.x, clipSpec.y);
@@ -1137,18 +1137,18 @@ export class DeltaShelf extends DeltaItem {
         if (!Context.isReadOnly()) {
             let elements = new List(...this.carried);
             elements.sort((e1, e2) => e1.lx - e2.lx);
-            elements[0].move(
+            elements[0].move(new Point2D(
                 this.lx-this.width/2 + elements[0].width / 2,
-                elements[0].ly
+                elements[0].ly)
             );
             for (let index = 1; index < elements.length; index++) {
                 let left = elements[index - 1].lx+elements[index - 1].width/2;
                 let right = elements[index].lx-elements[index].width/2;
                 let top = elements[index].ly-elements[index].height/2;
                 let bottom = this.ly-this.height/2;
-                elements[index].move(
+                elements[index].move(new Point2D(
                     elements[index - 1].lx + elements[index - 1].width/2 + elements[index].width / 2,
-                    elements[index].ly
+                    elements[index].ly)
                 );
             }
         }
@@ -1200,7 +1200,7 @@ export class DeltaRichShelf extends DeltaShelf {
 
     _improve({leftClip, rightClip, coverY, coverHeight, ...args}) {
         super._improve({leftClip, rightClip, coverY, coverHeight, ...args});
-        this._cover._setLocation(0, coverY);
+        this._cover._setLocation(new Point2D(0, coverY));
         this._addPart(this._cover);
     }
 
@@ -1301,7 +1301,7 @@ export class DeltaRichCaddyFrontMorph extends DeltaMorphElement {
         super._improve({color:Colors.WHITE});
         this._initShape(this._buildShape());
         this._boxContent = this._buildBoxContent(contentWidth, contentHeight, args);
-        this._boxContent._setLocation(contentX, contentY);
+        this._boxContent._setLocation(new Point2D(contentX, contentY));
         this._addPart(this._boxContent);
         /*
         for (let clip of this.entity.clips) {
@@ -1361,7 +1361,7 @@ export class DeltaRichCaddyTopMorph extends DeltaMorphElement {
         super._improve({color:Colors.WHITE});
         this._initShape(this._buildShape());
         this._boxContent = this._buildBoxContent({contentWidth, contentDepth, ...args});
-        this._boxContent._setLocation(contentX, (this.height-contentDepth)/2);
+        this._boxContent._setLocation(new Point2D(contentX, (this.height-contentDepth)/2));
         this._addPart(this._boxContent);
     }
 
@@ -1550,7 +1550,7 @@ export function applyGenerateLadders(container, data) {
             bottomSlot: data.bottomSlot,
             slotInterval: data.slotInterval
         });
-        leftLadder.setLocation( data.left + (data.ladderWidth) / 2, data.y);
+        leftLadder.setLocation( new Point2D(data.left + (data.ladderWidth) / 2, data.y));
         container.addChild(leftLadder);
         let rightLadder = new DeltaLadder({
             width: data.ladderWidth,
@@ -1559,7 +1559,7 @@ export function applyGenerateLadders(container, data) {
             bottomSlot: data.bottomSlot,
             slotInterval: data.slotInterval
         });
-        rightLadder.setLocation( data.right - (data.ladderWidth) / 2, data.y);
+        rightLadder.setLocation( new Point2D(data.right - (data.ladderWidth) / 2, data.y));
         container.addChild(rightLadder);
         let width = data.right - data.left;
         for (let index = 1; index <= data.intermediateLaddersCount; index++) {
@@ -1571,7 +1571,7 @@ export function applyGenerateLadders(container, data) {
                 bottomSlot: data.bottomSlot,
                 slotInterval: data.slotInterval
             });
-            ladder.setLocation(x, data.y);
+            ladder.setLocation(new Point2D(x, data.y));
             container.addChild(ladder);
         }
     }
@@ -1595,7 +1595,7 @@ export function applyGenerateFixings(container, data) {
         for (let x = data.left; x <= data.right; x += data.boxWidth) {
             for (let y = data.top; y <= data.bottom ; y += data.boxHeight) {
                 let fixing = new DeltaFixing();
-                fixing.setLocation(x, y);
+                fixing.setLocation(new Point2D(x, y));
                 container.addChild(fixing);
             }
         }
@@ -1620,7 +1620,7 @@ export function applyGenerateHooks(container, data) {
         for (let x = data.left; x <= data.right; x += data.blisterWidth) {
             for (let y = data.top; y <= data.bottom ; y += data.blisterHeight) {
                 let fixing = new DeltaHook();
-                fixing.setLocation(x, y);
+                fixing.setLocation(new Point2D(x, y));
                 container.addChild(fixing);
             }
         }
@@ -1845,7 +1845,7 @@ export class DeltaPane extends DeltaItem {
 
     _createPaneContent(contentX, contentY, contentWidth, contentHeight, lineMargin, labelMargin, indexMargin) {
         let content = new DeltaPaneContent({width:contentWidth, height:contentHeight, lineMargin, labelMargin, indexMargin});
-        content._setLocation(contentX, contentY);
+        content._setLocation(new Point2D(contentX, contentY));
         return content;
     }
 

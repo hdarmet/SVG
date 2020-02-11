@@ -357,10 +357,11 @@ export function makeEmbodiment(superClass) {
     if (defined(superClass, function movable() {})) {
 
         extendMethod(superClass, $setLocation =>
-            function setLocation(x, y) {
-                let result = $setLocation.call(this, x, y);
+            function setLocation(point) {
+                let result = $setLocation.call(this, point);
                 if (result) {
-                    let entityLocation = this._entity.getEntityLocationFromEmbodimentLocation(this, new Point2D(x, y));
+                    let entityLocation =
+                        this._entity.getEntityLocationFromEmbodimentLocation(this, point, this._entity.lloc);
                     this._entity && this._entity.adjustEmbodimentsLocations(this, entityLocation);
                 }
                 return result;
@@ -626,21 +627,21 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
         return embodiment;
     }
 
-    getEntityLocationFromEmbodimentLocation(embodiment, {x, y}) {
+    getEntityLocationFromEmbodimentLocation(embodiment, {x, y}, defaultLocation) {
         let key = embodiment.morphKey;
         let ex, ey, ez;
         if (key===SigmaEntity.projections.FRONT || key===SigmaEntity.projections.BACK) {
             ex = key===SigmaEntity.projections.FRONT ? x : -x;
             ey = y;
-            ez = this.lz;
+            ez = defaultLocation.z;
         }
         else if (key===SigmaEntity.projections.TOP || key===SigmaEntity.projections.BOTTOM) {
             ex = x;
-            ey = this.ly;
+            ey = defaultLocation.y;
             ez = key===SigmaEntity.projections.TOP ? y : -y;
         }
         else if (key===SigmaEntity.projections.LEFT || key===SigmaEntity.projections.RIGHT) {
-            ex = this.lx;
+            ex = defaultLocation.x;
             ey = y;
             ez = key===SigmaEntity.projections.RIGHT ? x : -x;
         }
@@ -675,7 +676,7 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
                     let aEmbodiment = this._embodiments.get(support);
                     if (aEmbodiment.movable) {
                         let location = this.getEmbodimentLocationFromEntityLocation(aEmbodiment, entityLocation);
-                        aEmbodiment.move(location.x, location.y);
+                        aEmbodiment.move(location);
                     }
                 }
             }
@@ -692,7 +693,7 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
             for (let support of this._embodiments.keys()) {
                 let aEmbodiment = this._embodiments.get(support);
                 let location = this.getEmbodimentLocationFromEntityLocation(aEmbodiment, point);
-                aEmbodiment.move(location.x, location.y);
+                aEmbodiment.move(location);
             }
         }
         finally {
@@ -809,19 +810,10 @@ export function makeEntityASupport(superClass) {
     );
 
     defineMethod(superClass,
-        function _getEntity(element) {
-            while (element) {
-                if (element.entity) return element.entity;
-                element = element.parent;
-            }
-            return null;
-        }
-    );
-
-    defineMethod(superClass,
         function _addHovered(element) {
             if (!this.containsChild(element.entity)) {
-                element.entity._setLocation(new Point3D(0, 0, 0));
+                let location = element.entity.getEntityLocationFromEmbodimentLocation(element, element.lloc, new Point3D(0, 0, 0));
+                element.entity._setLocation(location);
                 this.addChild(element.entity);
             }
         }

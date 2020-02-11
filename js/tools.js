@@ -4,7 +4,7 @@ import {
     List, ESet
 } from "./collections.js";
 import {
-    Matrix2D
+    Matrix2D, Point2D
 } from "./geometry.js";
 import {
     Visibility, computePosition, RasterImage, SvgRasterImage, Group, ClipPath, Rect, Text, AlignmentBaseline,
@@ -795,7 +795,7 @@ export class ToolPopup {
         let imatrix = this._root.parent.matrix.invert();
         let fx = imatrix.x(x, y);
         let fy = imatrix.y(x, y);
-        this.move(fx, fy);
+        this.move(new Point2D(fx, fy));
     }
 
     addTitleCommand(titleCommand) {
@@ -814,21 +814,21 @@ export class ToolPopup {
         }
     }
 
-    move(x, y) {
+    move(point) {
         let clientWidth = Canvas.instance.clientWidth;
         let clientHeight = Canvas.instance.clientHeight;
-        this._root.matrix = Matrix2D.translate(x, y);
-        if (x<=0) {
-            this._xAnchorage = clientWidth/2+x;
+        this._root.matrix = Matrix2D.translate(point.x, point.y);
+        if (point.x<=0) {
+            this._xAnchorage = clientWidth/2+point.x;
         }
         else {
-            this._xAnchorage = -clientWidth/2+x;
+            this._xAnchorage = -clientWidth/2+point.x;
         }
-        if (y<=0) {
-            this._yAnchorage = clientHeight/2+y;
+        if (point.y<=0) {
+            this._yAnchorage = clientHeight/2+point.y;
         }
         else {
-            this._yAnchorage = -clientHeight/2+y;
+            this._yAnchorage = -clientHeight/2+point.y;
         }
         return this;
     }
@@ -846,7 +846,7 @@ export class ToolPopup {
         let clientHeight = Canvas.instance.clientHeight;
         let fx = x>=0 ? -clientWidth/2+x : clientWidth/2+x;
         let fy = y>=0 ? -clientHeight/2+y : clientHeight/2+y;
-        this.move(fx, fy);
+        this.move(new Point2D(fx, fy));
         return this;
     }
 }
@@ -902,7 +902,7 @@ export function makePopupResizable(superClass) {
             let fx = imatrix.x(x, y);
             let fy = imatrix.y(x, y);
             this.resize(width, height);
-            this.move(fx, fy);
+            this.move(new Point2D(fx, fy));
         }
     );
 }
@@ -937,7 +937,7 @@ export class DragPopupOperation extends DragOperation {
         let popup = title.popup;
         let pedestal = popup._root.parent;
         let { x:fx, y:fy } = computePosition(popup._root, Canvas.instance._toolsLayer._root);
-        popup.move(fx, fy);
+        popup.move(new Point2D(fx, fy));
         Canvas.instance.putArtifactOnToolsLayer(popup._root);
         pedestal.detach();
     }
@@ -985,7 +985,7 @@ export class ResizePopupOperation extends DragOperation {
         popup.resize(width, height);
         let dWidth = this._dragX<0 ? width-popup.width : popup.width-width;
         let dHeight = this._dragY<0 ? height-popup.height : popup.height-height;
-        popup.move(nx+dWidth/2, ny+dHeight/2);
+        popup.move(new Point2D(nx+dWidth/2, ny+dHeight/2));
         popup._adjustSize();
         dWidth = this._dragX<0 ? width-popup.width : popup.width-width;
         dHeight = this._dragY<0 ? height-popup.height : popup.height-height;
@@ -1015,8 +1015,8 @@ export class ToolCommand {
         this._size = size;
     }
 
-    move(x, y) {
-        this._root.matrix = Matrix2D.translate(x, y);
+    move(point) {
+        this._root.matrix = Matrix2D.translate(point.x, point.y);
         return this;
     }
 
@@ -1087,18 +1087,18 @@ export class ToolCommandPopupContent extends ToolPopupContent {
         let height = this.height;
         if (command.width===this._size) {
             if (this._left) {
-                command.move(-this._size / 2 - this._margin, this._row + this._size / 2);
+                command.move(new Point2D(-this._size / 2 - this._margin, this._row + this._size / 2));
                 this._left = false;
                 height = this._row + this._size + this._margin*2;
             } else {
-                command.move(this._size / 2 + this._margin, this._row + this._size / 2);
+                command.move(new Point2D(this._size / 2 + this._margin, this._row + this._size / 2));
                 this._left = true;
                 this._row += this._size + this._margin * 2;
             }
         }
         else {
             this._newLine();
-            command.move(0, this._row + command.height/2);
+            command.move(new Point2D(0, this._row + command.height/2));
             this._left = true;
             this._row += command.height + this._margin * 2;
             height = this._row;
@@ -1275,8 +1275,8 @@ export class ToolCard {
         return ToolCard.Resizable.NO;
     }
 
-    setLocation(x, y) {
-        this._root.matrix = Matrix2D.translate(x, y);
+    setLocation(point) {
+        this._root.matrix = Matrix2D.translate(point.x, point.y);
     }
 
     get parent() {
@@ -1323,7 +1323,7 @@ export class ToolCardStack extends ToolCard {
         this._height = height;
         let y = -height/2;
         for (let card of this._cards) {
-            card.setLocation(0, y+card.height/2);
+            card.setLocation(new Point2D(0, y+card.height/2));
             y += card.height;
         }
         return this;
@@ -1434,7 +1434,7 @@ export class ToolCardStack extends ToolCard {
                     cardWidth += incWidth;
                 }
                 card.resize(cardWidth, height);
-                card.setLocation(pX+cardWidth/2, y+height/2);
+                card.setLocation(new Point2D(pX+cardWidth/2, y+height/2));
                 pX += cardWidth;
             }
         }
@@ -1458,7 +1458,7 @@ export class ToolCardStack extends ToolCard {
             if (line.length===1 && line[0].resizable === ToolCard.Resizable.VERTICAL) {
                 let card = line[0];
                 card.resize(width, card.minHeight+incHeight);
-                card.setLocation(0, pY + card.height/2);
+                card.setLocation(new Point2D(0, pY + card.height/2));
                 pY += card.height;
             }
             else {
@@ -1633,8 +1633,8 @@ export class ToolPanelTitle {
         });
     }
 
-    setLocation(x, y) {
-        this._root.set(x, y);
+    setLocation(point) {
+        this._root.set(point.x, point.y);
     }
 
     set width(width) {
@@ -1723,8 +1723,8 @@ export class ToolPanel {
         return this;
     }
 
-    setLocation(x, y) {
-        this._root.matrix = Matrix2D.translate(x, y);
+    setLocation(point) {
+        this._root.matrix = Matrix2D.translate(point.x, point.y);
         return this;
     }
 
@@ -1760,12 +1760,12 @@ export class ToolExpandablePanelCard extends ToolPanelCard {
         for (let panel of this._panels) {
             this._root.add(panel.title._root);
             panel.title.width = this.width;
-            panel.title.setLocation(0, height+ToolPanel.PANEL_TITLE_HEIGHT/2);
+            panel.title.setLocation(new Point2D(0, height+ToolPanel.PANEL_TITLE_HEIGHT/2));
             height += ToolPanel.PANEL_TITLE_HEIGHT;
             if (panel.opened) {
                 this._root.add(panel._root);
                 panel._refresh();
-                panel.setLocation(0, height + contentHeight / 2);
+                panel.setLocation(new Point2D(0, height + contentHeight / 2));
                 height += contentHeight;
             }
         }
@@ -1834,7 +1834,7 @@ export class ToolTabsetPanelCard extends ToolPanelCard {
                 let margin = (this.width-line.width)/line.titles.length;
                 let titleWidth = title.textWidth+ToolTabsetPanelCard.TITLE_MARGIN*2+margin;
                 title.width = titleWidth;
-                title.setLocation(width + titleWidth/2, height+ToolPanel.PANEL_TITLE_HEIGHT/2);
+                title.setLocation(new Point2D(width + titleWidth/2, height+ToolPanel.PANEL_TITLE_HEIGHT/2));
                 width += titleWidth;
                 if (this.currentPanel && title===this.currentPanel.title) {
                     title.highlight();
@@ -1852,7 +1852,7 @@ export class ToolTabsetPanelCard extends ToolPanelCard {
             currentPanel._resize(this.width, contentHeight);
             this._root.add(currentPanel._root);
             currentPanel._refresh();
-            currentPanel.setLocation(0, height + contentHeight / 2);
+            currentPanel.setLocation(new Point2D(0, height + contentHeight / 2));
         }
     }
 
@@ -1885,7 +1885,7 @@ export class ToolCardPopupContent extends ToolPopupContent {
     _refresh() {
         this._rootCard._refresh();
         this.resize(this.width, this._rootCard.height);
-        this._rootCard.setLocation(0, 0);
+        this._rootCard.setLocation(new Point2D(0, 0));
         return this;
     }
 
@@ -2368,7 +2368,7 @@ export class ToolGridPanelContent extends ToolPanelContent {
             this._fire(Events.SCROLL_END);
         }
         if (y >= 0) y = 0;
-        this.move(0, y);
+        this.move(new Point2D(0, y));
     }
 
     _accept(cell) {
@@ -2420,13 +2420,13 @@ export class ToolGridPanelContent extends ToolPanelContent {
         this._maxHeight = startY + this._cellHeight / 2 + ToolGridPanelContent.CELL_MARGIN;
         this._background.attrs({ height: this._maxHeight });
         let step = this._content.matrix.dy;
-        this.move(0, 0);
+        this.move(new Point2D(0, 0));
         this.scroll(step);
     }
 
-    move(x, y) {
-        this._content.matrix = Matrix2D.translate(x, y);
-        this._clipRect.matrix = Matrix2D.translate(0, -y);
+    move(point) {
+        this._content.matrix = Matrix2D.translate(point.x, point.y);
+        this._clipRect.matrix = Matrix2D.translate(0, -point.y);
     }
 
     addCell(cell) {
