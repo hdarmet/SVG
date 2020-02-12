@@ -391,6 +391,18 @@ export function makeEmbodiment(superClass) {
             }
         );
 
+        extendMethod(superClass, $getExtension=>
+            function getExtension(extension) {
+                let elemExtension = $getExtension ? $getExtension.call(this, extension) : new ESet();
+                if (this._entity.getExtension) {
+                    let entitiesExtension = this._entity.getExtension();
+                    for (let entity of entitiesExtension) {
+                        elemExtension.add(entity.getEmbodiment(this.support));
+                    }
+                }
+                return elemExtension;
+            }
+        );
     }
 
     defineGetProperty(superClass,
@@ -812,7 +824,10 @@ export function makeEntityASupport(superClass) {
     defineMethod(superClass,
         function _addHovered(element) {
             if (!this.containsChild(element.entity)) {
-                let location = element.entity.getEntityLocationFromEmbodimentLocation(element, element.lloc, new Point3D(0, 0, 0));
+                console.log()
+                let location = element.entity.getEntityLocationFromEmbodimentLocation(
+                    element, element.lloc, new Point3D(0, -this.height/2+element.entity.height/2, 0)
+                );
                 element.entity._setLocation(location);
                 this.addChild(element.entity);
             }

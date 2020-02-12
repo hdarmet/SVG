@@ -352,11 +352,13 @@ export class SweepAndPrune2D {
         let index = dichotomousSearch(this._xAxis, left, (v, b) => v - b.value);
         if (index > 0 && index < this._xAxis.length && this._xAxis[index].value > left) index--;
         while ( this._xAxis[index] && this._xAxis[index].value < right) {
-            for (let element of this._xAxis[index].opened) {
-                // Verify that element may collide only on x axis because if element not selected here, it cannot be
-                // processed thereafter
-                if (!element.mayNotCollide) {
-                    collectedOnX.add(element);
+            if (this._xAxis[index].value!==left || this._xAxis[index].first) {
+                for (let element of this._xAxis[index].opened) {
+                    // Verify that element may collide only on x axis because if element not selected here, it cannot be
+                    // processed thereafter
+                    if (!element.mayNotCollide) {
+                        collectedOnX.add(element);
+                    }
                 }
             }
             index++;
@@ -365,9 +367,11 @@ export class SweepAndPrune2D {
         index = dichotomousSearch(this._yAxis, top, (v, b) => v - b.value);
         if (index > 0 && index < this._yAxis.length && this._yAxis[index].value > top) index--;
         while (this._yAxis[index] && this._yAxis[index].value < bottom) {
-            for (let element of this._yAxis[index].opened) {
-                if (collectedOnX.delete(element)) {
-                    result.add(element);
+            if (this._yAxis[index].value!==top || this._yAxis[index].first) {
+                for (let element of this._yAxis[index].opened) {
+                    if (collectedOnX.delete(element)) {
+                        result.add(element);
+                    }
                 }
             }
             index++;
@@ -456,6 +460,7 @@ export function makeAbstractCollisionPhysic(superClass) {
     replaceMethod(superClass,
         function _reset() {
             this._elements = this._acceptedElements(this._host.children);
+            this._dragAndDropSAP.clear();
             this._supportSAP.clear();
             this._valids.clear();
             for (let element of this._elements) {
@@ -494,6 +499,9 @@ export function makeAbstractCollisionPhysic(superClass) {
          * @private
          */
         function _addHovered(element) {
+            if (this._supportSAP.has(element)) {
+                this._remove(element);
+            }
             this._dragAndDropSAP.add(element);
         }
     );
@@ -543,6 +551,9 @@ export function makeAbstractCollisionPhysic(superClass) {
          * @private
          */
         function _add(element) {
+            if (this._dragAndDropSAP.has(element)) {
+                this._dragAndDropSAP.remove(element);
+            }
             this._elements.add(element);
             this._supportSAP.add(element);
             this._valids.set(element, element.validLocation);

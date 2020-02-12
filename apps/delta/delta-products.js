@@ -90,6 +90,8 @@ export class DeltaModuleEntity extends SigmaPolymorphicEntity {
 
 }
 makeEntityMovable(DeltaModuleEntity);
+makeCarrier(DeltaModuleEntity);
+makeCarriable(DeltaModuleEntity);
 
 export class DeltaModuleEmbodiment extends DeltaEmbodiment {
 

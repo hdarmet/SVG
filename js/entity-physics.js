@@ -16,12 +16,13 @@ import {
 
 class GroundStructure3DZone {
 
-    constructor(left, top, right, bottom, elevation) {
+    constructor(left, top, right, bottom, elevation, entity) {
         this._left = left;
         this._top = top;
         this._right = right;
         this._bottom = bottom;
         this._elevation = elevation;
+        this._entity = entity;
     }
 
     get left() {
@@ -37,9 +38,16 @@ class GroundStructure3DZone {
     }
 
     get bottom() {
-        return this.bottom;
+        return this._bottom;
     }
 
+    get elevation() {
+        return this._elevation;
+    }
+
+    get entity() {
+        return this._entity;
+    }
 
     get localGeometry() {
         return new Box2D(this._left, this._top, this._right-this._left, this._bottom-this._top);
@@ -53,48 +61,55 @@ class GroundStructure3D {
         this._sweepAndPrune = new SweepAndPrune2D();
     }
 
-    filter(entiy, record) {
-        let left = record.left(entiy);
-        let right = record.right(entiy);
-        let front = record.front(entiy);
-        let back = record.back(entiy);
+    filter(entity, record) {
+        let left = record.left(entity);
+        let right = record.right(entity);
+        let front = record.front(entity);
+        let back = record.back(entity);
         let box = new Box2D(left, back, right-left, front-back);
         let collides = this._sweepAndPrune.elementsInBox(box);
         let result = new List();
         for (let zone of collides) {
             result.add({element:zone.entity, top:zone.elevation});
         }
-        console.log([...result]);
         return result;
     }
 
-    update(element, record, zone) {
-        let left = record.left(element);
-        let right = record.right(element);
-        let front = record.front(element);
-        let back = record.back(element);
+    update(entity, record, zone) {
+        let left = record.left(entity);
+        let right = record.right(entity);
+        let front = record.front(entity);
+        let back = record.back(entity);
         if (zone.left<left) {
-            this._sweepAndPrune.add(new GroundStructure3DZone(left, back, zone.left, front, zone.elevation));
+            this._sweepAndPrune.add(
+                new GroundStructure3DZone(left, back, zone.left, front, zone.elevation, entity)
+            );
         }
         if (zone.right>right) {
-            this._sweepAndPrune.add(new GroundStructure3DZone(zone.right, back, right, front, zone.elevation));
+            this._sweepAndPrune.add(
+                new GroundStructure3DZone(zone.right, back, right, front, zone.elevation, entity)
+            );
         }
         if (zone.top<back) {
-            this._sweepAndPrune.add(new GroundStructure3DZone(zone.left, back, zone.right, zone.top, zone.elevation));
+            this._sweepAndPrune.add(
+                new GroundStructure3DZone(zone.left, back, zone.right, zone.top, zone.elevation, entity)
+            );
         }
         if (zone.bottom>front) {
-            this._sweepAndPrune.add(new GroundStructure3DZone(zone.left, zone.bottom, zone.right, front, zone.elevation));
+            this._sweepAndPrune.add(
+                new GroundStructure3DZone(zone.left, zone.bottom, zone.right, front, zone.elevation, entity)
+            );
         }
         this._sweepAndPrune.remove(zone);
     }
 
-    add(element, record) {
-        let left = record.left(element);
-        let right = record.right(element);
-        let front = record.front(element);
-        let back = record.back(element);
-        let elevation = record.top(element);
-        this._sweepAndPrune.add(new GroundStructure3DZone(left, back, right, front, elevation));
+    add(entity, record) {
+        let left = record.left(entity);
+        let right = record.right(entity);
+        let front = record.front(entity);
+        let back = record.back(entity);
+        let elevation = record.top(entity);
+        this._sweepAndPrune.add(new GroundStructure3DZone(left, back, right, front, elevation, entity));
     }
 
 }
@@ -245,9 +260,11 @@ export class SweepAndPrune3D extends SweepAndPrune2D {
             let index = dichotomousSearch(this._zAxis, back, (v, b) => v - b.value);
             if (index > 0 && index < this._zAxis.length && this._zAxis[index].value > back) index--;
             while (this._zAxis[index] && this._zAxis[index].value < front) {
-                for (let element of this._zAxis[index].opened) {
-                    if (collectedOnXY.delete(element)) {
-                        result.add(element);
+                if (this._zAxis[index].value!==back || this._zAxis[index].first) {
+                    for (let element of this._zAxis[index].opened) {
+                        if (collectedOnXY.delete(element)) {
+                            result.add(element);
+                        }
                     }
                 }
                 index++;
@@ -289,26 +306,6 @@ export function makeCollisionPhysicForEntities(superClass) {
             if (this._elements.has(element)) {
                 this._supportSAP.add(element);
                 this._valids.set(element, element.validLocation);
-            }
-        }
-    );
-
-    replaceMethod(superClass,
-        function _add(element) {
-            this._elements.add(element);
-            if (!this._dragAndDropSAP.has(element)) {
-                this._supportSAP.add(element);
-                this._valids.set(element, element.validLocation);
-            }
-        }
-    );
-
-    replaceMethod(superClass,
-        function _remove(element) {
-            this._elements.delete(element);
-            if (this._supportSAP.has(element)) {
-                this._supportSAP.remove(element);
-                this._valids.delete(element);
             }
         }
     );
