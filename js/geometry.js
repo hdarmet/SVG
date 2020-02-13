@@ -1,6 +1,6 @@
 'use strict';
 import {
-    assert, defineGetProperty
+    assert, same, defineGetProperty
 } from "./misc.js";
 
 export function distanceToSegment(p, s1, s2) {
@@ -747,6 +747,10 @@ export class Point2D {
         return this.x===point.x && this.y===point.y;
     }
 
+    same(point) {
+        return same(point.x, this.x) && same(point.y, this.y);
+    }
+
     duplicate() {
         return new Point2D(this.x, this.y);
     }
@@ -773,6 +777,10 @@ export class Point3D {
 
     equals(point) {
         return this.x===point.x && this.y===point.y && this.z===point.z;
+    }
+
+    same(point) {
+        return same(point.x, this.x) && same(point.y, this.y) && same(point.z, this.z);
     }
 
     duplicate() {

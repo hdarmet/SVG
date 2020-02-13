@@ -46,9 +46,6 @@ export class Physic {
             defer(()=>{
                 this.refresh();
             });
-            /*
-            win.setTimeout(, 0);
-            */
         }
     }
 
@@ -59,8 +56,8 @@ export class Physic {
     }
 
     reset() {
-        this._trigger();
         this._reset();
+        this.refresh();
         return this;
     }
 

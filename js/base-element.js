@@ -144,7 +144,7 @@ export class SigmaElement {
     }
 
     setLocation(point) {
-        if (!same(point.x, this.lx) || !same(point.y, this.ly)) {
+        if (!point.same(this.lloc)) {
             Memento.register(this);
             this._setLocation(point);
             this._fire(Events.GEOMETRY, this.lx, this.ly, this.width, this.height);

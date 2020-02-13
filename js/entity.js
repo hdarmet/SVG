@@ -368,7 +368,7 @@ export function makeEmbodiment(superClass) {
                 if (result) {
                     let entityLocation =
                         this._entity.getEntityLocationFromEmbodimentLocation(this, point, this._entity.lloc);
-                    this._entity && this._entity.adjustEmbodimentsLocations(this, entityLocation);
+                    this._entity && this._entity.setLocation(entityLocation);
                 }
                 return result;
             }
@@ -466,8 +466,12 @@ export class SigmaEntity {
     }
 
     setLocation(point) {
-        Memento.register(this);
-        this._setLocation(point);
+        if (!point.same(this.lloc)) {
+            Memento.register(this);
+            this._setLocation(point);
+            return true;
+        }
+        return false;
     }
 
     _geometry(matrix) {
@@ -708,15 +712,14 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
         return new Point2D(lx, ly);
     }
 
-    adjustEmbodimentsLocations(entity, entityLocation) {
+    adjustEmbodimentsLocations() {
         if (!this.__moveEmbodiments) {
             try {
                 this.__moveEmbodiments = true;
-                this._setLocation(entityLocation);
                 for (let support of this._embodiments.keys()) {
                     let aEmbodiment = this._embodiments.get(support);
                     if (aEmbodiment.movable) {
-                        let location = this.getEmbodimentLocationFromEntityLocation(aEmbodiment, entityLocation);
+                        let location = this.getEmbodimentLocationFromEntityLocation(aEmbodiment, this.lloc);
                         aEmbodiment.move(location);
                     }
                 }
@@ -728,17 +731,9 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
     }
 
     setLocation(point) {
-        super.setLocation(point);
-        try {
-            this.__moveEmbodiments = true;
-            for (let support of this._embodiments.keys()) {
-                let aEmbodiment = this._embodiments.get(support);
-                let location = this.getEmbodimentLocationFromEntityLocation(aEmbodiment, point);
-                aEmbodiment.move(location);
-            }
-        }
-        finally {
-            delete this.__moveEmbodiments;
+        if (super.setLocation(point)) {
+            this.adjustEmbodimentsLocations()
+            return true;
         }
     }
 
@@ -751,7 +746,6 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
     }
 
     _memento() {
-        console.log("MEMENTO !!")
         let memento = super._memento();
         memento._morphs = {...this._morphs};
         memento._embodiments = new EMap(this._embodiments);
@@ -825,7 +819,7 @@ export function makeEntityASupport(superClass) {
                             embodiment = entity.createEmbodiment(supportEmbodiment);
                             supportEmbodiment.addChild(embodiment);
                         }
-                        entity.adjustEmbodimentsLocations(entity, entity.lloc);
+                        entity.adjustEmbodimentsLocations();
                     }
                 }
                 finally {
@@ -869,7 +863,7 @@ export function makeEntityASupport(superClass) {
 
     defineMethod(superClass,
         function _moveHovered(element) {
-            element.entity.adjustEmbodimentsLocations(element.entity, element.entity.lloc);
+            element.entity.adjustEmbodimentsLocations();
         }
     );
 
