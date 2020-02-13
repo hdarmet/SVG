@@ -316,28 +316,28 @@ export function addPhysicToContainer(superClass, {physicBuilder}) {
     );
 
     extendMethod(superClass, $addChild=>
-        function _addChild(element) {
+        function addChild(element) {
             $addChild.call(this, element);
             this.physic.add(element);
         }
     );
 
-    extendMethod(superClass, $shiftChild=>
-        function _shiftChild(element, point) {
-            $shiftChild.call(this, element, point);
+    extendMethod(superClass, $shift=>
+        function _shift(element, point) {
+            $shift.call(this, element, point);
             this.physic.move(element);
         }
     );
 
     extendMethod(superClass, $insertChild=>
-        function _insertChild(previous, element) {
+        function insertChild(previous, element) {
             $insertChild.call(this, previous, element);
             this.physic.add(element);
         }
     );
 
     extendMethod(superClass, $replaceChild=>
-        function _replaceChild(previous, element) {
+        function replaceChild(previous, element) {
             $replaceChild.call(this, previous, element);
             this.physic.add(element);
             this.physic.remove(element);
@@ -345,9 +345,18 @@ export function addPhysicToContainer(superClass, {physicBuilder}) {
     );
 
     extendMethod(superClass, $removeChild=>
-        function _removeChild(element) {
+        function removeChild(element) {
             $removeChild.call(this, element);
             this.physic.remove(element);
+        }
+    );
+
+    extendMethod(superClass, $cloned=>
+        function _cloned(copy, duplicata) {
+            $cloned.call(this, copy, duplicata);
+            for (let element of copy.children) {
+                copy.physic.add(element);
+            }
         }
     );
 

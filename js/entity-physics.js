@@ -1,5 +1,5 @@
 import {
-    dichotomousSearch, List, ESet
+    dichotomousSearch, insertionSort, List, ESet
 } from "./collections.js";
 import {
     SAPRecord2D, SweepAndPrune2D, makeAbstractCollisionPhysic, AbstractGround, addGravitationToCollisionPhysic
@@ -508,7 +508,7 @@ export function makeContainerSorted(superClass, comparator) {
     defineMethod(superClass,
         function _sortChildren() {
             if (this._children) {
-                this._children.sort(comparator);
+                insertionSort(this._children, comparator);
                 for (let index = 0; index < this._children.length; index++) {
                     let child = this._content.get(index);
                     if (this._children[index] != child.owner) {
@@ -520,39 +520,40 @@ export function makeContainerSorted(superClass, comparator) {
     );
 
     extendMethod(superClass, $addChild=>
-        function _addChild(element) {
+        function addChild(element) {
             $addChild.call(this, element);
             this._sortChildren();
         }
     );
 
     extendMethod(superClass, $insertChild=>
-        function _insertChild(previous, element) {
+        function insertChild(previous, element) {
             $insertChild.call(this, previous, element);
             this._sortChildren();
         }
     );
 
     extendMethod(superClass, $replaceChild=>
-        function _replaceChild(previous, element) {
+        function replaceChild(previous, element) {
             $replaceChild.call(this, previous, element);
             this._sortChildren();
         }
     );
 
     extendMethod(superClass, $removeChild=>
-        function _removeChild(element) {
+        function removeChild(element) {
             $removeChild.call(this, element);
             this._sortChildren();
         }
     );
 
-    extendMethod(superClass, $shiftChild=>
-        function _shiftChild(element, point) {
-            $shiftChild.call(this, element, point);
+    extendMethod(superClass, $shift=>
+        function _shift(element, point) {
+            $shift.call(this, element, point);
             this._sortChildren();
         }
     );
+
 
 }
 

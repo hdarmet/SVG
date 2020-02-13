@@ -328,6 +328,12 @@ makeContainer(SigmaPolymorphicElement);
 
 export function makeEmbodiment(superClass) {
 
+    defineMethod(superClass,
+        function _setEntity(entity) {
+            this._entity = entity;
+        }
+    );
+
     defineProperty(superClass,
         function entity() {
             return this._entity;
@@ -485,6 +491,19 @@ export class SigmaEntity {
         return new Box3D(left, top, back, right-left, bottom-top, front-back);
     }
 
+    get parent() {
+        return this._parent;
+    }
+
+    set parent(parent) {
+        Memento.register(this);
+        this._setParent(parent);
+    }
+
+    _setParent(parent) {
+        this._parent = parent;
+    }
+
     get x() {return 0;}
     get y() {return 0;}
     get z() {return 0;}
@@ -516,6 +535,7 @@ export class SigmaEntity {
             _depth: this._depth,
             _matrix: this._matrix.clone()
         };
+        if (this._parent) memento._parent = this._parent;
         return memento;
     }
 
@@ -524,6 +544,12 @@ export class SigmaEntity {
         this._height = memento._height;
         this._depth = memento._depth;
         this._matrix = memento._matrix.clone();
+        if (memento._parent) {
+            this._parent = memento._parent;
+        }
+        else {
+            delete this._parent;
+        }
     }
 
     clone(duplicata) {
@@ -598,6 +624,7 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
 
     createEmbodiment(support) {
         assert(!this._embodiments.has(support));
+        Memento.register(this);
         let embodiment = this._createEmbodiment(support);
         this._registerEmbodiment(embodiment, support);
         return this._embodiments.get(support);
@@ -612,6 +639,7 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
     }
 
     removeEmbodiment(embodiment) {
+        Memento.register(this);
         this._unregisterEmbodiment(embodiment);
         return embodiment;
     }
@@ -619,6 +647,7 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
     _hoverOn(support, embodiment) {
         let currentSupport = this._supports.get(embodiment);
         if (support !== currentSupport) {
+            Memento.register(this);
             this._unregisterEmbodiment(embodiment);
             this._registerEmbodiment(embodiment, support);
         }
@@ -634,8 +663,8 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
         assert(!this._embodiments.has(support));
         this._embodiments.set(support, embodiment);
         this._supports.set(embodiment, support);
+        embodiment._setEntity(this);
         embodiment.setMorphFromSupport(support);
-        embodiment._entity = this;
         return embodiment;
     }
 
@@ -722,14 +751,19 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
     }
 
     _memento() {
+        console.log("MEMENTO !!")
         let memento = super._memento();
         memento._morphs = {...this._morphs};
+        memento._embodiments = new EMap(this._embodiments);
+        memento._supports = new EMap(this._supports);
         return memento;
     }
 
     _revert(memento) {
         super._revert(memento);
         this._morphs = new CloneableObject(memento._morphs);
+        this._embodiments = new EMap(memento._embodiments);
+        this._supports = new EMap(memento._supports);
     }
 
 }
@@ -824,7 +858,6 @@ export function makeEntityASupport(superClass) {
     defineMethod(superClass,
         function _addHovered(element) {
             if (!this.containsChild(element.entity)) {
-                console.log()
                 let location = element.entity.getEntityLocationFromEmbodimentLocation(
                     element, element.lloc, new Point3D(0, -this.height/2+element.entity.height/2, 0)
                 );
@@ -867,6 +900,7 @@ export function makeEntityASupport(superClass) {
 
     extendMethod(superClass, $addChild=>
         function addChild(entity) {
+            Memento.register(this);
             if (!this._children || !this._children.has(entity)) {
                 if (!this._children) {
                     this._children = new ESet();
@@ -880,6 +914,7 @@ export function makeEntityASupport(superClass) {
 
     extendMethod(superClass, $removeChild=>
         function removeChild(entity) {
+            Memento.register(this);
             if (this._children && this._children.has(entity)) {
                 this._children.delete(entity);
                 if (!this._children.size) {

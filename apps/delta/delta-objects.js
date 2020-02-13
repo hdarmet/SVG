@@ -420,31 +420,6 @@ export class DeltaBoxEntityContent extends SigmaEntity {
         return new CollisionPhysic(this);
     }
 
-    get parent() {
-        return this._parent;
-    }
-
-    set parent(parent) {
-        Memento.register(this);
-        this._setParent(parent);
-    }
-
-    _setParent(parent) {
-        this._parent = parent;
-    }
-
-    _memento() {
-        let memento = super._memento();
-        memento._parent = parent;
-        return memento;
-    }
-
-    _revert(memento) {
-        super._revert(memento);
-        this._parent = memento._parent;
-        return this;
-    }
-
 }
 makeEntityASupport(DeltaBoxEntityContent);
 addPhysicToEntity(DeltaBoxEntityContent,  {
