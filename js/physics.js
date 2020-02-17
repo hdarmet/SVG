@@ -472,7 +472,7 @@ export function makePositioningPhysic(superClass, {
         function _refreshHoverElement(element) {
             let position = this._elementPosition(element);
             if (this._acceptPosition(element, position)) {
-                element.move(position);
+                element.move(new Point2D(position.x, position.y));
             }
         }
     );
@@ -481,7 +481,7 @@ export function makePositioningPhysic(superClass, {
         function _refreshElement(element) {
             let position = this._elementPosition(element);
             if (this._acceptPosition(element, position)) {
-                element.move(position);
+                element.move(new Point2D(position.x, position.y));
                 element._positioned && element._positioned(this, position);
             }
         }

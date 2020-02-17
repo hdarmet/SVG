@@ -3,20 +3,21 @@ import {
 } from "../../js/base-element.js";
 import {
     DeltaAbstractModule, DeltaBasicModule, DeltaCell, DeltaColorOption, DeltaConfigurableModule, DeltaImageModule,
-    DeltaRichCaddyModule, DeltaSlottedBoxModule, DeltaSlottedRichBoxModule, OptionItemBuilder, DeltaConfigurableOption,
-    OptionsExpandablePanel, DeltaModuleEntity
+    OptionItemBuilder, DeltaConfigurableOption, OptionsExpandablePanel, DeltaModuleEntity
 } from "./delta-products.js";
 import {
     DeltaBlister, DeltaCover, DeltaDivider, DeltaDoubleLadder, DeltaFascia, DeltaFasciaSupport, DeltaFixing, DeltaHook,
-    DeltaLadder, DeltaPane, DeltaRichCaddy, DeltaRichPane, DeltaRichShelf, DeltaShelf, DeltaSlottedRichBox, DeltaVisual,
-    DeltaSlottedBox, DeltaBox, DeltaAbstractLadder, DeltaFrame, DeltaRichCaddyEntity
+    DeltaLadder, DeltaPane, DeltaRichPane, DeltaRichShelf, DeltaShelf, DeltaVisual, DeltaAbstractLadder, DeltaFrame
 } from "./delta-objects.js";
+import {
+    DeltaBox, /*DeltaRichCaddyEntity,*/ DeltaSlottedBox, DeltaSlottedRichBox, DeltaCaddyEntity
+} from "./delta-box.js";
 import {
     Layers, Context, Layer
 } from "../../js/toolkit.js";
 import {
     SigmaItemBuilder, ToolGridPanelContent, ToolToggleCommand, FavoriteItemBuilder, ToolTabsetPanelPopup,
-    ToolGridExpandablePanel, ToolCommandPopup, ToolFilterCard, ToolKeywordsCard, ToolExpandablePanelPopup,
+    ToolGridExpandablePanel, ToolCommandPopup, ToolFilterCard, ToolKeywordsCard,
     ToolPopup, ToolToggleTitleCommand, makePopupResizable, ToolMenuPopup
 } from "../../js/tools.js";
 import {
@@ -265,17 +266,18 @@ export function createPalettePopup() {
         font_family:"arial", font_size:8, fill:Colors.GREY,
         position_font_family:"arial", position_font_size:4, position_fill:Colors.GREY
     })]));
+
     paletteContent.addCell(new SigmaItemBuilder([new DeltaSlottedBox({
         width:120, height:70, depth:50, clips:[{x:0, y:15}],
         contentX:0, contentY:0, contentWidth:100, contentHeight:60, contentDepth:45, slotWidth:20,
         status:{code:"N", color:Colors.RED}
     })]));
-
+/*
     paletteContent.addCell(new SigmaItemBuilder([new DeltaSlottedBoxModule({
         width:120, height:70, depth:45, contentX:0, contentY:0, contentWidth:100, contentHeight:60, slotWidth:20,
         status:{code:"B", color:Colors.BLUE}
     })]));
-
+*/
     paletteContent.addCell(new SigmaItemBuilder([new DeltaSlottedRichBox({
         width:120, height:70, depth:50, clips:[{x:0, y:15}],
         contentX:0, contentY:0, contentWidth:100, contentHeight:60, contentDepth:45,
@@ -283,6 +285,7 @@ export function createPalettePopup() {
         headerHeight:10, footerHeight:10,
         status:{code:"V", color:Colors.GREEN}
     })]));
+    /*
     paletteContent.addCell(new SigmaItemBuilder([new DeltaSlottedRichBoxModule({
         width:120, height:70, depth:45,
         contentX:0, contentY:0, contentWidth:100, contentHeight:60,
@@ -290,21 +293,31 @@ export function createPalettePopup() {
         headerHeight:10, footerHeight:10,
         status:{code:"B", color:Colors.BLUE}
     })]));
-
+*/
+    /*
     paletteContent.addCell(new SigmaItemBuilder([new DeltaRichCaddy({
         width:120, height:70, depth:50, clips:[{x:0, y:15}],
         contentX:0, contentY:0, contentWidth:100, contentHeight:60, contentDepth:45,
         slotWidth:20,
         headerHeight:5, footerHeight:15
     })]));
+*/
 
+    paletteContent.addCell(new SigmaItemBuilder([new DeltaCaddyEntity({
+        width:120, height:70, depth:50, clips:[{x:0, y:15}],
+        contentX:0, contentY:0, contentWidth:100, contentHeight:60, contentDepth:45,
+        slotWidth:20
+    }).defaultEmbodiment]));
+
+    /*
     paletteContent.addCell(new SigmaItemBuilder([new DeltaRichCaddyEntity({
         width:120, height:70, depth:50, clips:[{x:0, y:15}],
         contentX:0, contentY:0, contentWidth:100, contentHeight:60, contentDepth:45,
         slotWidth:20,
         headerHeight:5, footerHeight:15
     }).defaultEmbodiment]));
-
+*/
+    /*
     paletteContent.addCell(new SigmaItemBuilder([new DeltaRichCaddyModule({
         width:120, height:70, depth:45,
         contentX:0, contentY:0, contentWidth:100, contentHeight:60,
@@ -312,6 +325,7 @@ export function createPalettePopup() {
         headerHeight:5, footerHeight:15,
         status:{code:"B", color:Colors.BLUE}
     })]));
+    */
     paletteContent.addCell(new SigmaItemBuilder([new DeltaFrame({
         width:120, height:70, frameWidth:5, color:Colors.BLUE
     })]));

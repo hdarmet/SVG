@@ -13,9 +13,6 @@ import {
     Colors, Group, Rect
 } from "../../js/graphics.js";
 import {
-    DeltaBoxContent, makeFasciaSupport, makeFooterOwner, makeHeaderOwner, DeltaSlottedBoxContent, DeltaCaddyContent
-} from "./delta-objects.js";
-import {
     ESet, List
 } from "../../js/collections.js";
 import {
@@ -28,7 +25,7 @@ import {
     SigmaItemBuilder, ToolGridExpandablePanel
 } from "../../js/tools.js";
 import {
-    Canvas, CopyPaste, onCanvasLayer, Selection, Events, Memento
+    Canvas, CopyPaste, onCanvasLayer, Selection, Events
 } from "../../js/toolkit.js";
 import {
     SigmaElement
@@ -167,6 +164,7 @@ export class DeltaImageModule extends DeltaAbstractModule {
 }
 makeMultiImaged(DeltaImageModule);
 
+/*
 export class DeltaBoxModule extends DeltaAbstractModule {
     constructor(specs) {
         super(specs);
@@ -249,6 +247,7 @@ export class DeltaRichCaddyModule extends DeltaCaddyModule {
 makeHeaderOwner(DeltaRichCaddyModule);
 makeFooterOwner(DeltaRichCaddyModule);
 makeFasciaSupport(DeltaRichCaddyModule);
+*/
 
 export class DeltaAbstractCell extends SigmaElement {
 

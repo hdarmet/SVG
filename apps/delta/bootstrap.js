@@ -46,8 +46,11 @@ import {
     DeltaAbstractModule
 } from "./delta-products.js";
 import {
-    DeltaBox, DeltaPane
+    DeltaPane
 } from "./delta-objects.js";
+import {
+    DeltaBox
+} from "./delta-box.js";
 import {
     createCommandPopup, createPalettePopup, setShortcuts, defineLayers, createMenuPopup
 } from "./delta-tools.js";

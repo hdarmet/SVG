@@ -135,12 +135,15 @@ export function makeExpansionOwner(superClass, expansionBubbleClass = SigmaExpan
             }
 
             $improve.call(this, ...args);
+            this._buildExpansion();
             this._expander = new SigmaTrigger(SigmaTrigger.STD_WIDTH, SigmaTrigger.STD_HEIGHT, triggerShape,
                 function() {
                     return ()=>{
+                        /*
                         if (!this.parent._expansionBubble) {
                             this.parent._buildExpansion();
                         }
+                        */
                         this.parent._expansionBubble.show();
                     }
                 });

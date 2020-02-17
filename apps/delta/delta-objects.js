@@ -5,14 +5,13 @@ import {
 import {
     addPhysicToContainer, ClipDecoration, ClipPositionDecoration, createRulersPhysic, createSlotsAndClipsPhysic,
     makeCenteredAnchorage, makeCenteredRuler, makeClipsOwner, makePositioningContainer, createGridPhysic,
-    makeSlotsOwner, PhysicSelector, RulesDecoration, RulerDecoration, Slot, Clip, createPositioningPhysic
+    makeSlotsOwner, PhysicSelector, RulesDecoration, RulerDecoration, Slot, Clip
 } from "../../js/physics.js";
 import {
     Decoration, makeDecorationsOwner, makeFramed, makeShaped
 } from "../../js/core-mixins.js";
 import {
-    DeltaItem, DeltaExpansion, DeltaLayers, DeltaSupport, LAYERS_DEFINITION, makeLabelOwner, makePositionEditable,
-    DeltaKnob, DeltaElement, DeltaEmbodiment, DeltaStaticEmbodiment
+    DeltaItem, DeltaLayers, DeltaSupport, LAYERS_DEFINITION, makeLabelOwner, makePositionEditable, DeltaKnob
 } from "./delta-core.js";
 import {
     AlignmentBaseline, Colors, definePropertiesSet, filterProperties, Group, L, M, Path, Q,
@@ -26,7 +25,7 @@ import {
     TextDecoration
 } from "../../js/standard-mixins.js";
 import {
-    Canvas, Context, Memento, Events, l2pBoundingBox, computeGridStep
+    Canvas, Context, Memento, Events, computeGridStep
 } from "../../js/toolkit.js";
 import {
     Visitor, SigmaElement
@@ -35,13 +34,13 @@ import {
     TextMenuOption
 } from "../../js/tools.js";
 import {
-    always, is, defineMethod, extendMethod, replaceMethod, defineGetProperty, assert, proposeMethod
+    always, is, defineMethod, extendMethod
 } from "../../js/misc.js";
 import {
     Box2D, Point3D, Point2D
 } from "../../js/geometry.js";
 import {
-    DeltaAbstractModule, DeltaModuleEmbodiment, DeltaModuleEntity
+    DeltaAbstractModule, DeltaModuleEmbodiment
 } from "./delta-products.js";
 import {
     ESet, List, EMap
@@ -49,14 +48,6 @@ import {
 import {
     makeResizeable, makeResizeableContent, SigmaHandle, SizerDecoration
 } from "../../js/elements.js";
-import {
-    makeExpansionOwner, SigmaEntity, SigmaPolymorphicEntity, SigmaTopExpansionBubble, makeEntityASupport,
-    makeEmbodimentContainerPart, makeEntityMovable
-} from "../../js/entity.js";
-import {
-    addPhysicToEntity, createGravitationPhysicForEntities, EmbodimentPhysic, makeContainerSortedFromTop, makeContainerSortedFromFront,
-    addBordersTo3DCollisionPhysic
-} from "../../js/entity-physics.js";
 
 export class DeltaFasciaSupport extends SigmaElement {
     constructor({width, height}) {
@@ -407,429 +398,6 @@ DeltaHook.WIDTH = 10;
 DeltaHook.HEIGHT = 10;
 DeltaHook.RADIUS = 6;
 DeltaHook.SIZE = 2;
-
-export class DeltaBoxEntityContent extends SigmaEntity {
-
-    _createPhysic() {
-        let CollisionPhysic = createGravitationPhysicForEntities({
-            predicate:is(DeltaModuleEntity)
-        });
-        addBordersTo3DCollisionPhysic(CollisionPhysic, {
-            bordersCollide: {left: true, right: true, top: true, bottom: true, back:true}
-        });
-        return new CollisionPhysic(this);
-    }
-
-}
-makeEntityASupport(DeltaBoxEntityContent);
-addPhysicToEntity(DeltaBoxEntityContent,  {
-    physicBuilder: function() {
-        return this._createPhysic();
-    }
-});
-
-export class DeltaBoxEntity extends SigmaPolymorphicEntity {
-
-    constructor({width, height, depth, contentX, contentY, contentWidth, contentHeight, contentDepth, ...args}) {
-        super(width, height, depth, {contentX, contentY, contentWidth, contentHeight, contentDepth, ...args});
-        this._createContent(contentWidth, contentHeight, contentDepth);
-        let contentZ = (depth-contentDepth)/2;
-        this._content.setLocation(new Point3D(contentX, contentY, contentZ))
-    }
-
-    _createContent(width, height, depth) {
-        this._content = new DeltaBoxEntityContent(width, height, depth);
-        this._content._setParent(this);
-    }
-
-    get content() {
-        return this._content;
-    }
-
-    get defaultEmbodiment() {
-        return this.createEmbodiment(null);
-    }
-
-    _memento() {
-        let memento = super._memento();
-        return memento;
-    }
-
-    _revert(memento) {
-        super._revert(memento);
-        return this;
-    }
-
-}
-makeEntityMovable(DeltaBoxEntity);
-
-export function makeCellsOwner(superClass) {
-
-    extendMethod(superClass, $init=>
-        function _init({slotWidth, ...args}) {
-            $init && $init.call(this, {slotWidth, ...args});
-            this._slotWidth = slotWidth;
-            this._cells = [];
-            this._cells.length = Math.floor(this.width/slotWidth);
-        }
-    );
-
-    defineMethod(superClass,
-        function _buildPositions(element) {
-            let positions = [];
-            let ceilCount = Math.ceil(element.width / this._slotWidth);
-            for (let index = 0; index < this._cells.length - ceilCount + 1; index++) {
-                let cellOk = true;
-                for (let inCell = 0; inCell < ceilCount; inCell++) {
-                    if (this._cells[index + inCell] && this._cells[index + inCell] !== element) {
-                        cellOk = false;
-                        break;
-                    }
-                }
-                if (cellOk) {
-                    positions.push({
-                        x: -this.width / 2 + (index + ceilCount / 2) * this._slotWidth,
-                        y: this.height / 2 - element.height / 2
-                    });
-                }
-            }
-            return positions;
-        }
-    );
-
-    defineMethod(superClass,
-        function _createPhysic() {
-            let PositioningPhysic = createPositioningPhysic({
-                predicate:is(DeltaAbstractModule, DeltaModuleEmbodiment),
-                positionsBuilder:function(element) {return this._host._buildPositions(element);}
-            });
-            return new PositioningPhysic(this);
-        }
-    );
-
-    defineMethod(superClass,
-        function _allocateCells(element) {
-            let MARGIN = 0.0001;
-            let ceilFirst = Math.floor((this.width/2+element.lx-element.width/2)/this._slotWidth+MARGIN);
-            let ceilCount = Math.ceil(element.width/this._slotWidth);
-            for (let index=0; index<ceilCount; index++) {
-                this._cells[index+ceilFirst] = element;
-            }
-        }
-    );
-
-    defineMethod(superClass,
-        function _freeCells(element) {
-            for (let index = 0; index<this._cells.length; index++) {
-                if (this._cells[index]===element) {
-                    delete this._cells[index];
-                }
-            }
-        }
-    );
-
-    extendMethod(superClass, $add=>
-        function _add(element) {
-            let result = $add.call(this, element);
-            this._allocateCells(element);
-            return result;
-        }
-    );
-
-    extendMethod(superClass, $remove=>
-        function _remove(element) {
-            let result = $remove.call(this, element);
-            this._freeCells(element);
-            return result;
-        }
-    );
-
-    extendMethod(superClass, $insert=>
-        function _insert(previous, element) {
-            let result = $insert.call(this, previous, element);
-            this._allocateCells(element);
-            return result;
-        }
-    );
-
-    extendMethod(superClass, $replace=>
-        function _replace(previous, element) {
-            let result = $replace.call(this, previous, element);
-            this._freeCells(previous);
-            this._allocateCells(element);
-            return result;
-        }
-    );
-
-    extendMethod(superClass, $memento=>
-        function _memento() {
-            let memento = $memento.call(this);
-            memento._cells = [...this._cells];
-            return memento;
-        }
-    );
-
-    extendMethod(superClass, $revert=>
-        function _revert(memento) {
-            $revert.call(this, memento);
-            this._cells = [...memento._cells];
-        }
-    );
-
-    addPhysicToContainer(superClass, {
-        physicBuilder: function() {
-            return this._createPhysic();
-        }
-    });
-}
-
-export class DeltaBoxExpansionContent extends DeltaSupport {
-    constructor({width, depth, ...args}) {
-        super({width, height:depth, strokeColor:Colors.GREY, backgroundColor:Colors.LIGHTEST_GREY, ...args});
-    }
-
-    showRealistic() {
-        this.shape.fill = Colors.DARKEST_GREY;
-    }
-
-    showSchematic() {
-        this.shape.fill = Colors.LIGHTEST_GREY;
-    }
-
-    get elementMorph() {
-        return DeltaBoxExpansion.PROJECTION;
-    }
-
-    get entity() {
-        return this.parent.entity.content;
-    }
-
-    _createPhysic() {
-        return new EmbodimentPhysic(this);
-    }
-}
-makeEmbodimentContainerPart(DeltaBoxExpansionContent);
-makeDecorationsOwner(DeltaBoxExpansionContent);
-addPhysicToContainer(DeltaBoxExpansionContent, {
-        physicBuilder: function() {
-            return this._createPhysic();
-        }
-    }
-);
-makeContainerSortedFromTop(DeltaBoxExpansionContent);
-
-export class DeltaBoxExpansion extends DeltaExpansion {
-
-    _improve({width, depth, contentX, contentWidth, contentDepth, ...args}) {
-        super._improve({color:Colors.WHITE});
-        this._initShape(this._buildShape());
-        this._boxContent = this._buildBoxContent({contentWidth, contentDepth, ...args});
-        this._boxContent._setLocation(new Point2D(contentX, (this.height-contentDepth)/2));
-        this._addPart(this._boxContent);
-    }
-
-    _buildShape() {
-        let base = new Group();
-        base.fill = Colors.WHITE;
-        let item = new Rect(-this.width / 2, -this.height / 2, this.width, this.height)
-            .attrs({stroke: Colors.BLACK, fill:Colors.INHERIT});
-        base.add(item);
-        return base;
-    }
-
-    get boxContent() {
-        return this._boxContent;
-    }
-
-    get elementMorph() {
-        return DeltaBoxExpansion.PROJECTION;
-    }
-
-    _buildBoxContent({contentWidth, contentDepth}) {
-        return new DeltaBoxExpansionContent({width:contentWidth, depth:contentDepth});
-    }
-
-}
-DeltaBoxExpansion.PROJECTION = "top";
-makeShaped(DeltaBoxExpansion);
-
-export class DeltaBoxContent extends DeltaSupport {
-    constructor({width, height, ...args}) {
-        super({width, height, strokeColor:Colors.GREY, backgroundColor:Colors.LIGHTEST_GREY, ...args});
-    }
-
-    _dropTarget(element) {
-        if (is(DeltaFascia, DeltaFrame)(element)) {
-            return this.parent._dropTarget(element);
-        }
-        return this;
-    };
-
-    showRealistic() {
-        this.shape.fill = Colors.DARKEST_GREY;
-    }
-
-    showSchematic() {
-        this.shape.fill = Colors.LIGHTEST_GREY;
-    }
-
-    get entity() {
-        return this.parent.entity.content;
-    }
-
-    _createPhysic() {
-        return new EmbodimentPhysic(this);
-    }
-}
-makeEmbodimentContainerPart(DeltaBoxContent);
-makeDecorationsOwner(DeltaBoxContent);
-addPhysicToContainer(DeltaBoxContent, {
-        physicBuilder: function() {
-            return this._createPhysic();
-        }
-    }
-);
-makeContainerSortedFromFront(DeltaBoxContent);
-
-export class DeltaBox extends DeltaItem {
-
-    _improve({clips, depth, contentX, contentY, contentWidth, contentHeight, contentDepth, ...args}) {
-        this._depth = depth;
-        super._improve({color:Colors.WHITE});
-        this._initShape(this._buildShape());
-        this._boxContent = this._buildBoxContent(contentWidth, contentHeight, args);
-        this._boxContent._setLocation(new Point2D(contentX, contentY));
-        this._addPart(this._boxContent);
-        for (let clipSpec of clips) {
-            let clip = new Clip(this, clipSpec.x, clipSpec.y);
-            this._addClips(clip);
-            this._boxContent._addDecoration(new ClipDecoration(this, clip));
-        }
-    }
-
-    get depth() {
-        return this._depth;
-    }
-
-    _buildShape() {
-        let base = new Group();
-        base.fill = Colors.WHITE;
-        let item = new Rect(-this.width / 2, -this.height / 2, this.width, this.height)
-            .attrs({stroke: Colors.INHERIT, fill:Colors.INHERIT});
-        base.add(item);
-        return base;
-    }
-
-    _buildBoxContent(contentWidth, contentHeight) {
-        return new DeltaBoxContent({width:contentWidth, height:contentHeight});
-    }
-
-    get boxContent() {
-        return this._boxContent;
-    }
-
-    showRealistic() {
-        this.shape.fill = Colors.BLACK;
-    }
-
-    showSchematic() {
-        this.shape.fill = Colors.WHITE;
-    }
-
-    get mabBeClipsedOnFixings() {
-        return true;
-    }
-}
-makeShaped(DeltaBox);
-makeLayered(DeltaBox, {
-    layer:DeltaLayers.MIDDLE
-});
-makeClipsOwner(DeltaBox);
-makeCarrier(DeltaBox);
-makeExpansionOwner(DeltaBox);
-
-export class DeltaSlottedBoxContent extends DeltaBoxContent {}
-//makeCellsOwner(DeltaSlottedBoxContent);
-
-export class DeltaSlottedBox extends DeltaBox {
-
-    _buildBoxContent(contentWidth, contentHeight, {slotWidth, ...args}) {
-        return new DeltaSlottedBoxContent({width:contentWidth, height:contentHeight, slotWidth, ...args});
-    }
-
-    _createExpansion() {
-        return new DeltaSlottedBoxExpansion({width:this.width, depth:this.depth, main:this});
-    }
-}
-
-export class DeltaSlottedRichBox extends DeltaSlottedBox {
-
-    _improve({
-         clips, depth,
-         contentX, contentY, contentWidth, contentHeight, contentDepth,
-         slotWidth,
-         headerHeight, footerHeight}
-    ) {
-        super._improve({clips, depth, contentX, contentY, contentWidth, contentHeight, contentDepth, slotWidth});
-        this._initHeader(headerHeight);
-        this._initFooter(footerHeight);
-        this._initFasciaSupport(headerHeight, footerHeight);
-        this._initFrameSupport();
-    }
-
-}
-makeHeaderOwner(DeltaSlottedRichBox);
-makeFooterOwner(DeltaSlottedRichBox);
-makeFasciaSupport(DeltaSlottedRichBox);
-makeFrameSupport(DeltaSlottedRichBox);
-
-export class DeltaSlottedBoxExpansionContent extends DeltaBoxExpansionContent {}
-//makeCellsOwner(DeltaSlottedBoxExpansionContent);
-
-export class DeltaSlottedBoxExpansion extends DeltaBoxExpansion {
-
-    _buildBoxContent({contentWidth, contentDepth, slotWidth, ...args}) {
-        return new DeltaSlottedBoxExpansionContent({width:contentWidth, depth:contentDepth, slotWidth, ...args});
-    }
-
-}
-
-export class DeltaFixing extends DeltaItem {
-
-    constructor() {
-        super({width: DeltaFixing.WIDTH, height: DeltaFixing.HEIGHT});
-        this._root._node.style["z-index"] = 10;
-    }
-
-    _improve() {
-        super._improve();
-        this._initShape(this._buildShape());
-        this._addSlots(new Slot(this, 0, 0));
-    }
-
-    _buildShape() {
-        let base = new Group();
-        base.add(new Rect(-DeltaFixing.WIDTH / 2, -DeltaFixing.HEIGHT / 2, DeltaFixing.WIDTH, DeltaFixing.HEIGHT)
-            .attrs({ stroke: Colors.INHERIT, fill: Colors.WHITE }));
-        base.add(new Circle(-DeltaFixing.WIDTH / 4, 0, DeltaFixing.DEVICE_RADIUS)
-            .attrs({ stroke: Colors.BLACK, fill: Colors.WHITE }));
-        base.add(new Circle(DeltaFixing.WIDTH / 4, 0, DeltaFixing.DEVICE_RADIUS)
-            .attrs({ stroke: Colors.BLACK, fill: Colors.WHITE }));
-        return base;
-    }
-}
-makeShaped(DeltaFixing);
-makeLayered(DeltaFixing, {
-    layer:DeltaLayers.DOWN
-});
-makeSlotsOwner(DeltaFixing);
-makeCenteredAnchorage(DeltaFixing);
-makeCenteredRuler(DeltaFixing);
-makePositionEditable(DeltaFixing);
-
-DeltaFixing.WIDTH = 16;
-DeltaFixing.HEIGHT = 6;
-DeltaFixing.DEVICE_RADIUS = 2;
 
 export class DeltaAbstractLadder extends DeltaItem {
 
@@ -1191,304 +759,43 @@ makeLayered(DeltaRichShelf, {
     layer:DeltaLayers.UP
 });
 
-export function makeCaddy(superClass) {
 
-    extendMethod(superClass, $createContextMenu=>
-        function _createContextMenu() {
-            $createContextMenu && $createContextMenu.call(this);
-            this.addMenuOption(new TextMenuOption("generate ladders",
-                function () { callForGenerateLadders(this); })
-            );
-        }
-    );
+export class DeltaFixing extends DeltaItem {
 
-    defineMethod(superClass,
-        function _createPhysic() {
-            let ModulePhysic = createGravitationPhysicForElements({
-                predicate:is(DeltaAbstractModule, DeltaModuleEmbodiment, DeltaShelf),
-                gravitationPredicate:is(DeltaAbstractModule, DeltaModuleEmbodiment),
-                carryingPredicate:always});
-            addBordersToCollisionPhysicForElements(ModulePhysic, {
-                bordersCollide: {all: true}
-            });
-            let LadderPhysic = createSlotsAndClipsPhysic({
-                predicate: is(DeltaShelf),
-                slotProviderPredicate: is(DeltaAbstractLadder)
-            });
-            return new PhysicSelector(this,
-                is(DeltaAbstractModule, DeltaModuleEmbodiment, DeltaShelf, DeltaAbstractLadder)
-            )
-                .register(new LadderPhysic(this))
-                .register(new ModulePhysic(this));
-        }
-    );
-
-    addPhysicToContainer(superClass, {
-        physicBuilder: function() {
-            return this._createPhysic();
-        }
-    })
-};
-
-export class DeltaCaddyContent extends DeltaBoxContent {};
-//makeCaddy(DeltaCaddyContent);
-
-export class DeltaCaddy extends DeltaBox {
-
-    _buildBoxContent(contentWidth, contentHeight, color) {
-        return new DeltaCaddyContent({width:contentWidth, height:contentHeight, color:Colors.LIGHTEST_GREY});
+    constructor() {
+        super({width: DeltaFixing.WIDTH, height: DeltaFixing.HEIGHT});
+        this._root._node.style["z-index"] = 10;
     }
 
-    _createExpansion() {
-        return new DeltaCaddyExpansion({width:this.width, depth:this.depth, main:this});
-    }
-
-}
-
-export class DeltaCaddyExpansionContent extends DeltaBoxExpansionContent {}
-//makeCaddy(DeltaCaddyExpansionContent);
-
-export class DeltaCaddyExpansion extends DeltaBoxExpansion {
-
-    _buildBoxContent({contentWidth, contentDepth, slotWidth, ...args}) {
-        return new DeltaCaddyExpansionContent({width:contentWidth, depth:contentDepth, ...args});
-    }
-
-}
-
-///// START //////////////////////////////////////////////////////////////////////////////////////
-
-export class DeltaMorphElement extends DeltaElement {
-
-    _init({entity, ...args}) {
-        super._init(args);
-        this._entity = entity;
-    }
-
-    get entity() {
-        return this.parent ? this.parent.entity : null;
-    }
-}
-
-export class DeltaRichCaddyFrontMorph extends DeltaMorphElement {
-
-    _improve({contentX, contentY, contentWidth, contentHeight, contentDepth, ...args}) {
-        super._improve({color:Colors.WHITE});
+    _improve() {
+        super._improve();
         this._initShape(this._buildShape());
-        this._boxContent = this._buildBoxContent(contentWidth, contentHeight, args);
-        this._boxContent._setLocation(new Point2D(contentX, contentY));
-        this._addPart(this._boxContent);
-        /*
-        for (let clip of this.entity.clips) {
-            this._boxContent._addDecoration(new ClipDecoration(this, clip));
-        }
-        */
+        this._addSlots(new Slot(this, 0, 0));
     }
 
     _buildShape() {
         let base = new Group();
-        base.fill = Colors.WHITE;
-        let item = new Rect(-this.width / 2, -this.height / 2, this.width, this.height)
-            .attrs({stroke: Colors.INHERIT, fill:Colors.INHERIT});
-        base.add(item);
+        base.add(new Rect(-DeltaFixing.WIDTH / 2, -DeltaFixing.HEIGHT / 2, DeltaFixing.WIDTH, DeltaFixing.HEIGHT)
+            .attrs({ stroke: Colors.INHERIT, fill: Colors.WHITE }));
+        base.add(new Circle(-DeltaFixing.WIDTH / 4, 0, DeltaFixing.DEVICE_RADIUS)
+            .attrs({ stroke: Colors.BLACK, fill: Colors.WHITE }));
+        base.add(new Circle(DeltaFixing.WIDTH / 4, 0, DeltaFixing.DEVICE_RADIUS)
+            .attrs({ stroke: Colors.BLACK, fill: Colors.WHITE }));
         return base;
     }
-
-    _buildBoxContent(contentWidth, contentHeight) {
-        return new DeltaBoxContent({width:contentWidth, height:contentHeight});
-    }
-
-    get elementMorph() {
-        return SigmaEntity.projections.FRONT;
-    }
-
-    get boxContent() {
-        return this._boxContent;
-    }
-
-    getContainer(entity) {
-        return this.boxContent;
-    }
-
-    showRealistic() {
-        this.shape.fill = Colors.BLACK;
-    }
-
-    showSchematic() {
-        this.shape.fill = Colors.WHITE;
-    }
-
-    _createExpansion() {
-        return this._entity.createEmbodiment(this.expansionBubble)
-    }
 }
-makeShaped(DeltaRichCaddyFrontMorph);
-makeCarrier(DeltaRichCaddyFrontMorph);
-makeExpansionOwner(DeltaRichCaddyFrontMorph, SigmaTopExpansionBubble);
-
-export class DeltaRichCaddyTopMorph extends DeltaMorphElement {
-
-    constructor({width, depth, contentX, contentWidth, contentDepth, ...args}) {
-        super({width, height:depth, contentX, contentWidth, contentDepth, ...args});
-    }
-
-    _improve({contentX, contentWidth, contentDepth, ...args}) {
-        super._improve({color:Colors.WHITE});
-        this._initShape(this._buildShape());
-        this._boxContent = this._buildBoxContent({contentWidth, contentDepth, ...args});
-        this._boxContent._setLocation(new Point2D(contentX, (this.height-contentDepth)/2));
-        this._addPart(this._boxContent);
-    }
-
-    _buildShape() {
-        let base = new Group();
-        base.fill = Colors.WHITE;
-        let item = new Rect(-this.width / 2, -this.height / 2, this.width, this.height)
-            .attrs({stroke: Colors.BLACK, fill:Colors.INHERIT});
-        base.add(item);
-        return base;
-    }
-
-    get boxContent() {
-        return this._boxContent;
-    }
-
-    get elementMorph() {
-        return SigmaEntity.projections.TOP;
-    }
-
-    getContainer(entity) {
-        return this.boxContent;
-    }
-
-    _buildBoxContent({contentWidth, contentDepth}) {
-        return new DeltaBoxExpansionContent({width:contentWidth, depth:contentDepth});
-    }
-
-}
-makeShaped(DeltaRichCaddyTopMorph);
-
-export function makeEmbodimentClipOnCapable(superClass) {
-
-    defineGetProperty(superClass,
-        function clips() {
-            return this.entity.clips;
-        }
-    );
-
-    defineMethod(superClass,
-        function _acceptPosition(physic, position) {
-            return this.entity._acceptPosition(physic, position);
-        }
-    );
-
-    defineMethod(superClass,
-        function _positioned(physic, position) {
-            return this.entity._positioned(physic, position);
-        }
-    );
-
-    defineGetProperty(superClass,
-        function isClipOnCapable() {
-            return true;
-        }
-    );
-}
-
-export class DeltaCaddyEntity extends DeltaBoxEntity {
-    _init({clips, ...args}) {
-        super._init(args);
-        for (let clipSpec of clips) {
-            let clip = new Clip(this, clipSpec.x, clipSpec.y);
-            this._addClips(clip);
-        }
-    }
-}
-makeClipsOwner(DeltaCaddyEntity);
-
-export class DeltaCaddyEmbodiment extends DeltaEmbodiment {
-
-    constructor({morphs}) {
-        assert(morphs);
-        super(morphs, SigmaEntity.projections.FRONT);
-    }
-
-    get mabBeClipsedOnFixings() {
-        return true;
-    }
-}
-makeEmbodimentClipOnCapable(DeltaCaddyEmbodiment);
-makeLayered(DeltaCaddyEmbodiment, {
-    layer:DeltaLayers.MIDDLE
+makeShaped(DeltaFixing);
+makeLayered(DeltaFixing, {
+    layer:DeltaLayers.DOWN
 });
+makeSlotsOwner(DeltaFixing);
+makeCenteredAnchorage(DeltaFixing);
+makeCenteredRuler(DeltaFixing);
+makePositionEditable(DeltaFixing);
 
-export class DeltaCaddyTopEmbodiment extends DeltaStaticEmbodiment {
-
-    constructor({morphs}) {
-        assert(morphs);
-        super(morphs, SigmaEntity.projections.TOP);
-    }
-
-}
-
-export class DeltaRichCaddyEntity extends DeltaCaddyEntity {
-
-    _init({clips, color, headerHeight, footerHeight, contentX, contentY, contentWidth, contentHeight, contentDepth}) {
-        super._init({clips});
-        this._addMorph(SigmaEntity.projections.FRONT, new DeltaRichCaddyFrontMorph({
-            entity:this,
-            width:this.width, height:this.height,
-            color, headerHeight, footerHeight,
-            contentX, contentY, contentWidth, contentHeight
-        }));
-        this._addMorph(SigmaEntity.projections.TOP, new DeltaRichCaddyTopMorph({
-            entity:this,
-            width:this.width, depth:this.depth,
-            color,
-            contentX, contentWidth, contentDepth
-        }));
-    }
-
-    _createEmbodiment(support) {
-        if (support instanceof SigmaTopExpansionBubble) {
-            return new DeltaCaddyTopEmbodiment({morphs: this.morphs});
-        }
-        else {
-            return new DeltaCaddyEmbodiment({morphs: this.morphs});
-        }
-    }
-
-    get defaultEmbodiment() {
-        return this.createEmbodiment(null);
-    }
-
-}
-
-////////// END ///////////////////////////////////////////////////////////////////////////
-
-
-
-
-export class DeltaRichCaddy extends DeltaCaddy {
-
-    _improve({
-         clips, depth,
-         contentX, contentY, contentWidth, contentHeight, contentDepth,
-         color,
-         headerHeight, footerHeight}
-    ) {
-        super._improve({clips, depth, contentX, contentY, contentWidth, contentHeight, contentDepth, color});
-        this._initHeader(headerHeight);
-        this._initFooter(footerHeight);
-        this._initFasciaSupport(headerHeight, footerHeight);
-        this._initFrameSupport();
-    }
-
-}
-makeHeaderOwner(DeltaRichCaddy);
-makeFooterOwner(DeltaRichCaddy);
-makeFasciaSupport(DeltaRichCaddy);
-makeFrameSupport(DeltaRichCaddy);
+DeltaFixing.WIDTH = 16;
+DeltaFixing.HEIGHT = 6;
+DeltaFixing.DEVICE_RADIUS = 2;
 
 export class DeltaDivider extends DeltaItem {
 
@@ -1899,4 +1206,3 @@ export class DeltaRichPane extends DeltaPane {
 }
 makeHeaderOwner(DeltaRichPane);
 makeFooterOwner(DeltaRichPane);
-
