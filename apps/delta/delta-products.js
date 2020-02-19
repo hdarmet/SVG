@@ -64,7 +64,7 @@ export class DeltaModuleEntity extends SigmaPolymorphicEntity {
     }
 
     _createEmbodiment(support) {
-        return new DeltaModuleEmbodiment({width:this._width, height:this._height, depth:this._depth, morphs:this.morphs});
+        return new DeltaModuleEmbodiment({depth:this._depth, entity:this});
     }
 
     get defaultEmbodiment() {
@@ -92,14 +92,8 @@ makeCarriable(DeltaModuleEntity);
 
 export class DeltaModuleEmbodiment extends DeltaEmbodiment {
 
-    constructor({width, height, depth, morphs}) {
-        if (!morphs) {
-            morphs = {
-                front:new DeltaModuleMorph({width, height, color: Colors.GREY}),
-                top:new DeltaModuleMorph({width, height: depth, color: Colors.LIGHT_GREY})
-            };
-        }
-        super(morphs);
+    constructor({depth, entity}) {
+        super({entity, morphs:entity.morphs, morphKey:SigmaEntity.projections.FRONT});
         this._depth = depth;
     }
 

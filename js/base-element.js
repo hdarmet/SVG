@@ -75,8 +75,8 @@ export class SigmaElement {
         this._root._owner = this;
         this._tray = new Group();
         this._root.add(this._tray);
-        this._root.on(SVGEvents.SVG_IN, event=>this._enterCanvas());
-        this._root.on(SVGEvents.SVG_OUT, event=>this._exitCanvas());
+        //this._root.on(SVGEvents.SVG_IN, event=>this._enterCanvas());
+        //this._root.on(SVGEvents.SVG_OUT, event=>this._exitCanvas());
         this._parent = null;
     }
 
@@ -322,8 +322,8 @@ export class SigmaElement {
         let copy = CopyPaste.clone(this, duplicata);
         copy._root._owner = copy;
         copy._id = createUUID();
-        copy._root.on(SVGEvents.SVG_IN, event=>copy._enterCanvas());
-        copy._root.on(SVGEvents.SVG_OUT, event=>copy._exitCanvas());
+        //copy._root.on(SVGEvents.SVG_IN, event=>copy._enterCanvas());
+        //copy._root.on(SVGEvents.SVG_OUT, event=>copy._exitCanvas());
         return copy;
     }
 

@@ -1,5 +1,5 @@
 import {
-    defer, ClippedRasterImage, Fill, Group, MouseEvents, RasterImage, Rect, Rotation, SvgRasterImage, Visibility
+    defer, ClippedRasterImage, Fill, Group, MouseEvents, RasterImage, Rect, Rotation, SvgRasterImage, Visibility, Colors
 } from "./graphics.js";
 import {
     Cloning, Events, Memento, Selection
@@ -243,6 +243,7 @@ export function makeShaped(superClass) {
     extendMethod(superClass, $init=>
         function _init(...args) {
             $init.call(this, ...args);
+            this._root.stroke = Colors.BLACK;
             this._shape = this._buildShapeStructure();
             this._addShapeToTray();
         }

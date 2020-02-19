@@ -813,6 +813,7 @@ export class GlassLayer extends CanvasLayer {
         this._root.add(this._content);
     }
 
+    /*
     hide() {
         this._root.remove(this._content);
         return true;
@@ -822,6 +823,7 @@ export class GlassLayer extends CanvasLayer {
         this._root.add(this._content);
         return true;
     }
+    */
 
     _getPedestal(support) {
         function getGlassStrategy(support) {

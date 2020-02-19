@@ -382,6 +382,15 @@ makeDeltaItem(DeltaItem);
 
 export class DeltaEmbodiment extends SigmaPolymorphicElement {
 
+    constructor({morphs, projection, ...args}) {
+        super(morphs, projection, args);
+    }
+
+    _init(morphs, projection, {entity, ...args}) {
+        this._setEntity(entity);
+        super._init(morphs, projection, args);
+    }
+
     select() {
         this._currentMorph.select && this._currentMorph.select();
     }
@@ -404,9 +413,20 @@ makeDeltaItem(DeltaEmbodiment);
 makeEmbodiment(DeltaEmbodiment);
 
 export class DeltaStaticEmbodiment extends SigmaPolymorphicElement {
+
+    constructor({morphs, projection, ...args}) {
+        super(morphs, projection, args);
+    }
+
+    _init(morphs, projection, {entity, ...args}) {
+        this._setEntity(entity);
+        super._init(morphs, projection, args);
+    }
+
     getContainer(entity) {
         return this._currentMorph.getContainer(entity);
     }
+
 }
 makeEmbodiment(DeltaStaticEmbodiment);
 

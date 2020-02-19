@@ -54,7 +54,9 @@ export class DeltaBoxEntityContent extends SigmaEntity {
     }
 
 }
-makeEntityASupport(DeltaBoxEntityContent);
+makeEntityASupport(DeltaBoxEntityContent, function(element) {
+    return element.entity && element.entity instanceof DeltaModuleEntity;
+});
 addPhysicToEntity(DeltaBoxEntityContent,  {
     physicBuilder: function() {
         return this._createPhysic();
@@ -117,7 +119,7 @@ export function makeBox(superClass) {
     makeShaped(superClass);
 
     extendMethod(superClass, $improve=>
-        function _improve({clips, contentX, contentY, contentWidth, contentHeight, contentDepth, ...args}) {
+        function _improve({contentX, contentY, contentWidth, contentHeight, ...args}) {
             $improve.call(this, {color:Colors.WHITE});
             this._initShape(this._buildShape());
             this._boxContent = this._buildBoxContent(contentWidth, contentHeight, args);
@@ -191,13 +193,48 @@ export function makeClipsedOnFixings(superClass) {
             for (let clipSpec of clips) {
                 let clip = new Clip(this, clipSpec.x, clipSpec.y);
                 this._addClips(clip);
-                this._boxContent._addDecoration(new ClipDecoration(this, clip));
             }
         }
     );
 
     defineGetProperty(superClass,
-        function mabBeClipsedOnFixings() {
+        function mayBeClipsedOnFixings() {
+            return true;
+        }
+    );
+
+}
+
+export function makeElementClipsedOnFixings(superClass) {
+
+    makeClipsedOnFixings(superClass);
+
+    extendMethod(superClass, $improve=>
+        function _improve(args) {
+            $improve.call(this, args);
+            for (let clip of this.clips) {
+                this._boxContent._addDecoration(new ClipDecoration(this, clip));
+            }
+        }
+    );
+
+}
+
+export function makeEmbodimentClipsedOnFixings(superClass) {
+
+    makeEmbodimentClipsOnCapable(superClass);
+
+    extendMethod(superClass, $improve=>
+        function _improve(...args) {
+            $improve.call(this, ...args);
+            for (let clip of this.clips) {
+                this.currentMorph.getContainer()._addDecoration(new ClipDecoration(this, clip));
+            }
+        }
+    );
+
+    defineGetProperty(superClass,
+        function mayBeClipsedOnFixings() {
             return true;
         }
     );
@@ -335,7 +372,7 @@ export class DeltaSlottedBox extends DeltaBox {
 
 }
 makeBoxFrontContent(DeltaSlottedBox);
-makeClipsedOnFixings(DeltaSlottedBox);
+makeElementClipsedOnFixings(DeltaSlottedBox);
 
 export class DeltaSlottedRichBox extends DeltaSlottedBox {
 
@@ -358,9 +395,6 @@ makeFooterOwner(DeltaSlottedRichBox);
 makeFasciaSupport(DeltaSlottedRichBox);
 makeFrameSupport(DeltaSlottedRichBox);
 
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 export class DeltaBoxContentEmbodiment extends DeltaBoxContent {
 
     get entity() {
@@ -380,64 +414,28 @@ addPhysicToContainer(DeltaBoxContentEmbodiment, {
     }
 );
 
-export class DeltaBoxEmbodiment extends DeltaBox {
-
-    _buildBoxContent(contentWidth, contentHeight) {
-        return new DeltaBoxContentEmbodiment({width:contentWidth, height:contentHeight});
-    }
-
-}
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 export class DeltaBoxFrontContentEmbodiment extends DeltaBoxContentEmbodiment {
+    get elementMorph() {
+        return SigmaEntity.projections.FRONT;
+    }
 }
 makeContainerSortedFromFront(DeltaBoxFrontContentEmbodiment);
 makeBoxFrontContent(DeltaBoxFrontContentEmbodiment);
 
 export class DeltaBoxTopContentEmbodiment extends DeltaBoxContentEmbodiment {
+    get elementMorph() {
+        return SigmaEntity.projections.TOP;
+    }
 }
 makeContainerSortedFromTop(DeltaBoxTopContentEmbodiment);
 
-/*
-makeEmbodimentContainerPart(DeltaBoxExpansionContent);
-makeDecorationsOwner(DeltaBoxExpansionContent);
-addPhysicToContainer(DeltaBoxExpansionContent, {
-        physicBuilder: function() {
-            return this._createPhysic();
-        }
-    }
-);
-*/
-
-export class DeltaBoxTopEmbodiment extends DeltaBoxEmbodiment {
-
-    get elementMorph() {
-        return DeltaBoxExpansion.PROJECTION;
-    }
-
-    _buildBoxContent({contentWidth, contentDepth}) {
-        return new DeltaBoxTopContentEmbodiment({width:contentWidth, depth:contentDepth});
-    }
-
+export class DeltaBoxFrontEmbodiment extends DeltaEmbodiment {
+    setMorphFromSupport() {}
 }
-DeltaBoxTopEmbodiment.PROJECTION = "top";
 
-export class DeltaBoxFrontEmbodiment extends DeltaBoxEmbodiment {
-
-    get elementMorph() {
-        return DeltaBoxFrontEmbodiment.PROJECTION;
-    }
-
-    _buildBoxContent({contentWidth, contentDepth}) {
-        return new DeltaBoxFrontContentEmbodiment({width:contentWidth, depth:contentDepth});
-    }
-
+export class DeltaBoxTopEmbodiment extends DeltaStaticEmbodiment {
+    setMorphFromSupport() {}
 }
-DeltaBoxFrontEmbodiment.PROJECTION = "front";
-makeExpansionOwner(DeltaBoxFrontEmbodiment);
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export function makeCaddy(superClass) {
 
@@ -508,8 +506,6 @@ export class DeltaCaddyExpansion extends DeltaBoxExpansion {
 }
 */
 
-///// START //////////////////////////////////////////////////////////////////////////////////////
-
 export class DeltaMorphElement extends DeltaElement {
 
     _init({entity, ...args}) {
@@ -546,7 +542,7 @@ makeExpansionOwner(DeltaCaddyFrontMorph, SigmaTopExpansionBubble);
 export class DeltaCaddyTopMorph extends DeltaMorphElement {
 
     constructor({width, depth, contentX, contentWidth, contentDepth, ...args}) {
-        super({width, height:depth, contentX, contentWidth, contentHeight:contentDepth, ...args});
+        super({width, height:depth, contentX, contentY:(depth-contentDepth)/2, contentWidth, contentHeight:contentDepth, ...args});
     }
 
     get elementMorph() {
@@ -564,7 +560,7 @@ export class DeltaCaddyTopMorph extends DeltaMorphElement {
 }
 makeBox(DeltaCaddyTopMorph);
 
-export function makeEmbodimentClipOnCapable(superClass) {
+export function makeEmbodimentClipsOnCapable(superClass) {
 
     defineGetProperty(superClass,
         function clips() {
@@ -585,48 +581,37 @@ export function makeEmbodimentClipOnCapable(superClass) {
     );
 
     defineGetProperty(superClass,
-        function isClipOnCapable() {
+        function isClipsOnCapable() {
             return true;
         }
     );
 }
 
-export class DeltaCaddyFrontEmbodiment extends DeltaEmbodiment {
+export class DeltaCaddyFrontEmbodiment extends DeltaBoxFrontEmbodiment {
 
-    constructor({morphs}) {
-        assert(morphs);
-        super(morphs, SigmaEntity.projections.FRONT);
+    constructor({entity, morphs}) {
+        assert(entity, morphs);
+        super({entity, morphs, projection:SigmaEntity.projections.FRONT});
     }
 
-
-    get mabBeClipsedOnFixings() {
-        return true;
-    }
 }
-//makeEmbodimentClipOnCapable(DeltaCaddyEmbodiment);
+makeDecorationsOwner(DeltaCaddyFrontEmbodiment);
+makeEmbodimentClipsedOnFixings(DeltaCaddyFrontEmbodiment);
 makeLayered(DeltaCaddyFrontEmbodiment, {
     layer:DeltaLayers.MIDDLE
 });
 
-export class DeltaCaddyTopEmbodiment extends DeltaStaticEmbodiment {
+export class DeltaCaddyTopEmbodiment extends DeltaBoxTopEmbodiment {
 
-    constructor({morphs}) {
-        assert(morphs);
-        super(morphs, SigmaEntity.projections.TOP);
+    constructor({entity, morphs}) {
+        assert(entity, morphs);
+        super({entity, morphs, projection:SigmaEntity.projections.TOP});
     }
 
 }
+makeDecorationsOwner(DeltaCaddyTopEmbodiment);
 
 export class DeltaCaddyEntity extends DeltaBoxEntity {
-    /*
-    _init({clips, ...args}) {
-        super._init(args);
-        for (let clipSpec of clips) {
-            let clip = new Clip(this, clipSpec.x, clipSpec.y);
-            this._addClips(clip);
-        }
-    }
-*/
 
     _init({clips, color, headerHeight, footerHeight, contentX, contentY, contentWidth, contentHeight, contentDepth}) {
         super._init({clips});
@@ -643,30 +628,19 @@ export class DeltaCaddyEntity extends DeltaBoxEntity {
             color, headerHeight, footerHeight,
             contentX, contentY, contentWidth, contentHeight
         }));
-
-
-        for (let clipSpec of clips) {
-            let clip = new Clip(this, clipSpec.x, clipSpec.y);
-            this._addClips(clip);
-        }
-
     }
 
     _createEmbodiment(support) {
         if (support instanceof SigmaTopExpansionBubble) {
-            return new DeltaCaddyTopEmbodiment({morphs: this.morphs});
+            return new DeltaCaddyTopEmbodiment({entity:this, morphs: this.morphs});
         }
         else {
-            return new DeltaCaddyFrontEmbodiment({morphs: this.morphs});
+            return new DeltaCaddyFrontEmbodiment({entity:this, morphs: this.morphs});
         }
-    }
-
-    get defaultEmbodiment() {
-        return this.createEmbodiment(null);
     }
 
 }
-makeClipsOwner(DeltaCaddyEntity);
+makeClipsedOnFixings(DeltaCaddyEntity);
 
 /*
 export class DeltaRichCaddyEntity extends DeltaCaddyEntity {

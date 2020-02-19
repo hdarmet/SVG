@@ -1037,7 +1037,7 @@ export class DeltaPaneContent extends DeltaSupport {
     _createPhysic() {
         let ModulePhysic = createGravitationPhysicForElements({
             predicate:function(element) {
-                return element.isClipOnCapable
+                return element.isClipsOnCapable
                     || is(DeltaAbstractModule, DeltaModuleEmbodiment, DeltaShelf, DeltaBlister)(element);
             },
             gravitationPredicate:is(DeltaAbstractModule, DeltaModuleEmbodiment),
@@ -1063,13 +1063,13 @@ export class DeltaPaneContent extends DeltaSupport {
         });
         let FixingPhysic = createSlotsAndClipsPhysic({
             predicate: function(element) {
-                return element.mabBeClipsedOnFixings;
+                return element.mayBeClipsedOnFixings;
             },
             slotProviderPredicate: is(DeltaFixing)
         });
         return new PhysicSelector(this,
             function(element) {
-                return element.isClipOnCapable ||
+                return element.isClipsOnCapable ||
                     is(DeltaAbstractModule, DeltaModuleEmbodiment, DeltaShelf, DeltaAbstractLadder, DeltaBlister, DeltaHook, DeltaFixing, DeltaDivider)(element)
             }
         )

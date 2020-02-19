@@ -1624,6 +1624,18 @@ export class Svg extends SVGElement {
         this._layers[0]._node.innerHTML = '';
     }
 
+    get globalMatrix() {
+        if (!this._globalMatrix) {
+            let globalMatrix = dom.getCTM(this._node);
+            this._globalMatrix = new Matrix2D(
+                globalMatrix.a, globalMatrix.b,
+                globalMatrix.c, globalMatrix.d,
+                globalMatrix.e, globalMatrix.f);
+            this._globalMatrix.op = matrixOp;
+        }
+        return this._globalMatrix;
+    }
+
 }
 defineDimensionProperty(Svg, Attrs.WIDTH);
 defineDimensionProperty(Svg, Attrs.HEIGHT);
@@ -1727,8 +1739,8 @@ export class SVGCoreElement extends SVGElement {
 
     get globalMatrix() {
         if (!this._globalMatrix || this._globalMatrix.op!==matrixOp) {
-            let globalMatrix = dom.getCTM(this._node);
-            //let globalMatrix = this._parent ? this._matrix ? this._parent.globalMatrix.mult(this._matrix) : this._parent.globalMatrix : this.matrix;
+            //let globalMatrix = dom.getCTM(this._node);
+            let globalMatrix = this._parent ? this._matrix ? this._parent.globalMatrix.mult(this._matrix) : this._parent.globalMatrix : this.matrix;
             this._globalMatrix = new Matrix2D(
                 globalMatrix.a, globalMatrix.b,
                 globalMatrix.c, globalMatrix.d,

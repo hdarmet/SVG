@@ -1001,7 +1001,7 @@ export function makeClipsOwner(superClass) {
     );
 
     defineGetProperty(superClass,
-        function isClipOnCapable() {
+        function isClipsOnCapable() {
             return true;
         }
     );

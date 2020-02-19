@@ -227,13 +227,24 @@ export function makeExpansionOwner(superClass, expansionBubbleClass = SigmaExpan
 
 export class SigmaPolymorphicElement extends SigmaElement {
 
-    constructor(morphs, defaultMorphKey) {
-        super(0, 0);
+    constructor(...args) {
+        super(0, 0, ...args);
+    }
+
+    _init(morphs, morphKey, ...args) {
+        super._init(...args);
         this._morphs = new CloneableObject();
         for (let key in morphs) {
             this._addMorph(key, morphs[key]);
         }
-        if (defaultMorphKey) this._defaultMorphKey = defaultMorphKey;
+    }
+
+    _improve(morphs, morphKey, ...args) {
+        super._improve(...args);
+        if (morphKey) {
+            this._defaultMorphKey = morphKey;
+            this._setMorph(morphKey);
+        }
     }
 
     get width() {
@@ -670,7 +681,6 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
         assert(!this._embodiments.has(support));
         this._embodiments.set(support, embodiment);
         this._supports.set(embodiment, support);
-        embodiment._setEntity(this);
         embodiment.setMorphFromSupport(support);
         return embodiment;
     }
@@ -765,14 +775,27 @@ export class SigmaPolymorphicEntity extends SigmaEntity {
 
 }
 
-export function makeEntityASupport(superClass) {
+export function makeEntityASupport(superClass, predicate) {
+
+    defineMethod(superClass,
+        function _managedElements(elements) {
+            let managedElements = new List();
+            for (let element of elements) {
+                if (predicate(element)) {
+                    managedElements.add(element);
+                }
+            }
+            return managedElements;
+        }
+    );
 
     extendMethod(superClass, $hover=>
         function hover(embodiment, elements) {
-            $hover && $hover.call(this, elements);
+            let managedElements = this._managedElements(elements);
+            $hover && $hover.call(this, managedElements);
             let lastSet = this._hoveredEmbodiments && this._hoveredEmbodiments.get(embodiment) || new ESet();
             let hoveredEmbodiments = new ESet();
-            for (let element of elements) {
+            for (let element of managedElements) {
                 if (element.isEmbodiment) {
                     hoveredEmbodiments.add(element);
                     if (lastSet.has(element)) {
