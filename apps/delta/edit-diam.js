@@ -535,7 +535,7 @@ window.generateHooks = function generateHooks(data, onValidate, onCancel) {
 new Vue({
     el: '#edit',
     template: `
-    <div style="position:relative;">
+    <div style="position:relative;z-index:1;">
     	<rename></rename>
     	<comment></comment>
     	<edit-position></edit-position>

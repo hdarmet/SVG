@@ -4,10 +4,10 @@ import {
     assert
 } from "./misc.js";
 import {
-    List
+    List, BoxLocator
 } from "./collections.js";
 import {
-    Matrix2D
+    Matrix2D, Point2D
 } from "./geometry.js";
 
 console.log("Svgbase loaded");
@@ -98,6 +98,9 @@ export let doc = {
     },
     elementFromPoint(x, y) {
         return document.elementFromPoint(x, y);
+    },
+    elementsFromPoint(x, y) {
+        return document.elementsFromPoint(x, y);
     },
     dispatchEvent(event) {
         document.dispatchEvent(event);
@@ -628,15 +631,12 @@ function defineAnyProperty(clazz, name) {
     );
 }
 
-// Testé
 function defineDimensionProperty(clazz, name) {
     defineProperty(clazz, name,
-        // Testé
         function () {
             let value = this.attr(name);
             return value===undefined ? 0 : value;
         },
-        // Testé
         function (value) {
             if (value === undefined) {
                 throw TypeError("Attribute value must be defined");
@@ -904,6 +904,7 @@ export class DOMElement {
             copy.cloning = this.cloning;
         }
         if (this.eventCloning) {
+            copy.eventCloning = true;
             this._cloneEvents(copy, duplicata);
         }
         return copy;
@@ -998,12 +999,14 @@ export class DOMElement {
 
     _add(element) {
         dom.appendChild(this._node, element._node);
-        if (this.inDOM && !this._svg) {
-            let parent = this.parent;
-            while(parent && !parent._svg) {
-                parent = parent._parent;
-            }
-        }
+    }
+
+    get clientWidth() {
+        return dom.clientWidth(this._node);
+    }
+
+    get clientHeight() {
+        return dom.clientHeight(this._node);
     }
 
     _reset(element) {
@@ -1026,33 +1029,14 @@ export class DOMElement {
         this._node.innerHTML = '';
     }
 
-    _register() {
-        if (this._svg !== this._parent._svg) {
-            if (this._svg) this.emit(SVGEvents.SVGOut);
-            this._svg = this._parent._svg;
-            if (this._svg) this.emit(SVGEvents.SVGIn);
-            if (this._children) {
-                for (let child of this._children) {
-                    child._register();
-                }
-            }
-            return true;
-        }
-        return false;
-    }
+    _register() {}
 
-    _unregister() {
-        if (this._svg) {
-            this.emit(SVGEvents.SVGOut);
-            delete this._svg;
-            if (this._children) {
-                for (let child of this._children) {
-                    child._unregister();
-                }
-            }
-            return true;
-        }
-        return false;
+    _unregister() {}
+
+    anchor(node) {
+        matrixOp++;
+        dom.appendChild(node, this._node);
+        return this;
     }
 
     add(element) {
@@ -1155,7 +1139,7 @@ export class DOMElement {
 
     set innerHTML(innerHTML) {
         this._node.innerHTML = innerHTML;
-        this._children.clear();
+        delete this._children;
     }
 
     get outerHTML() {
@@ -1186,7 +1170,7 @@ export class DOMElement {
     off(event, action) {
         let actions = this._events ? this._events.get(event) : null;
         if (actions) {
-            if (actions.remove(action)) {
+            if (actions.remove(action)!==undefined) {
                 if (actions.length===0) {
                     this._events.delete(event);
                     if (this._events.size === 0) {
@@ -1296,6 +1280,41 @@ defineStringProperty(DOMElement, Attrs.ID);
 defineStringProperty(DOMElement, Attrs.CLASS);
 defineStringProperty(DOMElement, Attrs.STYLE);
 
+export class Div extends DOMElement {
+
+    constructor() {
+        super("div");
+    }
+
+    get width() {
+        let width = this._attrs.width;
+        if (width===undefined) {
+            width = dom.clientWidth(this._node);
+            this._attrs.width = width;
+        }
+        return width;
+    }
+
+    get height() {
+        let height = this._attrs.height;
+        if (height===undefined) {
+            height = dom.clientHeight(this._node);
+            this._attrs.height = height;
+        }
+        return height;
+    }
+
+    set width(width) {
+        this._attrs.width = width;
+        this._node.style.width = width+"px";
+    }
+
+    set height(height) {
+        this._attrs.height = height;
+        this._node.style.height = height+"px";
+    }
+}
+
 export class SVGElement extends DOMElement {
 
     constructor(type) {
@@ -1371,6 +1390,23 @@ export class SVGElement extends DOMElement {
         return SVGElement.getElementFromPoint(x+offset.x, y+offset.y);
     }
 
+    _register() {
+        return false;
+    }
+
+    _unregister() {
+        return false;
+    }
+
+    _add(element) {
+        super._add(element);
+        if (this.inDOM && !this._section) {
+            let parent = this.parent;
+            while(parent && !parent._section) {
+                parent = parent._parent;
+            }
+        }
+    }
 }
 defineFloatProperty(SVGElement, Attrs.OPACITY);
 defineStringProperty(SVGElement, Attrs.VISIBILITY);
@@ -1419,7 +1455,6 @@ export const Stroke = {
 let idGenerator = 1;
 
 export class Defs extends SVGElement {
-    // Testé
     constructor() {
         super("defs");
     }
@@ -1484,12 +1519,12 @@ class ZLayer {
     }
 
     replace(oldElement, element) {
-        dom.replaceChild(this._node, element.node, oldElement._node);
+        dom.replaceChild(this._node, element._node, oldElement._node);
         this._children.replace(oldElement, element);
     }
 
     insert(beforeElement, element) {
-        this._node.insertChildBefore(element.node, beforeElement._node);
+        dom.insertBefore(this._node, element._node, beforeElement._node);
         this._children.insert(beforeElement, element);
     }
 
@@ -1504,20 +1539,27 @@ class ZLayer {
 
 }
 
+function geometryGetter(element) {
+    let geometry = element.rbox;
+    return {left:geometry.x, top:geometry.y, right:geometry.x + geometry.width, bottom:geometry.y + geometry.height};
+}
+
 export class Svg extends SVGElement {
 
     constructor(width, height) {
+        assert(!isNaN(width+height));
         super("svg");
         this.attr("xmlns", SVG_NS);
         this.attr("xmlns:xlink", XLINK_NS);
-        width && (this.width = width);
-        height && (this.height = height);
+        this.width = width;
+        this.height = height;
         this._layers = new List();
         this._createZLayer(0);
         this.defs = new Defs();
         dom.appendChild(this._node, this.defs._node);
         this.defs._parent = this;
-        this._svg = this;
+        this._section = this;
+        this._layout = new BoxLocator(10, 50, geometryGetter);
         this._mutationObserver = new MutationObserver(()=>this._updateLayers());
         this._mutationConfig = { childList: true, attributes: true, subtree:true };
         this._mutationObserver.observe(this._node, this._mutationConfig);
@@ -1572,10 +1614,45 @@ export class Svg extends SVGElement {
         }
     }
 
-    attach(node) {
-        matrixOp++;
-        dom.appendChild(node, this._node);
-        return this;
+    register(element) {
+        if (element.z_index!==undefined && element._zOrder !== element._parent._zOrder) {
+            dom.removeChild(element._parent._node, element._node);
+            this._putOnLayer(element, element._zOrder);
+        }
+        element._addToLayout(this._layout);
+    }
+
+    unregister(element) {
+        function reinsertInRightLocation(element) {
+            let index = element._parent._children.indexOf(element);
+            while(element._parent._children[index].parentNode !== element._parent._node
+            && index<element._parent._children.length - 1) {
+                index++;
+            }
+            if (index === element._parent._children.length - 1) {
+                dom.appendChild(element._parent._node, element._node);
+            }
+            else {
+                let before = element._parent._children[index];
+                dom.insertBefore(element._parent._node, element._node, before._node);
+            }
+        }
+
+        if (element._zLayer!==undefined) {
+            this._removeFromLayer(element);
+            if (element._parent) {
+                reinsertInRightLocation(element);
+            }
+        }
+        element._removeFromLayout(this._layout);
+    }
+
+    entered(element) {
+        element.emit(SVGEvents.SVGIn);
+    }
+
+    exited(element) {
+        element.emit(SVGEvents.SVGOut);
     }
 
     get inDOM() {
@@ -1592,14 +1669,6 @@ export class Svg extends SVGElement {
         return this;
     }
 
-    get clientWidth() {
-        return dom.clientWidth(this._node);
-    }
-
-    get clientHeight() {
-        return dom.clientHeight(this._node);
-    }
-
     _add(element) {
         this._layers[0].add(element);
     }
@@ -1609,11 +1678,11 @@ export class Svg extends SVGElement {
     }
 
     _replace(oldElement, element) {
-        this._layers[0].replace(element, oldElement);
+        this._layers[0].replace(oldElement, element);
     }
 
     _insert(beforeElement, element) {
-        this._layers[0].insert(element, beforeElement);
+        this._layers[0].insert(beforeElement, element);
     }
 
     _remove(element) {
@@ -1636,9 +1705,61 @@ export class Svg extends SVGElement {
         return this._globalMatrix;
     }
 
+    getElementsOn(x, y) {
+        if (this._layout) {
+            let elements = this._layout.find(x, y);
+            let result = new List();
+            for (let element of elements) {
+                if (element.getElementsOn) {
+                    let point = element._relativeMatrix.invert().point(x, y);
+                    result.add(...element.getElementsOn(point.x, point.y));
+                }
+                else result.add(element);
+            }
+            return result;
+        }
+        else return null;
+    }
+
+    get relativeMatrix() {
+        return new Matrix2D();
+    }
+
+    /*
+    get width() {
+        let width = this._attrs.width;
+        if (width===undefined) {
+            width = dom.clientWidth(this._node);
+            this._attrs.width = width;
+        }
+        return width;
+    }
+
+    get height() {
+        let height = this._attrs.height;
+        if (height===undefined) {
+            height = dom.clientHeight(this._node);
+            this._attrs.height = height;
+        }
+        return height;
+    }
+
+    set width(width) {
+        this._attrs.width = width;
+        this._node.style.width = width+"px";
+    }
+
+    set height(height) {
+        this._attrs.height = height;
+        this._node.style.height = height+"px";
+    }
+    */
+
 }
+
 defineDimensionProperty(Svg, Attrs.WIDTH);
 defineDimensionProperty(Svg, Attrs.HEIGHT);
+
 
 let matrixOp = 0;
 
@@ -1735,9 +1856,30 @@ export class SVGCoreElement extends SVGElement {
 
     set matrix(matrix) {
         this._matrix = matrix;
+        if (this._parent && this._parent.relativeMatrix) {
+            this.relativeMatrix = this._parent.relativeMatrix.mult(matrix);
+        }
+    }
+
+    get relativeMatrix() {
+        return this._relativeMatrix;
+    }
+
+    set relativeMatrix(matrix) {
+        this._relativeMatrix = matrix;
     }
 
     get globalMatrix() {
+        if (this._section) {
+            return this._section.globalMatrix.mult(this.relativeMatrix);
+        }
+        else if (this._parent) {
+            return this._parent.globalMatrix.mult(this.matrix);
+        }
+        else {
+            return this.matrix;
+        }
+        /*
         if (!this._globalMatrix || this._globalMatrix.op!==matrixOp) {
             //let globalMatrix = dom.getCTM(this._node);
             let globalMatrix = this._parent ? this._matrix ? this._parent.globalMatrix.mult(this._matrix) : this._parent.globalMatrix : this.matrix;
@@ -1748,6 +1890,15 @@ export class SVGCoreElement extends SVGElement {
             this._globalMatrix.op = matrixOp;
         }
         return this._globalMatrix;
+        */
+    }
+
+    _addToLayout(layout) {
+        layout.add(this);
+    }
+
+    _removeFromLayout(layout) {
+        layout.remove(this);
     }
 
     get z_index() {
@@ -1772,42 +1923,36 @@ export class SVGCoreElement extends SVGElement {
     }
 
     _register() {
-        if (this._parent && this._svg !== this._parent._svg) {
+        if (this._parent && this._section !== this._parent._section) {
+            this._relativeMatrix = this._parent.relativeMatrix.mult(this.matrix);
             let z_index = this.z_index;
             this._zOrder = z_index !== undefined ? z_index : this._parent._zOrder;
-            if (z_index!==undefined && this._parent._svg && this._zOrder !== this._parent._zOrder) {
-                dom.removeChild(this._parent._node, this._node);
-                this._parent._svg._putOnLayer(this, this._zOrder);
+            if (this._section) this._section.exited(this);
+            this._section = this._parent._section;
+            if (this._section) this._section.entered(this);
+            if (this._children) {
+                for (let child of this._children) {
+                    child._register();
+                }
             }
-            super._register();
+            if (this._parent._section) {
+                this._parent._section.register(this);
+            }
             return true;
         }
         return false;
     }
 
     _unregister() {
-        function reinsertInRightLocation(element) {
-            let index = element._parent._children.indexOf(element);
-            while(element._parent._children[index].parentNode !== element._parent._node
-            && index<element._parent._children.length - 1) {
-                index++;
+        if (this._section) {
+            if (this._section) {
+                this._section.unregister(this);
             }
-            if (index === element._parent._children.length - 1) {
-                dom.appendChild(element._parent._node, element._node);
-            }
-            else {
-                let before = element._parent._children[index];
-                dom.insertBefore(element._parent._node, element._node, before._node);
-            }
-        }
-
-        if (this._svg) {
-            let svg = this._svg;
-            super._unregister();
-            if (svg && this._zLayer!==undefined) {
-                svg._removeFromLayer(this);
-                if (this._parent) {
-                    reinsertInRightLocation(this);
+            this._section.exited(this);
+            delete this._section;
+            if (this._children) {
+                for (let child of this._children) {
+                    child._unregister();
                 }
             }
             delete this._zOrder;
@@ -1816,16 +1961,11 @@ export class SVGCoreElement extends SVGElement {
         return false;
     }
 
-    get bbox() {
-        return this._node.getBBox();
-    }
-
-    get gbox() {
-        let bbox = this._node.getBBox();
-        let p1 = this.local2global(bbox.x, bbox.y);
-        let p2 = this.local2global(bbox.x+bbox.width, bbox.y);
-        let p3 = this.local2global(bbox.x+bbox.width, bbox.y+bbox.height);
-        let p4 = this.local2global(bbox.x, bbox.y+bbox.height);
+    _transformBox(box, matrix) {
+        let p1 = matrix.point(new Point2D(box.x, box.y));
+        let p2 = matrix.point(new Point2D(box.x+box.width, box.y));
+        let p3 = matrix.point(new Point2D(box.x+box.width, box.y+box.height));
+        let p4 = matrix.point(new Point2D(box.x, box.y+box.height));
         let minX = Math.min(p1.x, p2.x, p3.x, p4.x);
         let maxX = Math.max(p1.x, p2.x, p3.x, p4.x);
         let minY = Math.min(p1.y, p2.y, p3.y, p4.y);
@@ -1838,20 +1978,26 @@ export class SVGCoreElement extends SVGElement {
         }
     }
 
+    get bbox() {
+        return this._node.getBBox();
+    }
+
+    get gbox() {
+        return this._transformBox(this.bbox, this.globalMatrix);
+    }
+
+    get rbox() {
+        return this._transformBox(this.bbox, this.relativeMatrix);
+    }
+
     global2local(x, y) {
         let imatrix = this.globalMatrix.invert();
-        return {
-            x: imatrix.x(x, y),
-            y: imatrix.y(x, y)
-        }
+        return imatrix.point(new Point2D(x, y));
     }
 
     local2global(x, y) {
         let gmatrix = this.globalMatrix;
-        return {
-            x: gmatrix.x(x, y),
-            y: gmatrix.y(x, y)
-        }
+        return gmatrix.point(new Point2D(x, y));
     }
 
     get cursor() {
@@ -1869,18 +2015,52 @@ export class Group extends SVGCoreElement {
         super("g");
         matrix && (this.matrix = matrix);
     }
+
+    _addToLayout(layout) {
+        if (this._children) {
+            for (let child of this._children) {
+                if (child instanceof SVGCoreElement) {
+                    child._addToLayout(layout);
+                    child.relativeMatrix = this._relativeMatrix.mult(child.matrix);
+                }
+            }
+        }
+    }
+
+    _removeFromLayout(layout) {
+        if (this._children) {
+            for (let child of this._children) {
+                if (child instanceof SVGCoreElement) {
+                    child._removeFromLayout(layout);
+                }
+            }
+        }
+    }
+
+    get relativeMatrix() {
+        return this._relativeMatrix;
+    }
+
+    set relativeMatrix(matrix) {
+        this._relativeMatrix = matrix;
+        if (this._children) {
+            for (let child of this._children) {
+                if (child instanceof SVGCoreElement) {
+                    child.relativeMatrix = this._relativeMatrix.mult(child.matrix);
+                }
+            }
+        }
+    }
+
 }
 defineElementProperty(Group, Attrs.FILTER, "url(#ELEMENT)");
 
-// Testé
 export class Translation extends Group {
-    // Testé
     constructor(dx=0, dy=0) {
         super();
         this.set(dx, dy);
     }
 
-    // Testé
     set(dx, dy) {
         this._attrs.dx = dx;
         this._attrs.dy = dy;
@@ -1888,7 +2068,6 @@ export class Translation extends Group {
         return this;
     }
 
-    // Testé
     move(dx, dy) {
         this._attrs.dx += dx;
         this._attrs.dy += dy;
@@ -1904,20 +2083,17 @@ export class Translation extends Group {
         return this;
     }
 
-    // Testé
     get dx() {
         return this._attrs.dx;
     }
 
-    // Testé
     get dy() {
         return this._attrs.dy;
     }
+
 }
 
-// Testé
 export class Rotation extends Group {
-    // Testé
     constructor(a, cx=0, cy=0) {
         super();
         this._attrs.cx = cx;
@@ -1925,7 +2101,6 @@ export class Rotation extends Group {
         this.angle = a;
     }
 
-    // Testé
     center(cx, cy) {
         this._attrs.cx = cx;
         this._attrs.cy = cy;
@@ -1933,32 +2108,27 @@ export class Rotation extends Group {
         return this;
     }
 
-    // Testé
     get angle() {
         return this._attrs.angle;
     }
 
-    // Testé
     set angle(angle) {
         this._attrs.angle = angle;
         this.matrix = Matrix2D.rotate(angle, this._attrs.cx, this._attrs.cy);
         return this;
     }
 
-    // Testé
     get cx() {
         return this._attrs.cx;
     }
 
-    // Testé
     get cy() {
         return this._attrs.cy;
     }
 }
 
-// Testé
 export class Scaling extends Group {
-    //Testé
+
     constructor(sx, sy, cx=0, cy=0) {
         super();
         this._attrs.cx = cx;
@@ -1966,7 +2136,6 @@ export class Scaling extends Group {
         this.scale(sx, sy);
     }
 
-    // Testé
     center(cx, cy) {
         this._attrs.cx = cx;
         this._attrs.cy = cy;
@@ -1974,38 +2143,30 @@ export class Scaling extends Group {
         return this;
     }
 
-    // Testé
     scale(sx, sy) {
         this._attrs.sx = sx;
         this._attrs.sy = sy;
         this.matrix = Matrix2D.scale(sx, sy, this._attrs.cx, this._attrs.cy);
     }
 
-    // Testé
     get cx() {
         return this._attrs.cx;
     }
 
-    // Testé
     get cy() {
         return this._attrs.cy;
     }
 
-    // Testé
     get scalex() {
         return this._attrs.sx;
     }
 
-    // Testé
     get scaley() {
         return this._attrs.sy;
     }
 }
-
-// Testé
 export class ClipPath extends SVGElement {
 
-    // Testé
     constructor(id) {
         super("clipPath");
         this.id = id;
@@ -2027,19 +2188,16 @@ export class Mask extends SVGElement {
 }
 defineXYWidthHeightProperties(Mask);
 
-// Testé
 export class Shape extends SVGCoreElement {
-    // Testé
+
     constructor(type) {
         super(type);
     }
 }
-// Testé
 defineElementProperty(Shape, Attrs.FILTER, "url(#ELEMENT)");
 
-// Testé
 export class Rect extends Shape {
-    // Testé
+
     constructor(x=0, y=0, width=0, height=0) {
         super("rect");
         this.x = x;
@@ -2047,34 +2205,33 @@ export class Rect extends Shape {
         this.width = width;
         this.height = height;
     }
+
+    get bbox() {
+        return {x:this.x, y:this.y, width:this.width, height:this.height};
+    }
 }
-// Testé
 defineXYWidthHeightProperties(Rect);
-// Testé
 defineDimensionProperty(Rect, Attrs.RX);
-// Testé
 defineDimensionProperty(Rect, Attrs.RY);
 
-// Testé
 export class Circle extends Shape {
-    // Testé
     constructor(cx=0, cy=0, r) {
         super("circle");
         this.cx = cx;
         this.cy = cy;
         this.r = r;
     }
+
+    get bbox() {
+        return {x:this.cx-this.r, y:this.cy-this.r, width:this.r*2, height:this.r*2};
+    }
+
 }
-// Testé
 defineDimensionProperty(Circle, Attrs.CX);
-// Testé
 defineDimensionProperty(Circle, Attrs.CY);
-// Testé
 defineDimensionProperty(Circle, Attrs.R);
 
-// Testé
 export class Ellipse extends Shape {
-    // Testé
     constructor(cx=0, cy=0, rx, ry) {
         super("ellipse");
         this.cx = cx;
@@ -2082,19 +2239,17 @@ export class Ellipse extends Shape {
         this.rx = rx;
         this.ry = ry;
     }
+
+    get bbox() {
+        return {x:this.cx-this.rx, y:this.cy-this.ry, width:this.rx*2, height:this.ry*2};
+    }
 }
-// Testé
 defineDimensionProperty(Ellipse, Attrs.CX);
-// Testé
 defineDimensionProperty(Ellipse, Attrs.CY);
-// Testé
 defineDimensionProperty(Ellipse, Attrs.RX);
-// Testé
 defineDimensionProperty(Ellipse, Attrs.RY);
 
-// Testé
 export class Line extends Shape {
-    // Testé
     constructor(x1, y1, x2, y2) {
         super("line");
         this.x1 = x1;
@@ -2102,54 +2257,62 @@ export class Line extends Shape {
         this.x2 = x2;
         this.y2 = y2;
     }
+
+    get bbox() {
+        return {x:Math.min(this.x1, this.x2), y:Math.min(this.y1, this.y2), width:Math.abs(this.x2-this.x1), height:Math.abs(this.y2-this.y1)};
+    }
+
 }
-// Testé
 defineDimensionProperty(Line, Attrs.X1);
-// Testé
 defineDimensionProperty(Line, Attrs.Y1);
-// Testé
 defineDimensionProperty(Line, Attrs.X2);
-// Testé
 defineDimensionProperty(Line, Attrs.Y2);
 
-// Testé
 export class Polyshape extends Shape {
-    // Testé
     constructor(type, points) {
         super(type);
         this.points = points;
     }
 
-    // Testé
     get points() {
         let points = this._attrs.points;
         return points ? points : new List();
     }
 
-    // Testé
     set points(points) {
         this._attrs.points = points;
+        if (this._left) {
+            delete this._left;
+            delete this._right;
+            delete this._top;
+            delete this._bottom;
+        }
         let def = "";
         for (let point of points) {
+            if (this._left===undefined || this._left>point[0]) this._left = point[0];
+            if (this._right===undefined || this._right<point[0]) this._right = point[0];
+            if (this._top===undefined || this._top>point[1]) this._top = point[1];
+            if (this._bottom===undefined || this._bottom<point[1]) this._bottom = point[1];
             if (def.length) def+=" ";
             def+=point[0]+","+point[1];
         }
         this._node.setAttribute("points", def);
         return this;
     }
+
+    get bbox() {
+        return {x:this._left, y:this._top, width:this._right-this._left, height:this._bottom-this._top};
+    }
+
 }
 
-// Testé
 export class Polygon extends Polyshape {
-    // Testé
     constructor(...points) {
         super("polygon", points);
     }
 }
 
-// Testé
 export class Polyline extends Polyshape {
-    // Testé
     constructor(...points) {
         super("polyline", points);
     }
@@ -2164,6 +2327,10 @@ export class MovetoDirective {
 
     toString() {
         return "M "+this.x+" "+this.y;
+    }
+
+    points(position) {
+        return [[this.x, this.y]];
     }
 }
 export function M(x, y) {
@@ -2180,6 +2347,10 @@ export class RelativeMovetoDirective {
     toString() {
         return "m "+this.x+" "+this.y;
     }
+
+    points(position) {
+        return [[position[0]+this.x, position[1]+this.y]];
+    }
 }
 export function m(x, y) {
     return new RelativeMovetoDirective(x, y);
@@ -2193,6 +2364,10 @@ export class LinetoDirective {
 
     toString() {
         return "L "+this.x+" "+this.y;
+    }
+
+    points(position) {
+        return [[this.x, this.y]];
     }
 }
 export function L(x, y) {
@@ -2209,6 +2384,10 @@ export class RelativeLinetoDirective {
     toString() {
         return "l "+this.x+" "+this.y;
     }
+
+    points(position) {
+        return [[position[0]+this.x, position[1]+this.y]];
+    }
 }
 export function l(x, y) {
     return new RelativeLinetoDirective(x, y);
@@ -2222,6 +2401,10 @@ export class HorizontalDirective {
 
     toString() {
         return "H "+this.x;
+    }
+
+    points(position) {
+        return [[this.x, position[1]]];
     }
 }
 export function H(x) {
@@ -2237,6 +2420,11 @@ export class RelativeHorizontalDirective {
     toString() {
         return "h "+this.x;
     }
+
+    points(position) {
+        return [[position[0]+this.x, position[1]]];
+    }
+
 }
 export function h(x) {
     return new RelativeHorizontalDirective(x);
@@ -2251,6 +2439,11 @@ export class VerticalDirective {
     toString() {
         return "V "+this.y;
     }
+
+    points(position) {
+        return [[position[0], this.y]];
+    }
+
 }
 export function V(y) {
     return new VerticalDirective(y);
@@ -2265,6 +2458,11 @@ export class RelativeVerticalDirective {
     toString() {
         return "v "+this.y;
     }
+
+    points(position) {
+        return [[position[0], position[1]+this.y]];
+    }
+
 }
 export function v(y) {
     return new RelativeVerticalDirective(y);
@@ -2276,6 +2474,10 @@ export class CloseDirective {
 
     toString() {
         return "Z";
+    }
+
+    points(position) {
+        return null;
     }
 }
 export function Z() {
@@ -2294,8 +2496,13 @@ export class CurveToDirective {
     }
 
     toString() {
-        return "C "+this.x1+","+this.y1+" "+this.x2+","+this.y2+" "+this.x+","+this.y;
+        return "C "+this.x1+" "+this.y1+" "+this.x2+" "+this.y2+" "+this.x+" "+this.y;
     }
+
+    points(position) {
+        return [[this.x1, this.y1], [this.x2, this.y2], [this.x, this.y]];
+    }
+
 }
 export function C(x1, y1, x2, y2, x, y) {
     return new CurveToDirective(x1, y1, x2, y2, x, y);
@@ -2313,8 +2520,13 @@ export class RelativeCurveToDirective {
     }
 
     toString() {
-        return "c "+this.x1+","+this.y1+" "+this.x2+","+this.y2+" "+this.x+","+this.y;
+        return "c "+this.x1+" "+this.y1+" "+this.x2+" "+this.y2+" "+this.x+" "+this.y;
     }
+
+    points(position) {
+        return [[position[0]+this.x1, position[1]+this.y1], [position[0]+this.x2, position[1]+this.y2], [position[0]+this.x, position[1]+this.y]];
+    }
+
 }
 export function c(x1, y1, x2, y2, x, y) {
     return new RelativeCurveToDirective(x1, y1, x2, y2, x, y);
@@ -2330,8 +2542,13 @@ export class ShorthandCurveToDirective {
     }
 
     toString() {
-        return "S "+this.x2+","+this.y2+" "+this.x+","+this.y;
+        return "S "+this.x2+" "+this.y2+" "+this.x+" "+this.y;
     }
+
+    points(position) {
+        return [[this.x2, this.y2], [this.x, this.y]];
+    }
+
 }
 export function S(x2, y2, x, y) {
     return new ShorthandCurveToDirective(x2, y2, x, y);
@@ -2347,8 +2564,13 @@ export class RelativeShorthandCurveToDirective {
     }
 
     toString() {
-        return "s "+this.x2+","+this.y2+" "+this.x+","+this.y;
+        return "s "+this.x2+" "+this.y2+" "+this.x+" "+this.y;
     }
+
+    points(position) {
+        return [[position[0]+this.x2, position[1]+this.y2], [position[0]+this.x, position[1]+this.y]];
+    }
+
 }
 export function s(x2, y2, x, y) {
     return new RelativeShorthandCurveToDirective(x2, y2, x, y);
@@ -2364,7 +2586,11 @@ export class QuadraticBezierDirective {
     }
 
     toString() {
-        return "Q "+this.x1+","+this.y1+" "+this.x+","+this.y;
+        return "Q "+this.x1+" "+this.y1+" "+this.x+" "+this.y;
+    }
+
+    points(position) {
+        return [[this.x1, this.y1], [this.x, this.y]];
     }
 }
 export function Q(x1, y1, x, y) {
@@ -2381,8 +2607,13 @@ export class RelativeQuadraticBezierDirective {
     }
 
     toString() {
-        return "q "+this.x1+","+this.y1+" "+this.x+","+this.y;
+        return "q "+this.x1+" "+this.y1+" "+this.x+" "+this.y;
     }
+
+    points(position) {
+        return [[position[0]+this.x1, position[1]+this.y1], [position[0]+this.x, position[1]+this.y]];
+    }
+
 }
 export function q(x1, y1, x, y) {
     return new RelativeQuadraticBezierDirective(x1, y1, x, y);
@@ -2402,6 +2633,12 @@ export class EllipticArcDirective {
     toString() {
         return "A "+this.rx+" "+this.ry+" "+this.xAxisRotation+" "+this.largeArcFlag+" "+this.sweepFlag+" "+this.x+" "+this.y;
     }
+
+    // FIXME: arc is ignored...
+    points(position) {
+        return [[this.x, this.y]];
+    }
+
 }
 export function A(rx, ry, xAxisRotation, largeArcFlag, sweepFlag, x, y) {
     return new EllipticArcDirective(rx, ry, xAxisRotation, largeArcFlag, sweepFlag, x, y);
@@ -2421,6 +2658,11 @@ export class RelativeEllipticArcDirective {
     toString() {
         return "a "+this.rx+" "+this.ry+" "+this.xAxisRotation+" "+this.largeArcFlag+" "+this.sweepFlag+" "+this.x+" "+this.y;
     }
+
+    // FIXME: arc is ignored...
+    points(position) {
+        return [[position[0]+this.x, position[1]+this.y]];
+    }
 }
 export function a(rx, ry, xAxisRotation, largeArcFlag, sweepFlag, x, y) {
     return new RelativeEllipticArcDirective(rx, ry, xAxisRotation, largeArcFlag, sweepFlag, x, y);
@@ -2433,15 +2675,33 @@ export function defineDirectiveProperty(clazz, name) {
             return d ? d : new List();
         },
         function(directives) {
+            let position = [0, 0];
+            if (this._left) {
+                delete this._left;
+                delete this._right;
+                delete this._top;
+                delete this._bottom;
+            }
             this._attrs.d = directives;
             let def = "";
             for (let directive of directives) {
                 if (def.length) def+=", ";
                 def+=directive;
+                let points = directive.points(position);
+                if (points && points.length) {
+                    for (let point of points) {
+                        if (!this._left || this._left > point[0]) this._left = point[0];
+                        if (!this._right || this._right < point[0]) this._right = point[0];
+                        if (!this._top || this._top > point[1]) this._top = point[1];
+                        if (!this._bottom || this._bottom < point[1]) this._bottom = point[1];
+                    }
+                    position = points[points.length-1];
+                }
             }
             this._node.setAttribute(Attrs.D, def);
             return this;
         }
+
     );
 }
 export class Path extends Shape {
@@ -2449,6 +2709,11 @@ export class Path extends Shape {
         super("path", directives);
         this.d = directives;
     }
+
+    get bbox() {
+        return {x:this._left, y:this._top, width:this._right-this._left, height:this._bottom-this._top};
+    }
+
 }
 defineDirectiveProperty(Path, "d");
 
@@ -2626,14 +2891,13 @@ export class RasterImage extends Shape {
         }
     }
 
-    // Testé
     _build() {
         this.node("image");
         this.attrs(this._attrs);
     }
 
     _setImage(raster, width, height) {
-        if (!width || !height) {
+        if (width || height) {
             if (!height) {
                 height = raster.height * width / raster.width;
             } else if (!width) {
@@ -2669,7 +2933,6 @@ export class RasterImage extends Shape {
         return this._attrs.href;
     }
 }
-// Partiel
 defineXYWidthHeightProperties(RasterImage);
 
 export class ClippedRasterImage extends Shape {
@@ -2767,10 +3030,8 @@ export class ClippedRasterImage extends Shape {
 // Partiel
 defineXYWidthHeightProperties(ClippedRasterImage);
 
-// Testé
 export class SvgImage extends Shape {
 
-    // Testé
     constructor(url, x = 0, y = 0, width = 0, height = 0) {
         super();
         this.node("g");
@@ -2785,7 +3046,6 @@ export class SvgImage extends Shape {
         loadSvgImage(url, img=>this._setImage(img));
     }
 
-    // Testé
     _setImage(img) {
         function createImage(image) {
             let node =
@@ -2814,7 +3074,6 @@ export class SvgImage extends Shape {
         dom.appendChild(this._sizer, this._svgImage);
     }
 
-    // Testé
     _clone() {
         let copy = super._clone();
         copy._sizer = doc.createElementNS(SVG_NS, "g");
@@ -2824,7 +3083,6 @@ export class SvgImage extends Shape {
         return copy;
     }
 
-    // Testé
     _cloneAttrs(copy) {
         copy._attrs.x = this._attrs.x;
         copy._attrs.y = this._attrs.y;
@@ -2834,7 +3092,6 @@ export class SvgImage extends Shape {
         return copy;
     }
 
-    // Testé
     _cloneContent(copy) {
         super._cloneContent(copy);
         loadSvgImage(this.href, img=>copy._setImage(img));
@@ -2848,8 +3105,8 @@ export class SvgImage extends Shape {
     }
 
     _sizeImage(width, height) {
-        let imgWidth = this._svg.getAttribute("width");
-        let imgHeight = this._svg.getAttribute("height");
+        let imgWidth = this._svgImage.getAttribute("width");
+        let imgHeight = this._svgImage.getAttribute("height");
         this._attrs.width = width ? width : imgWidth;
         this._attrs.height = height ? height : imgHeight;
         let sx = this._attrs.width/imgWidth;
@@ -2889,10 +3146,10 @@ export class SvgImage extends Shape {
         this._sizeImage(this.width, height);
     }
 
-    // testé
     get href() {
         return this._attrs.href;
     }
+
 }
 
 export class SvgRasterImage extends Shape {
@@ -2929,18 +3186,13 @@ export class SvgRasterImage extends Shape {
 }
 defineXYWidthHeightProperties(SvgRasterImage);
 
-// Testé
 export class FilterElement extends SVGElement {
-    // Testé
     constructor(type) {
         super(type);
     }
 }
-// Testé
 defineStringProperty(FilterElement, Attrs.RESULT);
-// Testé
 defineXYWidthHeightProperties(FilterElement);
-// Testé
 defineStringProperty(FilterElement, Attrs.IN);
 
 export const FeIn = {
@@ -2957,16 +3209,12 @@ export const FeEdgeMode = {
   WRAP : "wrap"
 };
 
-// Testé
 export class FeGaussianBlur extends FilterElement {
-    // Testé
     constructor() {
         super("feGaussianBlur")
     }
 }
-// Testé
 defineFloatListProperty(FeGaussianBlur, Attrs.STDDEVIATION);
-// Testé
 defineStringProperty(FeGaussianBlur, Attrs.EDGEMODE);
 
 export class FeDropShadow extends FilterElement {
@@ -3298,29 +3546,23 @@ export let ColorInterpolationFilters = {
     SRGB:"sRGB",
     LINEARRGB:"linearRGB"
 };
-// Partiel
+
 export class Filter extends SVGElement {
-    // Testé
     constructor() {
         super("filter");
     }
 
-    // Partiel
     add(element) {
-        // Non testé
         if (!element instanceof FilterElement) {
             throw "Not a filter element";
         }
         return super.add(element);
     }
 }
-// Testé
 defineXYWidthHeightProperties(Filter);
 defineElementProperty(Filter, Attrs.HREF);
 defineFloatListProperty(Filter, Attrs.FILTERRES);
-// Testé
 defineStringProperty(Filter, Attrs.FILTERUNITS);
-// Testé
 defineStringProperty(Filter, Attrs.PRIMITIVEUNITS);
 // Ne fonctionne pas sur chrome ?
 defineStringProperty(Filter, Attrs.COLOR_INTERPOLATION_FILTER);

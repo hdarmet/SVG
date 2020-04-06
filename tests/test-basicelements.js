@@ -7,8 +7,14 @@ import {
     setRef, html, Context, Selection, Canvas
 } from "../js/toolkit.js";
 import {
-    BoardTable, BoardElement, makeFramed, makeFillUpdatable, makeStrokeUpdatable, makeSelectable, makeSingleImaged
+    SigmaTable, SigmaElement
 } from "../js/base-element.js";
+import {
+    makeFramed, makeSelectable, makeSingleImaged
+} from "../js/core-mixins.js";
+import {
+    makeFillUpdatable, makeStrokeUpdatable
+} from "../js/standard-mixins.js";
 import {
     Colors
 } from "../js/graphics.js";
@@ -24,13 +30,13 @@ describe("Basic elements", ()=> {
     });
 
     function putTable() {
-        let table = new BoardTable(4000, 3000, "#A0A0A0");
+        let table = new SigmaTable(4000, 3000, "#A0A0A0");
         Context.canvas.putOnBase(table);
         return table;
     }
 
     function defineFramedElementClass() {
-        class ElementClass extends BoardElement {
+        class ElementClass extends SigmaElement {
             constructor(width, height, strokeColor, fillColor) {
                 super(width, height);
                 this._initFrame(width, height, strokeColor, fillColor);
@@ -139,7 +145,7 @@ describe("Basic elements", ()=> {
     });
 
     function defineSingleImagedElementClass() {
-        class ElementClass extends BoardElement {
+        class ElementClass extends SigmaElement {
             constructor(width, height, imageURL) {
                 super(width, height);
                 this._initImage(width, height, Colors.BLACK, imageURL);

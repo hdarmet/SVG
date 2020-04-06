@@ -1027,7 +1027,7 @@ export function createCollisionPhysicForElements({predicate}) {
 }
 
 export function makeCollisionContainerForElements(superClass, {predicate, bordersCollide = null}) {
-    let ContainerPhysic = createCollisionPhysic({predicate});
+    let ContainerPhysic = createCollisionPhysicForElements({predicate});
     if (bordersCollide) {
         addBordersToCollisionPhysicForElements(ContainerPhysic, {bordersCollide});
     }

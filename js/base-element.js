@@ -239,8 +239,6 @@ export class SigmaElement {
     get gloc() { return new Point2D(this.gx, this.gy)}
     get clx() { return this.canvasLayerMatrix.x(0, 0); }
     get cly() { return this.canvasLayerMatrix.y(0, 0); }
-    get location() { return {x:this.lx, y:this.ly} }
-    get position() { return {x:this.gx, y:this.gy} }
 
     relativeGeometry(matrix) {
         let relative = this.relative(matrix);
@@ -345,6 +343,20 @@ export class SigmaElement {
     }
 
     _receiveDrop(dragged, dragSet, initialTarget) {
+    }
+
+    _getElementOnPoint(lpoint) {
+        if (lpoint.x>-this.width/2 && lpoint.x<this.width/2 && lpoint.y>-this.height/2 && lpoint.y<this.height/2) {
+            return this;
+        }
+        else {
+            return null;
+        }
+    }
+
+    getElementOnPoint(point) {
+        let lpoint = this.local.invert().point(point);
+        return this._getElementOnPoint(lpoint);
     }
 
 }

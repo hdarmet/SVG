@@ -1028,11 +1028,11 @@ export function makeElevable(superClass) {
             if (zIndex!==undefined) {
                 let canvasZIndex = this.canvasLayer? this.canvasLayer.zIndex : 0;
                 this._zIndex = canvasZIndex + zIndex;
-                this._root.z_index = canvasZIndex + zIndex;
+                //this._root.z_index = canvasZIndex + zIndex;
             }
             else {
                 delete this._zIndex;
-                this._root.z_index = undefined;
+                //this._root.z_index = undefined;
             }
         }
     );

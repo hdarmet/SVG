@@ -333,19 +333,17 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             let gy = element.gy;
             inside.set(element, {gx, gy});
         }
-        // Remove glass (global positions of elements cannot be computed from here)
-        Canvas.instance.hideGlass();
         let outside = new Map();
         // Look for targets using previously kept positions
         // First case : position is on visible part of viewport
         for (let element of elements) {
             let {gx, gy} = inside.get(element);
             let target = Canvas.instance.getElementFromPoint(gx, gy);
-            if (!target || !target.owner) {
+            if (!target) {
                 outside.set(element, {gx, gy});
             }
             else {
-                targets.set(element, {initial:target.owner, effective:getTarget(element, target.owner)});
+                targets.set(element, {initial:target, effective:getTarget(element, target)});
             }
         }
         // For those elements which positions are not on the visible area we have to move viewport position so the
@@ -360,7 +358,6 @@ export class DragMoveSelectionOperation extends DragElementOperation {
         }
         // Revert viewport and glass
         if (outside.size) Canvas.instance._adjustContent(0, 0);
-        Canvas.instance.showGlass();
         return targets;
     }
 

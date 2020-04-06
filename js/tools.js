@@ -936,7 +936,7 @@ export class DragPopupOperation extends DragOperation {
     doDrop(title, x, y, event) {
         let popup = title.popup;
         let pedestal = popup._root.parent;
-        let { x:fx, y:fy } = computePosition(popup._root, Canvas.instance._toolsLayer._root);
+        let { x:fx, y:fy } = computePosition(popup._root, Canvas.instance._toolsLayer.content);
         popup.move(new Point2D(fx, fy));
         Canvas.instance.putArtifactOnToolsLayer(popup._root);
         pedestal.detach();
@@ -1168,7 +1168,7 @@ export class ToolMenuPopupContent extends ToolPopupContent {
             this._dirty = true;
             defer(()=>{
                 this._dirty = false;
-                this.refresh();
+                //this.refresh();
             });
         }
     }
@@ -2663,7 +2663,6 @@ export class SigmaItemBuilder extends ToolCell {
     _makeItems() {
         this._currentItems = CopyPaste.instance.duplicateForPaste(this._proto);
         for (let item of this._currentItems) {
-            Canvas.instance.toolsLayer.setZIndexes(item);
             item._setParent(this);
             this._support.add(item._root);
         }
@@ -2674,7 +2673,6 @@ export class SigmaItemBuilder extends ToolCell {
 
     detachChild(element) {
         this._support.remove(element._root);
-        Canvas.instance.toolsLayer.unsetZIndexes(element);
         element._setParent(null);
     }
 

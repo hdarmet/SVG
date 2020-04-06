@@ -129,6 +129,17 @@ export class Assertor {
         }
     }
 
+    _objectEquals(model, value) {
+        for (let key in model) {
+            if (model[key] && (model[key] instanceof Array)) {
+                this._arrayEquals(model[index], value[index]);
+            }
+            else {
+                this._equals(model[key], value[key]);
+            }
+        }
+    }
+
     _setEquals(model, value) {
         if (!model || !(model instanceof Set)) {
             throw new AssertionError(`${model} is not a set.`);
@@ -192,6 +203,15 @@ export class Assertor {
         }
     }
 
+    fail() {
+        try {
+            this.value();
+        }
+        catch(exception) {
+            return;
+        }
+        throw new AssertionError("No exception thrown");
+    }
 
     sameTo(model) {
         this._same(model, this.value);
@@ -246,6 +266,11 @@ export class Assertor {
         return this;
     }
 
+    objectEqualsTo(model) {
+        this._objectEquals(model, this.value);
+        return this;
+    }
+
     setEqualsTo(model) {
         this._setEquals(model, this.value);
         return this;
@@ -255,9 +280,7 @@ export class Assertor {
         if (!model || !(model instanceof Array)) {
             throw new AssertionError(`${model} is not an array.`);
         }
-        if (!this.value || !(this.value instanceof Array)) {
-            throw new AssertionError(`${this.value} is not an array.`);
-        }
+        let value = [...this.value];
         this._setEquals(new Set(model), new Set(this.value));
         return this;
     }
@@ -310,6 +333,7 @@ export class TestSuite {
         testSuite = this;
         this.befores = [];
         this.its = [];
+        this.index=0;
         suites.push(this);
     }
 
@@ -322,54 +346,65 @@ export class TestSuite {
         return this;
     }
 
-    execute() {
-        function _executeIt(index) {
-            function _done() {
-                _executeIt.call(this, index + 1);
-            }
-
-            if (index<this.its.length) {
-                try {
-                    itCount++;
-                    this.timeouts = [];
-                    win.setTimeout = (action, delay)=> {
-                        this.timeouts.push({delay, action});
-                    };
-                    dom.resetEventListeners();
-                    for (let before of this.befores) {
-                        before();
-                    }
-                    if (this.its[index].testCase.length===0) {
-                        this.its[index].testCase();
-                    }
-                    else {
-                        this.its[index].testCase(_done.bind(this));
-                    }
-                    let time = new Date().getTime() - startTime;
-                    console.log(`- ${this.its[index].caseTitle} -> OK (${time})`)
-                }
-                catch (exception) {
-                    let time = new Date().getTime() - startTime;
-                    if (exception && (exception instanceof AssertionFailed)) {
-                        console.log(`- ${this.its[index].caseTitle} -> FAILED (${time}): ${exception}`);
-                    }
-                    else {
-                        console.log(`- ${this.its[index].caseTitle} -> ERROR (${time}): ${exception}`);
-                    }
-                    itFailed ++;
-                }
-                if (this.its[index].testCase.length===0) {
-                    _done.call(this);
-                }
-            }
-            else {
-                executeNextSuite(this);
-            }
+    _executeIt() {
+        function _done() {
+            this._processSuccess();
+            this.index++;
+            this._executeIt();
         }
 
+        if (this.index<this.its.length) {
+            try {
+                itCount++;
+                this.timeouts = [];
+                win.setTimeout = (action, delay)=> {
+                    this.timeouts.push({delay, action});
+                };
+                dom.resetEventListeners();
+                for (let before of this.befores) {
+                    before();
+                }
+                if (this.its[this.index].testCase.length===0) {
+                    this.its[this.index].testCase();
+                    this._processSuccess();
+                    this.index++;
+                    this._executeIt();
+                }
+                else {
+                    this.its[this.index].testCase(_done.bind(this));
+                }
+            }
+            catch (exception) {
+                this._processException(exception);
+                this.index++;
+                this._executeIt();
+            }
+        }
+        else {
+            executeNextSuite(this);
+        }
+    }
+
+    execute() {
         testSuite = this;
         console.log(this.title);
-        _executeIt.call(this, 0);
+        this._executeIt(0);
+    }
+
+    _processException(exception) {
+        let time = new Date().getTime() - startTime;
+        if (exception && (exception instanceof AssertionFailed)) {
+            console.log(`- ${this.its[this.index].caseTitle} -> FAILED (${time}): ${exception}`);
+        }
+        else {
+            console.log(`- ${this.its[this.index].caseTitle} -> ERROR (${time}): ${exception}`);
+        }
+        itFailed ++;
+    }
+
+    _processSuccess() {
+        let time = new Date().getTime() - startTime;
+        console.log(`- ${this.its[this.index].caseTitle} -> OK (${time})`);
     }
 
     executeTimeouts() {
@@ -379,6 +414,20 @@ export class TestSuite {
         }
         this.timeouts = [];
     }
+
+}
+
+export function defer(func, delay) {
+    setTimeout(()=>{
+        try {
+            func();
+        }
+        catch (exception) {
+            testSuite._processException(exception);
+            testSuite.index++;
+            testSuite._executeIt();
+        }
+    }, delay)
 }
 
 export function describe(title, procedure) {

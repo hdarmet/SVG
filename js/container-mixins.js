@@ -97,6 +97,19 @@ export function makePartsOwner(superClass) {
                 return this;
             }
         );
+
+        extendMethod(superClass, $getElementOnPoint=>
+            function _getElementOnPoint(point) {
+                let result = $getElementOnPoint.call(this, point);
+                if (result===this) {
+                    for (let child of this.parts) {
+                        let result = child.getElementOnPoint(point);
+                        if (result) return result;
+                    }
+                }
+                return result;
+            }
+        );
     }
 
 }
@@ -490,6 +503,19 @@ export function makeContainer(superClass) {
         }
     );
 
+    extendMethod(superClass, $getElementOnPoint=>
+        function _getElementOnPoint(point) {
+            let result = $getElementOnPoint.call(this, point);
+            if (result===this) {
+                for (let child of this.children) {
+                    let result = child.getElementOnPoint(point);
+                    if (result) return result;
+                }
+            }
+            return result;
+        }
+    );
+
 }
 
 export function makeFloatingContainer(superClass) {
@@ -822,6 +848,16 @@ export function makeFloatingContainer(superClass) {
                 visitor.visit(child);
             }
             return this;
+        }
+    );
+
+    extendMethod(superClass, $getElementOnPoint=>
+        function _getElementOnPoint(point) {
+            for (let child of this.floatingChildren) {
+                let result = child.getElementOnPoint(point);
+                if (result) return result;
+            }
+            return $getElementOnPoint.call(this, point);
         }
     );
 

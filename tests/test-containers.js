@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    describe, it, before, assert, clickOn, drag, Snapshot, keyboard, findChild
+    describe, it, before, assert, findChild
 } from "./test-toolkit.js";
 import {
     Rect
@@ -10,10 +10,15 @@ import {
     setRef, html, Context, Selection, Canvas, DragMoveSelectionOperation
 } from "../js/toolkit.js";
 import {
-    BoardElement, BoardTable, BoardLayer, makeShaped, makeMoveable, makeSelectable,
-    makeDraggable, makeContainer, makeSupport, makeContainerASupport, makeContainerMultiLayered,
-    makeContainerZindex, makeLayersWithContainers, makePart, makeContainerASandBox
+    SigmaElement, SigmaTable, SigmaLayer
 } from "../js/base-element.js";
+import {
+    makeShaped, makeMovable, makeSelectable, makeDraggable,
+} from "../js/core-mixins.js";
+import {
+    makeContainer, makeSupport, makeContainerASupport, makeContainerMultiLayered, makeContainerZindex,
+    makeLayersWithContainers, makePart, makeContainerASandBox
+} from "../js/container-mixins.js";
 
 describe("Containers", ()=> {
 
@@ -26,27 +31,27 @@ describe("Containers", ()=> {
     });
 
     function putTable() {
-        let table = new BoardTable(4000, 3000, "#A0A0A0");
+        let table = new SigmaTable(4000, 3000, "#A0A0A0");
         Context.canvas.putOnBase(table);
         return table;
     }
 
     function defineTinyClass() {
-        class BoardTiny extends BoardElement {
+        class TestTiny extends SigmaElement {
             constructor(width, height, color = "#0C0C0C") {
                 super(width, height);
                 this._initShape(new Rect(-width / 2, -height / 2, width, height).attrs({fill:color}));
             }
         }
-        makeShaped(BoardTiny);
-        makeMoveable(BoardTiny);
-        makeSelectable(BoardTiny);
-        makeDraggable(BoardTiny);
-        return BoardTiny;
+        makeShaped(TestTiny);
+        makeMovable(TestTiny);
+        makeSelectable(TestTiny);
+        makeDraggable(TestTiny);
+        return TestTiny;
     }
 
     function defineSimpleContainerClass() {
-        class BoardSimpleContainer extends BoardElement {
+        class TestSimpleContainer extends SigmaElement {
             constructor(width, height) {
                 super(width, height);
                 let background = new Rect(-width / 2, -height / 2, width, height)
@@ -54,21 +59,21 @@ describe("Containers", ()=> {
                 this._initShape(background);
             }
         }
-        makeShaped(BoardSimpleContainer);
-        makeSupport(BoardSimpleContainer);
-        return BoardSimpleContainer;
+        makeShaped(TinySimpleContainer);
+        makeSupport(TinySimpleContainer);
+        return TinySimpleContainer;
     }
 
-    function createTinyElements(BoardTiny = defineTinyClass()) {
-        let tiny1 = new BoardTiny(40, 5, "#FF0000");
+    function createTinyElements(TestTiny = defineTinyClass()) {
+        let tiny1 = new TestTiny(40, 5, "#FF0000");
         tiny1.getLayer = ()=>"up";
-        let tiny2 = new BoardTiny(30, 10, "#00FF00");
+        let tiny2 = new TestTiny(30, 10, "#00FF00");
         tiny2.getLayer = ()=>"middle";
-        let tiny3 = new BoardTiny(20, 20, "#0000FF");
+        let tiny3 = new TestTiny(20, 20, "#0000FF");
         tiny3.getLayer = ()=>"middle";
-        let tiny4 = new BoardTiny(10, 30, "#FFFF00");
+        let tiny4 = new TestTiny(10, 30, "#FFFF00");
         tiny4.getLayer = ()=>"down";
-        let tiny5 = new BoardTiny(5, 40, "#FF00FF");
+        let tiny5 = new TestTiny(5, 40, "#FF00FF");
         tiny5.getLayer = ()=>"down";
         let tiny1Html = html(tiny1);
         let tiny2Html = html(tiny2);
@@ -85,8 +90,8 @@ describe("Containers", ()=> {
     }
 
     it("Uses a simple container", ()=>{
-        let BoardSimpleContainer = defineSimpleContainerClass();
-        let container = new BoardSimpleContainer(100, 150);
+        let TestSimpleContainer = defineSimpleContainerClass();
+        let container = new TestSimpleContainer(100, 150);
         let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} = createTinyElements();
         let {containerStartHtml, containerEndHtml} = getHtmlForSimpleContainer();
         // Add op.
@@ -123,9 +128,9 @@ describe("Containers", ()=> {
 
     it("Copies a simple container", ()=>{
         let table = putTable();
-        let BoardSimpleContainer = defineSimpleContainerClass();
-        makeSelectable(BoardSimpleContainer);
-        let container = new BoardSimpleContainer(100, 150);
+        let TestSimpleContainer = defineSimpleContainerClass();
+        makeSelectable(TestSimpleContainer);
+        let container = new TestSimpleContainer(100, 150);
         let {tiny1, tiny2} = createTinyElements();
         container.add(tiny1).add(tiny2);
         table.add(container);
@@ -138,9 +143,9 @@ describe("Containers", ()=> {
 
     it("Undoes/Redoes a simple container", ()=>{
         let table = putTable();
-        let BoardSimpleContainer = defineSimpleContainerClass();
-        makeSelectable(BoardSimpleContainer);
-        let container = new BoardSimpleContainer(100, 150);
+        let TestSimpleContainer = defineSimpleContainerClass();
+        makeSelectable(TestSimpleContainer);
+        let container = new TestSimpleContainer(100, 150);
         container.setLocation(100, 100);
         table.add(container);
         let {tiny1, tiny2} = createTinyElements();
@@ -158,7 +163,7 @@ describe("Containers", ()=> {
     });
 
     function defineMultiLayeredContainerClass() {
-        class BoardMultiLayeredContainer extends BoardElement {
+        class TestMultiLayeredContainer extends SigmaElement {
             constructor(width, height) {
                 super(width, height);
                 let background = new Rect(-width / 2, -height / 2, width, height)
@@ -166,11 +171,11 @@ describe("Containers", ()=> {
                 this._initShape(background);
             }
         }
-        makeShaped(BoardMultiLayeredContainer);
-        makeContainer(BoardMultiLayeredContainer);
-        makeContainerMultiLayered(BoardMultiLayeredContainer, {layers:["up", "middle", "down"]});
-        makeContainerASupport(BoardMultiLayeredContainer);
-        return BoardMultiLayeredContainer;
+        makeShaped(TestMultiLayeredContainer);
+        makeContainer(TestMultiLayeredContainer);
+        makeContainerMultiLayered(TestMultiLayeredContainer, {layers:["up", "middle", "down"]});
+        makeContainerASupport(TestMultiLayeredContainer);
+        return TestMultiLayeredContainer;
     }
 
     function getHtmlForMultiLayeredContainer() {
@@ -182,8 +187,8 @@ describe("Containers", ()=> {
     }
 
     it("Uses a multi layered container", ()=>{
-        let BoardMultiLayeredContainer = defineMultiLayeredContainerClass();
-        let container = new BoardMultiLayeredContainer(100, 150);
+        let TestMultiLayeredContainer = defineMultiLayeredContainerClass();
+        let container = new TestMultiLayeredContainer(100, 150);
         let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} = createTinyElements();
         let {containerStartHtml, newLayer, endLayer, containerEndHtml} = getHtmlForMultiLayeredContainer();
         // Add operation
@@ -234,8 +239,8 @@ describe("Containers", ()=> {
     });
 
     it("Inserts in a multi layered container (check all cases)", ()=>{
-        let BoardMultiLayeredContainer = defineMultiLayeredContainerClass();
-        let container = new BoardMultiLayeredContainer(100, 150);
+        let TestMultiLayeredContainer = defineMultiLayeredContainerClass();
+        let container = new TestMultiLayeredContainer(100, 150);
         let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} = createTinyElements();
         let {containerStartHtml, newLayer, endLayer, containerEndHtml} = getHtmlForMultiLayeredContainer();
         container.add(tiny1).add(tiny3);
@@ -267,8 +272,8 @@ describe("Containers", ()=> {
     });
 
     it("Replace in a multi layered container (check all cases)", ()=>{
-        let BoardMultiLayeredContainer = defineMultiLayeredContainerClass();
-        let container = new BoardMultiLayeredContainer(100, 150);
+        let TestMultiLayeredContainer = defineMultiLayeredContainerClass();
+        let container = new TestMultiLayeredContainer(100, 150);
         let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} = createTinyElements();
         let {containerStartHtml, newLayer, endLayer, containerEndHtml} = getHtmlForMultiLayeredContainer();
         container.add(tiny1).add(tiny3);
@@ -302,9 +307,9 @@ describe("Containers", ()=> {
 
     it("Copies a multilayered container", ()=>{
         let table = putTable();
-        let BoardMultiLayeredContainer = defineMultiLayeredContainerClass();
-        makeSelectable(BoardMultiLayeredContainer);
-        let container = new BoardMultiLayeredContainer(100, 150);
+        let TestMultiLayeredContainer = defineMultiLayeredContainerClass();
+        makeSelectable(TestMultiLayeredContainer);
+        let container = new TestMultiLayeredContainer(100, 150);
         let {tiny1, tiny2, tiny3} = createTinyElements();
         table.add(container);
         container.add(tiny1).add(tiny2).add(tiny3);
@@ -317,8 +322,8 @@ describe("Containers", ()=> {
 
     it("Undoes/Redoes a multilayered container", ()=>{
         let table = putTable();
-        let BoardMultiLayeredContainer = defineMultiLayeredContainerClass();
-        let container = new BoardMultiLayeredContainer(100, 150);
+        let TestMultiLayeredContainer = defineMultiLayeredContainerClass();
+        let container = new TestMultiLayeredContainer(100, 150);
         let {tiny1, tiny2, tiny3, tiny4} = createTinyElements();
         table.add(container);
         container.add(tiny1).add(tiny2);
@@ -334,7 +339,7 @@ describe("Containers", ()=> {
     });
 
     function defineContainersAsLayersContainerClass() {
-        class BoardContainersAsLayersContainer extends BoardElement {
+        class TestContainersAsLayersContainer extends SigmaElement {
             constructor(width, height) {
                 super(width, height);
                 let background = new Rect(-width / 2, -height / 2, width, height)
@@ -342,18 +347,18 @@ describe("Containers", ()=> {
                 this._initShape(background);
             }
         }
-        makeShaped(BoardContainersAsLayersContainer);
-        makeLayersWithContainers(BoardContainersAsLayersContainer, {
+        makeShaped(TestContainersAsLayersContainer);
+        makeLayersWithContainers(TestContainersAsLayersContainer, {
             layersBuilder:()=>{
                 return {
-                    up:new BoardLayer(),
-                    middle:new BoardLayer(),
-                    down:new BoardLayer()
+                    up:new SigmaLayer(),
+                    middle:new SigmaLayer(),
+                    down:new SigmaLayer()
                 };
             }
         });
-        makeContainerASupport(BoardContainersAsLayersContainer);
-        return BoardContainersAsLayersContainer;
+        makeContainerASupport(TestContainersAsLayersContainer);
+        return TestContainersAsLayersContainer;
     }
 
     function getHtmlForContainersAsLayersContainer() {
@@ -365,9 +370,9 @@ describe("Containers", ()=> {
     }
 
     it("Uses a container of containers", ()=>{
-        let BoardContainersAsLayersContainer = defineContainersAsLayersContainerClass();
+        let TestContainersAsLayersContainer = defineContainersAsLayersContainerClass();
         let {containerStartHtml, newLayer, endLayer, containerEndHtml} = getHtmlForContainersAsLayersContainer();
-        let container = new BoardContainersAsLayersContainer(100, 150);
+        let container = new TestContainersAsLayersContainer(100, 150);
         // Empty container
         assert(html(container)).equalsTo(
             containerStartHtml+
@@ -424,8 +429,8 @@ describe("Containers", ()=> {
     });
 
     it("Inserts in a container of containers (check all cases)", ()=>{
-        let BoardContainersAsLayersContainer = defineContainersAsLayersContainerClass();
-        let container = new BoardContainersAsLayersContainer(100, 150);
+        let TestContainersAsLayersContainer = defineContainersAsLayersContainerClass();
+        let container = new TestContainersAsLayersContainer(100, 150);
         let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} = createTinyElements();
         let {containerStartHtml, newLayer, endLayer, containerEndHtml} = getHtmlForContainersAsLayersContainer();
         container.add(tiny1).add(tiny3);
@@ -457,8 +462,8 @@ describe("Containers", ()=> {
     });
 
     it("Replace in a container of containers (check all cases)", ()=>{
-        let BoardContainersAsLayersContainer = defineContainersAsLayersContainerClass();
-        let container = new BoardContainersAsLayersContainer(100, 150);
+        let TestContainersAsLayersContainer = defineContainersAsLayersContainerClass();
+        let container = new TestContainersAsLayersContainer(100, 150);
         let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} = createTinyElements();
         let {containerStartHtml, newLayer, endLayer, containerEndHtml} = getHtmlForContainersAsLayersContainer();
         container.add(tiny1).add(tiny3);
@@ -492,9 +497,9 @@ describe("Containers", ()=> {
 
     it("Copies a container of containers", ()=>{
         let table = putTable();
-        let BoardContainersAsLayersContainer = defineContainersAsLayersContainerClass();
-        makeSelectable(BoardContainersAsLayersContainer);
-        let container = new BoardContainersAsLayersContainer(100, 150);
+        let TestContainersAsLayersContainer = defineContainersAsLayersContainerClass();
+        makeSelectable(TestContainersAsLayersContainer);
+        let container = new TestContainersAsLayersContainer(100, 150);
         let {tiny1, tiny2, tiny3} = createTinyElements();
         table.add(container);
         container.add(tiny1).add(tiny2).add(tiny3);
@@ -507,8 +512,8 @@ describe("Containers", ()=> {
 
     it("Undoes/Redoes a container of containers", ()=>{
         let table = putTable();
-        let BoardContainersAsLayersContainer = defineContainersAsLayersContainerClass();
-        let container = new BoardContainersAsLayersContainer(100, 150);
+        let TestContainersAsLayersContainer = defineContainersAsLayersContainerClass();
+        let container = new TestContainersAsLayersContainer(100, 150);
         let {tiny1, tiny2, tiny3, tiny4} = createTinyElements();
         table.add(container);
         container.add(tiny1).add(tiny2);
@@ -524,7 +529,7 @@ describe("Containers", ()=> {
     });
 
     function defineZIndexContainerClass() {
-        class BoardZIndexContainer extends BoardElement {
+        class TestZIndexContainer extends SigmaElement {
             constructor(width, height) {
                 super(width, height);
                 let background = new Rect(-width / 2, -height / 2, width, height)
@@ -532,20 +537,20 @@ describe("Containers", ()=> {
                 this._initShape(background);
             }
         }
-        makeShaped(BoardZIndexContainer);
-        makeContainer(BoardZIndexContainer);
-        makeContainerZindex(BoardZIndexContainer);
-        makeContainerASupport(BoardZIndexContainer);
-        return BoardZIndexContainer;
+        makeShaped(TestZIndexContainer);
+        makeContainer(TestZIndexContainer);
+        makeContainerZindex(TestZIndexContainer);
+        makeContainerASupport(TestZIndexContainer);
+        return TestZIndexContainer;
     }
 
     function createTinyContainerElements() {
-        let BoardTiny = defineTinyClass();
+        let TestTiny = defineTinyClass();
         // Element must be containers...
-        makeContainer(BoardTiny);
+        makeContainer(TestTiny);
         // ... and support (ZIndex ignore elements that are only part of other elements
-        makeContainerASupport(BoardTiny);
-        return createTinyElements(BoardTiny);
+        makeContainerASupport(TestTiny);
+        return createTinyElements(TestTiny);
     }
 
     function getHtmlForZIndexContainer() {
@@ -561,11 +566,11 @@ describe("Containers", ()=> {
 
     function createZIndexContainer() {
         let table = putTable();
-        let BoardZIndexContainer = defineZIndexContainerClass();
-        let container = new BoardZIndexContainer(150, 150);
+        let TestZIndexContainer = defineZIndexContainerClass();
+        let container = new TestZIndexContainer(150, 150);
         table.add(container);
         return {
-            table, container, BoardZIndexContainer
+            table, container, TestZIndexContainer
         };
     }
 
@@ -817,9 +822,9 @@ describe("Containers", ()=> {
     });
 
     it("Copies a z-index container", ()=> {
-        let {table, BoardZIndexContainer, container} = createZIndexContainer();
+        let {table, TestZIndexContainer, container} = createZIndexContainer();
         let {tiny1, tiny2} = createTinyContainerElements();
-        makeSelectable(BoardZIndexContainer);
+        makeSelectable(TestZIndexContainer);
         container.setLocation(100, 100);
         tiny1.setLocation(10, 20);
         tiny2.setLocation(10, 30);
@@ -832,9 +837,9 @@ describe("Containers", ()=> {
     });
 
     it("Undoes/Redoes a z-index container", ()=> {
-        let {BoardZIndexContainer, container} = createZIndexContainer();
+        let {TestZIndexContainer, container} = createZIndexContainer();
         let {tiny1, tiny2, tiny3, tiny4} = createTinyContainerElements();
-        makeSelectable(BoardZIndexContainer);
+        makeSelectable(TestZIndexContainer);
         container.setLocation(100, 100);
         tiny1.setLocation(10, 20);
         tiny2.setLocation(10, 30);
@@ -860,7 +865,7 @@ describe("Containers", ()=> {
     });
 
     function createComposedContainerClass() {
-        class Content extends BoardElement {
+        class Content extends SigmaElement {
             constructor(width, height) {
                 super(width, height);
                 let background = new Rect(-width / 2, -height / 2, width, height)
@@ -872,7 +877,7 @@ describe("Containers", ()=> {
         makeContainer(Content);
         makeContainerASupport(Content);
         makePart(Content);
-        class BoardComposedContainer extends BoardElement {
+        class TestComposedContainer extends SigmaElement {
             constructor(width, height) {
                 super(width, height);
                 let background = new Rect(-width / 2, -height / 2, width, height)
@@ -882,25 +887,25 @@ describe("Containers", ()=> {
                 this._add(this._contentPane)
             }
         }
-        makeShaped(BoardComposedContainer);
-        makeContainer(BoardComposedContainer);
-        BoardComposedContainer.prototype.add = function(element) {
+        makeShaped(TestComposedContainer);
+        makeContainer(TestComposedContainer);
+        TestComposedContainer.prototype.add = function(element) {
             this._contentPane.add(element);
             return this;
         };
-        BoardComposedContainer.prototype.remove = function(element) {
+        TestComposedContainer.prototype.remove = function(element) {
             this._contentPane.remove(element);
             return this;
         };
-        return BoardComposedContainer;
+        return TestComposedContainer;
     }
 
     it("Puts a composed element in a zIndex container : parts are not handled by zIndex container", ()=> {
         let {containerStartHtml, startLayer, endLayer, startPedestal, startRootPedestal, endPedestal, containerEndHtml} =
             getHtmlForZIndexContainer();
         let {container} = createZIndexContainer();
-        let BoardComposedContainer = createComposedContainerClass();
-        let composed = new BoardComposedContainer(50, 50);
+        let TestComposedContainer = createComposedContainerClass();
+        let composed = new TestComposedContainer(50, 50);
         let composedHtml = html(composed);
         let {tiny1, tiny2, tiny3, tiny4, tiny1Html, tiny2Html, tiny3Html, tiny4Html} = createTinyContainerElements();
         tiny1.add(tiny2);
@@ -947,9 +952,9 @@ describe("Containers", ()=> {
         let {containerStartHtml, startLayer, endLayer, startPedestal, startRootPedestal, endPedestal, containerEndHtml} =
             getHtmlForZIndexContainer();
         let {container} = createZIndexContainer();
-        let BoardComposedContainer = createComposedContainerClass();
-        makeContainerASandBox(BoardComposedContainer);
-        let composed = new BoardComposedContainer(50, 50);
+        let TestComposedContainer = createComposedContainerClass();
+        makeContainerASandBox(TestComposedContainer);
+        let composed = new TestComposedContainer(50, 50);
         let {tiny1, tiny2, tiny1Html, tiny2Html} = createTinyContainerElements();
         tiny1.add(tiny2);
         composed.add(tiny1);
@@ -969,11 +974,11 @@ describe("Containers", ()=> {
     it("Check a simple board layer", ()=> {
         let startContainerHtml= '<g transform="matrix(1 0 0 1 0 0)"><g><g>';
         let endContainerHtml = '</g></g></g>';
-        let container = new BoardLayer();
+        let container = new SigmaLayer();
         assert(html(container)).equalsTo(startContainerHtml+endContainerHtml);
-        let BoardTiny = defineTinyClass();
-        let tiny1 = new BoardTiny(10, 10);
-        let tiny2 = new BoardTiny(10, 10);
+        let TestTiny = defineTinyClass();
+        let tiny1 = new TestTiny(10, 10);
+        let tiny2 = new TestTiny(10, 10);
         container.add(tiny1).add(tiny2);
         assert(html(container)).equalsTo(startContainerHtml+html(tiny1)+html(tiny2)+endContainerHtml);
     });

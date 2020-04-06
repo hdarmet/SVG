@@ -4,18 +4,26 @@ import {
     describe, it, before, assert, clickOn, drag, Snapshot, keyboard, findChild
 } from "./test-toolkit.js";
 import {
-    dom, Rect, Group
+    Rect, Group
 } from "../js/graphics.js";
 import {
-    setRef, html, Context, Selection, Canvas, DragMoveSelectionOperation
+    setRef, html, Context, Selection, Canvas
 } from "../js/toolkit.js";
 import {
-    BoardElement, BoardTable, makeShaped, makeClickable, makeMoveable, makeSelectable,
-    makeDraggable, makeContainer, makeSupport, makeDeletable
+    DragMoveSelectionOperation
+} from "../js/drag-and-drop.js";
+import {
+    SigmaElement, SigmaTable
 } from "../js/base-element.js";
 import {
-    Tools
-} from "../js/tools.js";
+    makeShaped, makeClickable, makeMovable, makeSelectable, makeDraggable, makeDeletable
+} from "../js/core-mixins.js";
+import {
+    makeContainer, makeSupport
+} from "../js/container-mixins.js";
+import {
+    Facilities
+} from "../js/standard-facilities.js";
 
 describe("App fundamentals", ()=> {
 
@@ -32,6 +40,9 @@ describe("App fundamentals", ()=> {
         setRef(Context.canvas.modalsLayer, 'app-modal-layer');
     });
 
+    /*
+    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="position:absolute;transform:rotateX(0deg);width:100%;height:100%;" id="app-base-layer"><g><g transform="matrix(1 0 0 1 600 300)"><g transform="matrix(1 0 0 1 0 0)"></g></g></g><defs><filter id="_shadow_" filterUnits="objectBoundingBox" primitiveUnits="userSpaceOnUse" x="-20pc" y="-20pc" width="140pc" height="140pc"><feDropShadow stdDeviation="3 3" in="SourceGraphic" dx="0" dy="0" flood-color="#0F0F0F" flood-opacity="1"></feDropShadow></filter><filter id="_highlight_" filterUnits="objectBoundingBox" primitiveUnits="userSpaceOnUse" x="-20pc" y="-20pc" width="140pc" height="140pc"><feDropShadow stdDeviation="1 1" in="SourceGraphic" dx="0" dy="0" flood-color="#F00F0F" flood-opacity="1"></feDropShadow></filter></defs></svg>
+     */
     it("Creates a minimal app", ()=>{
         assert(html(Context.canvas.baseLayer))
             .equalsTo("<g transform=\"matrix(1 0 0 1 0 0)\" id=\"app-base-layer\"></g>");
@@ -60,7 +71,7 @@ describe("App fundamentals", ()=> {
     });
 
     function putTable() {
-        let table = new BoardTable(4000, 3000, "#A0A0A0");
+        let table = new SigmaTable(4000, 3000, "#A0A0A0");
         setRef(table, "app-table")
         Context.canvas.putOnBase(table);
         return table;
@@ -84,20 +95,20 @@ describe("App fundamentals", ()=> {
     });
 
     function defineTinyClass() {
-        class BoardTiny extends BoardElement {
+        class TestTiny extends SigmaElement {
             constructor(width, height) {
                 super(width, height);
                 this._initShape(new Rect(-width / 2, -height / 2, width, height));
             }
         }
-        makeShaped(BoardTiny);
-        return BoardTiny;
+        makeShaped(TestTiny);
+        return TestTiny;
     }
 
     it("Add a simple element on the board", ()=>{
-        let BoardTiny = defineTinyClass();
+        let TestTiny = defineTinyClass();
         let table = putTable();
-        let tiny = new BoardTiny(30, 20);
+        let tiny = new TestTiny(30, 20);
         setRef(tiny, "tiny");
         table.add(tiny);
         assert(html(tiny))
@@ -116,10 +127,10 @@ describe("App fundamentals", ()=> {
     });
 
     it("Clicks on a simple element of the board", ()=>{
-        let BoardTiny = defineTinyClass();
-        makeClickable(BoardTiny);
+        let TestTiny = defineTinyClass();
+        makeClickable(TestTiny);
         let table = putTable();
-        let tiny = new BoardTiny(30, 20);
+        let tiny = new TestTiny(30, 20);
         let clicked = false;
         tiny.clickHandler = function() {return event=>clicked = true;};
         table.add(tiny);
@@ -128,20 +139,20 @@ describe("App fundamentals", ()=> {
     });
 
     function defineDraggableTinyClass() {
-        let BoardTiny = defineTinyClass();
+        let TestTiny = defineTinyClass();
         // Yes. We need all these 3 traits...
-        makeMoveable(BoardTiny);
-        makeSelectable(BoardTiny);
-        makeDraggable(BoardTiny);
-        return BoardTiny;
+        makeMovable(TestTiny);
+        makeSelectable(TestTiny);
+        makeDraggable(TestTiny);
+        return TestTiny;
     }
 
     function createATableWithOneElement() {
-        let BoardTiny = defineDraggableTinyClass();
+        let TestTiny = defineDraggableTinyClass();
         let table = putTable();
-        let tiny = new BoardTiny(30, 20);
+        let tiny = new TestTiny(30, 20);
         table.add(tiny);
-        return {BoardTiny, table, tiny};
+        return {TestTiny, table, tiny};
     }
 
     it("Drags and drops a simple element of the board", ()=>{
@@ -286,15 +297,15 @@ describe("App fundamentals", ()=> {
     });
 
     function createATableWithTwoElements() {
-        let BoardTiny = defineDraggableTinyClass();
+        let TestTiny = defineDraggableTinyClass();
         let table = putTable();
-        let tiny1 = new BoardTiny(30, 20);
-        let tiny2 = new BoardTiny(30, 20);
+        let tiny1 = new TestTiny(30, 20);
+        let tiny2 = new TestTiny(30, 20);
         table.add(tiny1);
         table.add(tiny2);
         tiny1.move(10, 10);
         tiny2.move(20, 10);
-        return {BoardTiny, table, tiny1, tiny2};
+        return {TestTiny, table, tiny1, tiny2};
     }
 
     it("Deselect an element if another element is selected", ()=>{
@@ -315,13 +326,13 @@ describe("App fundamentals", ()=> {
     });
 
     function selectTwoElements() {
-        let {BoardTiny, table, tiny1, tiny2} = createATableWithTwoElements();
+        let {TestTiny, table, tiny1, tiny2} = createATableWithTwoElements();
         let dragOperation = function() {return new DragMoveSelectionOperation()};;
         tiny1.dragOperation = dragOperation;
         tiny2.dragOperation = dragOperation;
         clickOn(tiny1);
         clickOn(tiny2, {ctrlKey:true});
-        return {BoardTiny, table, tiny1, tiny2, dragOperation}
+        return {TestTiny, table, tiny1, tiny2, dragOperation}
     }
 
     it("Moves a selection", ()=>{
@@ -334,9 +345,9 @@ describe("App fundamentals", ()=> {
     });
 
     it("Deletes a selection", ()=>{
-        let {BoardTiny, table, tiny1, tiny2} = selectTwoElements();
-        Tools.allowElementDeletion();
-        makeDeletable(BoardTiny);
+        let {TestTiny, table, tiny1, tiny2} = selectTwoElements();
+        Facilities.allowElementDeletion();
+        makeDeletable(TestTiny);
         assert(table.contains(tiny1)).isTrue();
         assert(table.contains(tiny2)).isTrue();
         keyboard.input(keyboard.delete);
@@ -402,11 +413,11 @@ describe("App fundamentals", ()=> {
     }
 
     it("Clicks on a (clickable) copy of a simple element of the board", ()=>{
-        let BoardTiny = defineTinyClass();
-        makeClickable(BoardTiny);
-        makeSelectable(BoardTiny);
+        let TestTiny = defineTinyClass();
+        makeClickable(TestTiny);
+        makeSelectable(TestTiny);
         let table = putTable();
-        let tiny = new BoardTiny(30, 20);
+        let tiny = new TestTiny(30, 20);
         let clicked = false;
         tiny.clickHandler = function() {return event=>clicked = true;};
         tiny.setLocation(100, 100);
@@ -420,10 +431,10 @@ describe("App fundamentals", ()=> {
     });
 
     it("Selects a (not clickable) copy of a simple element of the board", ()=>{
-        let BoardTiny = defineTinyClass();
-        makeSelectable(BoardTiny);
+        let TestTiny = defineTinyClass();
+        makeSelectable(TestTiny);
         let table = putTable();
-        let tiny = new BoardTiny(30, 20);
+        let tiny = new TestTiny(30, 20);
         tiny.setLocation(100, 100);
         table.add(tiny);
         let copy = copyPasteElement(table, tiny);
@@ -449,8 +460,8 @@ describe("App fundamentals", ()=> {
 
     it("Destroy the element if drop is cancelled and 'original' parent does not have any 'add' method (it comes form a tool for example)", ()=>{
         let {tiny, table} = createATableWithOneElement();
-        let BoardNotATarget = defineNotATargetClass();
-        let notATarget = new BoardNotATarget(60, 60);
+        let TestNotATarget = defineNotATargetClass();
+        let notATarget = new TestNotATarget(60, 60);
         let pedestal = createNotAnElement();
         Context.canvas.putArtifactOnToolsLayer(pedestal._root);
         pedestal.register(tiny);

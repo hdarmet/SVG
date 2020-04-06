@@ -642,7 +642,8 @@ export function makeAttachmentPhysic(superClass, {slotProviderPredicate = elemen
     defineMethod(superClass,
         function _collectAttachments() {
             let attachments = new SpatialLocator(
-                this._host.width, this._host.height,
+                -this._host.width/2, -this._host.height/2,
+                this._host.width/2, this._host.height/2,
                 Attachments.SECTOR_THRESHOLD, Attachments.SECTOR_MIN_SIZE,
                 function(attachment) {
                     return {

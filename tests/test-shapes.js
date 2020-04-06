@@ -1,11 +1,11 @@
 'use strict';
 
 import {
-    describe, it, before, assert
+    describe, it, before, assert, defer
 } from "./test-toolkit.js";
 import {
     ClipPath, Mask, Rect, Circle, Ellipse, Line, Svg, Group, Translation, Rotation, Scaling,
-    Path, M, m, L, l, Q, q,
+    Path, M, m, L, l, H, h, V, v, Q, q, C, c, S, s,
     Polygon, Polyline, RasterImage, ClippedRasterImage, SvgImage, SvgRasterImage,
     MouseEvents, Colors, Visibility, FeGaussianBlur, Filter, P100,
     FilterUnits, FeEdgeMode, FeIn
@@ -24,22 +24,26 @@ describe("Basic SVG Objects", ()=> {
     before(()=> {
         document.body.innerHTML='';
         svg = new Svg(2000, 1000)
-            .attach(document.body);
+            .anchor(document.body);
     });
 
     it("Creates an SVG", ()=>{
         assert(document.body.innerHTML)
-            .equalsTo('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"' +
-                ' width="2000" height="1000"><defs></defs></svg>')
+            .equalsTo('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="2000" height="1000">' +
+                '<g></g>' +
+                '<defs></defs>' +
+                '</svg>')
     });
 
     it ("Inserts something (a rect) in SVG", ()=>{
         let rect = new Rect(10, 20, 100, 200);
         svg.add(rect);
         assert(document.body.innerHTML)
-            .equalsTo('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"' +
-                ' width="2000" height="1000"><defs></defs>' +
+            .equalsTo('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="2000" height="1000">' +
+                '<g>' +
                 '<rect x="10" y="20" width="100" height="200"></rect>' +
+                '</g>' +
+                '<defs></defs>' +
                 '</svg>');
     });
 
@@ -64,6 +68,7 @@ describe("Basic SVG Objects", ()=> {
             .equalsTo('<rect x="20" y="30" width="90" height="190" rx="3" ry="5"></rect>');
         assert(rect.rx).equalsTo(3);
         assert(rect.ry).equalsTo(5);
+        assert(rect.bbox).objectEqualsTo({x:20, y:30, width:90, height:190});
     });
 
     it ("Shows a circle", ()=>{
@@ -77,6 +82,7 @@ describe("Basic SVG Objects", ()=> {
         assert(circle.r).equalsTo(90);
         assert(circle.cx).equalsTo(110);
         assert(circle.cy).equalsTo(120);
+        assert(circle.bbox).objectEqualsTo({x:20, y:30, width:180, height:180});
     });
 
     it ("Shows an ellipse", ()=>{
@@ -92,6 +98,7 @@ describe("Basic SVG Objects", ()=> {
         assert(ellipse.ry).equalsTo(80);
         assert(ellipse.cx).equalsTo(110);
         assert(ellipse.cy).equalsTo(120);
+        assert(ellipse.bbox).objectEqualsTo({x:20, y:40, width:180, height:160});
     });
 
     it ("Shows a line", ()=>{
@@ -108,6 +115,7 @@ describe("Basic SVG Objects", ()=> {
         assert(line.y1).equalsTo(40);
         assert(line.x2).equalsTo(130);
         assert(line.y2).equalsTo(140);
+        assert(line.bbox).objectEqualsTo({x:30, y:40, width:100, height:100});
     });
 
     it ("Shows a polygon", ()=>{
@@ -117,6 +125,7 @@ describe("Basic SVG Objects", ()=> {
         poly.points = [[50, 50], [90, 10], [10, 10]];
         assert(poly.outerHTML).equalsTo('<polygon points="50,50 90,10 10,10"></polygon>');
         assert(poly.points).arrayEqualsTo([[50, 50], [90, 10], [10, 10]]);
+        assert(poly.bbox).objectEqualsTo({x:10, y:10, width:80, height:40});
     });
 
     it ("Shows a polyline", ()=>{
@@ -126,15 +135,16 @@ describe("Basic SVG Objects", ()=> {
         poly.points = [[50, 50], [90, 10], [10, 10]];
         assert(poly.outerHTML).equalsTo('<polyline points="50,50 90,10 10,10"></polyline>');
         assert(poly.points).arrayEqualsTo([[50, 50], [90, 10], [10, 10]]);
+        assert(poly.bbox).objectEqualsTo({x:10, y:10, width:80, height:40});
     });
 
     it ("Shows a rasterized image", (done)=>{
         let image = new RasterImage("images/home.png");
         svg.add(image);
-        assert(svg.innerHTML).equalsTo('<defs></defs><g></g>');
-        setTimeout(()=>{
+        assert(svg.innerHTML).equalsTo('<g><g></g></g><defs></defs>');
+        defer(()=>{
             assert(svg.innerHTML).equalsTo(
-                '<defs></defs><image width="40" height="40" href="images/home.png" x="0" y="0" preserveAspectRatio="none"></image>');
+                '<g><image width="40" height="40" href="images/home.png" x="0" y="0" preserveAspectRatio="none"></image></g><defs></defs>');
             done();
         }, 50);
     });
@@ -142,10 +152,11 @@ describe("Basic SVG Objects", ()=> {
     it ("Shows a svg image", (done)=>{
         let image = new SvgImage("images/comments_on.svg", 100, 100, 80, 80);
         svg.add(image);
-        assert(svg.innerHTML).equalsTo('<defs></defs><g><g></g></g>');
-        setTimeout(()=>{
+        assert(svg.innerHTML).equalsTo('<g><g><g></g></g></g><defs></defs>');
+        defer(()=>{
             assert(svg.innerHTML).contains(
-                '<defs></defs><g transform="matrix(1 0 0 1 100 100)"><g transform="matrix(2 0 0 2 0 0)">' +
+                '<g transform="matrix(1 0 0 1 100 100)">' +
+                '<g transform="matrix(2 0 0 2 0 0)">' +
                 '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><title>Henry-icons</title>');
             done();
         }, 50);
@@ -154,10 +165,10 @@ describe("Basic SVG Objects", ()=> {
     it ("Shows a rasterized svg image", (done)=>{
         let image = new SvgRasterImage("images/comments_on.svg", 100, 100, 80, 80);
         svg.add(image);
-        assert(svg.innerHTML).equalsTo('<defs></defs><g></g>');
-        setTimeout(()=>{
+        assert(svg.innerHTML).equalsTo('<g><g></g></g><defs></defs>');
+        defer(()=>{
             assert(svg.innerHTML).contains(
-                '<defs></defs><image height="80" width="80" xlink:href="data:image/png;base64,');
+                '<g><image height="80" width="80" xlink:href="data:image/png;base64,');
             done();
         }, 50);
     });
@@ -166,7 +177,7 @@ describe("Basic SVG Objects", ()=> {
         let rect = new Rect(10, 20, 100, 200);
         let group = new Group();
         svg.add(group.add(rect));
-        assert(svg.innerHTML).equalsTo('<defs></defs><g><rect x="10" y="20" width="100" height="200"></rect></g>');
+        assert(svg.innerHTML).equalsTo('<g><g><rect x="10" y="20" width="100" height="200"></rect></g></g><defs></defs>');
     });
 
     it ("Uses a translation", ()=> {
@@ -238,38 +249,42 @@ describe("Basic SVG Objects", ()=> {
         let circle = new Circle(100, 150, 50);
         svg.add(circle);
         assert(svg.innerHTML)
-            .equalsTo('<defs></defs>' +
+            .equalsTo('<g>' +
                 '<rect x="10" y="20" width="100" height="200"></rect>' +
-                '<circle cx="100" cy="150" r="50"></circle>');
-        assert(svg.children).hasContent(svg.defs, rect, circle);
+                '<circle cx="100" cy="150" r="50"></circle>' +
+                '</g><defs></defs>');
+        assert(svg.children).hasContent(rect, circle);
         assert(rect.parent).equalsTo(svg);
         assert(circle.parent).equalsTo(svg);
         svg.remove(circle);
         assert(svg.innerHTML)
-            .equalsTo('<defs></defs>' +
-                '<rect x="10" y="20" width="100" height="200"></rect>');
-        assert(svg.children).hasContent(svg.defs, rect);
+            .equalsTo('<g>' +
+                '<rect x="10" y="20" width="100" height="200"></rect>' +
+                '</g><defs></defs>');
+        assert(svg.children).hasContent(rect);
         assert(circle.parent).equalsTo(null);
         svg.insert(rect, circle);
         assert(svg.innerHTML)
-            .equalsTo('<defs></defs>' +
+            .equalsTo('<g>' +
                 '<circle cx="100" cy="150" r="50"></circle>'+
-                '<rect x="10" y="20" width="100" height="200"></rect>');
-        assert(svg.children).hasContent(svg.defs, circle, rect);
+                '<rect x="10" y="20" width="100" height="200"></rect>' +
+                '</g><defs></defs>');
+        assert(svg.children).hasContent(circle, rect);
         assert(circle.parent).equalsTo(svg);
         let ellipse = new Ellipse(100, 150, 50, 60);
         svg.replace(circle, ellipse);
         assert(svg.innerHTML)
-            .equalsTo('<defs></defs>' +
+            .equalsTo('<g>' +
                 '<ellipse cx="100" cy="150" rx="50" ry="60"></ellipse>'+
-                '<rect x="10" y="20" width="100" height="200"></rect>');
-        assert(svg.children).hasContent(svg.defs, ellipse, rect);
+                '<rect x="10" y="20" width="100" height="200"></rect>' +
+                '</g><defs></defs>');
+        assert(svg.children).hasContent(ellipse, rect);
         assert(circle.parent).equalsTo(null);
         assert(ellipse.parent).equalsTo(svg);
         svg.clear();
         assert(svg.innerHTML)
-            .equalsTo('<defs></defs>');
-        assert(svg.children).hasContent(svg.defs);
+            .equalsTo('<g></g><defs></defs>');
+        assert(svg.children.empty);
         assert(rect.parent).equalsTo(null);
         assert(ellipse.parent).equalsTo(null);
     });
@@ -282,8 +297,9 @@ describe("Basic SVG Objects", ()=> {
         rect._node = otherRect._node;
         svg.reset(rect);
         assert(svg.innerHTML)
-            .equalsTo('<defs></defs>' +
-                '<rect x="15" y="25" width="105" height="205"></rect>');
+            .equalsTo('<g>' +
+                '<rect x="15" y="25" width="105" height="205"></rect>' +
+                '</g><defs></defs>');
     });
 
     it ("Listens mouse event", ()=> {
@@ -419,7 +435,10 @@ describe("Basic SVG Objects", ()=> {
         let rect = new Rect(10, 20, 100, 200);
         let copy = rect.clone();
         svg.add(copy);
-        assert(svg.innerHTML).equalsTo('<defs></defs><rect x="10" y="20" width="100" height="200"></rect>');
+        assert(svg.innerHTML).equalsTo(
+            '<g>' +
+            '<rect x="10" y="20" width="100" height="200"></rect>' +
+            '</g><defs></defs>');
         assert(copy.constructor).equalsTo(Rect);
         assert(copy.x).equalsTo(10);
         assert(copy.y).equalsTo(20);
@@ -434,8 +453,10 @@ describe("Basic SVG Objects", ()=> {
         let clone = group.add(rect).add(circle).clone();
         svg.add(clone);
         assert(svg.innerHTML).equalsTo(
-            '<defs></defs><g><rect x="10" y="20" width="100" height="200"></rect>' +
-            '<circle cx="100" cy="150" r="50"></circle></g>');
+            '<g><g>' +
+            '<rect x="10" y="20" width="100" height="200"></rect>' +
+            '<circle cx="100" cy="150" r="50"></circle>' +
+            '</g></g><defs></defs>');
         let cRect = clone.children[0];
         let cCircle = clone.children[1];
         assert(cRect.constructor).equalsTo(Rect);
@@ -465,7 +486,7 @@ describe("Basic SVG Objects", ()=> {
 
     it ("Triggers drag events after clone op", ()=> {
         let rect = new Rect(10, 20, 100, 200);
-        let moved = 0;
+        rect.eventCloning = true;
         let status = "not dragged";
         rect.onDrag(event=> {
                 status = "dragged";
@@ -485,14 +506,17 @@ describe("Basic SVG Objects", ()=> {
         assert(status).equalsTo("moved");
         mouse("mouseup", copy, 0, 0);
         assert(status).equalsTo("dropped");
+        assert(copy.eventCloning).equalsTo(true);
     });
 
     it ("Build a clone of rasterized image", (done)=>{
         let image = new RasterImage("images/home.png");
         svg.add(image.clone());
-        setTimeout(()=>{
+        defer(()=>{
             assert(svg.innerHTML).equalsTo(
-                '<defs></defs><image width="40" height="40" href="images/home.png" x="0" y="0" preserveAspectRatio="none"></image>');
+                '<g>' +
+                '<image width="40" height="40" href="images/home.png" x="0" y="0" preserveAspectRatio="none"></image>' +
+                '</g><defs></defs>');
             done();
         }, 50);
     });
@@ -500,9 +524,9 @@ describe("Basic SVG Objects", ()=> {
     it ("Build a clone of an svg image", (done)=>{
         let image = new SvgImage("images/comments_on.svg", 100, 100, 80, 80);
         svg.add(image.clone());
-        setTimeout(()=>{
+        defer(()=>{
             assert(svg.innerHTML).contains(
-                '<defs></defs><g transform="matrix(1 0 0 1 100 100)"><g transform="matrix(2 0 0 2 0 0)">' +
+                '<g><g transform="matrix(1 0 0 1 100 100)"><g transform="matrix(2 0 0 2 0 0)">' +
                 '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><title>Henry-icons</title>');
             done();
         }, 50);
@@ -511,9 +535,9 @@ describe("Basic SVG Objects", ()=> {
     it ("Build a clone of a rasterized svg image", (done)=>{
         let image = new SvgRasterImage("images/comments_on.svg", 100, 100, 80, 80);
         svg.add(image.clone());
-        setTimeout(()=>{
+        defer(()=>{
             assert(svg.innerHTML).contains(
-                '<defs></defs><image height="80" width="80" xlink:href="data:image/png;base64,');
+                '<g><image height="80" width="80" xlink:href="data:image/png;base64,');
             done();
         }, 50);
     });
@@ -550,7 +574,7 @@ describe("Basic SVG Objects", ()=> {
 
     it ("Checks clic path attributes (when inserted in svg defs)", ()=>{
         let rect = new Rect(10, 20, 100, 200);
-        let clip = new ClipPath().add(new Rect(0, 0, 50, 50));
+        let clip = new ClipPath("ID1").add(new Rect(0, 0, 50, 50));
         svg.add(rect);
         svg.addDef(clip);
         rect.clip_path = clip;
@@ -562,7 +586,7 @@ describe("Basic SVG Objects", ()=> {
 
     it ("Checks clic path attributes (when inserted in a group)", ()=>{
         let rect = new Rect(10, 20, 100, 200);
-        let clip = new ClipPath().add(new Rect(0, 0, 50, 50));
+        let clip = new ClipPath("ID1").add(new Rect(0, 0, 50, 50));
         clip.id='ID1';
         let group = new Group();
         svg.add(group);
@@ -603,10 +627,10 @@ describe("Basic SVG Objects", ()=> {
     it ("Shows a clipped rasterized image", (done)=>{
         let image = new ClippedRasterImage("images/home.png", 5, 5, 25, 25);
         svg.add(image);
-        assert(svg.innerHTML).equalsTo('<defs></defs><g></g>');
-        setTimeout(()=>{
+        assert(svg.innerHTML).equalsTo('<g><g></g></g><defs></defs>');
+        defer(()=>{
             assert(svg.innerHTML).contains(
-                '<defs></defs><image xlink:href="data:image/png;base64,iVBOR');
+                '<g><image xlink:href="data:image/png;base64,iVBOR');
             done();
         }, 50);
     });
@@ -614,9 +638,9 @@ describe("Basic SVG Objects", ()=> {
     it ("Build a clone of a clipped rasterized image", (done)=>{
         let image = new ClippedRasterImage("images/home.png", 5, 5, 25, 25);
         svg.add(image.clone());
-        setTimeout(()=>{
+        defer(()=>{
             assert(svg.innerHTML).contains(
-                '<defs></defs><image xlink:href="data:image/png;base64,iVBOR');
+                '<g><image xlink:href="data:image/png;base64,iVBOR');
             done();
         }, 50);
     });
@@ -624,13 +648,13 @@ describe("Basic SVG Objects", ()=> {
     it ("Change clip of a clipped rasterized image", (done)=>{
         let image = new ClippedRasterImage("images/home.png", 5, 5, 25, 25);
         svg.add(image);
-        setTimeout(()=>{
+        defer(()=>{
             assert(svg.innerHTML).contains(
-                '<defs></defs><image xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABkAAAAZCAYAAADE6YVjAAABRklEQVRIS+');
+                '<g><image xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABkAAAAZCAYAAADE6YVjAAABRklEQVRIS+');
             image.clip(10, 10, 20, 20);
-            setTimeout(()=>{
+            defer(()=>{
                 assert(svg.innerHTML).contains(
-                    '<defs></defs><image xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAqUlEQVQ4T+');
+                    '<g><image xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAqUlEQVQ4T+');
                 done();
             });
         }, 50);
@@ -639,27 +663,135 @@ describe("Basic SVG Objects", ()=> {
     it ("Change image of a clipped rasterized image", (done)=>{
         let image = new ClippedRasterImage("images/home.png", 5, 5, 25, 25);
         svg.add(image);
-        setTimeout(()=>{
+        defer(()=>{
             assert(svg.innerHTML).contains(
-                '<defs></defs><image xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABkAAAAZCAYAAADE6YVjAAABRklEQVRIS+');
+                '<g><image xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABkAAAAZCAYAAADE6YVjAAABRklEQVRIS+');
             image.href = "images/profile.png";
-            setTimeout(()=>{
+            defer(()=>{
                 assert(svg.innerHTML).contains(
-                    '<defs></defs><image xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABkAAAAZCAYAAADE6YVjAAACF0lEQVRIS7XVSciPUR');
+                    '<g><image xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABkAAAAZCAYAAADE6YVjAAACF0lEQVRIS7XVS');
                 done();
             });
-        }, 50);
+        }, 100);
     });
 
     it ("Shows a path", ()=>{
         let path = new Path(M(20, 25), m(10, 15), L(50, 5), l(-10, -15), Q(10, 25, 20, 15), q(-10, -25, -20, -15));
         svg.add(path);
-        assert(path.outerHTML).equalsTo('<path d="M 20 25, m 10 15, L 50 5, L -10 -15, Q 10,25 20,15, q -10,-25 -20,-15"></path>');
-        /*
-        poly.points = [[50, 50], [90, 10], [10, 10]];
-        assert(poly.outerHTML).equalsTo('<polyline points="50,50 90,10 10,10"></polyline>');
-        assert(poly.points).arrayEqualsTo([[50, 50], [90, 10], [10, 10]]);
-        */
+        assert(path.outerHTML).equalsTo('<path d="M 20 25, m 10 15, L 50 5, l -10 -15, Q 10 25 20 15, q -10 -25 -20 -15"></path>');
     });
 
+    it ("Shows a path containing L directive", ()=>{
+        let path = new Path(M(20, 25), L(30, 20), L(50, 5));
+        svg.add(path);
+        assert(path.outerHTML).equalsTo('<path d="M 20 25, L 30 20, L 50 5"></path>');
+        assert(path.bbox).objectEqualsTo({x:20, y:5, width:30, height:20});
+    });
+
+    it ("Shows a path containing l directive", ()=>{
+        let path = new Path(M(20, 25), L(30, 20), l(20, -15));
+        svg.add(path);
+        assert(path.outerHTML).equalsTo('<path d="M 20 25, L 30 20, l 20 -15"></path>');
+        assert(path.bbox).objectEqualsTo({x:20, y:5, width:30, height:20});
+    });
+
+    it ("Shows a path containing H directive", ()=>{
+        let path = new Path(M(20, 25), L(30, 20), H(50));
+        svg.add(path);
+        assert(path.outerHTML).equalsTo('<path d="M 20 25, L 30 20, H 50"></path>');
+        assert(path.bbox).objectEqualsTo({x:20, y:20, width:30, height:5});
+    });
+
+    it ("Shows a path containing h directive", ()=>{
+        let path = new Path(M(20, 25), L(30, 20), h(20));
+        svg.add(path);
+        assert(path.outerHTML).equalsTo('<path d="M 20 25, L 30 20, h 20"></path>');
+        assert(path.bbox).objectEqualsTo({x:20, y:20, width:30, height:5});
+    });
+
+    it ("Shows a path containing V directive", ()=>{
+        let path = new Path(M(20, 25), L(30, 20), V(50));
+        svg.add(path);
+        assert(path.outerHTML).equalsTo('<path d="M 20 25, L 30 20, V 50"></path>');
+        assert(path.bbox).objectEqualsTo({x:20, y:20, width:10, height:30});
+    });
+
+    it ("Shows a path containing v directive", ()=>{
+        let path = new Path(M(20, 25), L(30, 20), v(30));
+        svg.add(path);
+        assert(path.outerHTML).equalsTo('<path d="M 20 25, L 30 20, v 30"></path>');
+        assert(path.bbox).objectEqualsTo({x:20, y:20, width:10, height:30});
+    });
+
+    it ("Shows a path containing C directive", ()=>{
+        let path = new Path(M(20, 25), L(30, 20), C(50, 30, 40, 40, 30, 50));
+        svg.add(path);
+        assert(path.outerHTML).equalsTo('<path d="M 20 25, L 30 20, C 50 30 40 40 30 50"></path>');
+        assert(path.bbox).objectEqualsTo({x:20, y:20, width:30, height:30});
+    });
+
+    it ("Shows a path containing c directive", ()=>{
+        let path = new Path(M(20, 25), L(30, 20), c(20, 10, 10, 20, 0, 30));
+        svg.add(path);
+        assert(path.outerHTML).equalsTo('<path d="M 20 25, L 30 20, c 20 10 10 20 0 30"></path>');
+        assert(path.bbox).objectEqualsTo({x:20, y:20, width:30, height:30});
+    });
+
+    it ("Shows a path containing S directive", ()=>{
+        let path = new Path(M(20, 25), L(30, 20), S(50, 30, 30, 50));
+        svg.add(path);
+        assert(path.outerHTML).equalsTo('<path d="M 20 25, L 30 20, S 50 30 30 50"></path>');
+        assert(path.bbox).objectEqualsTo({x:20, y:20, width:30, height:30});
+    });
+
+    it ("Shows a path containing s directive", ()=>{
+        let path = new Path(M(20, 25), L(30, 20), s(20, 10, 0, 30));
+        svg.add(path);
+        assert(path.outerHTML).equalsTo('<path d="M 20 25, L 30 20, s 20 10 0 30"></path>');
+        assert(path.bbox).objectEqualsTo({x:20, y:20, width:30, height:30});
+    });
+
+    it ("Shows a path containing Q directive", ()=>{
+        let path = new Path(M(20, 25), L(30, 20), Q(50, 30, 30, 50));
+        svg.add(path);
+        assert(path.outerHTML).equalsTo('<path d="M 20 25, L 30 20, Q 50 30 30 50"></path>');
+        assert(path.bbox).objectEqualsTo({x:20, y:20, width:30, height:30});
+    });
+
+    it ("Shows a path containing q directive", ()=>{
+        let path = new Path(M(20, 25), L(30, 20), q(20, 10, 0, 30));
+        svg.add(path);
+        assert(path.outerHTML).equalsTo('<path d="M 20 25, L 30 20, q 20 10 0 30"></path>');
+        assert(path.bbox).objectEqualsTo({x:20, y:20, width:30, height:30});
+    });
+
+    /*
+        it ("Select an item on a point", ()=>{
+            let rect = new Rect(10, 15, 30, 40);
+            svg.add(rect);
+            let selection = svg.getElementsOn(20, 30);
+            assert(selection).arrayEqualsTo([rect]);
+            selection = svg.getElementsOn(100, 100);
+            assert(selection).arrayEqualsTo([]);
+        });
+
+        it ("Select one item among many", ()=>{
+            let rects = [];
+            for (let i=0; i<50; i++) {
+                rects[i] = [];
+                for (let j=0; j<50; j++) {
+                    rects[i][j] = new Rect(i*40, j*20, 40, 20);
+                    svg.add(rects[i][j]);
+                }
+            }
+            let selection = svg.getElementsOn(60, 70);
+            let d1 = new Date().getTime();
+            for (let i=0; i<1000; i++) {
+                let selection = svg.getElementsOn(60, 70);
+                assert(selection).arrayEqualsTo([rects[1][3]]);
+            }
+            let d2 = new Date().getTime();
+            console.log(d2-d1);
+        });
+    */
 });

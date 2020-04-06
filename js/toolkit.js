@@ -10,7 +10,7 @@ import {
     Matrix2D, Point2D
 } from "./geometry.js";
 import {win, doc, dom,
-    MouseEvents, KeyboardEvents, Buttons,
+    MouseEvents, KeyboardEvents, Buttons, Div, SVGElement,
     Svg, Rect, Group, Translation, Fill, Colors, Visibility,
     localOffset, globalOffset, computePosition
 } from "./graphics.js";
@@ -373,11 +373,17 @@ export function makeSingleton(Clazz, create=true) {
 
 export class CanvasLayer {
 
-    constructor(canvas, zIndex) {
+    constructor(canvas) {
         this._canvas = canvas;
-        this._root = new Group();
+        this._root = new Svg(canvas.width, canvas.height);
+        this._root.style = "position:absolute;transform:rotateX(0deg);width:100%;height:100%;"
         this._root._owner = this;
-        this._root.z_index = zIndex;
+        this._base = new Group();
+        this._content = new Group();
+        this._root.add(this._base);
+        this._base.add(this._content);
+        this.width = canvas.width;
+        this.height = canvas.height;
         this._mutationsObserver = this._createMutationsObserver();
         Context.addStarter(()=>{
             Memento.instance.addBefore(()=>this.stopMutationsObserver());
@@ -385,6 +391,10 @@ export class CanvasLayer {
         });
         this.restartMutationsObserver();
         canvas.addObserver(this);
+    }
+
+    _adjustContent(x, y) {
+        this._base.matrix = Matrix2D.translate(this.width/2+x, this.height/2+y);
     }
 
     _processMutations(mutations) {
@@ -428,10 +438,6 @@ export class CanvasLayer {
     _notified(source, type, ...values) {
     }
 
-    get zIndex() {
-        return this._root.z_index;
-    }
-
     get canvas() {
         return this._canvas;
     }
@@ -447,11 +453,11 @@ export class CanvasLayer {
     }
 
     local2global(x, y) {
-        return this._root.local2global(x, y);
+        return this._content.local2global(x, y);
     }
 
     global2local(x, y) {
-        return this._root.global2local(x, y);
+        return this._content.global2local(x, y);
     }
 
     get clientWidth() {
@@ -462,35 +468,45 @@ export class CanvasLayer {
         return this._canvas.clientHeight;
     }
 
+    get width() {
+        return this._content.width;
+    }
+
+    set width(width) {
+        console.log("setw : "+width)
+        this._content.width = width;
+    }
+
+    get height() {
+        return this._content.height;
+    }
+
+    set height(height) {
+        this._content.height = height;
+    }
+
     get matrix() {
-        return this._root.matrix.clone();
+        return this._content.matrix.clone();
     }
 
     set matrix(matrix) {
-        this._root.matrix = matrix.clone();
+        this._content.matrix = matrix.clone();
     }
 
     get globalMatrix() {
-        return this._root.globalMatrix.clone();
+        return this._content.globalMatrix.clone();
     }
 
-
-    setZIndexes(element) {
-        let zIndex = this._root.z_index;
-        element.visit({element}, function(context) {
-            if (this._root.z_index!==undefined) {
-                this._root.z_index += zIndex;
-            }
-        });
+    get content() {
+        return this._content;
     }
 
-    unsetZIndexes(element) {
-        let zIndex = this._root.z_index;
-        element.visit({element}, function(context) {
-            if (this._root.z_index !== undefined) {
-                this._root.z_index -= zIndex;
-            }
-        });
+    putArtifact(artifact) {
+        this._content.add(artifact);
+    }
+
+    removeArtifact(artifact) {
+        this._content.remove(artifact);
     }
 
 }
@@ -499,10 +515,28 @@ makeNotCloneable(CanvasLayer);
 export class BaseLayer extends CanvasLayer {
 
     constructor(canvas) {
-        super(canvas, BaseLayer.Z_INDEX);
+        super(canvas);
+        this._zoomOnWheel();
     }
 
-    _adjustGeometry(matrix = this._root.matrix) {
+    _zoomOnWheel() {
+        this._root.on(MouseEvents.WHEEL, event => {
+            if (!Context.freezed) {
+                let mousePosition = this._canvas.mouse2canvas(event);
+
+                console.log(mousePosition.x, mousePosition.y, event.pageX, event.pageY);
+
+                if (event.deltaY > 0) {
+                    this.zoomOut(mousePosition.x, mousePosition.y);
+                } else {
+                    this.zoomIn(mousePosition.x, mousePosition.y);
+                }
+                event.preventDefault();
+            }
+        });
+    }
+
+    _adjustGeometry(matrix = this.content.matrix) {
         if (this.width!==undefined && this.height!==undefined) {
             let scale = Math.max(
                 this.clientWidth / this.width,
@@ -527,7 +561,7 @@ export class BaseLayer extends CanvasLayer {
                 matrix = matrix.translate(dx - this.width / 2, dy - this.height / 2);
             }
         }
-        this._root.matrix = matrix;
+        this.matrix = matrix;
     }
 
     setSize(width, height) {
@@ -538,7 +572,7 @@ export class BaseLayer extends CanvasLayer {
     }
 
     scrollTo(x, y) {
-        let matrix = this._root.matrix.translate(-x, -y);
+        let matrix = this.matrix.translate(-x, -y);
         this._adjustGeometry(matrix);
         this._fire(Events.SCROLL, x, y);
     }
@@ -547,7 +581,7 @@ export class BaseLayer extends CanvasLayer {
         let zoom = this.zoom*BaseLayer.ZOOM_STEP;
         if (zoom>this.maxZoom) zoom=this.maxZoom;
         let zoomMatrix = Matrix2D.scale(zoom/this.zoom, zoom/this.zoom, x, y);
-        let newMatrix = this._root.matrix.multLeft(zoomMatrix);
+        let newMatrix = this.matrix.multLeft(zoomMatrix);
         this._adjustGeometry(newMatrix);
         this._fire(Events.ZOOM, newMatrix.scalex, newMatrix.x, newMatrix.y);
     }
@@ -556,7 +590,7 @@ export class BaseLayer extends CanvasLayer {
         let zoom = this.zoom/BaseLayer.ZOOM_STEP;
         if (zoom<this.minZoom) zoom=this.minZoom;
         let zoomMatrix = Matrix2D.scale(this.zoom/zoom, this.zoom/zoom, x, y);
-        let newMatrix = this._root.matrix.multLeft(zoomMatrix.invert());
+        let newMatrix = this.matrix.multLeft(zoomMatrix.invert());
         this._adjustGeometry(newMatrix);
         this._fire(Events.ZOOM, newMatrix.scalex, newMatrix.x, newMatrix.y);
     }
@@ -568,7 +602,7 @@ export class BaseLayer extends CanvasLayer {
     }
 
     get zoom() {
-        return this._root.matrix.scalex;
+        return this.content.matrix.scalex;
     }
 
     get minZoom() {
@@ -593,7 +627,7 @@ export class BaseLayer extends CanvasLayer {
             this._children = new List();
         }
         this._children.add(element);
-        this._root.add(element._root);
+        this.putArtifact(element._root);
         element._fire(Events.ATTACH, this);
         this._fire(Events.ADD, element);
         return this;
@@ -602,7 +636,7 @@ export class BaseLayer extends CanvasLayer {
     remove(element) {
         if (this._children && this._children.contains(element)) {
             this._children.remove(element);
-            this._root.remove(element._root);
+            this.removeArtifact(element._root);
             if (this._children.length===0) {
                 delete this._children;
             }
@@ -624,24 +658,27 @@ export class BaseLayer extends CanvasLayer {
     get contentSelectionMark() {
         return Selection.instance.selectFilter;
     }
+
+    getElementFromPoint(point) {
+        let lpoint = this.global2local(point.x, point.y);
+        for (let element of this.children) {
+            let result = element.getElementOnPoint(lpoint);
+            if (result) return result;
+        }
+    }
 }
 BaseLayer.ZOOM_STEP = 1.2;
 BaseLayer.ZOOM_MAX = 50;
-BaseLayer.Z_INDEX = 0;
 
 export class ToolsLayer extends CanvasLayer {
 
     constructor(canvas) {
-        super(canvas, ToolsLayer.Z_INDEX);
-    }
-
-    putArtifact(artifact) {
-        this._root.add(artifact);
+        super(canvas);
     }
 
     bbox(artifact) {
         let parent = artifact.parent;
-        this._root.add(artifact);
+        this.putArtifact(artifact);
         let bbox = artifact.bbox;
         artifact.detach();
         if (parent) {
@@ -651,7 +688,6 @@ export class ToolsLayer extends CanvasLayer {
     }
 
 }
-ToolsLayer.Z_INDEX = 999;
 
 let gpi = 0;
 
@@ -711,7 +747,7 @@ class GlassPedestal {
         let dX = invertedMatrix.x(fx, fy);
         let dY = invertedMatrix.y(fx, fy);
         element.setLocation(new Point2D(dX, dY));
-        this._glass.setZIndexes(element);
+//        this._glass.setZIndexes(element);
     }
 
     moveElement(element, x, y) {
@@ -731,7 +767,7 @@ class GlassPedestal {
         element.rotate && element.rotate(element.globalAngle);
         this._elementPedestals.delete(element);
         this.removeArtifact(pedestal, element);
-        this._glass.unsetZIndexes(element);
+//        this._glass.unsetZIndexes(element);
     }
 
     putArtifact(artifact, element) {
@@ -796,8 +832,7 @@ export function makeMultiLayeredGlass(superClass, {layers}) {
 export class GlassLayer extends CanvasLayer {
 
     constructor(canvas) {
-        super(canvas, GlassLayer.Z_INDEX);
-        this._initContent();
+        super(canvas);
         this._elements = new Map();
         this._pedestals = new Map();
     }
@@ -806,11 +841,6 @@ export class GlassLayer extends CanvasLayer {
         if (source===this._canvas && (type===Events.ZOOM || type===Events.SCROLL || type===Events.RESIZE)) {
             this.matrix = this.canvas.baseMatrix;
         }
-    }
-
-    _initContent() {
-        this._content = new Group();
-        this._root.add(this._content);
     }
 
     /*
@@ -851,7 +881,7 @@ export class GlassLayer extends CanvasLayer {
             }
             else {
                 this._content.add(pedestal._root);
-                pedestal._root.matrix = support._root.globalMatrix.multLeft(this._root.globalMatrix.invert());
+                pedestal._root.matrix = support._root.globalMatrix.multLeft(this.globalMatrix.invert());
             }
         }
         return pedestal;
@@ -921,7 +951,7 @@ export class GlassLayer extends CanvasLayer {
     }
 
     getPoint(x, y) {
-        let imatrix = this._root.globalMatrix.invert();
+        let imatrix = this.globalMatrix.invert();
         return {
             x: imatrix.x(x, y),
             y: imatrix.y(x, y)
@@ -929,7 +959,6 @@ export class GlassLayer extends CanvasLayer {
     }
 
 }
-GlassLayer.Z_INDEX = 1000;
 
 export function setGlassStrategy(superClass, {glassStrategy}) {
 
@@ -958,10 +987,10 @@ export function setLayeredGlassStrategy(superClass, {layers}) {
 export class ModalsLayer extends CanvasLayer {
 
     constructor(canvas) {
-        super(canvas, ModalsLayer.Z_INDEX);
+        super(canvas);
         this._curtain = new Rect(-canvas.width/2, -canvas.height/2, canvas.width, canvas.height)
             .attrs({fill: Colors.BLACK, opacity: 0.5, visibility: Visibility.HIDDEN});
-        this._root.add(this._curtain);
+        this.putArtifact(this._curtain);
     }
 
     openPopup(onOpen, data, onValidate, onCancel) {
@@ -1008,7 +1037,31 @@ export class ModalsLayer extends CanvasLayer {
     }
 
 }
-ModalsLayer.Z_INDEX = 999;
+
+export class EventsLayer extends CanvasLayer {
+
+    constructor(canvas) {
+        super(canvas);
+        this._root.on(MouseEvents.MOUSE_DOWN, event=>this._dispatch(event));
+        this._root.on(MouseEvents.MOUSE_UP, event=>this._dispatch(event));
+        this._root.on(MouseEvents.MOUSE_MOVE, event=>this._dispatch(event));
+        this._root.on(MouseEvents.CLICK, event=>this._dispatch(event));
+        this._root.on(MouseEvents.DOUBLE_CLICK, event=>this._dispatch(event));
+        this._root.on(MouseEvents.CONTEXT_MENU, event=>this._dispatch(event));
+        this._root.on(MouseEvents.WHEEL, event=>this._dispatch(event));
+    }
+
+    _dispatch(event) {
+        let targets = doc.elementsFromPoint(event.clientX, event.clientY);
+        for (let target of targets) {
+            if (target.tagName !== 'svg') {
+                target.dispatchEvent(new event.constructor(event.type, event));
+                return;
+            }
+        }
+    }
+
+}
 
 export class Anchor {
     constructor() {
@@ -1016,7 +1069,7 @@ export class Anchor {
         this._events = new List();
     }
 
-    attach(svg, anchor) {
+    attach(root, anchor) {
         this._anchor = doc.querySelector(anchor);
         dom.addEventListener(this._anchor, MouseEvents.MOUSE_UP, event=>{
             this._anchor.focus();
@@ -1031,7 +1084,7 @@ export class Anchor {
         for (let event of this._events) {
             this._anchor.dispatchEvent(event);
         }
-        svg.attach(this._anchor);
+        root.anchor(this._anchor);
     }
 
     addEventListener(type, handler) {
@@ -1071,31 +1124,32 @@ makeSingleton(Anchor);
 export class Canvas {
 
     constructor(anchor, widthOrStyle, height) {
-        this._root = new Svg();
+        this._root = new Div();
         if (typeof(widthOrStyle)==="string") {
-            this._root.style=widthOrStyle;
+            this._root.style = `position:relative;${widthOrStyle};`;
         }
         else {
-            this._root.width = widthOrStyle;
-            this._root.height = height;
+            this._root.style = `position:relative;width:${widthOrStyle}px;height:${height}px;`;
         }
         Anchor.instance.attach(this._root, anchor);
-        this._content = new Translation(this.width/2, this.height/2);
-        this._root.add(this._content);
         this._baseLayer = this.createBaseLayer();
         this._toolsLayer = this.createToolsLayer();
         this._glassLayer = this.createGlassLayer();
         this._modalsLayer = this.createModalsLayer();
+        this._eventsLayer = this.createEventsLayer();
         this._manageGeometryChanges();
-        this._zoomOnWheel();
         this.shadowFilter = defineShadow("_shadow_", Colors.BLACK);
-        this._root.addDef(this.shadowFilter);
+        this.baseLayer._root.addDef(this.shadowFilter);
         this.highlightFilter = defineShadow("_highlight_", Colors.RED, 1);
-        this._root.addDef(this.highlightFilter);
+        this.baseLayer._root.addDef(this.highlightFilter);
     }
 
     _adjustContent(x=0, y=0) {
-        this._content.matrix = Matrix2D.translate(this.width/2+x, this.height/2+y);
+        this._baseLayer._adjustContent(x, y);
+        this._toolsLayer._adjustContent(x, y);
+        this._glassLayer._adjustContent(x, y);
+        this._modalsLayer._adjustContent(x, y);
+        this._eventsLayer._adjustContent(x, y);
     }
 
     createBaseLayer() {
@@ -1138,8 +1192,18 @@ export class Canvas {
         return this._modalsLayer;
     }
 
+    createEventsLayer() {
+        let layer = new EventsLayer(this);
+        this.add(layer);
+        return layer;
+    }
+
+    get eventsLayer() {
+        return this._eventsLayer;
+    }
+
     add(layer) {
-        this._content.add(layer._root);
+        this._root.add(layer._root);
     }
 
     get width() {
@@ -1184,8 +1248,29 @@ export class Canvas {
         return canvasY + globalOffset(this._root).y;
     }
 
+    /*
     getElementFromPoint(x, y) {
         return this._root.getElementFromPoint(x, y);
+    }
+*/
+
+    /*
+    getElementFromPoint(x, y) {
+        let targets = doc.elementsFromPoint(x, y);
+        let svgCount = 0;
+        for (let target of targets) {
+            if (target.tagName==="svg") {
+                svgCount++;
+            }
+            else if (svgCount>=3) {
+                return SVGElement.elementOn(target);
+            }
+        }
+    }
+    */
+
+    getElementFromPoint(x, y) {
+        return this._baseLayer.getElementFromPoint(new Point2D(x, y));
     }
 
     setSize(width, height) {
@@ -1216,28 +1301,15 @@ export class Canvas {
         }, 1000);
     }
 
-    _zoomOnWheel() {
-        this._root.on(MouseEvents.WHEEL, event => {
-            if (!Context.freezed) {
-                let mousePosition = this.mouse2canvas(event);
-                if (event.deltaY > 0) {
-                    this.zoomOut(mousePosition.x, mousePosition.y);
-                } else {
-                    this.zoomIn(mousePosition.x, mousePosition.y);
-                }
-                event.preventDefault();
-            }
-        });
-    }
-
     addFilter(filter) {
-        this._root.addDef(filter);
+        this.baseLayer._root.addDef(filter);
         return this;
     }
 
-    get matrix() {return this._content.matrix;}
-    get globalMatrix() {return this._content.globalMatrix;}
-    mouse2canvas(event) {return this._content.global2local(this.canvasX(event.pageX), this.canvasY(event.pageY));}
+    get matrix() {return this.baseLayer._content.matrix;}
+    get globalMatrix() {return this.baseLayer._content.globalMatrix;}
+//    mouse2canvas(event) {return this.baseLayer._content.global2local(this.canvasX(event.pageX), this.canvasY(event.pageY));}
+    mouse2canvas(event) {return this.baseLayer._content.global2local(this.canvasX(event.pageX), this.canvasY(event.pageY));}
 
     // Base Layer
     setBaseSize(width, height) {this._baseLayer.setSize(width, height);}
@@ -1271,7 +1343,7 @@ export class Canvas {
     getGlassSupport(element) { return this._glassLayer.getSupport(element); }
     getHoveredElements(support) { return this._glassLayer.getHoveredElements(support); }
 
-    // Modal layer
+    // Events layer
     openPopup(onOpen, data, onValidate, onCancel) { this._modalsLayer.openPopup(onOpen, data, onValidate, onCancel); }
     openModal(onOpen, data, onValidate, onCancel) { this._modalsLayer.openModal(onOpen, data, onValidate, onCancel); }
     get modalOpened() { return this._modalsLayer.modalOpened; }
