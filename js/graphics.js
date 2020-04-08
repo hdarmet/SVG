@@ -1573,7 +1573,12 @@ class ZLayer {
                     //let style = window.getComputedStyle(element._parent._node);
                     if (element._attrs.visibility===null || element._attrs.visibility===undefined) {
                         let visibility = this._getInheritedAttribute(element._parent, Attrs.VISIBILITY);
-                        element._node.setAttribute(Attrs.VISIBILITY, visibility);
+                        if (visibility!==undefined && visibility!==null) {
+                            element._node.setAttribute(Attrs.VISIBILITY, visibility);
+                        }
+                        else {
+                            element._node.removeAttribute(Attrs.VISIBILITY);
+                        }
                     }
                 }
             }
@@ -1707,7 +1712,7 @@ export class Svg extends SVGElement {
     }
 
     register(element) {
-        if (element.z_index!==undefined && element._zOrder !== element._parent._zOrder) {
+        if (element.z_index!==undefined && element.z_index !== element._parent._zOrder) {
             element._parent._remove(element);
             this._putOnLayer(element, element.z_index);
         }
@@ -1723,21 +1728,25 @@ export class Svg extends SVGElement {
             let index = element._parent._children.indexOf(element);
             // if index=-1 : the element is removed from its own parent (even if element._parent is not already reset)
             if (index>=0) {
-                while (element._parent._children[index].parentNode !== element._parent._node
-                && index < element._parent._children.length - 1) {
-                    index++;
+
+                let position = 0;
+                let eIndex=0;
+                while (eIndex<index) {
+                    if (element._parent._children[position].parentNode === element._parent._node) position++;
+                    eIndex++;
                 }
-                if (index === element._parent._children.length - 1) {
+                position++;
+                if (position === element._parent._children.length) {
                     element._parent._add(element);
                 }
                 else {
-                    let before = element._parent._children[index];
-                    element._parent._insert(element, before);
+                    let before = element._parent._children[position];
+                    element._parent._insert(before, element);
                 }
             }
         }
 
-        if (element._parent!==this && element._zLayer!==undefined) {
+        if (element._zLayer!==undefined) {
             this._removeFromLayer(element);
             if (element._parent) {
                 reinsertInRightLocation(element);

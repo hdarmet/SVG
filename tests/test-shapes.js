@@ -11,6 +11,9 @@ import {
     MouseEvents, Colors, Visibility, FeGaussianBlur, Filter, P100,
     FilterUnits, FeEdgeMode, FeIn
 } from "../js/graphics.js";
+import {
+    Matrix2D
+} from "../js/geometry.js";
 
 function mouse(evType, target, x, y) {
     let eventSpecs = {bubbles:true, clientX:x, clientY:y};
@@ -887,7 +890,7 @@ describe("Basic SVG Objects", ()=> {
         assert(getDOMPosition(rect3, [rect1, rect2, rect4])).equalsTo(2);
     });
 
-    it ("Sets the z-index of an element", ()=>{
+    it ("Sets the z-index of a svg child", ()=>{
         let zIndexedRect = new Rect(20, 20, 40, 40).attrs({fill:Colors.RED, z_index:1});
         let rect = new Rect(30, 30, 40, 40);
         svg.add(zIndexedRect).add(rect);
@@ -901,7 +904,7 @@ describe("Basic SVG Objects", ()=> {
             '</g>')
     });
 
-    it ("Changes the z-index of an element", ()=>{
+    it ("Changes the z-index of a svg child", ()=>{
         let zIndexedRect = new Rect(20, 20, 40, 40).attrs({fill:Colors.RED});
         let rect = new Rect(30, 30, 40, 40);
         svg.add(zIndexedRect).add(rect);
@@ -929,6 +932,92 @@ describe("Basic SVG Objects", ()=> {
             '<rect x="30" y="30" width="40" height="40"></rect>' +
             '</g>'
         );
+    });
+
+    it ("Sets the z-index of an element (which is not a svg child)", ()=>{
+        let group = new Group();
+        let zIndexedRect = new Rect(20, 20, 40, 40).attrs({fill:Colors.RED, z_index:1});
+        let rect = new Rect(30, 30, 40, 40);
+        svg.add(group);
+        group.add(zIndexedRect).add(rect);
+        assert(svg.innerHTML).equalsTo(
+            '<defs></defs>' +
+            '<g>' +
+                '<g><rect x="30" y="30" width="40" height="40"></rect></g>' +
+            '</g>' +
+            '<g>' +
+                '<rect x="20" y="20" width="40" height="40" fill="#F00F0F"></rect>' +
+            '</g>'
+        );
+    });
+
+    it ("Changes the z-index of an element (which is not a svg child)", ()=>{
+        let group = new Group();
+        let zIndexedRect = new Rect(20, 20, 40, 40).attrs({fill:Colors.RED});
+        let rect = new Rect(30, 30, 40, 40);
+        svg.add(group);
+        group.add(zIndexedRect).add(rect);
+        assert(svg.innerHTML).equalsTo(
+            '<defs></defs>' +
+            '<g>' +
+                '<g>' +
+                    '<rect x="20" y="20" width="40" height="40" fill="#F00F0F"></rect>' +
+                    '<rect x="30" y="30" width="40" height="40"></rect>' +
+                '</g>' +
+            '</g>'
+        );
+        zIndexedRect.z_index = 1;
+        assert(svg.innerHTML).equalsTo(
+            '<defs></defs>' +
+            '<g>' + // Layer 0
+                '<g>' +
+                    '<rect x="30" y="30" width="40" height="40"></rect>' +
+                '</g>' +
+            '</g>' +
+            '<g>' + // Layer 1
+                '<rect x="20" y="20" width="40" height="40" fill="#F00F0F"></rect>' +
+            '</g>');
+        zIndexedRect.z_index = 0;
+        assert(svg.innerHTML).equalsTo(
+            '<defs></defs>' +
+            '<g>' +
+                '<g>' +
+                    '<rect x="20" y="20" width="40" height="40" fill="#F00F0F"></rect>' +
+                    '<rect x="30" y="30" width="40" height="40"></rect>' +
+                '</g>' +
+            '</g>'
+        );
+    });
+
+    it ("Moves a z-indexed element by moving its parent", (done)=>{
+        let group = new Group();
+        group.matrix = Matrix2D.translate(15, 15);
+        let zIndexedRect = new Rect(20, 20, 40, 40).attrs({fill:Colors.RED, z_index:1});
+        let rect = new Rect(30, 30, 40, 40);
+        svg.add(group);
+        group.add(zIndexedRect).add(rect);
+        assert(svg.innerHTML).equalsTo(
+            '<defs></defs>' +
+            '<g>' +
+            '<g transform="matrix(1 0 0 1 15 15)"><rect x="30" y="30" width="40" height="40"></rect></g>' +
+            '</g>' +
+            '<g>' +
+            '<rect x="20" y="20" width="40" height="40" fill="#F00F0F" transform="matrix(1 0 0 1 15 15)"></rect>' +
+            '</g>'
+        );
+        group.matrix = Matrix2D.translate(25, 25);
+        defer(()=>{
+            assert(svg.innerHTML).equalsTo(
+                '<defs></defs>' +
+                '<g>' +
+                '<g transform="matrix(1 0 0 1 25 25)"><rect x="30" y="30" width="40" height="40"></rect></g>' +
+                '</g>' +
+                '<g>' +
+                '<rect x="20" y="20" width="40" height="40" fill="#F00F0F" transform="matrix(1 0 0 1 25 25)"></rect>' +
+                '</g>'
+            );
+            done();
+        }, 50);
     });
 
 });
