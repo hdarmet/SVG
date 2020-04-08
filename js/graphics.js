@@ -201,6 +201,82 @@ export function computeAngle(source, target) {
 }
 export let AnyEvent = "event";
 
+/**
+ * Returns the "position string" of an element. A position string is a string of numbers, each one gives the index of
+ * the element or one of its ancestors in its parent children list. Example: [3, 4, 2] means that the element is the 3rd
+ * child of its parent p1 which is the fourth child of its own paren p2 and p2 is the second child of the root svg.
+ * @param element which string is computed
+ * @returns {Array}
+ * @private
+ */
+function _getOrderString(element) {
+    let orderString = [];
+    let parent = element.parent;
+    while (parent) {
+        orderString.push(parent._children.indexOf(element));
+        element = parent;
+        parent = parent.parent;
+    }
+    return orderString;
+}
+
+/**
+ * Compare two "position strings" (see above). A string position is "bigger" than another, if, STARTING from the root
+ * (ie. the END of the string), a position number is bigger than its counterpart. Exemple: [1, 2, 3] is bigger than
+ * [3, 1, 3], because 3 = 3 (root position), and 2 > 1 (intermediate position).
+ * @param string1
+ * @param string2
+ * @returns {number} -1 if string1 < string 2, 1 if string2 > string 1, 0 otherwise.
+ * @private
+ */
+function _compareOrderStrings(string1, string2) {
+    let indexS1 = string1.length-1;
+    let indexS2 = string2.length-1;
+    while(indexS1>=0 && indexS2>=0) {
+        let result = string1[indexS1]-string2[indexS2];
+        if (result) return result;
+        indexS1--; indexS2--;
+    }
+    return indexS1===-1 ? indexS2===-1 ? 0 : -1 : 1;
+}
+
+/**
+ * Orders a list of elements according to their "position orders" (see above). The last element in the resultiong list
+ * is the "highest", which means it is drawn above the others.
+ * @param elements
+ * @returns {Array}
+ */
+export function getDOMOrder(...elements) {
+
+    let strings = [];
+    for (let element of elements) {
+        let string = _getOrderString(element);
+        string._element = element;
+        strings.push(string);
+    }
+    strings.sort(_compareOrderStrings);
+    let result = [];
+    for (let string of strings) {
+        result.push(string._element);
+    }
+    return result;
+}
+
+export function getDOMPosition(element, elements) {
+    let start = 0;
+    let end = elements.length - 1;
+    let string = _getOrderString(element);
+
+    while (start <= end) {
+        let half = Math.floor((start + end) / 2);
+        let cmp = _compareOrderStrings(string, _getOrderString(elements[half]));
+        if (cmp === 0) return half;
+        else if (cmp > 0) start = half + 1;
+        else end = half - 1;
+    }
+    return start;
+}
+
 export const MouseEvents = {
     CLICK : "click",
     CONTEXT_MENU : "contextmenu",
@@ -997,16 +1073,16 @@ export class DOMElement {
         return this._parent && this._parent.inDOM;
     }
 
-    _add(element) {
-        dom.appendChild(this._node, element._node);
-    }
-
     get clientWidth() {
         return dom.clientWidth(this._node);
     }
 
     get clientHeight() {
         return dom.clientHeight(this._node);
+    }
+
+    _add(element) {
+        dom.appendChild(this._node, element._node);
     }
 
     _reset(element) {
@@ -1046,8 +1122,8 @@ export class DOMElement {
         }
         this._children.add(element);
         matrixOp++;
-        this._add(element);
         element._parent = this;
+        this._add(element);
         element._register();
         return this;
     }
@@ -1069,11 +1145,11 @@ export class DOMElement {
             element.detach();
             this._children.replace(oldElement, element);
             matrixOp++;
-            this._replace(oldElement, element);
-            oldElement._parent = null;
             element._parent = this;
-            oldElement._unregister();
+            this._replace(oldElement, element);
             element._register();
+            oldElement._unregister();
+            oldElement._parent = null;
         }
         return this;
     }
@@ -1086,8 +1162,8 @@ export class DOMElement {
             element.detach();
             this._children.insert(beforeElement, element);
             matrixOp++;
-            this._insert(beforeElement, element);
             element._parent = this;
+            this._insert(beforeElement, element);
             element._register(this);
         }
         return this;
@@ -1097,8 +1173,8 @@ export class DOMElement {
         if (this._children) {
             this._children.remove(element);
             matrixOp++;
-            element._unregister();
             this._remove(element);
+            element._unregister();
             element._parent = null;
         }
         return this;
@@ -1398,15 +1474,6 @@ export class SVGElement extends DOMElement {
         return false;
     }
 
-    _add(element) {
-        super._add(element);
-        if (this.inDOM && !this._section) {
-            let parent = this.parent;
-            while(parent && !parent._section) {
-                parent = parent._parent;
-            }
-        }
-    }
 }
 defineFloatProperty(SVGElement, Attrs.OPACITY);
 defineStringProperty(SVGElement, Attrs.VISIBILITY);
@@ -1483,6 +1550,10 @@ class ZLayer {
         this._children = new List();
     }
 
+    destroy() {
+        dom.removeChild(this._node._owner._node, this._node);
+    }
+
     _getInheritedAttribute(element, attrName) {
         while (element) {
             let attr = element._attrs[attrName];
@@ -1533,6 +1604,11 @@ class ZLayer {
         this._children.remove(element);
     }
 
+    clear() {
+        dom.cl
+        this._children.clear();
+    }
+
     get empty() {
         return !this._children.length;
     }
@@ -1553,16 +1629,20 @@ export class Svg extends SVGElement {
         this.attr("xmlns:xlink", XLINK_NS);
         this.width = width;
         this.height = height;
-        this._layers = new List();
-        this._createZLayer(0);
         this.defs = new Defs();
-        dom.appendChild(this._node, this.defs._node);
         this.defs._parent = this;
+        this._initContent();
         this._section = this;
         this._layout = new BoxLocator(10, 50, geometryGetter);
         this._mutationObserver = new MutationObserver(()=>this._updateLayers());
         this._mutationConfig = { childList: true, attributes: true, subtree:true };
         this._mutationObserver.observe(this._node, this._mutationConfig);
+    }
+
+    _initContent() {
+        dom.appendChild(this._node, this.defs._node);
+        this._layers = new List();
+        this._createZLayer(0);
     }
 
     _updateLayers() {
@@ -1598,47 +1678,66 @@ export class Svg extends SVGElement {
         if (!this._layers[index]) {
             this._createZLayer(index);
         }
-        this._layers[index].add(element); // TODO ? Manage order ?
+        if (!element._parent) {
+            this._layers[index].add(element);
+        }
+        else {
+            let position = getDOMPosition(element, this._layers[index]._children);
+            if (position === this._layers[index]._children.length) {
+                this._layers[index].add(element);
+            }
+            else {
+                this._layers[index].insert(this._layers[index]._children[position], element);
+            }
+        }
         element._zLayer = index;
-        element._zMatrix = element._parent ? element._parent.globalMatrix : null;
+        let matrix = element._parent ? element._parent.globalMatrix : null;
+        element._zMatrix = (matrix && !matrix.isIdentity) ? matrix : null;
     }
 
     _removeFromLayer(element) {
-        if (element._zLayer!==undefined) {
-            this._layers[element._zLayer].remove(element);
-            if (this._layers[element._zLayer].empty) {
-                delete this._layers[element._zLayer];
-            }
-            delete element._zLayer;
-            element._zMatrix = null;
+        assert(element._zLayer!==undefined);
+        this._layers[element._zLayer].remove(element);
+        if (this._layers[element._zLayer].empty) {
+            this._layers[element._zLayer].destroy();
+            delete this._layers[element._zLayer];
         }
+        delete element._zLayer;
+        element._zMatrix = null;
     }
 
     register(element) {
         if (element.z_index!==undefined && element._zOrder !== element._parent._zOrder) {
-            dom.removeChild(element._parent._node, element._node);
-            this._putOnLayer(element, element._zOrder);
+            element._parent._remove(element);
+            this._putOnLayer(element, element.z_index);
         }
         element._addToLayout(this._layout);
     }
 
     unregister(element) {
+        /**
+         * Re-insert an element removed from z-layer, in the (detached) DOM subtree it should belongs to.
+         * @param element
+         */
         function reinsertInRightLocation(element) {
             let index = element._parent._children.indexOf(element);
-            while(element._parent._children[index].parentNode !== element._parent._node
-            && index<element._parent._children.length - 1) {
-                index++;
-            }
-            if (index === element._parent._children.length - 1) {
-                dom.appendChild(element._parent._node, element._node);
-            }
-            else {
-                let before = element._parent._children[index];
-                dom.insertBefore(element._parent._node, element._node, before._node);
+            // if index=-1 : the element is removed from its own parent (even if element._parent is not already reset)
+            if (index>=0) {
+                while (element._parent._children[index].parentNode !== element._parent._node
+                && index < element._parent._children.length - 1) {
+                    index++;
+                }
+                if (index === element._parent._children.length - 1) {
+                    element._parent._add(element);
+                }
+                else {
+                    let before = element._parent._children[index];
+                    element._parent._insert(element, before);
+                }
             }
         }
 
-        if (element._zLayer!==undefined) {
+        if (element._parent!==this && element._zLayer!==undefined) {
             this._removeFromLayer(element);
             if (element._parent) {
                 reinsertInRightLocation(element);
@@ -1670,27 +1769,29 @@ export class Svg extends SVGElement {
     }
 
     _add(element) {
-        this._layers[0].add(element);
+        this._putOnLayer(element, 0);
     }
 
     _reset(element) {
-        this._layers[0].reset(element, element);
+        this._layers[element._zLayer].reset(element, element);
     }
 
     _replace(oldElement, element) {
-        this._layers[0].replace(oldElement, element);
+        this._removeFromLayer(oldElement);
+        this._putOnLayer(element, 0);
     }
 
     _insert(beforeElement, element) {
-        this._layers[0].insert(beforeElement, element);
+        this._putOnLayer(element, 0);
     }
 
     _remove(element) {
-        this._layers[0].remove(element);
+        this._removeFromLayer(element);
     }
 
     _clear() {
-        this._layers[0]._node.innerHTML = '';
+        super._clear();
+        this._initContent();
     }
 
     get globalMatrix() {
@@ -1724,36 +1825,6 @@ export class Svg extends SVGElement {
     get relativeMatrix() {
         return new Matrix2D();
     }
-
-    /*
-    get width() {
-        let width = this._attrs.width;
-        if (width===undefined) {
-            width = dom.clientWidth(this._node);
-            this._attrs.width = width;
-        }
-        return width;
-    }
-
-    get height() {
-        let height = this._attrs.height;
-        if (height===undefined) {
-            height = dom.clientHeight(this._node);
-            this._attrs.height = height;
-        }
-        return height;
-    }
-
-    set width(width) {
-        this._attrs.width = width;
-        this._node.style.width = width+"px";
-    }
-
-    set height(height) {
-        this._attrs.height = height;
-        this._node.style.height = height+"px";
-    }
-    */
 
 }
 
@@ -1922,11 +1993,17 @@ export class SVGCoreElement extends SVGElement {
         }
     }
 
+    /**
+     * Updates internal properties in order to manage z-ordering and registration in spacial layout. This method is
+     * invoked each time this element OR ONE OF ITS ANCESTOR is inserted in a DOM tree (even if the DOM tree is not
+     * inserted in the document tree).
+     * @returns {boolean}
+     * @private
+     */
     _register() {
         if (this._parent && this._section !== this._parent._section) {
             this._relativeMatrix = this._parent.relativeMatrix.mult(this.matrix);
             let z_index = this.z_index;
-            this._zOrder = z_index !== undefined ? z_index : this._parent._zOrder;
             if (this._section) this._section.exited(this);
             this._section = this._parent._section;
             if (this._section) this._section.entered(this);
@@ -1938,6 +2015,8 @@ export class SVGCoreElement extends SVGElement {
             if (this._parent._section) {
                 this._parent._section.register(this);
             }
+            // Updates z-order AFTER parent registration
+            this._zOrder = z_index !== undefined ? z_index : this._parent._zOrder;
             return true;
         }
         return false;

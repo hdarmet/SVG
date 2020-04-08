@@ -136,6 +136,10 @@ export class Matrix2D {
         this._check();
     }
 
+    get isIdentity() {
+        return this.a===1 && this.b===0 && this.c===0 && this.d===1 && this.e===0 && this.f===0;
+    }
+
     _check() {
         if (isNaN(this.a+this.b+this.c+this.d+this.e+this.f)) {
             assert("Invalid matrix:", this);
@@ -390,6 +394,11 @@ export class Matrix3D {
         this.o2 = o2;
         this.o3 = o3;
         this._check();
+    }
+
+    get isIdentity() {
+        return this.m11===1 && this.m12===0 && this.m13===0 && this.m21===0 && this.m22===1 && this.m23===0 &&
+               this.m31===0 && this.m32===0 && this.m33===1 && this.o1===0 && this.o2===0 && this.o3===0;
     }
 
     _check() {
