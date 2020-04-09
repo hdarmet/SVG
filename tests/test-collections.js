@@ -536,27 +536,6 @@ describe("AVL Tree implementation", ()=> {
         assert(boxLocator.getBBox(element1)).objectEqualsTo({left:-50, top:-50, right:-30, bottom:-30});
     });
 
-    it ("Adds and removes an element before using it", ()=> {
-        let boxLocator = new BoxLocator(10, 1, element=>element);
-        let element1 = {left:-50, top:-50, right:-30, bottom:-30};
-        boxLocator.add(element1);
-        assert(boxLocator.size).equalsTo(1);
-        let sector = boxLocator._sector;
-        assert(sector).isDefined();
-        // Add and remove an element : nothing change
-        let element2 = {left:30, top:30, right:50, bottom:50};
-        boxLocator.add(element2).remove(element2);
-        assert(boxLocator.size).equalsTo(1);
-        assert(boxLocator._sector).equalsTo(sector);
-        // Remove than add : nothing changed
-        boxLocator.add(element2);
-        assert(boxLocator.size).equalsTo(2);
-        sector = boxLocator._sector;
-        boxLocator.remove(element2).add(element2);
-        assert(boxLocator.size).equalsTo(2);
-        assert(boxLocator._sector).equalsTo(sector);
-    });
-
     it("Splits a spacial sector when threshold is reached", ()=> {
         let boxLocator = new BoxLocator(3, 1, element=>element);
         // Too few elements : sector is not splitted

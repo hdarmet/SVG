@@ -1101,27 +1101,19 @@ export class BoxLocator {
     }
 
     add(element) {
-        if (this._removedElements && this._removedElements.has(element)) {
-            this._removedElements.delete(element);
-        }
-        else {
-            if (!this._elements || !this._elements.has(element)) {
-                if (!this._addedElements) this._addedElements = new ESet();
-                this._addedElements.add(element);
-            }
+        if (this._removedElements && this._removedElements.has(element)) this._update();
+        if (!this._elements || !this._elements.has(element)) {
+            if (!this._addedElements) this._addedElements = new ESet();
+            this._addedElements.add(element);
         }
         return this;
     }
 
     remove(element) {
-        if (this._addedElements && this._addedElements.has(element)) {
-            this._addedElements.delete(element);
-        }
-        else {
-            if (this._elements && this._elements.has(element)) {
-                if (!this._removedElements) this._removedElements = new ESet();
-                this._removedElements.add(element);
-            }
+        if (this._addedElements && this._addedElements.has(element)) this._update();
+        if (this._elements && this._elements.has(element)) {
+            if (!this._removedElements) this._removedElements = new ESet();
+            this._removedElements.add(element);
         }
         return this;
     }
@@ -1202,7 +1194,7 @@ export class BoxLocator {
                 delete this._top;
                 delete this._right;
                 delete this._bottom;
-                if (this._elements) {
+                if (this._elements && this._elements.size) {
                     for (let element of this._elements) {
                         this._extendSize(element._bbox);
                     }
@@ -1234,6 +1226,26 @@ export class BoxLocator {
     get size() {
         this._update();
         return this._elements ? this._elements.size : 0;
+    }
+
+    get left() {
+        this._update();
+        return this._left;
+    }
+
+    get right() {
+        this._update();
+        return this._right;
+    }
+
+    get top() {
+        this._update();
+        return this._top;
+    }
+
+    get bottom() {
+        this._update();
+        return this._bottom;
     }
 
     getBBox(element) {

@@ -5,7 +5,7 @@ import {
 } from "./test-toolkit.js";
 import {
     getDOMOrder, getDOMPosition,
-    ClipPath, Mask, Rect, Circle, Ellipse, Line, Svg, Group, Translation, Rotation, Scaling,
+    ClipPath, Mask, Rect, Circle, Ellipse, Line, Svg, Group, Translation, Rotation, Scaling, Pack,
     Path, M, m, L, l, H, h, V, v, Q, q, C, c, S, s,
     Polygon, Polyline, RasterImage, ClippedRasterImage, SvgImage, SvgRasterImage,
     MouseEvents, Colors, Visibility, FeGaussianBlur, Filter, P100,
@@ -817,34 +817,6 @@ describe("Basic SVG Objects", ()=> {
         assert(path.bbox).objectEqualsTo({x:20, y:20, width:30, height:30});
     });
 
-    it ("Select an item on a point", ()=>{
-        let rect = new Rect(10, 15, 30, 40);
-        svg.add(rect);
-        let selection = svg.getElementsOn(20, 30);
-        assert(selection).arrayEqualsTo([rect]);
-        selection = svg.getElementsOn(100, 100);
-        assert(selection).arrayEqualsTo([]);
-    });
-
-    it ("Select one item among many", ()=>{
-        let rects = [];
-        for (let i=0; i<50; i++) {
-            rects[i] = [];
-            for (let j=0; j<50; j++) {
-                rects[i][j] = new Rect(i*40, j*20, 40, 20);
-                svg.add(rects[i][j]);
-            }
-        }
-        let selection = svg.getElementsOn(60, 70);
-        let d1 = new Date().getTime();
-        for (let i=0; i<1000; i++) {
-            let selection = svg.getElementsOn(60, 70);
-            assert(selection).arrayEqualsTo([rects[1][3]]);
-        }
-        let d2 = new Date().getTime();
-        console.log(d2-d1);
-    });
-
     it ("Gets the DOM order of elements", ()=>{
         let group1 = new Group();
         let group2 = new Group();
@@ -1017,7 +989,124 @@ describe("Basic SVG Objects", ()=> {
                 '</g>'
             );
             done();
-        }, 50);
+        }, 10);
+    });
+
+    it ("Checks that z-index matrix is merged with element matrix", (done)=>{
+        let rootGroup = new Group();
+        let group = new Group();
+        group.matrix = Matrix2D.translate(15, 15);
+        let rect = new Rect(30, 30, 40, 40);
+        svg.add(rootGroup.add(group.add(rect)));
+        assert(svg.innerHTML).equalsTo(
+            '<defs></defs>' +
+            '<g>' + // z-index = 0
+                '<g>' +
+                    '<g transform="matrix(1 0 0 1 15 15)"><rect x="30" y="30" width="40" height="40"></rect></g>' +
+                '</g>' +
+            '</g>'
+        );
+        group.z_index = 1;
+        assert(svg.innerHTML).equalsTo(
+            '<defs></defs>' +
+            '<g>' + // z-index = 0
+                '<g></g>' +
+            '</g>' +
+            '<g>' + // z-index = 1
+                '<g transform="matrix(1 0 0 1 15 15)"><rect x="30" y="30" width="40" height="40"></rect></g>' +
+            '</g>'
+        );
+        rootGroup.matrix = Matrix2D.translate(25, 25);
+        defer(()=>{
+            assert(svg.innerHTML).equalsTo(
+                '<defs></defs>' +
+                '<g>' + // z-index = 0
+                    '<g transform="matrix(1 0 0 1 25 25)"></g>' +
+                '</g>' +
+                '<g>' + // z-index = 1
+                    '<g transform="matrix(1 0 0 1 40 40)">' +   // matrixes are merged
+                        '<rect x="30" y="30" width="40" height="40"></rect>' +
+                    '</g>' +
+                '</g>'
+            );
+            group.z_index = 0;
+            defer(()=>{
+                assert(svg.innerHTML).equalsTo(
+                    '<defs></defs>' +
+                    '<g>' +
+                        '<g transform="matrix(1 0 0 1 25 25)">' +
+                            '<g transform="matrix(1 0 0 1 15 15)"><rect x="30" y="30" width="40" height="40"></rect></g>' +
+                        '</g>' +
+                    '</g>'
+                );
+                done();
+            }, 10);
+        }, 10);
+    });
+
+    it ("Select an item on a point", ()=>{
+        let rect = new Rect(10, 15, 30, 40);
+        svg.add(rect);
+        let selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([rect]);
+        selection = svg.getElementsOn(100, 100);
+        assert(selection).arrayEqualsTo([]);
+    });
+
+    it ("Select one item among many", ()=>{
+        let rects = [];
+        for (let i=0; i<50; i++) {
+            rects[i] = [];
+            for (let j=0; j<50; j++) {
+                rects[i][j] = new Rect(i*40, j*20, 40, 20);
+                svg.add(rects[i][j]);
+            }
+        }
+        let selection = svg.getElementsOn(60, 70);
+        let d1 = new Date().getTime();
+        for (let i=0; i<1000; i++) {
+            let selection = svg.getElementsOn(60, 70);
+            assert(selection).arrayEqualsTo([rects[1][3]]);
+        }
+        let d2 = new Date().getTime();
+        console.log(d2-d1);
+    });
+
+    it ("Checks that an element inside a group is found by svg.getElementsOn (but the group is not)", ()=>{
+        let rect = new Rect(10, 15, 30, 40);
+        let group = new Group();
+        svg.add(group.add(rect));
+        let selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([rect]);
+    });
+
+    it ("Checks that an element inside a section (pack) is found by svg.getElementsOn (but the pack is not)", ()=>{
+        let rect = new Rect(10, 15, 30, 40);
+        let pack = new Pack();
+        pack.matrix = Matrix2D.translate(10, 15);
+        svg.add(pack.add(rect));
+        assert(pack.bbox).objectEqualsTo({x:10, y:15, width:30, height:40});
+        assert(pack.rbox).objectEqualsTo({x:20, y:30, width:30, height:40});
+        let selection = svg.getElementsOn(30, 45);
+        assert(selection).arrayEqualsTo([rect]);
+        selection = svg.getElementsOn(15, 45);
+        assert(selection).arrayEqualsTo([]);
+        selection = svg.getElementsOn(45, 45);
+        assert(selection).arrayEqualsTo([rect]);
+        selection = svg.getElementsOn(55, 45);
+        assert(selection).arrayEqualsTo([]);
+    });
+
+    it ("Checks that an item is updated on layout when its geometry change", ()=>{
+        let rect = new Rect(10, 15, 30, 40);
+        svg.add(rect);
+        let selection = svg.getElementsOn(35, 30);
+        assert(selection).arrayEqualsTo([rect]);
+        selection = svg.getElementsOn(45, 30);
+        assert(selection).arrayEqualsTo([]);
+        rect.width = 40;
+        selection = svg.getElementsOn(45, 30);
+        assert(selection).arrayEqualsTo([rect]);
     });
 
 });

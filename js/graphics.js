@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    assert
+    assert, defineGetProperty, defineMethod, proposeMethod
 } from "./misc.js";
 import {
     List, BoxLocator
@@ -707,6 +707,22 @@ function defineAnyProperty(clazz, name) {
     );
 }
 
+function defineGeometryProperty(clazz, name) {
+    defineProperty(clazz, name,
+        function () {
+            let value = this.attr(name);
+            return value===undefined ? 0 : value;
+        },
+        function (value) {
+            if (value === undefined) {
+                throw TypeError("Attribute value must be defined");
+            }
+            value!==null ? this.attr(name, ""+value, value): this.attr(name, null);
+            this.geometryChanged();
+        }
+    );
+}
+
 function defineDimensionProperty(clazz, name) {
     defineProperty(clazz, name,
         function () {
@@ -908,6 +924,13 @@ function defineClockProperty(clazz, name) {
             else this.attr(name, null);
         }
     );
+}
+
+function defineStandardGeometryProperties(clazz) {
+    defineGeometryProperty(clazz, Attrs.WIDTH);
+    defineGeometryProperty(clazz, Attrs.HEIGHT);
+    defineGeometryProperty(clazz, Attrs.X);
+    defineGeometryProperty(clazz, Attrs.Y);
 }
 
 function defineXYWidthHeightProperties(clazz) {
@@ -1609,11 +1632,6 @@ class ZLayer {
         this._children.remove(element);
     }
 
-    clear() {
-        dom.cl
-        this._children.clear();
-    }
-
     get empty() {
         return !this._children.length;
     }
@@ -1623,6 +1641,87 @@ class ZLayer {
 function geometryGetter(element) {
     let geometry = element.rbox;
     return {left:geometry.x, top:geometry.y, right:geometry.x + geometry.width, bottom:geometry.y + geometry.height};
+}
+
+function makeSection(superClass) {
+
+    defineGetProperty(superClass,
+        function childrenSection() {
+            return this;
+        }
+    );
+
+    defineMethod(superClass,
+        function registerForLayout(element) {
+            element._addToLayout(this._layout);
+        }
+    );
+
+    defineMethod(superClass,
+        function unregisterForLayout(element) {
+            element._removeFromLayout(this._layout);
+        }
+    );
+
+    defineGetProperty(superClass,
+        function childrenRelativeMatrix() {
+            return new Matrix2D();
+        }
+    );
+
+    defineMethod(superClass,
+        function getElementsOn(x, y) {
+            let elements = this._layout.find(x, y);
+            let result = new List();
+            for (let element of elements) {
+                if (element.getElementsOn) {
+                    let point = element._relativeMatrix.invert().point(new Point2D(x, y));
+                    result.add(...element.getElementsOn(point.x, point.y));
+                }
+                else result.add(element);
+            }
+            return result;
+        }
+    );
+
+    proposeMethod(superClass,
+        function registerForZIndex(element) {
+            this.section && this.section.registerForZIndex(element);
+        }
+    );
+
+    defineMethod(superClass,
+        function register(element) {
+            this.registerForZIndex(element);
+            this.registerForLayout(element);
+        }
+    );
+
+    proposeMethod(superClass,
+        function unregisterForZIndex(element) {
+            this.section && this.section.unregisterForZIndex(element);
+        }
+    );
+
+    defineMethod(superClass,
+        function unregister(element) {
+            this.unregisterForZIndex(element);
+            this.unregisterForLayout(element);
+        }
+    );
+
+    proposeMethod(superClass,
+        function entered(element) {
+            this.section && this.section.entered(element);
+        }
+    );
+
+    proposeMethod(superClass,
+        function exited(element) {
+            this.section && this.section.exited(element);
+        }
+    );
+
 }
 
 export class Svg extends SVGElement {
@@ -1637,7 +1736,6 @@ export class Svg extends SVGElement {
         this.defs = new Defs();
         this.defs._parent = this;
         this._initContent();
-        this._section = this;
         this._layout = new BoxLocator(10, 50, geometryGetter);
         this._mutationObserver = new MutationObserver(()=>this._updateLayers());
         this._mutationConfig = { childList: true, attributes: true, subtree:true };
@@ -1711,15 +1809,14 @@ export class Svg extends SVGElement {
         element._zMatrix = null;
     }
 
-    register(element) {
+    registerForZIndex(element) {
         if (element.z_index!==undefined && element.z_index !== element._parent._zOrder) {
             element._parent._remove(element);
             this._putOnLayer(element, element.z_index);
         }
-        element._addToLayout(this._layout);
     }
 
-    unregister(element) {
+    unregisterForZIndex(element) {
         /**
          * Re-insert an element removed from z-layer, in the (detached) DOM subtree it should belongs to.
          * @param element
@@ -1728,7 +1825,6 @@ export class Svg extends SVGElement {
             let index = element._parent._children.indexOf(element);
             // if index=-1 : the element is removed from its own parent (even if element._parent is not already reset)
             if (index>=0) {
-
                 let position = 0;
                 let eIndex=0;
                 while (eIndex<index) {
@@ -1752,7 +1848,6 @@ export class Svg extends SVGElement {
                 reinsertInRightLocation(element);
             }
         }
-        element._removeFromLayout(this._layout);
     }
 
     entered(element) {
@@ -1815,28 +1910,8 @@ export class Svg extends SVGElement {
         return this._globalMatrix;
     }
 
-    getElementsOn(x, y) {
-        if (this._layout) {
-            let elements = this._layout.find(x, y);
-            let result = new List();
-            for (let element of elements) {
-                if (element.getElementsOn) {
-                    let point = element._relativeMatrix.invert().point(x, y);
-                    result.add(...element.getElementsOn(point.x, point.y));
-                }
-                else result.add(element);
-            }
-            return result;
-        }
-        else return null;
-    }
-
-    get relativeMatrix() {
-        return new Matrix2D();
-    }
-
 }
-
+makeSection(Svg);
 defineDimensionProperty(Svg, Attrs.WIDTH);
 defineDimensionProperty(Svg, Attrs.HEIGHT);
 
@@ -1891,6 +1966,30 @@ export class SVGCoreElement extends SVGElement {
         super(type);
     }
 
+    get section() {
+        return this._section;
+    }
+
+    get childrenSection() {
+        return this._section;
+    }
+
+    set section(section) {
+        if (section) {
+            this._section = section;
+        }
+        else {
+            delete this._section;
+        }
+    }
+
+    geometryChanged() {
+        if (this.section) {
+            this.section.unregisterForLayout(this);
+            this.section.registerForLayout(this);
+        }
+    }
+
     get _matrix() {
         return this._attrs.matrix;
     }
@@ -1936,8 +2035,8 @@ export class SVGCoreElement extends SVGElement {
 
     set matrix(matrix) {
         this._matrix = matrix;
-        if (this._parent && this._parent.relativeMatrix) {
-            this.relativeMatrix = this._parent.relativeMatrix.mult(matrix);
+        if (this._parent && this._parent.childrenRelativeMatrix) {
+            this.relativeMatrix = this._parent.childrenRelativeMatrix.mult(matrix);
         }
     }
 
@@ -1945,13 +2044,17 @@ export class SVGCoreElement extends SVGElement {
         return this._relativeMatrix;
     }
 
+    get childrenRelativeMatrix() {
+        return this.relativeMatrix;
+    }
+
     set relativeMatrix(matrix) {
         this._relativeMatrix = matrix;
     }
 
     get globalMatrix() {
-        if (this._section) {
-            return this._section.globalMatrix.mult(this.relativeMatrix);
+        if (this.section) {
+            return this.section.globalMatrix.mult(this.relativeMatrix);
         }
         else if (this._parent) {
             return this._parent.globalMatrix.mult(this.matrix);
@@ -1959,18 +2062,6 @@ export class SVGCoreElement extends SVGElement {
         else {
             return this.matrix;
         }
-        /*
-        if (!this._globalMatrix || this._globalMatrix.op!==matrixOp) {
-            //let globalMatrix = dom.getCTM(this._node);
-            let globalMatrix = this._parent ? this._matrix ? this._parent.globalMatrix.mult(this._matrix) : this._parent.globalMatrix : this.matrix;
-            this._globalMatrix = new Matrix2D(
-                globalMatrix.a, globalMatrix.b,
-                globalMatrix.c, globalMatrix.d,
-                globalMatrix.e, globalMatrix.f);
-            this._globalMatrix.op = matrixOp;
-        }
-        return this._globalMatrix;
-        */
     }
 
     _addToLayout(layout) {
@@ -2010,19 +2101,19 @@ export class SVGCoreElement extends SVGElement {
      * @private
      */
     _register() {
-        if (this._parent && this._section !== this._parent._section) {
-            this._relativeMatrix = this._parent.relativeMatrix.mult(this.matrix);
+        if (this._parent && this.section !== this._parent.childrenSection) {
+            this._relativeMatrix = this._parent.childrenRelativeMatrix.mult(this.matrix);
             let z_index = this.z_index;
-            if (this._section) this._section.exited(this);
-            this._section = this._parent._section;
-            if (this._section) this._section.entered(this);
+            if (this.section) this.section.exited(this);
+            this.section = this._parent.childrenSection;
+            if (this.section) this.section.entered(this);
             if (this._children) {
                 for (let child of this._children) {
                     child._register();
                 }
             }
-            if (this._parent._section) {
-                this._parent._section.register(this);
+            if (this.section) {
+                this.section.register(this);
             }
             // Updates z-order AFTER parent registration
             this._zOrder = z_index !== undefined ? z_index : this._parent._zOrder;
@@ -2032,12 +2123,12 @@ export class SVGCoreElement extends SVGElement {
     }
 
     _unregister() {
-        if (this._section) {
-            if (this._section) {
-                this._section.unregister(this);
+        if (this.section) {
+            if (this.section) {
+                this.section.unregister(this);
             }
-            this._section.exited(this);
-            delete this._section;
+            this.section.exited(this);
+            this.section = null;
             if (this._children) {
                 for (let child of this._children) {
                     child._unregister();
@@ -2142,6 +2233,39 @@ export class Group extends SVGCoreElement {
 
 }
 defineElementProperty(Group, Attrs.FILTER, "url(#ELEMENT)");
+
+export class Pack extends Group {
+
+    constructor(matrix=null) {
+        super(matrix);
+        this._layout = new BoxLocator(10, 50, geometryGetter);
+    }
+
+    get bbox() {
+        return {
+            x:this._layout.left, y:this._layout.top,
+            width:this._layout.right-this._layout.left, height:this._layout.bottom-this._layout.top
+        };
+    }
+
+    _addToLayout(layout) {
+        layout.add(this);
+    }
+
+    _removeFromLayout(layout) {
+        layout.remove(this);
+    }
+
+    get relativeMatrix() {
+        return this._relativeMatrix;
+    }
+
+    set relativeMatrix(matrix) {
+        this._relativeMatrix = matrix;
+    }
+
+}
+makeSection(Pack);
 
 export class Translation extends Group {
     constructor(dx=0, dy=0) {
@@ -2298,7 +2422,7 @@ export class Rect extends Shape {
         return {x:this.x, y:this.y, width:this.width, height:this.height};
     }
 }
-defineXYWidthHeightProperties(Rect);
+defineStandardGeometryProperties(Rect);
 defineDimensionProperty(Rect, Attrs.RX);
 defineDimensionProperty(Rect, Attrs.RY);
 
