@@ -462,8 +462,8 @@ class Drag {
 
     constructor(item) {
         this._item = item;
-        this.bx = Context.canvas.baseLayer._root.globalMatrix.dx;
-        this.by = Context.canvas.baseLayer._root.globalMatrix.dy;
+        this.bx = Context.canvas.baseLayer._content.globalMatrix.dx;
+        this.by = Context.canvas.baseLayer._content.globalMatrix.dy;
     }
 
     from(x, y, specs) {

@@ -2033,11 +2033,16 @@ export class SVGCoreElement extends SVGElement {
         }
     }
 
-    set matrix(matrix) {
+    _setMatrix(matrix) {
         this._matrix = matrix;
         if (this._parent && this._parent.childrenRelativeMatrix) {
             this.relativeMatrix = this._parent.childrenRelativeMatrix.mult(matrix);
         }
+        this.geometryChanged();
+    }
+
+    set matrix(matrix) {
+        this._setMatrix(matrix);
     }
 
     get relativeMatrix() {
@@ -2190,6 +2195,7 @@ export class SVGCoreElement extends SVGElement {
 }
 
 export class Group extends SVGCoreElement {
+
     constructor(matrix=null) {
         super("g");
         matrix && (this.matrix = matrix);
@@ -2216,6 +2222,21 @@ export class Group extends SVGCoreElement {
         }
     }
 
+    _updateChildrenLayout() {
+        if (this._children) {
+            for (let child of this._children) {
+                if (child instanceof SVGCoreElement) {
+                    child.geometryChanged();
+                }
+            }
+        }
+    }
+
+    _setMatrix(matrix) {
+        super._setMatrix(matrix);
+        this._updateChildrenLayout();
+    }
+
     get relativeMatrix() {
         return this._relativeMatrix;
     }
@@ -2239,6 +2260,9 @@ export class Pack extends Group {
     constructor(matrix=null) {
         super(matrix);
         this._layout = new BoxLocator(10, 50, geometryGetter);
+    }
+
+    _updateChildrenLayout() {
     }
 
     get bbox() {
@@ -2439,9 +2463,9 @@ export class Circle extends Shape {
     }
 
 }
-defineDimensionProperty(Circle, Attrs.CX);
-defineDimensionProperty(Circle, Attrs.CY);
-defineDimensionProperty(Circle, Attrs.R);
+defineGeometryProperty(Circle, Attrs.CX);
+defineGeometryProperty(Circle, Attrs.CY);
+defineGeometryProperty(Circle, Attrs.R);
 
 export class Ellipse extends Shape {
     constructor(cx=0, cy=0, rx, ry) {
@@ -2456,10 +2480,10 @@ export class Ellipse extends Shape {
         return {x:this.cx-this.rx, y:this.cy-this.ry, width:this.rx*2, height:this.ry*2};
     }
 }
-defineDimensionProperty(Ellipse, Attrs.CX);
-defineDimensionProperty(Ellipse, Attrs.CY);
-defineDimensionProperty(Ellipse, Attrs.RX);
-defineDimensionProperty(Ellipse, Attrs.RY);
+defineGeometryProperty(Ellipse, Attrs.CX);
+defineGeometryProperty(Ellipse, Attrs.CY);
+defineGeometryProperty(Ellipse, Attrs.RX);
+defineGeometryProperty(Ellipse, Attrs.RY);
 
 export class Line extends Shape {
     constructor(x1, y1, x2, y2) {
@@ -2475,10 +2499,10 @@ export class Line extends Shape {
     }
 
 }
-defineDimensionProperty(Line, Attrs.X1);
-defineDimensionProperty(Line, Attrs.Y1);
-defineDimensionProperty(Line, Attrs.X2);
-defineDimensionProperty(Line, Attrs.Y2);
+defineGeometryProperty(Line, Attrs.X1);
+defineGeometryProperty(Line, Attrs.Y1);
+defineGeometryProperty(Line, Attrs.X2);
+defineGeometryProperty(Line, Attrs.Y2);
 
 export class Polyshape extends Shape {
     constructor(type, points) {
@@ -2911,6 +2935,7 @@ export function defineDirectiveProperty(clazz, name) {
                 }
             }
             this._node.setAttribute(Attrs.D, def);
+            this.geometryChanged();
             return this;
         }
 

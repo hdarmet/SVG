@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    describe, it, before, assert, clickOn, drag, Snapshot, keyboard, findChild
+    describe, it, before, assert, clickOn, drag, Snapshot, keyboard, findChild, executeTimeouts
 } from "./test-toolkit.js";
 import {
     Rect, Group
@@ -24,6 +24,9 @@ import {
 import {
     Facilities
 } from "../js/standard-facilities.js";
+import {
+    Point2D
+} from "../js/geometry.js";
 
 describe("App fundamentals", ()=> {
 
@@ -35,39 +38,128 @@ describe("App fundamentals", ()=> {
         Context.selection = new Selection();
         setRef(Context.canvas, 'app-canvas');
         setRef(Context.canvas.baseLayer, 'app-base-layer');
-        setRef(Context.canvas.toolsLayer, 'app-tool-layer');
+        setRef(Context.canvas.toolsLayer, 'app-tools-layer');
         setRef(Context.canvas.glassLayer, 'app-glass-layer');
-        setRef(Context.canvas.modalsLayer, 'app-modal-layer');
+        setRef(Context.canvas.modalsLayer, 'app-modals-layer');
+        setRef(Context.canvas.eventsLayer, 'app-events-layer');
     });
 
-    /*
-    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="position:absolute;transform:rotateX(0deg);width:100%;height:100%;" id="app-base-layer"><g><g transform="matrix(1 0 0 1 600 300)"><g transform="matrix(1 0 0 1 0 0)"></g></g></g><defs><filter id="_shadow_" filterUnits="objectBoundingBox" primitiveUnits="userSpaceOnUse" x="-20pc" y="-20pc" width="140pc" height="140pc"><feDropShadow stdDeviation="3 3" in="SourceGraphic" dx="0" dy="0" flood-color="#0F0F0F" flood-opacity="1"></feDropShadow></filter><filter id="_highlight_" filterUnits="objectBoundingBox" primitiveUnits="userSpaceOnUse" x="-20pc" y="-20pc" width="140pc" height="140pc"><feDropShadow stdDeviation="1 1" in="SourceGraphic" dx="0" dy="0" flood-color="#F00F0F" flood-opacity="1"></feDropShadow></filter></defs></svg>
-     */
-    it("Creates a minimal app", ()=>{
+    function baseLayerHtml(content) {
+        return '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ' +
+                'width="1200" height="600" style="position:absolute;transform:rotateX(0deg);width:100%;height:100%;" ' +
+                'id="app-base-layer">' +
+                '<defs>' +
+                    '<filter id="_shadow_" filterUnits="objectBoundingBox" primitiveUnits="userSpaceOnUse" ' +
+                        'x="-20pc" y="-20pc" width="140pc" height="140pc">' +
+                        '<feDropShadow stdDeviation="3 3" in="SourceGraphic" dx="0" dy="0" flood-color="#0F0F0F" flood-opacity="1"></feDropShadow>' +
+                    '</filter>' +
+                    '<filter id="_highlight_" filterUnits="objectBoundingBox" primitiveUnits="userSpaceOnUse" ' +
+                        'x="-20pc" y="-20pc" width="140pc" height="140pc">' +
+                        '<feDropShadow stdDeviation="1 1" in="SourceGraphic" dx="0" dy="0" flood-color="#F00F0F" flood-opacity="1"></feDropShadow>' +
+                    '</filter>' +
+                '</defs>' +
+                '<g>' +
+                    '<g transform="matrix(1 0 0 1 600 300)">' +     // center layer
+                        '<g transform="matrix(1 0 0 1 0 0)">' +
+                            content +
+                        '</g>' + // layer root group
+                    '</g>' +
+                '</g>' +
+            '</svg>';
+    }
+
+    function glassLayerHtml(zoomFactor, content) {
+        return '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ' +
+            'width="1200" height="600" style="position:absolute;transform:rotateX(0deg);width:100%;height:100%;" ' +
+            'id="app-glass-layer">' +
+                '<defs></defs>' +
+                '<g>' +
+                    '<g transform="matrix(1 0 0 1 600 300)">' +
+                        '<g transform="matrix('+zoomFactor+' 0 0 '+zoomFactor+' 0 0)">' +
+                            content +
+                        '</g>' +
+                    '</g>' +
+                '</g>' +
+            '</svg>';
+    }
+
+    it("Checks base layer DOM structure", ()=>{
         assert(html(Context.canvas.baseLayer))
-            .equalsTo("<g transform=\"matrix(1 0 0 1 0 0)\" id=\"app-base-layer\"></g>");
+            .equalsTo(baseLayerHtml(""));
+    });
+
+    it("Checks tools layer DOM structure", ()=>{
         assert(html(Context.canvas.toolsLayer))
-            .equalsTo("<g id=\"app-tool-layer\"></g>");
+            .equalsTo(
+                '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ' +
+                'width="1200" height="600" style="position:absolute;transform:rotateX(0deg);width:100%;height:100%;" ' +
+                'id="app-tools-layer">' +
+                '<defs></defs>' +
+                '<g>' +
+                    '<g transform="matrix(1 0 0 1 600 300)">' +
+                        '<g></g>' +
+                    '</g>' +
+                '</g>' +
+            '</svg>');
+    });
+
+    it("Checks glass layer DOM structure", ()=>{
         assert(html(Context.canvas.glassLayer))
-            .equalsTo("<g id=\"app-glass-layer\"><g></g></g>");
+            .equalsTo(
+                '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ' +
+                'width="1200" height="600" style="position:absolute;transform:rotateX(0deg);width:100%;height:100%;" ' +
+                'id="app-glass-layer">' +
+                '<defs></defs>' +
+                '<g>' +
+                    '<g transform="matrix(1 0 0 1 600 300)">' +
+                        '<g></g>' +
+                    '</g>' +
+                '</g>' +
+            '</svg>');
+    });
+
+    it("Checks modal layer DOM structure", ()=>{
         assert(html(Context.canvas.modalsLayer))
-            .equalsTo("<g id=\"app-modal-layer\"><rect x=\"-600\" y=\"-300\" width=\"1200\" height=\"600\" fill=\"#0F0F0F\" opacity=\"0.5\" visibility=\"hidden\"></rect></g>");
+            .equalsTo(
+                '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ' +
+                'width="1200" height="600" style="position:absolute;transform:rotateX(0deg);width:100%;height:100%;" ' +
+                'id="app-modals-layer">' +
+                '<defs></defs>' +
+                '<g>' +
+                    '<g transform="matrix(1 0 0 1 600 300)">' +
+                        '<g>' +
+                            '<rect x="-600" y="-300" width="1200" height="600" fill="#0F0F0F" opacity="0.5" visibility="hidden"></rect>' +
+                        '</g>' +
+                    '</g>' +
+                '</g>' +
+            '</svg>');
+    });
+
+    it("Checks events layer DOM structure", ()=>{
+        assert(html(Context.canvas.eventsLayer))
+            .equalsTo(
+                '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ' +
+                'width="1200" height="600" style="position:absolute;transform:rotateX(0deg);width:100%;height:100%;" ' +
+                'id="app-events-layer">' +
+                '<defs></defs>' +
+                '<g>' +
+                    '<g transform="matrix(1 0 0 1 600 300)">' +
+                        '<g></g>' +
+                    '</g>' +
+                '</g>' +
+            '</svg>');
+    });
+
+    it("Checks canvas DOM structure", ()=>{
         assert(html(Context.canvas))
             .equalsTo(
-                '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1200" height="600" id="app-canvas">' +
-                    '<defs>' +
-                        '<filter id="_shadow_" filterUnits="objectBoundingBox" primitiveUnits="userSpaceOnUse" x="-20pc" y="-20pc" width="140pc" height="140pc">' +
-                            '<feDropShadow stdDeviation="3 3" in="SourceGraphic" dx="0" dy="0" flood-color="#0F0F0F" flood-opacity="1">' +
-                            '</feDropShadow>' +
-                        '</filter>' +
-                    '</defs>' +
-                    '<g transform="matrix(1 0 0 1 600 300)">' +
-                        html(Context.canvas.baseLayer)+
-                        html(Context.canvas.toolsLayer)+
-                        html(Context.canvas.glassLayer)+
-                        html(Context.canvas.modalsLayer)+
-                    '</g>' +
-                '</svg>');
+                '<div style="position:relative;width:1200px;height:600px;" id="app-canvas">' +
+                    html(Context.canvas.baseLayer)+
+                    html(Context.canvas.toolsLayer)+
+                    html(Context.canvas.glassLayer)+
+                    html(Context.canvas.modalsLayer)+
+                    html(Context.canvas.eventsLayer)+
+                '</div>');
     });
 
     function putTable() {
@@ -84,14 +176,11 @@ describe("App fundamentals", ()=> {
         let tablePartsOwnership = '<g></g>';
         let tableChildrenOwnership = '<g></g>';
         assert(html(table))
-            .equalsTo('<g transform="matrix(1 0 0 1 0 0)" id="app-table"><g>' +
+            .equalsTo('<g transform="matrix(1 0 0 1 0 0)" stroke="#0F0F0F" id="app-table"><g>' +
                 tableShape+tablePartsOwnership+tableChildrenOwnership+
                 '</g></g>');
         assert(html(Context.canvas.baseLayer))
-            .equalsTo(
-                '<g transform="matrix(1 0 0 1 0 0)" id="app-base-layer">'+
-                    html(table)+
-                '</g>');
+            .equalsTo(baseLayerHtml(html(table)));
     });
 
     function defineTinyClass() {
@@ -110,17 +199,17 @@ describe("App fundamentals", ()=> {
         let table = putTable();
         let tiny = new TestTiny(30, 20);
         setRef(tiny, "tiny");
-        table.add(tiny);
+        table.addChild(tiny);
         assert(html(tiny))
-            .equalsTo('<g transform="matrix(1 0 0 1 0 0)" id="tiny"><g><g><rect x="-15" y="-10" width="30" height="20"></rect></g></g></g>');
+            .equalsTo('<g transform="matrix(1 0 0 1 0 0)" stroke="#0F0F0F" id="tiny"><g><g><rect x="-15" y="-10" width="30" height="20"></rect></g></g></g>');
         assert(html(table))
             .equalsTo(
-                '<g transform="matrix(1 0 0 1 0 0)" id="app-table">' +
+                '<g transform="matrix(1 0 0 1 0 0)" stroke="#0F0F0F" id="app-table">' +
                     '<g>' +
                         '<g><rect x="-2000" y="-1500" width="4000" height="3000" fill="#A0A0A0"></rect></g>' +
                         '<g></g>' +
                         '<g>' +
-                         html(tiny)+
+                            html(tiny)+
                         '</g>' +
                     '</g>' +
                 '</g>');
@@ -133,7 +222,7 @@ describe("App fundamentals", ()=> {
         let tiny = new TestTiny(30, 20);
         let clicked = false;
         tiny.clickHandler = function() {return event=>clicked = true;};
-        table.add(tiny);
+        table.addChild(tiny);
         clickOn(tiny);
         assert(clicked).equalsTo(true);
     });
@@ -151,7 +240,7 @@ describe("App fundamentals", ()=> {
         let TestTiny = defineDraggableTinyClass();
         let table = putTable();
         let tiny = new TestTiny(30, 20);
-        table.add(tiny);
+        table.addChild(tiny);
         return {TestTiny, table, tiny};
     }
 
@@ -159,11 +248,11 @@ describe("App fundamentals", ()=> {
         let {tiny} = createATableWithOneElement();
         tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
         drag(tiny).from(0, 0).through(10, 10).to(20, 20);
-        assert(tiny.location).sameTo({x:20, y:20});
+        assert(tiny.lloc).sameTo(new Point2D(20, 20));
     });
 
     function defineSimpleTargetClass() {
-        class BoardSimpleTarget extends BoardElement {
+        class TestSimpleTarget extends SigmaElement {
             constructor(width, height) {
                 super(width, height);
                 let background = new Rect(-width / 2, -height / 2, width, height)
@@ -171,19 +260,19 @@ describe("App fundamentals", ()=> {
                 this._initShape(background);
             }
         }
-        makeShaped(BoardSimpleTarget);
+        makeShaped(TestSimpleTarget);
         // May be targeted by drop
-        makeSupport(BoardSimpleTarget);
-        return BoardSimpleTarget;
+        makeSupport(TestSimpleTarget);
+        return TestSimpleTarget;
     }
 
     it("Drags and drops an element over another one on the board and check glass management", ()=>{
         let {tiny, table} = createATableWithOneElement();
-        let BoardSimpleTarget = defineSimpleTargetClass();
-        let target = new BoardSimpleTarget(60, 60);
+        let TestSimpleTarget = defineSimpleTargetClass();
+        let target = new TestSimpleTarget(60, 60);
         tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
-        table.add(target);
-        target.setLocation(100, 50);
+        table.addChild(target);
+        target.setLocation(new Point2D(100, 50));
         let dragSequence = drag(tiny).from(0, 0);
         // Start only. Nothing on glass
         assert(Context.canvas.getHoveredElements(table).contains(tiny)).isFalse();
@@ -194,8 +283,8 @@ describe("App fundamentals", ()=> {
         dragSequence.hover(target, 10, 10);
         assert(Context.canvas.getHoveredElements(table).contains(tiny)).isFalse();
         assert(Context.canvas.getHoveredElements(target).contains(tiny)).isTrue();
-        assert(tiny.location).sameTo({x:10, y:10});
-        assert(tiny.position).sameTo({x:600+100+10, y:300+50+10});
+        assert(tiny.lloc).sameTo(new Point2D(10, 10));
+        assert(tiny.gloc).sameTo(new Point2D(600+100+10, 300+50+10));
         // On table again
         dragSequence.through(20, 20);
         assert(Context.canvas.getHoveredElements(table).contains(tiny)).isTrue();
@@ -203,23 +292,23 @@ describe("App fundamentals", ()=> {
         // Drop on table
         dragSequence.to(20, 20);
         assert(Context.canvas.getHoveredElements(table).contains(tiny)).isFalse();
-        assert(tiny.location).sameTo({x:20, y:20});
+        assert(tiny.lloc).sameTo(new Point2D(20, 20));
     });
 
     it("Drops successfully on a target", ()=>{
         let {tiny, table} = createATableWithOneElement();
-        let BoardSimpleTarget = defineSimpleTargetClass();
-        let target = new BoardSimpleTarget(60, 60);
+        let TestSimpleTarget = defineSimpleTargetClass();
+        let target = new TestSimpleTarget(60, 60);
         tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
-        table.add(target);
-        target.setLocation(100, 50);
+        table.addChild(target);
+        target.setLocation(new Point2D(100, 50));
         let dragSequence = drag(tiny).from(0, 0).through(10, 10).on(target, 20, 20);
         assert(tiny.parent).equalsTo(target);
-        assert(tiny.location).sameTo({x:20, y:20});
+        assert(tiny.lloc).sameTo(new Point2D(20, 20));
     });
 
     function defineNotATargetClass() {
-        class BoardNotATarget extends BoardElement {
+        class TestNotATarget extends SigmaElement {
             constructor(width, height) {
                 super(width, height);
                 let background = new Rect(-width / 2, -height / 2, width, height)
@@ -228,33 +317,33 @@ describe("App fundamentals", ()=> {
                 this._initContent();
             }
         }
-        makeShaped(BoardNotATarget);
+        makeShaped(TestNotATarget);
         // May be targeted by drop
-        makeContainer(BoardNotATarget);
-        return BoardNotATarget;
+        makeContainer(TestNotATarget);
+        return TestNotATarget;
     }
 
     it("Cancel drop if target does not accept any drop", ()=>{
         let {tiny, table} = createATableWithOneElement();
-        let BoardNotATarget = defineNotATargetClass();
-        let notATarget = new BoardNotATarget(60, 60);
+        let TestNotATarget = defineNotATargetClass();
+        let notATarget = new TestNotATarget(60, 60);
         tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
-        table.add(notATarget);
-        notATarget.setLocation(100, 50);
+        table.addChild(notATarget);
+        notATarget.setLocation(new Point2D(100, 50));
         let dragSequence = drag(tiny).from(0, 0).through(10, 10).on(notATarget, 20, 20);
         assert(tiny.parent).equalsTo(table);
-        assert(tiny.location).sameTo({x:0, y:0});
+        assert(tiny.lloc).sameTo(new Point2D(0, 0));
     });
 
     it("Does not move dragged element outside any target", ()=>{
         let {tiny, table} = createATableWithOneElement();
         tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
-        tiny.setLocation(10, 10);
+        tiny.setLocation(new Point2D(10, 10));
         let dragSequence = drag(tiny).from(10, 10).through(100, 100);
-        assert(tiny.location).sameTo({x:100, y:100});
+        assert(tiny.lloc).sameTo(new Point2D(100, 100));
         dragSequence.to(2000, 2000);
         assert(tiny.parent).equalsTo(table);
-        assert(tiny.location).sameTo({x:100, y:100});
+        assert(tiny.lloc).sameTo(new Point2D(100, 100));
     });
 
     it("Undo and redo a move", ()=>{
@@ -264,10 +353,10 @@ describe("App fundamentals", ()=> {
         Context.memento.opened = true;
         drag(tiny).from(0, 0).through(10, 10).to(20, 20);
         Context.memento.undo();
-        assert(tiny.location).sameTo({x:0, y:0});
+        assert(tiny.lloc).sameTo(new Point2D(0, 0));
         tinySnapshot.assert(tiny);
         Context.memento.redo();
-        assert(tiny.location).sameTo({x:20, y:20});
+        assert(tiny.lloc).sameTo(new Point2D(20, 20));
     });
 
     it("Undo and redo using keyboard", ()=>{
@@ -277,10 +366,10 @@ describe("App fundamentals", ()=> {
         Context.memento.opened = true;
         drag(tiny).from(0, 0).through(10, 10).to(20, 20);
         keyboard.input(keyboard.ctrl("z"));
-        assert(tiny.location).sameTo({x:0, y:0});
+        assert(tiny.lloc).sameTo(new Point2D(0, 0));
         tinySnapshot.assert(tiny);
         keyboard.input(keyboard.ctrl("y"));
-        assert(tiny.location).sameTo({x:20, y:20});
+        assert(tiny.lloc).sameTo(new Point2D(20, 20));
     });
 
     it("Select an element by clicking on it", ()=>{
@@ -301,10 +390,10 @@ describe("App fundamentals", ()=> {
         let table = putTable();
         let tiny1 = new TestTiny(30, 20);
         let tiny2 = new TestTiny(30, 20);
-        table.add(tiny1);
-        table.add(tiny2);
-        tiny1.move(10, 10);
-        tiny2.move(20, 10);
+        table.addChild(tiny1);
+        table.addChild(tiny2);
+        tiny1.move(new Point2D(10, 10));
+        tiny2.move(new Point2D(20, 10));
         return {TestTiny, table, tiny1, tiny2};
     }
 
@@ -340,19 +429,19 @@ describe("App fundamentals", ()=> {
         drag(tiny1).from(10, 10).through(20, 20).to(30, 40);
         assert(Context.selection.selected(tiny1)).isTrue();
         assert(Context.selection.selected(tiny2)).isTrue();
-        assert(tiny1.location).sameTo({x:30, y:40});
-        assert(tiny2.location).sameTo({x:40, y:40});
+        assert(tiny1.lloc).sameTo(new Point2D(30, 40));
+        assert(tiny2.lloc).sameTo(new Point2D(40, 40));
     });
 
     it("Deletes a selection", ()=>{
         let {TestTiny, table, tiny1, tiny2} = selectTwoElements();
         Facilities.allowElementDeletion();
         makeDeletable(TestTiny);
-        assert(table.contains(tiny1)).isTrue();
-        assert(table.contains(tiny2)).isTrue();
+        assert(table.containsChild(tiny1)).isTrue();
+        assert(table.containsChild(tiny2)).isTrue();
         keyboard.input(keyboard.delete);
-        assert(table.contains(tiny1)).isFalse();
-        assert(table.contains(tiny2)).isFalse();
+        assert(table.containsChild(tiny1)).isFalse();
+        assert(table.containsChild(tiny2)).isFalse();
         assert(tiny1.parent).isNotDefined();
         assert(tiny2.parent).isNotDefined();
     });
@@ -373,11 +462,18 @@ describe("App fundamentals", ()=> {
         let dragOperation = drag(table).from(-10, -10, {button:2}).through(10, 10, {button:2});
         // Ensure that selection artifact is here
         assert(html(Context.canvas.glassLayer)).equalsTo(
-            '<g id="app-glass-layer" transform="matrix(1 0 0 1 0 0)"><g><rect x="-18" y="-18" width="20" height="20" fill="none" stroke="#dc143c" stroke-opacity="0.01" stroke-width="2"></rect><rect x="-18" y="-18" width="20" height="20" fill="none" stroke="#dc143c" stroke-opacity="0.9" stroke-width="2" stroke-dasharray="5 5"></rect></g></g>\n'
+            glassLayerHtml(1,
+                '<rect x="-18" y="-18" width="20" height="20" fill="none" ' +
+                    'stroke="#dc143c" stroke-opacity="0.01" stroke-width="2">' +
+                '</rect>' +
+                '<rect x="-18" y="-18" width="20" height="20" fill="none" ' +
+                    'stroke="#dc143c" stroke-opacity="0.5" stroke-width="2" stroke-dasharray="5 5">' +
+                '</rect>')
         );
         dragOperation.to(30, 30, {button:2});
+        executeTimeouts();
         // Ensure that select area artifact has disappeared.
-        assert(html(Context.canvas.glassLayer)).equalsTo('<g id="app-glass-layer" transform="matrix(1 0 0 1 0 0)"><g></g></g>');
+        assert(html(Context.canvas.glassLayer)).equalsTo(glassLayerHtml(1, ''));
         assert(Context.selection.selected(tiny)).isTrue();
     });
 
@@ -394,13 +490,25 @@ describe("App fundamentals", ()=> {
         let dragOperation = drag(table).from(-10, -10, {button:2}).through(10, 10, {button:2});
         // Ensure that selection artifact stroke options are updated in accordance with zoom factor is here
         assert(html(Context.canvas.glassLayer)).equalsTo(
-            '<g id="app-glass-layer" transform="matrix(0.5 0 0 0.5 0 0)"><g><rect x="-36" y="-36" width="40" height="40" fill="none" stroke="#dc143c" stroke-opacity="0.01" stroke-width="4"></rect><rect x="-36" y="-36" width="40" height="40" fill="none" stroke="#dc143c" stroke-opacity="0.9" stroke-width="4" stroke-dasharray="10 10"></rect></g></g>\n'
+            glassLayerHtml(0.5,
+                '<rect x="-36" y="-36" width="40" height="40" fill="none" ' +
+                    'stroke="#dc143c" stroke-opacity="0.01" stroke-width="4">' +
+                '</rect>' +
+                '<rect x="-36" y="-36" width="40" height="40" fill="none" ' +
+                    'stroke="#dc143c" stroke-opacity="0.5" stroke-width="4" stroke-dasharray="10 10">' +
+                '</rect>')
         );
         dragOperation.through(20, 20);
         // Even if zoom factor change during area selection !
         Context.canvas.zoomSet(0.4, 0, 0);
         assert(html(Context.canvas.glassLayer)).equalsTo(
-            '<g id="app-glass-layer" transform="matrix(0.4 0 0 0.4 0 0)"><g><rect x="-36" y="-36" width="60" height="60" fill="none" stroke="#dc143c" stroke-opacity="0.9" stroke-width="5" stroke-dasharray="12.5 12.5"></rect></g></g>'
+            glassLayerHtml(0.4,
+                '<rect x="-36" y="-36" width="60" height="60" fill="none" ' +
+                    'stroke="#dc143c" stroke-opacity="0.01" stroke-width="5">' +
+                '</rect>' +
+                '<rect x="-36" y="-36" width="60" height="60" fill="none" ' +
+                    'stroke="#dc143c" stroke-opacity="0.5" stroke-width="5" stroke-dasharray="12.5 12.5">' +
+                '</rect>')
         );
         dragOperation.to(30, 30);
     });
@@ -420,8 +528,8 @@ describe("App fundamentals", ()=> {
         let tiny = new TestTiny(30, 20);
         let clicked = false;
         tiny.clickHandler = function() {return event=>clicked = true;};
-        tiny.setLocation(100, 100);
-        table.add(tiny);
+        tiny.setLocation(new Point2D(100, 100));
+        table.addChild(tiny);
         let copy = copyPasteElement(table, tiny);
         assert(copy).notEqualsTo(tiny);
         Context.selection.unselectAll();
@@ -435,8 +543,8 @@ describe("App fundamentals", ()=> {
         makeSelectable(TestTiny);
         let table = putTable();
         let tiny = new TestTiny(30, 20);
-        tiny.setLocation(100, 100);
-        table.add(tiny);
+        tiny.setLocation(new Point2D(100, 100));
+        table.addChild(tiny);
         let copy = copyPasteElement(table, tiny);
         assert(copy).notEqualsTo(tiny);
         Context.selection.unselectAll();
@@ -451,9 +559,13 @@ describe("App fundamentals", ()=> {
                 this._root.add(element._root);
                 element._parent = this;
             },
-            remove(element) {
+            detachChild(element) {
                 this._root.remove(element._root);
-                element._parent = null;
+                delete element._parent;
+            },
+            _unexecuteDrop(element) {
+                element._root.detach();
+                delete element._parent;
             }
         }
     }
@@ -466,11 +578,10 @@ describe("App fundamentals", ()=> {
         Context.canvas.putArtifactOnToolsLayer(pedestal._root);
         pedestal.register(tiny);
         tiny.dragOperation = function() {return new DragMoveSelectionOperation()};
-        table.add(notATarget);
-        notATarget.setLocation(100, 50);
+        table.addChild(notATarget);
+        notATarget.setLocation(new Point2D(100, 50));
         let dragSequence = drag(tiny).from(0, 0).through(10, 10).on(notATarget, 20, 20);
         assert(tiny._root.parent).isNotDefined();
-        assert(tiny.parent).isNotDefined();
     });
 
 });

@@ -264,7 +264,7 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             if (!target) {
                 Canvas.instance.moveElementOnGlass(selectedElement, null,
                     selectedElement._drag.last.x, selectedElement._drag.last.y);
-            } else /* support changed */ if (target.effective!==selectedElement.parent) {
+            } else /* support changed */ if (target.effective!==selectedElement.support) {
                 Canvas.instance.moveElementOnGlass(selectedElement, target.effective, x, y);
                 selectedElement._drag.last.x = selectedElement.gx;
                 selectedElement._drag.last.y = selectedElement.gy;
@@ -272,7 +272,9 @@ export class DragMoveSelectionOperation extends DragElementOperation {
         }
         for (let selectedElement of this._dragSet) {
             let target = targets.get(selectedElement);
-            selectedElement._hoverOn(target.effective, this._dragSet, target.initial);
+            if (target) {
+                selectedElement._hoverOn(target.effective, this._dragSet, target.initial);
+            }
             selectedElement._fire(Events.DRAG_MOVE);
         }
         this._drag.last.x = x;

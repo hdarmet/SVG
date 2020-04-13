@@ -382,8 +382,8 @@ export class CanvasLayer {
         this._content = new Group();
         this._root.add(this._base);
         this._base.add(this._content);
-        this.width = canvas.width;
-        this.height = canvas.height;
+        //this.width = canvas.width;
+        //this.height = canvas.height;
         this._mutationsObserver = this._createMutationsObserver();
         Context.addStarter(()=>{
             Memento.instance.addBefore(()=>this.stopMutationsObserver());
@@ -394,7 +394,7 @@ export class CanvasLayer {
     }
 
     _adjustContent(x, y) {
-        this._base.matrix = Matrix2D.translate(this.width/2+x, this.height/2+y);
+        this._base.matrix = Matrix2D.translate(this.clientWidth/2+x, this.clientHeight/2+y);
     }
 
     _processMutations(mutations) {
@@ -468,12 +468,12 @@ export class CanvasLayer {
         return this._canvas.clientHeight;
     }
 
+    /*
     get width() {
         return this._content.width;
     }
 
     set width(width) {
-        console.log("setw : "+width)
         this._content.width = width;
     }
 
@@ -484,6 +484,7 @@ export class CanvasLayer {
     set height(height) {
         this._content.height = height;
     }
+    */
 
     get matrix() {
         return this._content.matrix.clone();
@@ -770,10 +771,24 @@ class GlassPedestal {
 //        this._glass.unsetZIndexes(element);
     }
 
+    /**
+     * Puts artifact on glass layer. Artifact is correlated with element (not used here, but used in overwritten
+     * putArtifact method. Some of these methods need this element to retrieve where the artifact should be put on the
+     * glass layer).
+     * @param artifact
+     * @param element
+     */
     putArtifact(artifact, element) {
         this._content.add(artifact);
     }
 
+    /**
+     * Removes artifact from the glass layer. Artifact is correlated with element (not used here, but used in overwritten
+     * removeArtifact method. Some of these methods need this element to retrieve where the artifact is inserted on the
+     * glass layer).
+     * @param artifact
+     * @param element
+     */
     removeArtifact(artifact, element) {
         this._content.remove(artifact);
     }

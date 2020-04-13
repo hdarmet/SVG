@@ -1171,6 +1171,9 @@ export class BoxLocator {
             }
             if (this._addedElements) {
                 for (let element of this._addedElements) {
+                    if (element._bbox) {
+                        element._bbox.locator._update();
+                    }
                     element._bbox = {locator: this, ...this._geometryGetter(element)};
                     if (this._extendSize(element._bbox)) delete this._sector;
                     if (!this._elements) this._elements = new ESet();

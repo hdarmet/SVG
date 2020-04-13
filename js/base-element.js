@@ -425,6 +425,20 @@ export class SigmaTable extends SigmaArea {
     get support() {
         return Canvas.instance.baseLayer;
     }
+
+    _executeDrop(element, dragSet, initialTarget) {
+        this.addChild(element);
+        return true;
+    }
+
+    _unexecuteDrop(element) {
+        this.addChild(element);
+        return true;
+    }
+
+    _revertDrop(element) {
+    }
+
 }
 makePartsOwner(SigmaTable);
 

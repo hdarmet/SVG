@@ -1109,4 +1109,43 @@ describe("Basic SVG Objects", ()=> {
         assert(selection).arrayEqualsTo([rect]);
     });
 
+    it ("Checks that when an item is removed, it cannot be found on layout", ()=>{
+        let rect = new Rect(10, 15, 30, 40);
+        svg.add(rect);
+        let selection = svg.getElementsOn(35, 30);
+        assert(selection).arrayEqualsTo([rect]);
+        svg.remove(rect);
+        selection = svg.getElementsOn(35, 30);
+        assert(selection).arrayEqualsTo([]);
+        svg.add(rect);
+        selection = svg.getElementsOn(35, 30);
+        assert(selection).arrayEqualsTo([rect]);
+    });
+
+    it ("Checks that an item is updated on layout when the matrix of a group it belongs too changes", ()=>{
+        let rect = new Rect(10, 15, 30, 40);
+        let group = new Group();
+        svg.add(group.add(rect));
+        let selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([rect]);
+        group.matrix = Matrix2D.translate(100, 0);
+        selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([]);
+        selection = svg.getElementsOn(120, 30);
+        assert(selection).arrayEqualsTo([rect]);
+    });
+
+    it ("Checks that an item is updated on layout when the matrix of a pack it belongs too changes", ()=>{
+        let rect = new Rect(10, 15, 30, 40);
+        let pack = new Pack();
+        svg.add(pack.add(rect));
+        let selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([rect]);
+        pack.matrix = Matrix2D.translate(100, 0);
+        selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([]);
+        selection = svg.getElementsOn(120, 30);
+        assert(selection).arrayEqualsTo([rect]);
+    });
+
 });
