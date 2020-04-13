@@ -263,9 +263,13 @@ export class DragMoveSelectionOperation extends DragElementOperation {
             // No target at all : element is outside viewport
             if (!target) {
                 Canvas.instance.moveElementOnGlass(selectedElement, null,
-                    selectedElement._drag.last.x, selectedElement._drag.last.y);
-            } else /* support changed */ if (target.effective!==selectedElement.support) {
-                Canvas.instance.moveElementOnGlass(selectedElement, target.effective, x, y);
+                    selectedElement._drag.last.x+selectedElement._drag.drag.x,
+                    selectedElement._drag.last.y+selectedElement._drag.drag.y);
+            } else {
+                /* support changed */
+                if (target.effective!==selectedElement.support) {
+                    Canvas.instance.moveElementOnGlass(selectedElement, target.effective, x, y);
+                }
                 selectedElement._drag.last.x = selectedElement.gx;
                 selectedElement._drag.last.y = selectedElement.gy;
             }
