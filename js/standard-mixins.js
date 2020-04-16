@@ -123,7 +123,7 @@ export function makeStrokeUpdatable(superClass) {
 
     extendMethod(superClass, $revert=>
         function _revert(memento) {
-            superRevert.call(this, memento);
+            $revert.call(this, memento);
             this._strokeColor = memento._strokeColor;
             this._strokeWidth = memento._strokeWidth;
             this._shape.child.attrs({stroke: this._strokeColor, stroke_width: this._strokeWidth});

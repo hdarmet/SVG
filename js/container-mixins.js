@@ -6,7 +6,7 @@ import {
     Cloning, Events, Memento, makeCloneable, MutationObservers, CloneableObject
 } from "./toolkit.js";
 import {
-    Group
+    computeMatrix, Group, Mutation, SVGElement
 } from "./graphics.js";
 import {
     makeGentleDropTarget
@@ -1153,7 +1153,7 @@ export function makeLayersWithContainers(superClass, {layersBuilder}) {
     defineMethod(superClass,
         function clearChildren() {
             for (let layer in layers) {
-                this._layers[layer].clear();
+                this._layers[layer].clearChildren();
             }
             return this;
         }
@@ -1162,7 +1162,7 @@ export function makeLayersWithContainers(superClass, {layersBuilder}) {
     defineMethod(superClass,
         function addChild(element) {
             let layer = this._getLayer(element);
-            this._layers[layer].add(element);
+            this._layers[layer].addChild(element);
             return this;
         }
     );
@@ -1172,10 +1172,10 @@ export function makeLayersWithContainers(superClass, {layersBuilder}) {
             let previousLayer = this._getLayer(previous);
             let layer = this._getLayer(element);
             if (layer === previousLayer) {
-                this._layers[layer].insert(previous, element);
+                this._layers[layer].insertChild(previous, element);
             }
             else {
-                this._layers[layer].add(element);
+                this._layers[layer].addChild(element);
             }
             return this;
         }
@@ -1186,11 +1186,11 @@ export function makeLayersWithContainers(superClass, {layersBuilder}) {
             let previousLayer = this._getLayer(previous);
             let layer = this._getLayer(element);
             if (layer === previousLayer) {
-                this._layers[layer].replace(previous, element);
+                this._layers[layer].replaceChild(previous, element);
             }
             else {
-                this._layers[previousLayer].remove(previous);
-                this._layers[layer].add(element);
+                this._layers[previousLayer].removeChild(previous);
+                this._layers[layer].addChild(element);
             }
             return this;
         }
@@ -1199,7 +1199,7 @@ export function makeLayersWithContainers(superClass, {layersBuilder}) {
     defineMethod(superClass,
         function removeChild(element) {
             let layer = this._getLayer(element);
-            this._layers[layer].remove(element);
+            this._layers[layer].removeChild(element);
             return this;
         }
     );
@@ -1207,7 +1207,7 @@ export function makeLayersWithContainers(superClass, {layersBuilder}) {
     defineMethod(superClass,
         function containsChild(element) {
             let layer = this._getLayer(element);
-            return this._layers[layer].contains(element);
+            return this._layers[layer].containsChild(element);
         }
     );
 
@@ -1296,7 +1296,7 @@ export function makeLayersWithContainers(superClass, {layersBuilder}) {
 
     extendMethod(superClass, $getLayer=>
         function _getLayer(element) {
-            let layer = getLayer ? getLayer.call(this, element) : null;
+            let layer = $getLayer ? $getLayer.call(this, element) : null;
             if (!layer) {
                 layer = element.getLayer && element.getLayer(this);
                 if (!layer) layer = defaultLayer;
@@ -1391,7 +1391,7 @@ export class Pedestal {
         container.__proto__ = {
             addChild(element) {
                 that._support._memorizeElementContent(element);
-                proto.add.callChild(this, element);
+                proto.addChild.call(this, element);
             },
             insertChild(previous, element) {
                 that._support._memorizeElementContent(element);
@@ -1643,7 +1643,7 @@ class ZIndexSupport {
             let children = element.children || [];
             if (element.isSupport) {
                 for (let child of children) {
-                    element._remove(child);
+                    element._removeChild(child);
                 }
                 this._pedestals.get(parent)._proto(element);
                 for (let child of children) {
@@ -1665,7 +1665,7 @@ class ZIndexSupport {
                 if (pedestal) {
                     let elements = pedestal.elements;
                     for (let child of elements) {
-                        element._remove(child);
+                        element._removeChild(child);
                     }
                     pedestal._unproto(element);
                     for (let child of elements) {
@@ -1696,30 +1696,30 @@ class ZIndexSupport {
         }
     }
 
-    _add(add, element) {
+    _addChild(add, element) {
         add.call(this._host, element);
         this._takeInElementContent(element, this._host, 0);
     };
 
-    _insert(insert, previous, element) {
+    _insertChild(insert, previous, element) {
         insert.call(this._host, previous, element);
         this._takeInElementContent(element, this._host, 0);
     };
 
-    _replace(replace, previous, element) {
+    _replaceChild(replace, previous, element) {
         this._takeOutElementContent(previous);
         this._removeEmptyLevels();
         replace.call(this._host, previous, element);
         this._takeInElementContent(element, this._host, 0);
     };
 
-    _remove(remove, element) {
+    _removeChild(remove, element) {
         this._takeOutElementContent(element);
         this._removeEmptyLevels();
         remove.call(this._host, element);
     };
 
-    _clear(clear) {
+    _clearChildren(clear) {
         for (let element of this._host.children) {
             this._takeOutElementContent(element);
         }
@@ -1731,23 +1731,23 @@ class ZIndexSupport {
         this.level(0).add(this._rootPedestal._root);
     };
 
-    __add = function (element) {
+    __addChild = function (element) {
         this._rootPedestal.add(element);
     };
 
-    __insert(previous, element) {
+    __insertChild(previous, element) {
         this._rootPedestal.insert(previous, element);
     };
 
-    __replace(previous, element) {
+    __replaceChild(previous, element) {
         this._rootPedestal.replace(previous, element);
     };
 
-    __remove(element) {
+    __removeChild(element) {
         this._rootPedestal.remove(element);
     };
 
-    __clear(element) {
+    __clearChildren(element) {
         this._rootPedestal.clear();
     };
 
@@ -1885,7 +1885,7 @@ export function makeContainerZindex(superClass) {
 
     replaceMethod(superClass,
         function __replaceChild(previous, element) {
-            this._zIndexSupport.__replacechild(previous, element);
+            this._zIndexSupport.__replaceChild(previous, element);
         }
     );
 
@@ -1897,7 +1897,7 @@ export function makeContainerZindex(superClass) {
 
     replaceMethod(superClass,
         function __clearChildren() {
-            this._content.clearChildren();
+            this._content.clear();
             this._zIndexSupport.__clearChildren();
         }
     );

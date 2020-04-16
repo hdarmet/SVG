@@ -365,7 +365,11 @@ export class TestSuite {
                     before();
                 }
                 if (this.its[this.index].testCase.length===0) {
-                    this.its[this.index].testCase();
+                    try {
+                        this.its[this.index].testCase();
+                    } finally {
+                        this.executeTimeouts();
+                    }
                     this._processSuccess();
                     this.index++;
                     this._executeIt();

@@ -1200,7 +1200,7 @@ export function addGravitationToCollisionPhysic(superClass, {
 
             elements.sort(comparator);
             for (let element of elements) {
-                element._fall = {};
+                !element._fall && (element._fall = {});
             }
             for (let element of elements) {
                 ground.process(element);
@@ -1966,7 +1966,7 @@ export function addGlueToGravitationPhysic(
         }
     );
 
-    defineMethod(superClass,
+    replaceMethod(superClass,
         function _processElements() {
             function computeBlockFall(block) {
                 block.dy = Infinity;
@@ -1983,7 +1983,7 @@ export function addGlueToGravitationPhysic(
                 element._fall = {ly: element.ly};
             }
             let blocks = this._getBlocks(elements);
-            this._letFall(elements, new Ground(this));
+            this._letFall(elements, new GroundForElements(this));
             for (let block of blocks) {
                 computeBlockFall(block);
             }
@@ -1997,22 +1997,22 @@ export function addGlueToGravitationPhysic(
 
 }
 
-export function createStickyGravitationPhysic({
+export function createStickyGravitationPhysicForElements({
       predicate, gravitationPredicate, carryingPredicate, gluingStrategy
   }) {
 
-    class StickyGravitationPhysic extends createGravitationPhysic({
+    class StickyGravitationPhysicForElements extends createCollisionPhysicForElements({
         predicate, gravitationPredicate, carryingPredicate
     }) {
         constructor(host, ...args) {
             super(host, predicate, ...args);
         }
     }
-    addGlueToGravitationPhysic(StickyGravitationPhysic);
+    addGlueToGravitationPhysic(StickyGravitationPhysicForElements);
     if (gluingStrategy) {
-        makeDroppedElementsToGlue(StickyGravitationPhysic, {gluingStrategy});
+        makeDroppedElementsToGlue(StickyGravitationPhysicForElements, {gluingStrategy});
     }
-    return StickyGravitationPhysic;
+    return StickyGravitationPhysicForElements;
 }
 
 export function makeStickyGravitationContainerForElements(superClass, {
@@ -2020,7 +2020,7 @@ export function makeStickyGravitationContainerForElements(superClass, {
     gluingStrategy = null,
     bordersCollide
 }) {
-    class ContainerPhysic extends createStickyGravitationPhysic({
+    class ContainerPhysic extends createStickyGravitationPhysicForElements({
         predicate, gravitationPredicate, carryingPredicate, gluingStrategy
     }) {}
 
