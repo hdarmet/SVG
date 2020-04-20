@@ -224,7 +224,7 @@ export function makeFreePositioningOwner(superClass) {
         }
     );
 
-    defineMethod(superClass,
+    replaceMethod(superClass,
         function _executeDrop(element, dragSet, initialTarget) {
             if (FreePositioningMode.mode) {
                 this.addFloating(element);
@@ -234,7 +234,7 @@ export function makeFreePositioningOwner(superClass) {
         }
     );
 
-    defineMethod(superClass,
+    replaceMethod(superClass,
         function _unexecuteDrop(element) {
             if (FreePositioningMode.mode) {
                 this._addFloating(element);

@@ -954,6 +954,7 @@ class BoxSector {
     _addInSector(element) {
         if (element._bbox.left >= this._x) {
             if (!this._rightSector) {
+                if (element._bbox.left-this._x<this._locator._minSize) return false;
                 this._rightSector = new BoxSector(this._locator, this._x, this._top, this._right, this._bottom);
             }
             this._rightSector.add(element);
@@ -961,6 +962,7 @@ class BoxSector {
         }
         if (element._bbox.right <= this._x) {
             if (!this._leftSector) {
+                if (this.x-element._bbox.right<this._locator._minSize) return false;
                 this._leftSector = new BoxSector(this._locator, this._left, this._top, this._x, this._bottom);
             }
             this._leftSector.add(element);
@@ -968,6 +970,7 @@ class BoxSector {
         }
         if (element._bbox.top >= this._y) {
             if (!this._bottomSector) {
+                if (element._bbox.top-this._y<this._locator._minSize) return false;
                 this._bottomSector = new BoxSector(this._locator, this._left, this._y, this._right, this._bottom);
             }
             this._bottomSector.add(element);
@@ -975,6 +978,7 @@ class BoxSector {
         }
         if (element._bbox.bottom <= this._y) {
             if (!this._topSector) {
+                if (this.y-element._bbox.bottom<this._locator._minSize) return false;
                 this._topSector = new BoxSector(this._locator, this._left, this._top, this._right, this._y);
             }
             this._topSector.add(element);
@@ -1023,24 +1027,28 @@ class BoxSector {
 
     _removeFromSector(element) {
         if (element._bbox.left >= this._x) {
+            if (!this._rightSector) return false;
             if (!this._rightSector.remove(element)) {
                 delete this._rightSector;
             }
             return true;
         }
         if (element._bbox.right <= this._x) {
+            if (!this._leftSector) return false;
             if (!this._leftSector.remove(element)) {
                 delete this._leftSector;
             }
             return true;
         }
         if (element._bbox.top >= this._y) {
+            if (!this._bottomSector) return false;
             if (!this._bottomSector.remove(element)) {
                 delete this._bottomSector;
             }
             return true;
         }
         if (element._bbox.bottom <= this._y) {
+            if (!this._topSector) return false;
             if (!this._topSector.remove(element)) {
                 delete this._topSector;
             }
@@ -1093,6 +1101,7 @@ class BoxSector {
 }
 
 export class BoxLocator {
+
 
     constructor(threshold, minSize, geometryGetter) {
         this._threshold = threshold;

@@ -1122,7 +1122,7 @@ describe("Basic SVG Objects", ()=> {
         assert(selection).arrayEqualsTo([rect]);
     });
 
-    it ("Checks that an item is updated on layout when the matrix of a group it belongs too changes", ()=>{
+    it ("Checks that an item is updated on layout when the matrix of a group it belongs changes", ()=>{
         let rect = new Rect(10, 15, 30, 40);
         let group = new Group();
         svg.add(group.add(rect));
@@ -1135,7 +1135,7 @@ describe("Basic SVG Objects", ()=> {
         assert(selection).arrayEqualsTo([rect]);
     });
 
-    it ("Checks that an item is updated on layout when the matrix of a pack it belongs too changes", ()=>{
+    it ("Checks that an item is updated on layout when the matrix of a pack it belongs changes", ()=>{
         let rect = new Rect(10, 15, 30, 40);
         let pack = new Pack();
         svg.add(pack.add(rect));
@@ -1148,4 +1148,126 @@ describe("Basic SVG Objects", ()=> {
         assert(selection).arrayEqualsTo([rect]);
     });
 
+    it ("Checks that undo/redo layout is done rightly", ()=>{
+        let rect0 = new Rect(0, 0, 100, 100);
+        let rect1 = new Rect(10, 15, 30, 40);
+        let rect2 = new Rect(10, 15, 30, 40);
+        let rect3 = new Rect(10, 15, 30, 40);
+        svg.add(rect0).add(rect1).add(rect3);
+        let selection = svg.getElementsOn(35, 30);
+        assert(selection).arrayEqualsTo([rect0, rect1, rect3]);
+        selection = svg.getElementsOn(45, 30);
+        assert(selection).arrayEqualsTo([rect0]);
+        let memento = svg.memento();
+        svg.remove(rect1);
+        svg.add(rect2);
+        rect3.width = 40;
+        selection = svg.getElementsOn(35, 30);
+        assert(selection).arrayEqualsTo([rect0, rect2, rect3]);
+        selection = svg.getElementsOn(45, 30);
+        assert(selection).arrayEqualsTo([rect0, rect3]);
+        svg.revert(memento);
+        selection = svg.getElementsOn(35, 30);
+        assert(selection).arrayEqualsTo([rect0, rect1, rect3]);
+        selection = svg.getElementsOn(45, 30);
+        assert(selection).arrayEqualsTo([rect0]);
+    });
+
+    it ("Checks that undo/redo layout is done for elements inserted indirectly", ()=>{
+        let rect0 = new Rect(0, 0, 200, 200);
+        let rect = new Rect(10, 15, 30, 40);
+        let group = new Group();
+        svg.add(rect0).add(group.add(rect));
+        let selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([rect0, rect]);
+        selection = svg.getElementsOn(120, 30);
+        assert(selection).arrayEqualsTo([rect0]);
+        // Memento on group
+        let memento = group.memento();
+        group.matrix = Matrix2D.translate(100, 0);
+        selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([rect0]);
+        selection = svg.getElementsOn(120, 30);
+        assert(selection).arrayEqualsTo([rect0, rect]);
+        group.revert(memento);
+        selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([rect0, rect]);
+        selection = svg.getElementsOn(120, 30);
+        assert(selection).arrayEqualsTo([rect0]);
+        // Memento on svg
+        memento = svg.memento();
+        group.matrix = Matrix2D.translate(100, 0);
+        selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([rect0]);
+        selection = svg.getElementsOn(120, 30);
+        assert(selection).arrayEqualsTo([rect0, rect]);
+        svg.revert(memento);
+        selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([rect0, rect]);
+        selection = svg.getElementsOn(120, 30);
+        assert(selection).arrayEqualsTo([rect0]);
+    });
+
+    it ("Checks that undo/redo layout is done for elements inserted in a pack", ()=>{
+        let rect0 = new Rect(0, 0, 200, 200);
+        let rect = new Rect(10, 15, 30, 40);
+        let pack = new Pack();
+        svg.add(rect0).add(pack.add(rect));
+        let selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([rect0, rect]);
+        selection = svg.getElementsOn(120, 30);
+        assert(selection).arrayEqualsTo([rect0]);
+        // Memento on pack
+        let memento = pack.memento();
+        pack.matrix = Matrix2D.translate(100, 0);
+        selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([rect0]);
+        selection = svg.getElementsOn(120, 30);
+        assert(selection).arrayEqualsTo([rect0, rect]);
+        pack.revert(memento);
+        selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([rect0, rect]);
+        selection = svg.getElementsOn(120, 30);
+        assert(selection).arrayEqualsTo([rect0]);
+        // Memento on svg
+        memento = svg.memento();
+        pack.matrix = Matrix2D.translate(100, 0);
+        selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([rect0]);
+        selection = svg.getElementsOn(120, 30);
+        assert(selection).arrayEqualsTo([rect0, rect]);
+        svg.revert(memento);
+        selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([rect0, rect]);
+        selection = svg.getElementsOn(120, 30);
+        assert(selection).arrayEqualsTo([rect0]);
+    });
+
+    it ("Checks that cloning item works with layout", ()=>{
+        let rect0 = new Rect(0, 0, 200, 200);
+        let rect = new Rect(10, 15, 30, 40);
+        let group = new Group();
+        svg.add(rect0).add(group.add(rect));
+        let selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([rect0, rect]);
+        let copy = group.clone();
+        let rect1 = copy.child;
+        svg.add(copy);
+        selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([rect0, rect, rect1]);
+    });
+
+    it ("Checks that cloning packs works.", ()=>{
+        let rect0 = new Rect(0, 0, 200, 200);
+        let rect = new Rect(10, 15, 30, 40);
+        let pack = new Pack();
+        svg.add(rect0).add(pack.add(rect));
+        let selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([rect0, rect]);
+        let copy = pack.clone();
+        let rect1 = copy.child;
+        svg.add(copy);
+        selection = svg.getElementsOn(20, 30);
+        assert(selection).arrayEqualsTo([rect0, rect, rect1]);
+    });
 });

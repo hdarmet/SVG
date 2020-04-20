@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-    assert, defineGetProperty, defineMethod, proposeMethod
+    assert, defineGetProperty, defineMethod, proposeMethod, extendMethod
 } from "./misc.js";
 import {
     List, BoxLocator
@@ -1080,16 +1080,47 @@ export class DOMElement {
         }
 
         for (let name in values) {
+            // First case : a specific get/set property is defined for this kind of element. Here, the relevant set
+            // method must be invoked
             let desc = getPropertyDescriptor(this.__proto__, name);
             if (desc && desc.set) {
                 this[name] = values[name];
             }
             else {
+                // Second case : standard attribute update
                 let _name = name.replace("_", "-");
                 this.attr(_name, values[_name]);
             }
         }
         return this;
+    }
+
+    /**
+     * Resets all attributes which ARE NOT part of the excludes object. This method is invoked in the revert feature.
+     * @param excludes
+     * @private
+     */
+    _resetAttrs(excludes) {
+        function getPropertyDescriptor(proto, name) {
+            let desc = Object.getOwnPropertyDescriptor(proto, name);
+            return desc ? desc : proto.__proto__ ? getPropertyDescriptor(proto.__proto__, name) : null;
+        }
+
+        for (let name in this._attrs) {
+            if (excludes[name] === undefined) {
+                // First case : a specific get/set property is defined for this kind of element. Here, the relevant set
+                // method must be invoked
+                let desc = getPropertyDescriptor(this.__proto__, name);
+                if (desc && desc.set) {
+                    this[name] = null;
+                }
+                else {
+                    // Second case : standard attribute update
+                    let _name = name.replace("_", "-");
+                    this.attr(_name, null);
+                }
+            }
+        }
     }
 
     get inDOM() {
@@ -1336,6 +1367,7 @@ export class DOMElement {
     }
 
     revert(memento) {
+        this._resetAttrs(memento._attrs);
         this.attrs(memento._attrs);
         if (this._children) {
             for (let child of [...this._children]) {
@@ -1722,6 +1754,13 @@ function makeSection(superClass) {
         }
     );
 
+    extendMethod(superClass, $cloneContent=>
+        function _cloneContent(copy) {
+            copy._layout = new BoxLocator(10, 50, geometryGetter);
+            $cloneContent.call(this, copy);
+            return this;
+        }
+    );
 }
 
 export class Svg extends SVGElement {
@@ -1983,6 +2022,18 @@ export class SVGCoreElement extends SVGElement {
         }
     }
 
+    memento() {
+        let memento = super.memento();
+        memento._relativeMatrix = this.relativeMatrix;
+        return memento;
+    }
+
+    revert(memento) {
+        this._relativeMatrix = memento._relativeMatrix;
+        super.revert(memento);
+        this.geometryChanged();
+    }
+
     geometryChanged() {
         if (this.section) {
             this.section.unregisterForLayout(this);
@@ -2036,7 +2087,8 @@ export class SVGCoreElement extends SVGElement {
     _setMatrix(matrix) {
         this._matrix = matrix;
         if (this._parent && this._parent.childrenRelativeMatrix) {
-            this.relativeMatrix = this._parent.childrenRelativeMatrix.mult(matrix);
+            let parentMatrix = this._parent.childrenRelativeMatrix;
+            this.relativeMatrix = matrix ? parentMatrix.mult(matrix) : parentMatrix;
         }
         this.geometryChanged();
     }

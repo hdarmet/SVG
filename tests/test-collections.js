@@ -729,4 +729,36 @@ describe("AVL Tree implementation", ()=> {
         assert(boxLocator._sector._bottomSector).isNotDefined();
     });
 
+    it ("Puts a slim element (no width or no height)", ()=> {
+        let boxLocator = new BoxLocator(1, 10, element=>element);
+        let element1 = {left:-50, top:-50, right:50, bottom:50};
+        let element2 = {left:-40, top:-40, right:-40, bottom:40};
+        let element3 = {left:40, top:-40, right:-40, bottom:-40};
+        let element4 = {left:40, top:-40, right:40, bottom:40};
+        let element5 = {left:40, top:40, right:-40, bottom:40};
+        boxLocator.add(element1).add(element2).add(element3).add(element4).add(element5);
+        assert(boxLocator.size).equalsTo(5);
+        boxLocator.remove(element2);
+        assert(boxLocator.size).equalsTo(4);
+        boxLocator.remove(element3);
+        assert(boxLocator.size).equalsTo(3);
+        boxLocator.remove(element4);
+        assert(boxLocator.size).equalsTo(2);
+        boxLocator.remove(element5);
+        assert(boxLocator.size).equalsTo(1);
+    });
+
+    it ("Removes an element from a box locator and puts it in another locator WITHOUT updating the firmer one", ()=>{
+        let boxLocator1 = new BoxLocator(1, 10, element=>element);
+        let boxLocator2 = new BoxLocator(1, 10, element=>element);
+        let element1 = {left:-50, top:-50, right:50, bottom:50};
+        boxLocator1.add(element1);
+        assert(boxLocator1.size).equalsTo(1);
+        boxLocator1.remove(element1);
+        boxLocator2.add(element1);
+        assert(boxLocator2.size).equalsTo(1);   // box locator 1 is updated now !!
+        boxLocator2.remove(element1);
+        assert(boxLocator2.size).equalsTo(0);
+        assert(boxLocator1.size).equalsTo(0);
+    });
 });
