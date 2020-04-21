@@ -761,4 +761,5 @@ describe("AVL Tree implementation", ()=> {
         assert(boxLocator2.size).equalsTo(0);
         assert(boxLocator1.size).equalsTo(0);
     });
+
 });

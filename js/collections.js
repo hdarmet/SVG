@@ -924,9 +924,10 @@ export class SpatialLocator {
 
 class BoxSector {
 
-    constructor(locator, left, top, right, bottom) {
+    constructor(locator, parent, left, top, right, bottom) {
         assert(!isNaN(left+top+right+bottom));
         this._locator = locator;
+        this._parent = parent;
         this._left = left;
         this._top = top;
         this._right = right;
@@ -939,6 +940,7 @@ class BoxSector {
     _add(element) {
         if (!this._elements) this._elements = new List();
         this._elements.add(element);
+        element._bbox.sector = this;
     }
 
     _split() {
@@ -954,32 +956,32 @@ class BoxSector {
     _addInSector(element) {
         if (element._bbox.left >= this._x) {
             if (!this._rightSector) {
-                if (element._bbox.left-this._x<this._locator._minSize) return false;
-                this._rightSector = new BoxSector(this._locator, this._x, this._top, this._right, this._bottom);
+                if (this._right-this._x<this._locator._minSize) return false;
+                this._rightSector = new BoxSector(this._locator, this, this._x, this._top, this._right, this._bottom);
             }
             this._rightSector.add(element);
             return true;
         }
-        if (element._bbox.right <= this._x) {
+        if (element._bbox.right < this._x) {
             if (!this._leftSector) {
-                if (this.x-element._bbox.right<this._locator._minSize) return false;
-                this._leftSector = new BoxSector(this._locator, this._left, this._top, this._x, this._bottom);
+                if (this.x-this._left<this._locator._minSize) return false;
+                this._leftSector = new BoxSector(this._locator, this, this._left, this._top, this._x, this._bottom);
             }
             this._leftSector.add(element);
             return true;
         }
         if (element._bbox.top >= this._y) {
             if (!this._bottomSector) {
-                if (element._bbox.top-this._y<this._locator._minSize) return false;
-                this._bottomSector = new BoxSector(this._locator, this._left, this._y, this._right, this._bottom);
+                if (this._bottom-this._y<this._locator._minSize) return false;
+                this._bottomSector = new BoxSector(this._locator, this, this._left, this._y, this._right, this._bottom);
             }
             this._bottomSector.add(element);
             return true;
         }
-        if (element._bbox.bottom <= this._y) {
+        if (element._bbox.bottom < this._y) {
             if (!this._topSector) {
-                if (this.y-element._bbox.bottom<this._locator._minSize) return false;
-                this._topSector = new BoxSector(this._locator, this._left, this._top, this._right, this._y);
+                if (this.y-this._top<this._locator._minSize) return false;
+                this._topSector = new BoxSector(this._locator, this, this._left, this._top, this._right, this._y);
             }
             this._topSector.add(element);
             return true;
@@ -1000,27 +1002,40 @@ class BoxSector {
         }
     }
 
+    get _shrinked() {
+        return !this._leftSector && !this._topSector && !this._rightSector && !this._bottomSector;
+    }
+
     _shrink() {
         if (!this._elements) this._elements = new List();
         if (this._leftSector) {
+            // assert(this._leftSector._shrinked);
+            delete this._leftSector._parent;
             this._elements.add(...this._leftSector.elements);
             delete this._leftSector;
         }
         if (this._rightSector) {
+            // assert(this._rightSector._shrinked);
+            delete this._rightSector._parent;
             this._elements.add(...this._rightSector.elements);
             delete this._rightSector;
         }
         if (this._topSector) {
+            // assert(this._topSector._shrinked);
+            delete this._topSector._parent;
             this._elements.add(...this._topSector.elements);
             delete this._topSector;
         }
         if (this._bottomSector) {
+            // assert(this._bottomSector._shrinked);
+            delete this._bottomSector._parent;
             this._elements.add(...this._bottomSector.elements);
             delete this._bottomSector;
         }
     }
 
     _remove(element) {
+        assert(this._elements.contains(element));
         this._elements.delete(element);
         if (!this._elements.length) delete this._elements;
     }
@@ -1029,6 +1044,7 @@ class BoxSector {
         if (element._bbox.left >= this._x) {
             if (!this._rightSector) return false;
             if (!this._rightSector.remove(element)) {
+                delete this._rightSector._parent;
                 delete this._rightSector;
             }
             return true;
@@ -1036,6 +1052,7 @@ class BoxSector {
         if (element._bbox.right <= this._x) {
             if (!this._leftSector) return false;
             if (!this._leftSector.remove(element)) {
+                delete this._leftSector._parent;
                 delete this._leftSector;
             }
             return true;
@@ -1043,6 +1060,7 @@ class BoxSector {
         if (element._bbox.top >= this._y) {
             if (!this._bottomSector) return false;
             if (!this._bottomSector.remove(element)) {
+                delete this._bottomSector._parent;
                 delete this._bottomSector;
             }
             return true;
@@ -1050,6 +1068,7 @@ class BoxSector {
         if (element._bbox.bottom <= this._y) {
             if (!this._topSector) return false;
             if (!this._topSector.remove(element)) {
+                delete this._topSector._parent;
                 delete this._topSector;
             }
             return true;
@@ -1098,10 +1117,30 @@ class BoxSector {
         if (this._bottomSector && y>=this._y) this._bottomSector.collect(elements, x, y);
     }
 
+    _inside(element) {
+        return element._bbox.left >=this._left && element._bbox.right <=this._left &&
+               element._bbox.top >=this._top && element._bbox.bottom <=this._bottom;
+    }
+
+    _check() {
+        if (this._elements) {
+            for (let element of this._elements) {
+                this._leftSector && assert(!this._leftSector._inside(element));
+                this._rightSector && assert(!this._rightSector._inside(element));
+                this._topSector && assert(!this._topSector._inside(element));
+                this._bottomSector && assert(!this._bottomSector._inside(element));
+                assert(!this._inside(element));
+            }
+        }
+        this._leftSector && this._leftSector._check();
+        this._rightSector && this._rightSector._check();
+        this._topSector && this._topSector._check();
+        this._bottomSector && this._bottomSector._check();
+    }
+
 }
 
 export class BoxLocator {
-
 
     constructor(threshold, minSize, geometryGetter) {
         this._threshold = threshold;
@@ -1169,19 +1208,28 @@ export class BoxLocator {
         return renew;
     }
 
+    _check() {
+        this._sector && this._sector._check();
+    }
+
     _update() {
+        // this._check();
         if (this._addedElements || this._removedElements) {
             let refresh = false;
             if (this._removedElements) {
                 for (let element of this._removedElements) {
+                    assert(this._elements.has(element));
                     if (this._reduceSize(element._bbox)) delete this._sector;
                     this._elements.delete(element);
                 }
             }
             if (this._addedElements) {
                 for (let element of this._addedElements) {
+                    assert(!this._elements || !this._elements.has(element));
                     if (element._bbox) {
+                        assert(element._bbox.locator!==this);
                         element._bbox.locator._update();
+                        assert(!element._bbox);
                     }
                     element._bbox = {locator: this, ...this._geometryGetter(element)};
                     if (this._extendSize(element._bbox)) delete this._sector;
@@ -1210,7 +1258,7 @@ export class BoxLocator {
                     for (let element of this._elements) {
                         this._extendSize(element._bbox);
                     }
-                    this._sector = new BoxSector(this, this._left, this._top, this._right, this._bottom);
+                    this._sector = new BoxSector(this, null, this._left, this._top, this._right, this._bottom);
                     for (let element of this._elements) {
                         let bbox = element._bbox;
                         this._sector.add(element, bbox.left, bbox.top, bbox.right, bbox.bottom);
@@ -1226,6 +1274,7 @@ export class BoxLocator {
             delete this._addedElements;
             if (!this._elements.size) delete this._elements;
         }
+        // this._check();
     }
 
     find(x, y) {

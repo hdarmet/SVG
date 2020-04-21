@@ -2495,7 +2495,12 @@ export class Rect extends Shape {
     }
 
     get bbox() {
-        return {x:this.x, y:this.y, width:this.width, height:this.height};
+        return {
+            x:this.x,
+            y:this.y,
+            width:this.width,
+            height:this.height
+        };
     }
 }
 defineStandardGeometryProperties(Rect);
@@ -2511,7 +2516,12 @@ export class Circle extends Shape {
     }
 
     get bbox() {
-        return {x:this.cx-this.r, y:this.cy-this.r, width:this.r*2, height:this.r*2};
+        return {
+            x:this.cx-this.r,
+            y:this.cy-this.r,
+            width:this.r*2,
+            height:this.r*2
+        };
     }
 
 }
@@ -2529,7 +2539,12 @@ export class Ellipse extends Shape {
     }
 
     get bbox() {
-        return {x:this.cx-this.rx, y:this.cy-this.ry, width:this.rx*2, height:this.ry*2};
+        return {
+            x:this.cx-this.rx,
+            y:this.cy-this.ry,
+            width:this.rx*2,
+            height:this.ry*2
+        };
     }
 }
 defineGeometryProperty(Ellipse, Attrs.CX);
@@ -2547,7 +2562,12 @@ export class Line extends Shape {
     }
 
     get bbox() {
-        return {x:Math.min(this.x1, this.x2), y:Math.min(this.y1, this.y2), width:Math.abs(this.x2-this.x1), height:Math.abs(this.y2-this.y1)};
+        return {
+            x:Math.min(this.x1, this.x2),
+            y:Math.min(this.y1, this.y2),
+            width:Math.abs(this.x2-this.x1),
+            height:Math.abs(this.y2-this.y1)
+        };
     }
 
 }
@@ -2589,7 +2609,12 @@ export class Polyshape extends Shape {
     }
 
     get bbox() {
-        return {x:this._left, y:this._top, width:this._right-this._left, height:this._bottom-this._top};
+        return {
+            x:this._left,
+            y:this._top,
+            width:this._right-this._left,
+            height:this._bottom-this._top
+        };
     }
 
 }
